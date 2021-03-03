@@ -32,4 +32,7 @@ pub enum Error {
 
     #[error("Error during reconciliation: {0}")]
     ReconcileError(String),
+
+    #[error("Illegal NodeType specified: {0}")]
+    NodeTypeParseError(String),
 }

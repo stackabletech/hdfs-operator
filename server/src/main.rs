@@ -3,7 +3,7 @@ use stackable_operator::{client, error};
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
-    stackable_operator::initialize_logging("HDFS_OPERATOR_LOG");
+    stackable_operator::logging::initialize_logging("HDFS_OPERATOR_LOG");
 
     let client = client::create_client(Some("hdfs.stackable.tech".to_string())).await?;
 

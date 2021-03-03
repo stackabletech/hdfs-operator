@@ -1,0 +1,44 @@
+----
+apiVersion: hdfs.stackable.tech/v1
+kind: HdfsCluster
+metadata:
+  name: hdfs-cluster
+spec:
+  namenode:
+    selectors:
+      default:
+        selector:
+          matchLabels:
+            component: spark
+          matchExpressions:
+            - { key: tier, operator: In, values: [ cache ] }
+            - { key: environment, operator: NotIn, values: [ dev ] }
+        config:
+        instances: 3
+        instancesPerNode: 1
+      20core:
+        selector:
+          matchLabels:
+            component: spark
+            cores: 20
+          matchExpressions:
+            - { key: tier, operator: In, values: [ cache ] }
+            - { key: environment, operator: NotIn, values: [ dev ] }
+          config:
+          instances: 3
+          instancesPerNode: 2
+    config:
+  datanode:
+    selectors:
+      default:
+        selector:
+          matchLabels:
+            component: spark
+          matchExpressions:
+            - { key: tier, operator: In, values: [ cache ] }
+            - { key: environment, operator: NotIn, values: [ dev ] }
+        config:
+        instances: 3
+        instancesPerNode: 1
+    config:
+  version: 3.2.2

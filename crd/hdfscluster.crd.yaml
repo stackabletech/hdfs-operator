@@ -1,38 +1,151 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: hdfsclusters.hadoop.stackable.tech
+  name: hdfsclusters.hdfs.stackable.tech
 spec:
-  group: hadoop.stackable.tech
+  group: hdfs.stackable.tech
   names:
     kind: HdfsCluster
-    plural: hdfslusters
-    singular: hdfscluster
+    plural: hdfsclusters
     shortNames:
-      - zk
+      - hdfs
+    singular: hdfscluster
   scope: Namespaced
   versions:
-    - name: v1
-      served: true
-      storage: true
+    - additionalPrinterColumns: []
+      name: v1
       schema:
         openAPIV3Schema:
-          type: object
+          description: "Auto-generated derived type for HdfsClusterSpec via `CustomResource`"
           properties:
             spec:
-              type: object
               properties:
+                datanode:
+                  properties:
+                    config:
+                      type: object
+                    selectors:
+                      additionalProperties:
+                        properties:
+                          config:
+                            type: object
+                          instances:
+                            format: uint8
+                            minimum: 0.0
+                            type: integer
+                          instancesPerNode:
+                            format: uint8
+                            minimum: 0.0
+                            type: integer
+                          selector:
+                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                items:
+                                  description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values."
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector applies to.
+                                      type: string
+                                    operator:
+                                      description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist."
+                                      type: string
+                                    values:
+                                      description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch."
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed."
+                                type: object
+                            type: object
+                        required:
+                          - config
+                          - instances
+                          - instancesPerNode
+                          - selector
+                        type: object
+                      type: object
+                  required:
+                    - config
+                    - selectors
+                  type: object
+                namenode:
+                  properties:
+                    config:
+                      type: object
+                    selectors:
+                      additionalProperties:
+                        properties:
+                          config:
+                            type: object
+                          instances:
+                            format: uint8
+                            minimum: 0.0
+                            type: integer
+                          instancesPerNode:
+                            format: uint8
+                            minimum: 0.0
+                            type: integer
+                          selector:
+                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                items:
+                                  description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values."
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector applies to.
+                                      type: string
+                                    operator:
+                                      description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist."
+                                      type: string
+                                    values:
+                                      description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch."
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed."
+                                type: object
+                            type: object
+                        required:
+                          - config
+                          - instances
+                          - instancesPerNode
+                          - selector
+                        type: object
+                      type: object
+                  required:
+                    - config
+                    - selectors
+                  type: object
                 version:
+                  enum:
+                    - 3.2.2
                   type: string
-                  enum: [ 3.2.2 ]
-                servers:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      node_name:
-                        type: string
-              required: [ "version", "servers" ]
+              required:
+                - datanode
+                - namenode
+                - version
+              type: object
             status:
               nullable: true
               properties:
@@ -79,15 +192,19 @@ spec:
                 currentVersion:
                   enum:
                     - 3.2.2
-                    - 3.2.2
                   nullable: true
                   type: string
                 targetVersion:
                   enum:
                     - 3.2.2
-                    - 3.2.2
                   nullable: true
                   type: string
               type: object
+          required:
+            - spec
+          title: HdfsCluster
+          type: object
+      served: true
+      storage: true
       subresources:
-        status: { }
+        status: {}

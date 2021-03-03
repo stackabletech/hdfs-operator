@@ -1,0 +1,47 @@
+apiVersion: hdfs.stackable.tech/v1
+kind: HdfsCluster
+metadata:
+  name: hdfs-cluster
+spec:
+  namenode:
+    selectors:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/hostname: lars-laptop
+        config:
+          cores: 1
+          memory: "1g"
+        instances: 3
+        instancesPerNode: 1
+      20core:
+        selector:
+          matchLabels:
+            component: spark
+            cores: "20"
+          matchExpressions:
+            - { key: tier, operator: In, values: [ cache ] }
+            - { key: environment, operator: NotIn, values: [ dev ] }
+        config:
+          cores: 10
+          memory: "1g"
+        instances: 3
+        instancesPerNode: 2
+    config:
+      cores: 10
+      memory: "1g"
+  datanode:
+    selectors:
+      default:
+        selector:
+          matchLabels:
+            datacenter: north
+        config:
+          cores: 1
+          memory: "1g"
+        instances: 3
+        instancesPerNode: 1
+    config:
+      cores: 1
+      memory: "1g"
+  version: 3.2.2

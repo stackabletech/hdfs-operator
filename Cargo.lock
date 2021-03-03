@@ -1387,6 +1387,7 @@ dependencies = [
  "semver 0.11.0",
  "serde",
  "serde_json",
+ "serde_yaml",
  "stackable-operator",
  "strum",
  "strum_macros",
@@ -1403,10 +1404,13 @@ dependencies = [
  "kube",
  "kube-runtime",
  "rstest",
+ "schemars",
  "serde",
  "serde_json",
  "stackable-hdfs-crd",
  "stackable-operator",
+ "strum",
+ "strum_macros",
  "thiserror",
  "tracing",
 ]
@@ -1426,7 +1430,6 @@ dependencies = [
 [[package]]
 name = "stackable-operator"
 version = "0.1.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#eb64e7411277b1dd22ed6d6dd3b57b0421c91281"
 dependencies = [
  "async-trait",
  "chrono",
