@@ -20,4 +20,4 @@ thiserror = "1"
 tracing = "0.1"
 
 [dev-dependencies]
-rstest = "0.6"
+rstest = "0.7"
