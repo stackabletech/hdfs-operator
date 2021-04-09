@@ -574,6 +574,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
 
 [[package]]
+name = "json-patch"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f995a3c8f2bc3dd52a18a583e90f9ec109c047fa1603a853e46bcda14d2e279d"
+dependencies = [
+ "serde",
+ "serde_json",
+ "treediff",
+]
+
+[[package]]
 name = "jsonpath_lib"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -616,7 +627,40 @@ dependencies = [
  "http",
  "hyper",
  "hyper-timeout",
+ "jsonpath_lib",
+ "k8s-openapi",
+ "log",
+ "pem",
+ "pin-project 1.0.5",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "static_assertions",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "url",
+]
+
+[[package]]
+name = "kube"
+version = "0.51.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d47a55e9f881dc5027dcaf026670fa24b41f67926ab6517e2155488fe9c012a"
+dependencies = [
+ "Inflector",
+ "base64",
+ "bytes",
+ "chrono",
+ "dirs-next",
+ "either",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-timeout",
  "hyper-tls",
+ "json-patch",
  "jsonpath_lib",
  "k8s-openapi",
  "log",
@@ -658,7 +702,26 @@ dependencies = [
  "derivative",
  "futures",
  "k8s-openapi",
- "kube",
+ "kube 0.49.0",
+ "pin-project 1.0.5",
+ "serde",
+ "smallvec",
+ "snafu",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "kube-runtime"
+version = "0.51.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69d85c47fe6b8d7c4c3b634614d498a841028fc1ccca4c748e1801266848127b"
+dependencies = [
+ "dashmap",
+ "derivative",
+ "futures",
+ "k8s-openapi",
+ "kube 0.51.0",
  "pin-project 1.0.5",
  "serde",
  "smallvec",
@@ -1380,9 +1443,9 @@ name = "stackable-hdfs-crd"
 version = "0.1.0"
 dependencies = [
  "k8s-openapi",
- "kube",
+ "kube 0.49.0",
  "kube-derive",
- "kube-runtime",
+ "kube-runtime 0.49.0",
  "schemars",
  "semver 0.11.0",
  "serde",
@@ -1400,8 +1463,8 @@ dependencies = [
  "futures",
  "handlebars",
  "k8s-openapi",
- "kube",
- "kube-runtime",
+ "kube 0.49.0",
+ "kube-runtime 0.49.0",
  "rstest",
  "serde",
  "serde_json",
@@ -1426,16 +1489,17 @@ dependencies = [
 [[package]]
 name = "stackable-operator"
 version = "0.1.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#eb64e7411277b1dd22ed6d6dd3b57b0421c91281"
+source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#533a7db9d8a2c89781bc82cdd5a10704986f0304"
 dependencies = [
  "async-trait",
  "chrono",
  "const_format",
  "either",
  "futures",
+ "json-patch",
  "k8s-openapi",
- "kube",
- "kube-runtime",
+ "kube 0.51.0",
+ "kube-runtime 0.51.0",
  "lazy_static",
  "regex",
  "schemars",
@@ -1738,6 +1802,15 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "treediff"
+version = "3.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "761e8d5ad7ce14bb82b7e61ccc0ca961005a275a060b9644a2431aa11553c2ff"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
