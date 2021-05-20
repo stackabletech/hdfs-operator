@@ -4,7 +4,7 @@ description = "Stackable Operator for Apache Hadoop HDFS - The Custom Resource D
 edition = "2018"
 license = "OSL-3.0"
 name = "stackable-hdfs-crd"
-version = "0.1.0"
+version = "0.1.0-nightly"
 
 [dependencies]
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch = "main" }

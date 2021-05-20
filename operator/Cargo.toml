@@ -4,7 +4,7 @@ description = "Stackable Operator for Apache Hadoop HDFS - The Operator library"
 edition = "2018"
 license = "OSL-3.0"
 name = "stackable-hdfs-operator"
-version = "0.1.0"
+version = "0.1.0-nightly"
 
 [dependencies]
 stackable-hdfs-crd = { path = "../crd" }
