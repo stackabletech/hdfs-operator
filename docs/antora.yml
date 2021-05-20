@@ -1,0 +1,5 @@
+name: hdfs
+version: master
+title: Stackable Operator for Apache Hadoop HDFS
+nav:
+  - modules/ROOT/nav.adoc
