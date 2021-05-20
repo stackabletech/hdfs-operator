@@ -24,7 +24,7 @@ pub struct HdfsClusterSpec {
 
 impl Crd for HdfsCluster {
     const RESOURCE_NAME: &'static str = "hdfsclusters.Hdfs.stackable.tech";
-    const CRD_DEFINITION: &'static str = include_str!("../hdfscluster.crd.yaml");
+    const CRD_DEFINITION: &'static str = include_str!("../../deploy/crd/hdfscluster.crd.yaml");
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
