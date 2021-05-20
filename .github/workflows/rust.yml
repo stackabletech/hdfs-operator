@@ -30,7 +30,7 @@ jobs:
           command: clean
 
   fmt:
-    name: Run Rustfmt
+    name: Run rustfmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2.3.4
@@ -45,8 +45,8 @@ jobs:
           command: fmt
           args: --all -- --check
 
-  clippy_check:
-    name: Run clippy check
+  clippy:
+    name: Run clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2.3.4
@@ -56,9 +56,22 @@ jobs:
             toolchain: nightly
             components: clippy
             override: true
-      - uses: actions-rs/clippy-check@v1.0.7
+      # We need this due to: https://github.com/actions-rs/clippy-check/issues/2
+      - name: Check workflow permissions
+        id: check_permissions
+        uses: scherermichael-oss/action-has-permission@1.0.6
+        with:
+          required-permission: write
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run clippy action to produce annotations
+        uses: actions-rs/clippy-check@v1
+        if: steps.check_permissions.outputs.has-permission
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run clippy manually without annotations
+        if: ${{ !steps.check_permissions.outputs.has-permission }}
+        run: cargo clippy
 
   security_audit:
     name: Run security audit
