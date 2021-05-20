@@ -2,7 +2,7 @@
 authors = ["Lars Francke <lars.francke@stackable.de>"]
 description = "Stackable Operator for Apache Hadoop HDFS - The Custom Resource Definition"
 edition = "2018"
-license = "Apache-2.0"
+license = "OSL-3.0"
 name = "stackable-hdfs-crd"
 version = "0.1.0"
 
