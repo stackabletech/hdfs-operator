@@ -1,8 +1,10 @@
 [package]
+authors = ["Lars Francke <lars.francke@stackable.de>"]
+description = "Stackable Operator for Apache Hadoop HDFS - The Operator library"
+edition = "2018"
+license = "Apache-2.0"
 name = "stackable-hdfs-operator"
 version = "0.1.0"
-authors = ["Lars Francke <lars.francke@stackable.de>"]
-edition = "2018"
 
 [dependencies]
 stackable-hdfs-crd = { path = "../crd" }
