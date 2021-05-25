@@ -3,14 +3,27 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    labels:
+      - "type/dependencies"
+    reviewers:
+      - "stackabletech/developers"
 
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    labels:
+      - "type/dependencies"
+    reviewers:
+      - "stackabletech/rust-developers"
     ignore:
       # We never want to be notified about a kube-rs update
       # It often contains breaking changes so can't be updated manually anyway
       # and it needs to be updated together with kube-runtime, kube-derive etc.
       - dependency-name: "kube*"
+      - dependency-name: "k8s-openapi"
+      # At the moment we don't want to be notified for stackable updates
+      # Every commit to the stackable-operator triggers this and adds a lot
+      # of noise
+      - dependency-name: "stackable-*"

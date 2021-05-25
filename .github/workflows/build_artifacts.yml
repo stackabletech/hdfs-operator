@@ -1,4 +1,4 @@
-name: Publish Artifacts
+name: Publish-Artifacts
 
 on:
   push:
@@ -9,9 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   REPO_APT_DEV_URL: https://repo.stackable.tech/repository/deb-dev
-  REPO_APT_NIGHTLY_URL: https://repo.stackable.tech/repository/deb-nightly
   REPO_RPM_DEV_URL: https://repo.stackable.tech/repository/rpm-dev
-  REPO_RPM_NIGHTLY_URL: https://repo.stackable.tech/repository/rpm-nightly
 
 jobs:
   debian10:
@@ -20,22 +18,23 @@ jobs:
       - uses: actions/checkout@v2
       - name: Change version if is PR
         if: ${{ github.event_name == 'pull_request' }}
-        run: sed -i -e 's/^version = "\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/version = "\1-pr${{ github.event.number }}"/' server/Cargo.toml
+        # We use "mr" instead of "pr" to denote pull request builds, as this prefix comes before "nightly" when lexically
+        # sorting packages by version. This means that when installing the package without specifying a version the
+        # nighly version is considered more current than mr versions and installed by default
+        run: sed -i -e 's/^version = "\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/version = "\1-mr${{ github.event.number }}"/' server/Cargo.toml
       - name: Build
         run: ~/.cargo/bin/cargo +nightly build --verbose --release
       - name: Build apt package
         run: ~/.cargo/bin/cargo deb --manifest-path server/Cargo.toml --no-build
-      - name: Publish nightly apt package
-        if:  ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'  }}
-        run: >-
-          /usr/bin/curl
-          --fail
-          -u 'github:${{ secrets.NEXUS_PASSWORD }}'
-          -H "Content-Type: multipart/form-data"
-          --data-binary "@./$(find target/debian/ -name *.deb)"
-          "${{ env.REPO_APT_NIGHTLY_URL }}/"
-      - name: Publish dev apt package
-        if: ${{ github.event_name == 'pull_request' }}
+      - name: Check workflow permissions
+        id: check_permissions
+        uses: scherermichael-oss/action-has-permission@1.0.6
+        with:
+          required-permission: write
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish apt package
+        if: steps.check_permissions.outputs.has-permission
         run: >-
           /usr/bin/curl
           --fail
@@ -55,21 +54,23 @@ jobs:
       - uses: actions/checkout@v2
       - name: Change version if is PR
         if: ${{ github.event_name == 'pull_request' }}
+        # We use "mr" instead of "pr" to denote pull request builds, as this prefix comes before "nightly" when lexically
+        # sorting packages by version. This means that when installing the package without specifying a version the
+        # nighly version is considered more current than mr versions and installed by default
         run: sed -i -e 's/^version = "\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/version = "\1-pr${{ github.event.number }}"/' server/Cargo.toml
       - name: Build
         run: ~/.cargo/bin/cargo +nightly build --verbose --release
       - name: Build RPM package
         run: server/packaging/buildrpm.sh stackable-hdfs-operator-server
-      - name: Publish nightly RPM package
-        if:  ${{ github.event_name == 'push' && github.ref == 'refs/heads/main'  }}
-        run: >-
-          /usr/bin/curl
-          --fail
-          -u 'github:${{ secrets.NEXUS_PASSWORD }}'
-          --upload-file "./$(find  target/rpm/RPMS/x86_64/ -name *.rpm)"
-          "${{ env.REPO_RPM_NIGHTLY_URL }}/el${{ matrix.node }}/"
-      - name: Publish dev RPM package
-        if: ${{ github.event_name == 'pull_request' }}
+      - name: Check workflow permissions
+        id: check_permissions
+        uses: scherermichael-oss/action-has-permission@1.0.6
+        with:
+          required-permission: write
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish RPM package
+        if: steps.check_permissions.outputs.has-permission
         run: >-
           /usr/bin/curl
           --fail
