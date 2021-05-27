@@ -10,7 +10,7 @@ version = "0.1.0-nightly"
 stackable-hdfs-operator = { path = "../operator" }
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch = "main" }
 
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.6", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [package.metadata.deb]
