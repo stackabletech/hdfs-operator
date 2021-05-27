@@ -1,4 +1,3 @@
-use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::{client, error};
 
 #[tokio::main]
