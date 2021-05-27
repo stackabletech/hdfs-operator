@@ -1,4 +1,5 @@
 use stackable_operator::{client, error};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {

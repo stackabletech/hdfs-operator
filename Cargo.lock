@@ -1419,12 +1419,10 @@ dependencies = [
 name = "stackable-hdfs-operator-server"
 version = "0.1.0-nightly"
 dependencies = [
- "k8s-openapi",
- "serde_yaml",
- "stackable-hdfs-crd",
  "stackable-hdfs-operator",
  "stackable-operator",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
