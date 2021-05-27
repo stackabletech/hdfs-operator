@@ -1,4 +1,3 @@
-#![feature(backtrace)]
 mod error;
 
 use crate::error::Error;

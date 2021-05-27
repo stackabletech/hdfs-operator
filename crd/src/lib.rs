@@ -4,7 +4,6 @@ use schemars::JsonSchema;
 use semver::{SemVerError, Version};
 use serde::{Deserialize, Serialize};
 use stackable_operator::Crd;
-use strum_macros;
 
 // TODO: We need to validate the name of the cluster because it is used in pod and configmap names, it can't bee too long
 // This probably also means we shouldn't use the node_names in the pod_name...
@@ -24,7 +23,7 @@ pub struct HdfsClusterSpec {
 
 impl Crd for HdfsCluster {
     const RESOURCE_NAME: &'static str = "hdfsclusters.Hdfs.stackable.tech";
-    const CRD_DEFINITION: &'static str = include_str!("../hdfscluster.crd.yaml");
+    const CRD_DEFINITION: &'static str = include_str!("../../deploy/crd/hdfscluster.crd.yaml");
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -73,13 +72,12 @@ pub struct HdfsClusterStatus {
 
 impl HdfsClusterStatus {
     pub fn target_image_name(&self) -> Option<String> {
-        match &self.target_version {
-            None => None,
-            Some(version) => Some(format!(
+        self.target_version.as_ref().map(|version| {
+            format!(
                 "stackable/apache-hadoop:{}",
                 serde_json::json!(version).as_str().unwrap()
-            )),
-        }
+            )
+        })
     }
 }
 

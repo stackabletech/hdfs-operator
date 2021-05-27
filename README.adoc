@@ -1,14 +1,7 @@
-= Stackable HDFS Operator
+= Stackable Operator for Apache Hadoop HDFS
 
-This is an operator for Kubernetes that can manage https://hadoop.apache.org/[Apache Hadoop HDFS] cluster.
+This is a Kubernetes Operator to manage Apache Hadoop HDFS clusters.
 
-WARNING: This operator does _not_ work with containers/container images. It relies on the https://github.com/stackabletech/agent/[Stackable Agent] to run on "bare metal" via systemd
+It is written by https://www.stackable.de[Stackable] in Rust, and it is supposed to be used with the https://github.com/stackabletech/agent[Stackable Agent] instead of the Kubernetes kubelet.
 
-== Building
-
-This operator is written in Rust.
-It is developed against the latest Rust release (1.51.0-nightly at the time of writing this).
-
-NOTE: This requires Rust nightly due to the use of the `backtrace` feature.
-
-    cargo build
+The docs can be found in the `docs` subdirectory, and they are published together with docs for all other Stackable products at https://docs.stackable.tech.
