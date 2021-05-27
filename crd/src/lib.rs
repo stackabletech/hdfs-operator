@@ -72,13 +72,12 @@ pub struct HdfsClusterStatus {
 
 impl HdfsClusterStatus {
     pub fn target_image_name(&self) -> Option<String> {
-        match &self.target_version {
-            None => None,
-            Some(version) => Some(format!(
+        self.target_version.as_ref().map(|version| {
+            format!(
                 "stackable/apache-hadoop:{}",
                 serde_json::json!(version).as_str().unwrap()
-            )),
-        }
+            )
+        })
     }
 }
 
