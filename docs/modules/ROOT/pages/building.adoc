@@ -2,6 +2,6 @@
 
 This operator is written in Rust.
 
-It is developed against the latest Rust release, and we currently don't support any older versions.
+It is developed against the latest stable Rust release, and we currently don't support any older versions.
 
     cargo build

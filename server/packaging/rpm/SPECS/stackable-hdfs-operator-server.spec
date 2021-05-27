@@ -12,7 +12,7 @@ Name: %{_name}
 Summary: %{_description}
 Version: %{_version}
 Release: %{_release}%{?dist}
-License: ASL 2.0
+License: OSL 3.0
 Group: Applications/System
 Source0: %{name}-%{version}.tar.gz
 

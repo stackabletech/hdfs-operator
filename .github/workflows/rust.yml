@@ -11,7 +11,7 @@ env:
 
 jobs:
 
-  build:
+  test:
     name: Run tests
     runs-on: ubuntu-latest
     steps:
@@ -19,7 +19,7 @@ jobs:
       - uses: actions-rs/toolchain@v1.0.7
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: stable
           override: true
       - uses: Swatinem/rust-cache@v1.2.0
       - uses: actions-rs/cargo@v1.0.3
@@ -29,7 +29,7 @@ jobs:
         with:
           command: clean
 
-  fmt:
+  rustfmt:
     name: Run rustfmt
     runs-on: ubuntu-latest
     steps:
@@ -37,7 +37,7 @@ jobs:
       - uses: actions-rs/toolchain@v1.0.7
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: stable
           components: rustfmt
           override: true
       - uses: actions-rs/cargo@v1.0.3
@@ -53,7 +53,7 @@ jobs:
       - uses: actions-rs/toolchain@v1.0.7
         with:
             profile: minimal
-            toolchain: nightly
+            toolchain: stable
             components: clippy
             override: true
       # We need this due to: https://github.com/actions-rs/clippy-check/issues/2
