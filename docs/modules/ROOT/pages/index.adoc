@@ -1,0 +1,5 @@
+= Stackable Operator for Apache HDFS
+
+This is an operator for Kubernetes that can manage https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] clusters.
+
+WARNING: This operator does _not_ work with containers/container images. It relies on the https://github.com/stackabletech/agent/[Stackable Agent] to run on "bare metal" via systemd.
