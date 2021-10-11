@@ -22,12 +22,24 @@ async fn main() -> Result<(), error::Error> {
         .subcommand(
             SubCommand::with_name("crd")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .subcommand(cli::generate_crd_subcommand::<HdfsCluster>()),
+                .subcommand(cli::generate_crd_subcommand::<HdfsCluster>())
+                .subcommand(cli::generate_crd_subcommand::<Start>())
+                .subcommand(cli::generate_crd_subcommand::<Stop>())
+                .subcommand(cli::generate_crd_subcommand::<Restart>()),
         )
         .get_matches();
 
     if let ("crd", Some(subcommand)) = matches.subcommand() {
         if cli::handle_crd_subcommand::<HdfsCluster>(subcommand)? {
+            return Ok(());
+        };
+        if cli::handle_crd_subcommand::<Start>(subcommand)? {
+            return Ok(());
+        };
+        if cli::handle_crd_subcommand::<Stop>(subcommand)? {
+            return Ok(());
+        };
+        if cli::handle_crd_subcommand::<Restart>(subcommand)? {
             return Ok(());
         };
     }
