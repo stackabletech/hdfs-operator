@@ -459,7 +459,9 @@ impl Versioning for HdfsVersion {
             //Ordering::Greater => VersioningState::ValidUpgrade,
             //Ordering::Less => VersioningState::ValidDowngrade,
             Ordering::Equal => VersioningState::NoOp,
-            _ => VersioningState::Invalid,
+            _ => VersioningState::Invalid(
+                "Upgrading or Downgrading HDFS is not supported at this time!".to_string(),
+            ),
         }
     }
 }
