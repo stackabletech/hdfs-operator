@@ -167,6 +167,7 @@ impl HdfsRole {
                         format!("{}/bin/hdfs", version.package_name()),
                         "--config".to_string(),
                         format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
+                        "namenode".to_string(),
                     ]
                 }
             }
