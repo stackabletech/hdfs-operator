@@ -456,9 +456,10 @@ impl Versioning for HdfsVersion {
         };
 
         match to_version.cmp(&from_version) {
-            Ordering::Greater => VersioningState::ValidUpgrade,
-            Ordering::Less => VersioningState::ValidDowngrade,
+            //Ordering::Greater => VersioningState::ValidUpgrade,
+            //Ordering::Less => VersioningState::ValidDowngrade,
             Ordering::Equal => VersioningState::NoOp,
+            _ => VersioningState::Invalid,
         }
     }
 }
