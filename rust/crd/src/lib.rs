@@ -153,7 +153,7 @@ impl HdfsRole {
                 format!("{}/bin/hdfs", version.package_name()),
                 "--config".to_string(),
                 format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
-                self.to_string(),
+                "datanode".to_string(),
             ],
             HdfsRole::NameNode => {
                 if auto_format_fs {
