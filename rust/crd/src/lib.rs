@@ -522,13 +522,18 @@ mod tests {
 
     #[test]
     fn test_hdfs_version_versioning() {
+        // TODO: adapt if versioning is working
         assert_eq!(
             HdfsVersion::v3_2_2.versioning_state(&HdfsVersion::v3_3_1),
-            VersioningState::ValidUpgrade
+            VersioningState::Invalid(
+                "Upgrading or Downgrading HDFS is not supported at this time!".to_string()
+            )
         );
         assert_eq!(
             HdfsVersion::v3_3_1.versioning_state(&HdfsVersion::v3_2_2),
-            VersioningState::ValidDowngrade
+            VersioningState::Invalid(
+                "Upgrading or Downgrading HDFS is not supported at this time!".to_string()
+            )
         );
         assert_eq!(
             HdfsVersion::v3_3_1.versioning_state(&HdfsVersion::v3_3_1),

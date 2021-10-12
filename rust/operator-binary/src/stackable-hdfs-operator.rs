@@ -1,8 +1,10 @@
 use clap::{crate_version, App, AppSettings, SubCommand};
+use kube::CustomResourceExt;
 use stackable_hdfs_crd::commands::{Restart, Start, Stop};
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::{cli, logging};
 use stackable_operator::{client, error};
+use tracing::error;
 
 mod built_info {
     // The file has been placed there by the build script.
@@ -60,6 +62,22 @@ async fn main() -> Result<(), error::Error> {
     );
 
     let client = client::create_client(Some("hdfs.stackable.tech".to_string())).await?;
+
+    if let Err(error) = stackable_operator::crd::wait_until_crds_present(
+        &client,
+        vec![
+            HdfsCluster::crd_name(),
+            Restart::crd_name(),
+            Start::crd_name(),
+            Stop::crd_name(),
+        ],
+        None,
+    )
+    .await
+    {
+        error!("Required CRDs missing, aborting: {:?}", error);
+        return Err(error);
+    };
 
     tokio::try_join!(
         stackable_hdfs_operator::create_controller(client.clone(), &product_config_path),
