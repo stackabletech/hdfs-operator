@@ -4,12 +4,16 @@ metadata:
   name: simple
 spec:
   version: 3.2.2
+  autoFormatFs: true
   nameNodes:
     roleGroups:
       default:
         selector:
-          matchLabels:
-            kubernetes.io/arch: stackable-linux
+          matchExpressions:
+            - operator: In
+              key: kubernetes.io/hostname
+              values:
+                - worker-3.stackable.demo
         replicas: 1
         config:
           javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
@@ -23,9 +27,14 @@ spec:
     roleGroups:
       default:
         selector:
-          matchLabels:
-            kubernetes.io/arch: stackable-linux
-        replicas: 1
+          matchExpressions:
+            - operator: In
+              key: kubernetes.io/hostname
+              values:
+                - worker-1.stackable.demo
+                - worker-2.stackable.demo
+                - main-1.stackable.demo
+        replicas: 3
         config:
           javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
           dfsDatanodeNameDir: file:///tmp/hdfs/dn
