@@ -39,7 +39,6 @@ exceptions = [
     { name = "stackable-hdfs-crd", allow = ["OSL-3.0"] },
     { name = "stackable-hdfs-operator", allow = ["OSL-3.0"] },
     { name = "stackable-hdfs-operator-binary", allow = ["OSL-3.0"] },
-    { name = "stackable-hbase-crd", allow = ["OSL-3.0"] },
     ]
 
 [[licenses.clarify]]
