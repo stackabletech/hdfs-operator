@@ -1,0 +1,7 @@
+apiVersion: command.hdfs.stackable.tech/v1alpha1
+kind: Start
+metadata:
+  name: hdfs-cluster-command-start
+spec:
+  name: "simple"
+  rolling: true

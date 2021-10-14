@@ -1,0 +1,35 @@
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: simple
+spec:
+  version: 3.2.2
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: stackable-linux
+        replicas: 1
+        config:
+          javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
+          dfsNamenodeNameDir: file:///tmp/hdfs/nn
+          ipcAddress:
+            port: 9000
+          httpAddress:
+            port: 60000
+          metricsPort: 50000
+  dataNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: stackable-linux
+        replicas: 1
+        config:
+          javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
+          dfsDatanodeNameDir: file:///tmp/hdfs/dn
+          httpAddress:
+            port: 61000
+          metricsPort: 51000
+
