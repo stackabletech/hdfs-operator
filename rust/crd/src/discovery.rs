@@ -6,15 +6,15 @@ use crate::error::HdfsOperatorResult;
 use crate::{HdfsCluster, HdfsRole, APP_NAME, IPC_PORT, MANAGED_BY};
 
 use crate::discovery::TicketReferences::ErrHdfsPodWithoutName;
-use k8s_openapi::api::core::v1::Pod;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use stackable_operator::client::Client;
 use stackable_operator::error::OperatorResult;
+use stackable_operator::k8s_openapi::api::core::v1::Pod;
+use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use stackable_operator::labels::{
     APP_COMPONENT_LABEL, APP_INSTANCE_LABEL, APP_MANAGED_BY_LABEL, APP_NAME_LABEL,
 };
+use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::BTreeMap;
 use strum_macros::Display;
 use tracing::{debug, warn};

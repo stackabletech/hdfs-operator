@@ -1,4 +1,4 @@
-use k8s_openapi::api::core::v1::Pod;
+use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
