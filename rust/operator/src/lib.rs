@@ -2,11 +2,6 @@ mod error;
 use crate::error::Error;
 
 use async_trait::async_trait;
-use k8s_openapi::api::core::v1::{ConfigMap, Pod};
-use kube::api::{ListParams, ResourceExt};
-use kube::Api;
-use product_config::types::PropertyNameKind;
-use product_config::ProductConfigManager;
 use stackable_hdfs_crd::commands::{Format, Restart, Start, Stop};
 use stackable_hdfs_crd::discovery::{
     get_hdfs_connection_string_from_pods, HdfsConnectionInformation,
@@ -22,16 +17,20 @@ use stackable_operator::builder::{
 };
 use stackable_operator::client::Client;
 use stackable_operator::command::materialize_command;
-use stackable_operator::configmap;
 use stackable_operator::controller::Controller;
 use stackable_operator::controller::{ControllerStrategy, ReconciliationState};
 use stackable_operator::error::OperatorResult;
 use stackable_operator::identity::{LabeledPodIdentityFactory, PodIdentity, PodToNodeMapping};
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Pod};
+use stackable_operator::kube::api::{ListParams, ResourceExt};
+use stackable_operator::kube::Api;
 use stackable_operator::labels;
 use stackable_operator::labels::{
     build_common_labels_for_all_managed_resources, get_recommended_labels,
 };
 use stackable_operator::name_utils;
+use stackable_operator::product_config::types::PropertyNameKind;
+use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
     config_for_role_and_group, transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,
@@ -49,6 +48,7 @@ use stackable_operator::scheduler::{
 use stackable_operator::status::HasClusterExecutionStatus;
 use stackable_operator::status::{init_status, ClusterExecutionStatus};
 use stackable_operator::versioning::{finalize_versioning, init_versioning};
+use stackable_operator::{configmap, product_config};
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::future::Future;
