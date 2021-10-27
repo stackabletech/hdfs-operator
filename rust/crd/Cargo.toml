@@ -21,7 +21,6 @@ tracing = "0.1"
 
 [dev-dependencies]
 indoc = "1.0"
-k8s-openapi = { version = "0.13", default-features = false, features = ["v1_22"] }
 rstest = "0.11"
 serde_yaml = "0.8"
 

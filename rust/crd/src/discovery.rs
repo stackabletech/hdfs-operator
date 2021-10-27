@@ -275,6 +275,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
     use rstest::rstest;
+    use stackable_operator::k8s_openapi;
 
     #[test]
     fn get_labels_from_name() {

@@ -1608,7 +1608,6 @@ version = "0.1.0-nightly"
 dependencies = [
  "duplicate",
  "indoc",
- "k8s-openapi",
  "rstest",
  "semver",
  "serde",
