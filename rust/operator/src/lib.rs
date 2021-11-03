@@ -6,15 +6,8 @@ use stackable_hdfs_crd::commands::{Format, Restart, Start, Stop};
 use stackable_hdfs_crd::discovery::{
     get_hdfs_connection_string_from_pods, HdfsConnectionInformation,
 };
-use stackable_hdfs_crd::{
-    HdfsAddress, HdfsCluster, HdfsClusterSpec, HdfsRole, HdfsVersion, APP_NAME, CONFIG_DIR_NAME,
-    CORE_SITE_XML, DATA_PORT, DFS_DATA_NODE_ADDRESS, DFS_DATA_NODE_HTTP_ADDRESS,
-    DFS_DATA_NODE_IPC_ADDRESS, DFS_NAME_NODE_HTTP_ADDRESS, FS_DEFAULT, HDFS_SITE_XML, HTTP_PORT,
-    IPC_PORT, METRICS_PORT, METRICS_PORT_PROPERTY,
-};
-use stackable_operator::builder::{
-    ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
-};
+use stackable_hdfs_crd::{HdfsAddress, HdfsCluster, HdfsClusterSpec, HdfsRole, HdfsVersion, APP_NAME, CONFIG_DIR_NAME, CORE_SITE_XML, DATA_PORT, DFS_DATA_NODE_ADDRESS, DFS_DATA_NODE_HTTP_ADDRESS, DFS_DATA_NODE_IPC_ADDRESS, DFS_NAME_NODE_HTTP_ADDRESS, FS_DEFAULT, HDFS_SITE_XML, HTTP_PORT, IPC_PORT, METRICS_PORT, METRICS_PORT_PROPERTY, DFS_NAME_NODE_NAME_DIR, DFS_DATA_NODE_DATA_DIR};
+use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::command::materialize_command;
 use stackable_operator::controller::Controller;
@@ -416,6 +409,7 @@ impl HdfsState {
         let mut ipc_port: Option<String> = None;
         let mut http_port: Option<String> = None;
         let mut data_port: Option<String> = None;
+        let mut data_dir: Option<&String> = None;
 
         let spec: &HdfsClusterSpec = &self.context.resource.spec;
         let version: &HdfsVersion = &spec.version;
@@ -433,6 +427,7 @@ impl HdfsState {
                     if file_name == HDFS_SITE_XML && role == &HdfsRole::NameNode =>
                 {
                     http_port = HdfsAddress::port(config.get(DFS_NAME_NODE_HTTP_ADDRESS))?;
+                    data_dir = config.get(DFS_NAME_NODE_NAME_DIR);
                 }
                 PropertyNameKind::File(file_name)
                     if file_name == HDFS_SITE_XML && role == &HdfsRole::DataNode =>
@@ -440,6 +435,7 @@ impl HdfsState {
                     ipc_port = HdfsAddress::port(config.get(DFS_DATA_NODE_IPC_ADDRESS))?;
                     http_port = HdfsAddress::port(config.get(DFS_DATA_NODE_HTTP_ADDRESS))?;
                     data_port = HdfsAddress::port(config.get(DFS_DATA_NODE_ADDRESS))?;
+                    data_dir = config.get(DFS_DATA_NODE_DATA_DIR);
                 }
                 PropertyNameKind::Env => {
                     for (property_name, property_value) in config {
@@ -455,15 +451,15 @@ impl HdfsState {
                                 HdfsRole::NameNode => {
                                     cb.add_env_var(
                                         "HDFS_NAMENODE_OPTS".to_string(),
-                                        format!("-javaagent:{{{{packageroot}}}}/{}/stackable/bin/jmx_prometheus_javaagent-0.16.1.jar={}:{{{{packageroot}}}}/{}/stackable/conf/jmx_hdfs_namenode.yaml",
-                                                version.package_name(), property_value, version.package_name())
+                                        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hdfs_namenode.yaml",
+                                                property_value)
                                     );
                                 }
                                 HdfsRole::DataNode => {
                                     cb.add_env_var(
                                         "HDFS_DATANODE_OPTS".to_string(),
-                                        format!("-javaagent:{{{{packageroot}}}}/{}/stackable/bin/jmx_prometheus_javaagent-0.16.1.jar={}:{{{{packageroot}}}}/{}/stackable/conf/jmx_hdfs_datanode.yaml",
-                                                version.package_name(), property_value, version.package_name())
+                                        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hdfs_namenode.yaml",
+                                                property_value)
                                     );
                                 }
                             }
@@ -476,14 +472,9 @@ impl HdfsState {
                 _ => {}
             }
         }
-        // set bin dir
-        cb.add_env_var(
-            "HDFS_BIN_DIR",
-            format!("{{{{packageroot}}}}/{}/bin", version.package_name()),
-        );
 
         cb.image(format!("hadoop:{}", version.to_string()));
-        cb.command(role.get_command(version, spec.auto_format_fs.unwrap_or(true)));
+        cb.command(role.get_command(spec.auto_format_fs.unwrap_or(true)));
 
         let pod_name = name_utils::build_resource_name(
             pod_id.app(),
@@ -503,10 +494,13 @@ impl HdfsState {
         );
         recommended_labels.insert(ID_LABEL.to_string(), pod_id.id().to_string());
 
+        let mut pod_builder = PodBuilder::new();
+
         // One mount for the config directory
         if let Some(config_map_data) = config_maps.get(CM_TYPE_CONFIG) {
             if let Some(name) = config_map_data.metadata.name.as_ref() {
-                cb.add_configmapvolume(name, CONFIG_DIR_NAME.to_string());
+                cb.add_volume_mount("config", CONFIG_DIR_NAME);
+                pod_builder.add_volume(VolumeBuilder::new("config").with_config_map(name).build());
             } else {
                 return Err(error::Error::MissingConfigMapNameError {
                     cm_type: CM_TYPE_CONFIG,
@@ -518,46 +512,38 @@ impl HdfsState {
                 pod_name,
             });
         }
+        // One mount for data_dir
+        if let Some(dir) = data_dir {
+            cb.add_volume_mount("data", dir);
+            pod_builder.add_volume(VolumeBuilder::new("data").with_empty_dir(Some(""), None).build());
+        }
 
         let mut annotations = BTreeMap::new();
         // only add metrics container port and annotation if available
         if let Some(metrics_port) = metrics_port {
             annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
-            cb.add_container_port(
-                ContainerPortBuilder::new(metrics_port.parse()?)
-                    .name(METRICS_PORT)
-                    .build(),
-            );
+            cb.add_container_port(METRICS_PORT, metrics_port.parse()?);
         }
 
         // add ipc port if available
         if let Some(ipc_port) = ipc_port {
-            cb.add_container_port(
-                ContainerPortBuilder::new(ipc_port.parse()?)
-                    .name(IPC_PORT)
-                    .build(),
-            );
+            cb.add_container_port(IPC_PORT, ipc_port.parse()?);
         }
 
         // add http port if available
         if let Some(http_port) = http_port {
-            cb.add_container_port(
-                ContainerPortBuilder::new(http_port.parse()?)
-                    .name(HTTP_PORT)
-                    .build(),
-            );
+            cb.add_container_port(HTTP_PORT, http_port.parse()?);
         }
 
         // add data port if available
         if let Some(data_port) = data_port {
-            cb.add_container_port(
-                ContainerPortBuilder::new(data_port.parse()?)
-                    .name(DATA_PORT)
-                    .build(),
-            );
+            cb.add_container_port(DATA_PORT, data_port.parse()?);
         }
 
-        let pod = PodBuilder::new()
+        // TODO: remove if not testing locally
+        cb.image_pull_policy("IfNotPresent");
+
+        let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
                     .generate_name(pod_name)
@@ -570,6 +556,8 @@ impl HdfsState {
             .add_stackable_agent_tolerations()
             .add_container(cb.build())
             .node_name(node_name)
+            // TODO: first iteration we are using host network
+            .host_network(true)
             .build()?;
 
         Ok(self.context.client.create(&pod).await?)

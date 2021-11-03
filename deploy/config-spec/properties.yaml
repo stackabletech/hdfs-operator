@@ -7,11 +7,6 @@ spec:
         examples:
           - "ldap://[2001:db8::7]/c=GB?objectClass?one"
         comment: "Specified in https://tools.ietf.org/html/rfc3986#appendix-B"
-    - unit: &unitDirectory
-        name: "directory"
-        regex: "^/|(/[\\w-]+)+$"
-        examples:
-          - "/tmp/xyz"
 
 properties:
   - property:
@@ -156,22 +151,3 @@ properties:
           required: true
       asOfVersion: "0.0.0"
       description: "The datanode http server address and port."
-
-  ###################################################################################################
-  # env vars
-  ###################################################################################################
-  - property: &javaHome
-      propertyNames:
-        - name: "JAVA_HOME"
-          kind:
-            type: "env"
-      datatype:
-        type: "string"
-        unit: *unitDirectory
-      roles:
-        - name: "namenode"
-          required: true
-        - name: "datanode"
-          required: true
-      asOfVersion: "0.0.0"
-      description: "Points to the Java installation folder."
