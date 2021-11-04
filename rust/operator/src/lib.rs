@@ -6,8 +6,15 @@ use stackable_hdfs_crd::commands::{Format, Restart, Start, Stop};
 use stackable_hdfs_crd::discovery::{
     get_hdfs_connection_string_from_pods, HdfsConnectionInformation,
 };
-use stackable_hdfs_crd::{HdfsAddress, HdfsCluster, HdfsClusterSpec, HdfsRole, HdfsVersion, APP_NAME, CONFIG_DIR_NAME, CORE_SITE_XML, DATA_PORT, DFS_DATA_NODE_ADDRESS, DFS_DATA_NODE_HTTP_ADDRESS, DFS_DATA_NODE_IPC_ADDRESS, DFS_NAME_NODE_HTTP_ADDRESS, FS_DEFAULT, HDFS_SITE_XML, HTTP_PORT, IPC_PORT, METRICS_PORT, METRICS_PORT_PROPERTY, DFS_NAME_NODE_NAME_DIR, DFS_DATA_NODE_DATA_DIR};
-use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
+use stackable_hdfs_crd::{
+    HdfsAddress, HdfsCluster, HdfsClusterSpec, HdfsRole, HdfsVersion, APP_NAME, CONFIG_DIR_NAME,
+    CORE_SITE_XML, DATA_PORT, DFS_DATA_NODE_ADDRESS, DFS_DATA_NODE_HTTP_ADDRESS,
+    DFS_DATA_NODE_IPC_ADDRESS, DFS_NAME_NODE_HTTP_ADDRESS, FS_DEFAULT, HDFS_SITE_XML, HTTP_PORT,
+    IPC_PORT, METRICS_PORT, METRICS_PORT_PROPERTY,
+};
+use stackable_operator::builder::{
+    ContainerBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder, VolumeBuilder,
+};
 use stackable_operator::client::Client;
 use stackable_operator::command::materialize_command;
 use stackable_operator::controller::Controller;
@@ -409,7 +416,7 @@ impl HdfsState {
         let mut ipc_port: Option<String> = None;
         let mut http_port: Option<String> = None;
         let mut data_port: Option<String> = None;
-        let mut data_dir: Option<&String> = None;
+        //let mut data_dir: Option<&String> = None;
 
         let spec: &HdfsClusterSpec = &self.context.resource.spec;
         let version: &HdfsVersion = &spec.version;
@@ -427,7 +434,7 @@ impl HdfsState {
                     if file_name == HDFS_SITE_XML && role == &HdfsRole::NameNode =>
                 {
                     http_port = HdfsAddress::port(config.get(DFS_NAME_NODE_HTTP_ADDRESS))?;
-                    data_dir = config.get(DFS_NAME_NODE_NAME_DIR);
+                    //data_dir = config.get(DFS_NAME_NODE_NAME_DIR);
                 }
                 PropertyNameKind::File(file_name)
                     if file_name == HDFS_SITE_XML && role == &HdfsRole::DataNode =>
@@ -435,7 +442,7 @@ impl HdfsState {
                     ipc_port = HdfsAddress::port(config.get(DFS_DATA_NODE_IPC_ADDRESS))?;
                     http_port = HdfsAddress::port(config.get(DFS_DATA_NODE_HTTP_ADDRESS))?;
                     data_port = HdfsAddress::port(config.get(DFS_DATA_NODE_ADDRESS))?;
-                    data_dir = config.get(DFS_DATA_NODE_DATA_DIR);
+                    //data_dir = config.get(DFS_DATA_NODE_DATA_DIR);
                 }
                 PropertyNameKind::Env => {
                     for (property_name, property_value) in config {
@@ -512,11 +519,18 @@ impl HdfsState {
                 pod_name,
             });
         }
+
+        // TODO: if we create this it will be under root and we cannot access via stackable user
+        //   HDFS will create it itself under stackable user
         // One mount for data_dir
-        if let Some(dir) = data_dir {
-            cb.add_volume_mount("data", dir);
-            pod_builder.add_volume(VolumeBuilder::new("data").with_empty_dir(Some(""), None).build());
-        }
+        // if let Some(dir) = data_dir {
+        //     cb.add_volume_mount("data", dir);
+        //     pod_builder.add_volume(
+        //         VolumeBuilder::new("data")
+        //             .with_empty_dir(Some(""), None)
+        //             .build(),
+        //     );
+        // }
 
         let mut annotations = BTreeMap::new();
         // only add metrics container port and annotation if available
@@ -558,6 +572,15 @@ impl HdfsState {
             .node_name(node_name)
             // TODO: first iteration we are using host network
             .host_network(true)
+            .security_context(
+                // in the docker file we use stackable:stackable (1000:1000)
+                PodSecurityContextBuilder::new()
+                    .run_as_user(1000)
+                    .run_as_group(1000)
+                    .fs_group(1000)
+                    .run_as_non_root()
+                    .build(),
+            )
             .build()?;
 
         Ok(self.context.client.create(&pod).await?)
