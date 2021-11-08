@@ -458,14 +458,14 @@ impl HdfsState {
                                 HdfsRole::NameNode => {
                                     cb.add_env_var(
                                         "HDFS_NAMENODE_OPTS".to_string(),
-                                        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hdfs_namenode.yaml",
+                                        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/namenode.yaml",
                                                 property_value)
                                     );
                                 }
                                 HdfsRole::DataNode => {
                                     cb.add_env_var(
                                         "HDFS_DATANODE_OPTS".to_string(),
-                                        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/jmx_hdfs_namenode.yaml",
+                                        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/datanode.yaml",
                                                 property_value)
                                     );
                                 }
@@ -480,7 +480,10 @@ impl HdfsState {
             }
         }
 
-        cb.image(format!("hadoop:{}", version.to_string()));
+        cb.image(format!(
+            "docker.stackable.tech/stackable/hadoop:{}-0.1",
+            version.to_string()
+        ));
         cb.command(role.get_command(spec.auto_format_fs.unwrap_or(true)));
 
         let pod_name = name_utils::build_resource_name(
@@ -554,9 +557,6 @@ impl HdfsState {
             cb.add_container_port(DATA_PORT, data_port.parse()?);
         }
 
-        // TODO: remove if not testing locally
-        cb.image_pull_policy("IfNotPresent");
-
         let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
@@ -567,7 +567,6 @@ impl HdfsState {
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
-            .add_stackable_agent_tolerations()
             .add_container(cb.build())
             .node_name(node_name)
             // TODO: first iteration we are using host network

@@ -18,11 +18,10 @@ To create a single node Apache HDFS (v3.2.2) cluster with Prometheus metrics exp
           default:
             selector:
               matchLabels:
-                kubernetes.io/arch: stackable-linux
+                kubernetes.io/os: linux
             replicas: 1
             config:
-              javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
-              dfsNamenodeNameDir: file:///tmp/hdfs/nn
+              dfsNamenodeNameDir: /stackable/data
               ipcAddress:
                 port: 9000
               httpAddress:
@@ -33,11 +32,10 @@ To create a single node Apache HDFS (v3.2.2) cluster with Prometheus metrics exp
           default:
             selector:
               matchLabels:
-                kubernetes.io/arch: stackable-linux
+                kubernetes.io/os: linux
             replicas: 1
             config:
-              javaHome: /usr/lib/jvm/java-11-openjdk-amd64/
-              dfsDatanodeNameDir: file:///tmp/hdfs/dn
+              dfsDatanodeNameDir: /stackable/data
               httpAddress:
                 port: 61000
               metricsPort: 51000
