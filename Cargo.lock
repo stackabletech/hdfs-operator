@@ -1198,8 +1198,8 @@ dependencies = [
 
 [[package]]
 name = "product-config"
-version = "0.2.0-nightly"
-source = "git+https://github.com/stackabletech/product-config.git?branch=main#97734dfa78c5e96922b2fc99bbd0cf2a1b7ac89d"
+version = "0.2.0"
+source = "git+https://github.com/stackabletech/product-config.git?tag=0.2.0#e32e33d9094e09b1af29045e05a4ab17c511cedb"
 dependencies = [
  "java-properties",
  "regex",
@@ -1652,8 +1652,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.3.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.3.0#a0a1d10260f7921d436a0cd7ba6ce957368e42fb"
+version = "0.4.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.4.0#50c3ee9564b1d3eb9d6e43c5e87c2102afbacc27"
 dependencies = [
  "async-trait",
  "backoff",
