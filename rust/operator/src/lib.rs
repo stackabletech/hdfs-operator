@@ -59,6 +59,10 @@ use strum::IntoEnumIterator;
 use tracing::error;
 use tracing::{debug, info, trace, warn};
 
+/// The docker image we default to. This needs to be adapted if the operator does not work
+/// with images 0.0.1, 0.1.0 etc. anymore and requires e.g. a new major version like 1(.0.0).
+const DEFAULT_IMAGE_VERSION: &str = "0";
+
 const FINALIZER_NAME: &str = "hdfs.stackable.tech/cleanup";
 const ID_LABEL: &str = "hdfs.stackable.tech/id";
 const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
@@ -481,8 +485,9 @@ impl HdfsState {
         }
 
         cb.image(format!(
-            "docker.stackable.tech/stackable/hadoop:{}-0.1",
-            version.to_string()
+            "docker.stackable.tech/stackable/hadoop:{}-stackable{}",
+            version.to_string(),
+            DEFAULT_IMAGE_VERSION
         ));
         cb.command(role.get_command(spec.auto_format_fs.unwrap_or(true)));
 
