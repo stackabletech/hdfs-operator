@@ -46,10 +46,9 @@ pub const DFS_DATA_NODE_HTTP_ADDRESS: &str = "dfs.datanode.http.address";
 pub const DFS_DATA_NODE_ADDRESS: &str = "dfs.datanode.address";
 
 pub const METRICS_PORT_PROPERTY: &str = "metricsPort";
-pub const JAVA_HOME: &str = "JAVA_HOME";
 
 pub const CONFIG_MAP_TYPE_DATA: &str = "data";
-pub const CONFIG_DIR_NAME: &str = "conf";
+pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
 
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
@@ -150,26 +149,26 @@ impl HdfsRole {
     /// * `version` - Current specified cluster version
     /// * `auto_format_fs` - Format directory via 'start-namenode' script
     ///
-    pub fn get_command(&self, version: &HdfsVersion, auto_format_fs: bool) -> Vec<String> {
+    pub fn get_command(&self, auto_format_fs: bool) -> Vec<String> {
         match &self {
             HdfsRole::DataNode => vec![
-                format!("{}/bin/hdfs", version.package_name()),
+                "bin/hdfs".to_string(),
                 "--config".to_string(),
-                format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
+                CONFIG_DIR_NAME.to_string(),
                 "datanode".to_string(),
             ],
             HdfsRole::NameNode => {
                 if auto_format_fs {
                     vec![
-                        format!("{}/stackable/bin/start-namenode", version.package_name()),
+                        "bin/start-namenode".to_string(),
                         "--config".to_string(),
-                        format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
+                        CONFIG_DIR_NAME.to_string(),
                     ]
                 } else {
                     vec![
-                        format!("{}/bin/hdfs", version.package_name()),
+                        "bin/hdfs".to_string(),
                         "--config".to_string(),
-                        format!("{{{{configroot}}}}/{}", CONFIG_DIR_NAME),
+                        CONFIG_DIR_NAME.to_string(),
                         "namenode".to_string(),
                     ]
                 }
@@ -236,7 +235,6 @@ impl HasClusterExecutionStatus for HdfsCluster {
 pub struct NameNodeConfig {
     pub dfs_namenode_name_dir: Option<String>,
     pub dfs_replication: Option<u8>,
-    pub java_home: Option<String>,
     pub metrics_port: Option<u16>,
     pub ipc_address: Option<HdfsAddress>,
     pub http_address: Option<HdfsAddress>,
@@ -247,7 +245,6 @@ pub struct NameNodeConfig {
 pub struct DataNodeConfig {
     pub dfs_datanode_name_dir: Option<String>,
     pub dfs_replication: Option<u8>,
-    pub java_home: Option<String>,
     pub metrics_port: Option<u16>,
     pub ipc_address: Option<HdfsAddress>,
     pub http_address: Option<HdfsAddress>,
@@ -263,10 +260,6 @@ impl Configuration for NameNodeConfig {
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
-
-        if let Some(java_home) = &self.java_home {
-            result.insert(JAVA_HOME.to_string(), Some(java_home.to_string()));
-        }
 
         if let Some(metrics_port) = self.metrics_port {
             result.insert(
@@ -334,10 +327,6 @@ impl Configuration for DataNodeConfig {
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
-
-        if let Some(java_home) = &self.java_home {
-            result.insert(JAVA_HOME.to_string(), Some(java_home.to_string()));
-        }
 
         if let Some(metrics_port) = self.metrics_port {
             result.insert(
