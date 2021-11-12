@@ -12,7 +12,7 @@ spec:
             kubernetes.io/os: linux
         replicas: 1
         config:
-          dfsNamenodeNameDir: /stackable/data
+          dfsNamenodeNameDir: /stackable/hadoop/namenode/data
           ipcAddress:
             port: 9000
           httpAddress:
@@ -26,7 +26,7 @@ spec:
             kubernetes.io/os: linux
         replicas: 1
         config:
-          dfsDatanodeNameDir: /stackable/data
+          dfsDatanodeNameDir: /stackable/hadoop/datannode/data
           httpAddress:
             port: 61000
           metricsPort: 51000
