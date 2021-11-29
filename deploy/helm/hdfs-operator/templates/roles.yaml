@@ -9,6 +9,7 @@ rules:
       - nodes
     verbs:
       - list
+      - watch
   - apiGroups:
       - ""
     resources:
@@ -18,6 +19,7 @@ rules:
       - create
       - delete
       - list
+      - watch
       - update
   - apiGroups:
       - batch
