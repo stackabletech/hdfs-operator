@@ -12,10 +12,21 @@ TAG    := $(shell git rev-parse --short HEAD)
 
 VERSION := $(shell cargo metadata --format-version 1 | jq '.packages[] | select(.name=="stackable-hdfs-operator") | .version')
 
-docker:
+## Docker related targets
+docker-build:
 	docker build --force-rm -t "docker.stackable.tech/stackable/hdfs-operator:${VERSION}" -f docker/Dockerfile .
+
+docker-build-latest: docker-build
+	docker tag "docker.stackable.tech/stackable/hdfs-operator:${VERSION}" \
+	           "docker.stackable.tech/stackable/hdfs-operator:latest"
+
+docker-publish:
 	echo "${NEXUS_PASSWORD}" | docker login --username github --password-stdin docker.stackable.tech
 	docker push --all-tags docker.stackable.tech/stackable/hdfs-operator
+
+docker: docker-build docker-publish
+
+docker-release: docker-build-latest docker-publish
 
 ## Chart related targets
 compile-chart: version crds config 
