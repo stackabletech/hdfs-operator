@@ -5,3 +5,7 @@ target/
 .idea/
 *.iws
 *.iml
+
+*.tgz
+deploy/helm/hdfs-operator/configs
+deploy/helm/hdfs-operator/templates/crds.yaml
