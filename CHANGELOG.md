@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Complete rewrite to use `StatefulSet`, `Service` and the Kubernetes overlay network. ([#xxx])
+
+[#xxx]: https://github.com/stackabletech/hdfs-operator/pull/xxx
+
 ## [0.2.0] - 2021-11-12
 
 
