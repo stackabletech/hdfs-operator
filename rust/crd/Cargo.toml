@@ -8,7 +8,7 @@ repository = "https://github.com/stackabletech/hdfs-operator"
 version = "0.3.0-nightly"
 
 [dependencies]
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.4.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.7.0" }
 
 duplicate = "0.3.0"
 semver = "1.0"
@@ -23,8 +23,3 @@ tracing = "0.1"
 indoc = "1.0"
 rstest = "0.11"
 serde_yaml = "0.8"
-
-[features]
-default = ["native-tls"]
-native-tls = ["stackable-operator/native-tls"]
-rustls-tls = ["stackable-operator/rustls-tls"]

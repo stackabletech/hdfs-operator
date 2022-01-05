@@ -9,7 +9,7 @@ version = "0.3.0-nightly"
 build = "build.rs"
 
 [dependencies]
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.4.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.7.0" }
 stackable-hdfs-crd = { path = "../crd" }
 stackable-hdfs-operator = { path = "../operator" }
 
@@ -19,22 +19,8 @@ tracing = "0.1"
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.4.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.7.0" }
 stackable-hdfs-crd = { path = "../crd" }
-
-[package.metadata.deb]
-name = "stackable-hdfs-operator"
-maintainer-scripts = "../../packaging/debian/"
-systemd-units = { enable = false, unit-name = "stackable-hdfs-operator" }
-assets = [
-    ["../../target/release/stackable-hdfs-operator", "opt/stackable/hdfs-operator/", "755"],
-    ["../../deploy/crd/hdfscluster.crd.yaml", "etc/stackable/hdfs-operator/crd/", "644"],
-    ["../../deploy/crd/restart.crd.yaml", "etc/stackable/hdfs-operator/crd/", "644"],
-    ["../../deploy/crd/start.crd.yaml", "etc/stackable/hdfs-operator/crd/", "644"],
-    ["../../deploy/crd/stop.crd.yaml", "etc/stackable/hdfs-operator/crd/", "644"],
-    ["../../deploy/crd/format.crd.yaml", "etc/stackable/hdfs-operator/crd/", "644"],
-    ["../../deploy/config-spec/properties.yaml", "etc/stackable/hdfs-operator/config-spec/", "644"],
-]
 
 [[bin]]
 name = "stackable-hdfs-operator"
