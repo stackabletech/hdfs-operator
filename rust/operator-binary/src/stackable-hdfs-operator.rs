@@ -1,5 +1,4 @@
 use clap::{crate_version, App, AppSettings, SubCommand};
-use stackable_hdfs_crd::commands::{Restart, Start, Stop};
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::{cli, logging};

@@ -2,6 +2,26 @@ use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("object has no version")]
+    ObjectHasNoVersion,
+    #[error("no namenode role defined")]
+    NoNameNodeRole,
+    #[error("no datanode role defined")]
+    NoDataNodeRole,
+    #[error("invalid role configuration: {source}")]
+    InvalidRoleConfig {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
+    #[error("invalid product configuration: {source}")]
+    InvalidProductConfig {
+        source: stackable_operator::error::Error,
+    },
+    #[error("no service name")]
+    GlobalServiceNameNotFound,
+    #[error("object is missing metadata to build owner reference: {source}")]
+    ObjectMissingMetadataForOwnerRef {
+        source: stackable_operator::error::Error,
+    },
     #[error("HdfsAddress is missing.")]
     HdfsAddressMissingError,
 

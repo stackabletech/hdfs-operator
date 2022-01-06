@@ -1451,15 +1451,16 @@ version = "0.3.0-nightly"
 dependencies = [
  "async-trait",
  "futures",
- "rstest",
  "serde",
  "serde_json",
  "stackable-hdfs-crd",
  "stackable-operator",
- "strum 0.22.0",
- "strum_macros 0.22.0",
+ "strum 0.23.0",
+ "strum_macros 0.23.1",
  "thiserror",
+ "tokio",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -1831,6 +1832,8 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
 dependencies = [
+ "futures",
+ "futures-task",
  "pin-project",
  "tracing",
 ]
