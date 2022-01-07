@@ -1,9 +1,14 @@
-use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube};
+use std::str::FromStr;
+use stackable_operator::kube::runtime::reflector::ObjectRef;
+use stackable_operator::k8s_openapi::api::core::v1::Pod;
+use stackable_hdfs_crd::HdfsCluster;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("object has no version")]
-    ObjectHasNoVersion,
+    ObjectHasNoVersion {
+        obj_ref: ObjectRef<HdfsCluster>
+    },
     #[error("no namenode role defined")]
     NoNameNodeRole,
     #[error("no datanode role defined")]
@@ -18,18 +23,39 @@ pub enum Error {
     },
     #[error("no service name")]
     GlobalServiceNameNotFound,
-    #[error("object is missing metadata to build owner reference: {source}")]
+
+    #[error("Cannot create rolegroup service {name}. Caused by: {source}")]
+    ApplyRoleGroupService {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
+    #[error("Cannot create role group config map {name}. Caused by: {source}")]
+    ApplyRoleGroupConfigMap {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
+    #[error("Cannot create role group stateful set {name}. Caused by: {source}")]
+    ApplyRoleGroupStatefulSet {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
+    #[error("No metadata for [{obj_ref}]. Caused by: {source}")]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
+        obj_ref: ObjectRef<HdfsCluster>,
     },
+
     #[error("HdfsAddress is missing.")]
     HdfsAddressMissingError,
 
-    #[error("HdfsAddress [{address}] not parseable")]
-    HdfsAddressParseError { address: String },
-
-    #[error("HdfsAddress port [{port}] not parseable: {reason}")]
-    HdfsAddressPortParseError { port: String, reason: String },
+    #[error("Cannot parse address [{address}], Caused by: {source}")]
+    HdfsAddressParseError { 
+        source: <i32 as FromStr>::Err, 
+        address: String
+    },
 
     #[error("No pods are found for Hdfs cluster [{namespace}/{name}]. Please check the Hdfs custom resource and Hdfs Operator for errors.")]
     NoHdfsPodsAvailableForConnectionInfo { namespace: String, name: String },

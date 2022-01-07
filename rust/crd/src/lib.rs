@@ -1,20 +1,19 @@
-pub mod error;
 pub mod constants;
+pub mod error;
 
+use constants::*;
 use serde::{Deserialize, Serialize};
-use stackable_operator::crd::HasApplication;
+use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
-use stackable_operator::role_utils::Role;
+use stackable_operator::role_utils::{CommonConfiguration, Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 use strum_macros::Display;
 use strum_macros::EnumIter;
-use constants::*;
-
-
+use error::{HdfsOperatorResult, Error};
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "hdfs.stackable.tech",
@@ -33,6 +32,7 @@ use constants::*;
 pub struct HdfsClusterSpec {
     pub version: Option<String>,
     pub auto_format_fs: Option<bool>,
+    pub zookeeper_config_map_name: String,
     pub data_nodes: Option<Role<DataNodeConfig>>,
     pub name_nodes: Option<Role<NameNodeConfig>>,
 }
@@ -45,8 +45,45 @@ pub enum HdfsRole {
     NameNode,
     #[strum(serialize = "datanode")]
     DataNode,
+    #[strum(serialize = "journalnode")]
+    JournalNode,
 }
 
+impl HdfsCluster {
+
+    pub fn version(&self) -> HdfsOperatorResult<&str> {
+        self.spec.version.as_deref().ok_or(Error::ObjectHasNoVersion {
+            obj_ref: ObjectRef::from_obj(self),
+        })
+    }
+
+    /// The name of the role-level load-balanced Kubernetes `Service`
+    pub fn server_role_service_name(&self) -> Option<String> {
+        self.metadata.name.clone()
+    }
+
+    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
+    pub fn server_role_service_fqdn(&self) -> Option<String> {
+        Some(format!(
+            "{}.{}.svc.cluster.local",
+            self.server_role_service_name()?,
+            self.metadata.namespace.as_ref()?
+        ))
+    }
+
+    /// Metadata about a server rolegroup
+    pub fn rolegroup_ref(
+        &self,
+        role_name: impl Into<String>,
+        group_name: impl Into<String>,
+    ) -> RoleGroupRef<HdfsCluster> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(self),
+            role: role_name.into(),
+            role_group: group_name.into(),
+        }
+    }
+}
 /// This is a struct to represent HDFS addresses (node_name/ip/interface and port)
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -131,13 +168,8 @@ impl HdfsRole {
                     ]
                 }
             }
+            HdfsRole::JournalNode => vec!["bin/hdfs".to_string(), "journalnode".to_string()],
         }
-    }
-}
-
-impl HasApplication for HdfsCluster {
-    fn get_application_name() -> &'static str {
-        APP_NAME
     }
 }
 
@@ -160,6 +192,15 @@ pub struct DataNodeConfig {
     pub ipc_address: Option<HdfsAddress>,
     pub http_address: Option<HdfsAddress>,
     pub data_address: Option<HdfsAddress>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalNodeConfig {
+    pub http_address: Option<HdfsAddress>,
+    pub https_address: Option<HdfsAddress>,
+    pub rpc_address: Option<HdfsAddress>,
+    pub metrics_port: Option<u16>,
 }
 
 impl Configuration for NameNodeConfig {
@@ -296,11 +337,72 @@ impl Configuration for DataNodeConfig {
 
             if let Some(data_address) = &self.data_address {
                 result.insert(
-                    DFS_DATA_NODE_ADDRESS.to_string(),
+                    DFS_DATA_NODE_DATA_ADDRESS.to_string(),
                     Some(data_address.to_string()),
                 );
             }
         }
+
+        Ok(result)
+    }
+}
+
+impl Configuration for JournalNodeConfig {
+    type Configurable = HdfsCluster;
+
+    fn compute_env(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        let mut result = BTreeMap::new();
+
+        if let Some(metrics_port) = self.metrics_port {
+            result.insert(
+                METRICS_PORT_PROPERTY.to_string(),
+                Some(metrics_port.to_string()),
+            );
+        }
+
+        Ok(result)
+    }
+
+    fn compute_cli(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_files(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+        file: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        let mut result = BTreeMap::new();
+
+        if file == HDFS_SITE_XML {
+            if let Some(http_address) = &self.http_address {
+                result.insert(
+                    DFS_JOURNAL_NODE_HTTP_ADDRESS.to_string(),
+                    Some(http_address.to_string()),
+                );
+            }
+            if let Some(https_address) = &self.https_address {
+                result.insert(
+                    DFS_JOURNAL_NODE_HTTPS_ADDRESS.to_string(),
+                    Some(https_address.to_string()),
+                );
+            }
+            if let Some(rpc_address) = &self.rpc_address {
+                result.insert(
+                    DFS_JOURNAL_NODE_RPC_ADDRESS.to_string(),
+                    Some(rpc_address.to_string()),
+                );
+            }
+         }
 
         Ok(result)
     }

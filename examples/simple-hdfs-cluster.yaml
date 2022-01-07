@@ -30,4 +30,18 @@ spec:
           httpAddress:
             port: 61000
           metricsPort: 51000
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+        config:
+          ipcAddress:
+            port: 61000
+          metricsPort: 51000
+
+
+
 
