@@ -1387,6 +1387,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cc38e8fa666e2de3c4aba7edeb5ffc5246c1c2ed0e3d17e560aeeba736b23f"
+
+[[package]]
 name = "ryu"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1615,7 +1621,7 @@ dependencies = [
  "serde_yaml",
  "stackable-operator",
  "strum",
- "strum_macros",
+ "strum_macros 0.23.1",
  "thiserror",
  "tracing",
 ]
@@ -1632,7 +1638,7 @@ dependencies = [
  "stackable-hdfs-crd",
  "stackable-operator",
  "strum",
- "strum_macros",
+ "strum_macros 0.23.1",
  "thiserror",
  "tracing",
 ]
@@ -1674,7 +1680,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "strum",
- "strum_macros",
+ "strum_macros 0.22.0",
  "thiserror",
  "tokio",
  "tracing",
@@ -1710,6 +1716,19 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
+ "syn",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bb0dc7ee9c15cea6199cde9a127fa16a4c5819af85395457ad72d68edc85a38"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
  "syn",
 ]
 
