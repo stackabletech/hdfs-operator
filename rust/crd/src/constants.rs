@@ -10,14 +10,15 @@ pub const DFS_REPLICATION: &str = "dfs.replication";
 
 pub const FS_DEFAULT: &str = "fs.defaultFS";
 
-// Properties below are from https://hadoop.apache.org/docs/r2.7.2/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml
-pub const DFS_NAME_NODE_HTTP_ADDRESS: &str = "dfs.namenode.http-address"; // 0.0.0.0:50070	The address and the base port where the dfs namenode web ui will listen on. 
-pub const DFS_DATA_NODE_IPC_ADDRESS: &str = "dfs.datanode.ipc.address"; // 0.0.0.0:50020	The datanode ipc server address and port. 
-pub const DFS_DATA_NODE_HTTP_ADDRESS: &str = "dfs.datanode.http.address"; // 0.0.0.0:50090	The secondary namenode http server address and port. 
-pub const DFS_DATA_NODE_DATA_ADDRESS: &str = "dfs.datanode.address"; // 0.0.0.0:50010	The datanode server address and port for data transfer. 
+// Properties below are from https://hadoop.apache.org/docs/r3.3.1/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml
+pub const DFS_NAME_NODE_HTTP_ADDRESS: &str = "dfs.namenode.http-address"; // 0.0.0.0:9870	The address and the base port where the dfs namenode web ui will listen on. 
+pub const DFS_DATA_NODE_IPC_ADDRESS: &str = "dfs.datanode.ipc.address"; // 0.0.0.0:9867	The datanode ipc server address and port. 
+pub const DFS_DATA_NODE_HTTP_ADDRESS: &str = "dfs.datanode.http.address"; // 0.0.0.0:9864	The datanode http server address and port. 
+pub const DFS_DATA_NODE_HTTPS_ADDRESS: &str = "dfs.datanode.https.address"; // 0.0.0.0:9865	The datanode secure http server address and port.
+pub const DFS_DATA_NODE_DATA_ADDRESS: &str = "dfs.datanode.address"; // 0.0.0.0:9866	The datanode server address and port for data transfer. 
 pub const DFS_JOURNAL_NODE_RPC_ADDRESS: &str  = "dfs.journalnode.rpc-address"; //	0.0.0.0:8485	The JournalNode RPC server address and port.
 pub const DFS_JOURNAL_NODE_HTTP_ADDRESS: &str  = "dfs.journalnode.http-address"; //	0.0.0.0:8480	The address and port the JournalNode HTTP server listens on. If the port is 0 then the server will start on a free port.
-pub const DFS_JOURNAL_NODE_HTTPS_ADDRESS: &str  = "dfs.journalnode.https-address"; //	0.0.0.0:8481
+pub const DFS_JOURNAL_NODE_HTTPS_ADDRESS: &str  = "dfs.journalnode.https-address"; // 0.0.0.0:8481	The address and port the JournalNode HTTPS server listens on. If the port is 0 then the server will start on a free port. 
 
 pub const METRICS_PORT_PROPERTY: &str = "metricsPort";
 

@@ -206,10 +206,10 @@ fn build_ports(
             rolegroup_config
                 .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                 .and_then(|c| c.get(DFS_NAME_NODE_HTTP_ADDRESS))
-                .unwrap_or(&String::from("0.0.0.0:50070"))
+                .unwrap_or(&String::from("0.0.0.0:9870"))
                 .split(":")
                 .last()
-                .unwrap_or(&String::from("50070"))
+                .unwrap_or(&String::from("9870"))
                 .parse::<i32>()
                 .map_err(|source| Error::HdfsAddressParseError {
                     source,
@@ -222,10 +222,10 @@ fn build_ports(
                 rolegroup_config
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_DATA_NODE_DATA_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:50010"))
+                    .unwrap_or(&String::from("0.0.0.0:9866"))
                     .split(":")
                     .last()
-                    .unwrap_or(&String::from("50010"))
+                    .unwrap_or(&String::from("9866"))
                     .parse::<i32>()
                     .map_err(|source| Error::HdfsAddressParseError {
                         source,
@@ -237,10 +237,10 @@ fn build_ports(
                 rolegroup_config
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_DATA_NODE_HTTP_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:50090"))
+                    .unwrap_or(&String::from("0.0.0.0:9864"))
                     .split(":")
                     .last()
-                    .unwrap_or(&String::from("50090"))
+                    .unwrap_or(&String::from("9864"))
                     .parse::<i32>()
                     .map_err(|source| Error::HdfsAddressParseError {
                         source,
@@ -252,10 +252,10 @@ fn build_ports(
                 rolegroup_config
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_DATA_NODE_IPC_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:50020"))
+                    .unwrap_or(&String::from("0.0.0.0:9867"))
                     .split(":")
                     .last()
-                    .unwrap_or(&String::from("50020"))
+                    .unwrap_or(&String::from("9867"))
                     .parse::<i32>()
                     .map_err(|source| Error::HdfsAddressParseError {
                         source,
