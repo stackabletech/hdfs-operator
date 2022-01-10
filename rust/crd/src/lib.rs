@@ -2,18 +2,19 @@ pub mod constants;
 pub mod error;
 
 use constants::*;
+use error::{Error, HdfsOperatorResult};
 use serde::{Deserialize, Serialize};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
-use stackable_operator::role_utils::{CommonConfiguration, Role, RoleGroupRef};
+use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
+use stackable_operator::labels::{role_group_selector_labels};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 use strum_macros::Display;
 use strum_macros::EnumIter;
-use error::{HdfsOperatorResult, Error};
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "hdfs.stackable.tech",
@@ -35,6 +36,7 @@ pub struct HdfsClusterSpec {
     pub zookeeper_config_map_name: String,
     pub data_nodes: Option<Role<DataNodeConfig>>,
     pub name_nodes: Option<Role<NameNodeConfig>>,
+    pub journal_nodes: Option<Role<JournalNodeConfig>>,
 }
 
 #[derive(
@@ -50,16 +52,57 @@ pub enum HdfsRole {
 }
 
 impl HdfsCluster {
+    pub fn nameservice_id(&self) -> String {
+        self.metadata.name.clone().unwrap()
+    }
 
     pub fn version(&self) -> HdfsOperatorResult<&str> {
-        self.spec.version.as_deref().ok_or(Error::ObjectHasNoVersion {
-            obj_ref: ObjectRef::from_obj(self),
-        })
+        self.spec
+            .version
+            .as_deref()
+            .ok_or(Error::ObjectHasNoVersion {
+                obj_ref: ObjectRef::from_obj(self),
+            })
     }
 
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn server_role_service_name(&self) -> Option<String> {
         self.metadata.name.clone()
+    }
+
+    pub fn namenode_name(&self) -> String {
+        format!("{}-namenode", self.nameservice_id())
+    }
+    pub fn namenode_fqdn(&self) -> String {
+        format!(
+            "{}.{}.svc.cluster.local",
+            self.namenode_name(),
+            self.metadata.namespace.as_deref().unwrap()
+        )
+    }
+
+    pub fn namenode_pod_fqdn(&self, replica: i32) -> String {
+        format!(
+            "{}-{}.{}",
+            self.namenode_name(),
+            replica,
+            self.namenode_fqdn()
+        )
+    }
+
+    pub fn role_group_selector_labels(
+        &self,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> BTreeMap<String, String> {
+        let mut group_labels = role_group_selector_labels(
+            self,
+            APP_NAME,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        );
+        group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
+        group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
+        group_labels
     }
 
     /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
@@ -123,14 +166,14 @@ impl TryFrom<&String> for HdfsAddress {
                 interface: elements.get(0).map(|interface| interface.to_string()),
                 port: port
                     .parse::<u16>()
-                    .map_err(|e| error::Error::HdfsAddressPortParseError {
-                        port: port.to_string(),
-                        reason: e.to_string(),
+                    .map_err(|source| Error::HdfsAddressPortParseError {
+                        source,
+                        address: address.clone(),
                     })?,
             });
         }
 
-        Err(error::Error::HdfsAddressParseError {
+        Err(Error::HdfsAddressParseError {
             address: address.clone(),
         })
     }
@@ -402,7 +445,7 @@ impl Configuration for JournalNodeConfig {
                     Some(rpc_address.to_string()),
                 );
             }
-         }
+        }
 
         Ok(result)
     }

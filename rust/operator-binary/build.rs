@@ -1,4 +1,3 @@
-use stackable_hdfs_crd::commands::{Format, Restart, Start, Stop};
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::crd::CustomResourceExt;
 

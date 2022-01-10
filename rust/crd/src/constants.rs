@@ -12,6 +12,7 @@ pub const FS_DEFAULT: &str = "fs.defaultFS";
 
 // Properties below are from https://hadoop.apache.org/docs/r3.3.1/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml
 pub const DFS_NAME_NODE_HTTP_ADDRESS: &str = "dfs.namenode.http-address"; // 0.0.0.0:9870	The address and the base port where the dfs namenode web ui will listen on. 
+pub const DFS_NAME_NODE_RPC_ADDRESS: &str = "dfs.namenode.rpc-address"; // RPC address that handles all clients requests. In the case of HA/Federation where multiple namenodes exist, the name service id is added to the name e.g. dfs.namenode.rpc-address.ns1 dfs.namenode.rpc-address.EXAMPLENAMESERVICE The value of this property will take the form of nn-host1:rpc-port. The NameNode's default RPC port is 8020. 
 pub const DFS_DATA_NODE_IPC_ADDRESS: &str = "dfs.datanode.ipc.address"; // 0.0.0.0:9867	The datanode ipc server address and port. 
 pub const DFS_DATA_NODE_HTTP_ADDRESS: &str = "dfs.datanode.http.address"; // 0.0.0.0:9864	The datanode http server address and port. 
 pub const DFS_DATA_NODE_HTTPS_ADDRESS: &str = "dfs.datanode.https.address"; // 0.0.0.0:9865	The datanode secure http server address and port.
