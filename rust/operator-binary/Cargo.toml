@@ -12,10 +12,11 @@ build = "build.rs"
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.7.0" }
 stackable-hdfs-crd = { path = "../crd" }
 stackable-hdfs-operator = { path = "../operator" }
-
+structopt = "0.3.25"
 clap = "2.33"
 tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
+serde_yaml = "0.8"
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }

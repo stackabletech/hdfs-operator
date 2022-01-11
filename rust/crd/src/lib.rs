@@ -6,10 +6,10 @@ use error::{Error, HdfsOperatorResult};
 use serde::{Deserialize, Serialize};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
+use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
-use stackable_operator::labels::{role_group_selector_labels};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
@@ -52,10 +52,6 @@ pub enum HdfsRole {
 }
 
 impl HdfsCluster {
-    pub fn nameservice_id(&self) -> String {
-        self.metadata.name.clone().unwrap()
-    }
-
     pub fn version(&self) -> HdfsOperatorResult<&str> {
         self.spec
             .version
@@ -63,6 +59,16 @@ impl HdfsCluster {
             .ok_or(Error::ObjectHasNoVersion {
                 obj_ref: ObjectRef::from_obj(self),
             })
+    }
+
+    pub fn image(&self) -> HdfsOperatorResult<String> {
+        Ok(format!(
+            "docker.stackable.tech/stackable/hadoop:{}-stackable0",
+            self.version()?
+        ))
+    }
+    pub fn nameservice_id(&self) -> String {
+        self.metadata.name.clone().unwrap()
     }
 
     /// The name of the role-level load-balanced Kubernetes `Service`
@@ -87,6 +93,25 @@ impl HdfsCluster {
             self.namenode_name(),
             replica,
             self.namenode_fqdn()
+        )
+    }
+
+    pub fn journalnode_name(&self) -> String {
+        format!("{}-journalnode", self.nameservice_id())
+    }
+    pub fn journalnode_fqdn(&self) -> String {
+        format!(
+            "{}.{}.svc.cluster.local",
+            self.journalnode_name(),
+            self.metadata.namespace.as_deref().unwrap()
+        )
+    }
+    pub fn journalnode_pod_fqdn(&self, replica: i32) -> String {
+        format!(
+            "{}-{}.{}",
+            self.journalnode_name(),
+            replica,
+            self.journalnode_fqdn()
         )
     }
 

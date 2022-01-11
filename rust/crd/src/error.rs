@@ -1,5 +1,4 @@
 use crate::HdfsCluster;
-use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use std::str::FromStr;
 
@@ -66,6 +65,14 @@ pub enum Error {
     #[error("Object has no namespace [{obj_ref}]")]
     ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
 
+    #[error(
+        "Cannot build config for role [{role}] and rolegroup [{role_group}]. Caused by: {source}"
+    )]
+    BuildRoleGroupConfig {
+        source: stackable_operator::error::Error,
+        role: String,
+        role_group: String,
+    },
     /*
     #[error("No pods are found for Hdfs cluster [{namespace}/{name}]. Please check the Hdfs custom resource and Hdfs Operator for errors.")]
     NoHdfsPodsAvailableForConnectionInfo { namespace: String, name: String },
