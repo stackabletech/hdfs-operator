@@ -32,7 +32,7 @@ use stackable_operator::product_config_utils::Configuration;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
 };
-use stackable_operator::role_utils::{Role, RoleGroupRef};
+use stackable_operator::role_utils::{Role, RoleGroup, RoleGroupRef};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -336,22 +336,7 @@ fn build_rolegroup_config_map(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> HdfsOperatorResult<ConfigMap> {
-    let journal_nodes_role = hdfs
-        .spec
-        .journal_nodes
-        .as_ref()
-        .ok_or(Error::NoJournalNodeRole)?;
-    let rolegroup = journal_nodes_role
-        .role_groups
-        .get(&rolegroup_ref.role_group)
-        .ok_or(Error::RoleGroupNotFound {
-            rolegroup: rolegroup_ref.role_group.clone(),
-        })?;
-    // TODO
-    let namenode_replicas = 1;
-    let journalnode_replicas = 1;
-
-    let nn_props: Vec<(String, String)> = (0..namenode_replicas)
+    let nn_props: Vec<(String, String)> = (0..hdfs.namenode_replicas(None)?)
         .flat_map(|i| {
             [
                 (
@@ -360,7 +345,7 @@ fn build_rolegroup_config_map(
                         hdfs.nameservice_id(),
                         i
                     ),
-                    format!("{}:8020", hdfs.namenode_pod_fqdn(i)),
+                    format!("{}:8020", hdfs.namenode_pod_fqdn(i.into())),
                 ),
                 (
                     format!(
@@ -368,7 +353,7 @@ fn build_rolegroup_config_map(
                         hdfs.nameservice_id(),
                         i
                     ),
-                    format!("{}:9870", hdfs.namenode_pod_fqdn(i)),
+                    format!("{}:9870", hdfs.namenode_pod_fqdn(i.into())),
                 ),
             ]
         })
@@ -381,7 +366,7 @@ fn build_rolegroup_config_map(
         ("dfs.nameservices".to_string(), hdfs.nameservice_id()),
         (
             format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
-            (0..namenode_replicas)
+            (0..hdfs.namenode_replicas(None)?)
                 .map(|i| format!("name-{}", i))
                 .collect::<Vec<_>>()
                 .join(", "),
@@ -390,7 +375,7 @@ fn build_rolegroup_config_map(
             "dfs.namenode.shared.edits.dir".to_string(),
             format!(
                 "qjournal://{}/{}",
-                (0..journalnode_replicas)
+                (0..hdfs.journalnode_replicas(None)?)
                     .map(|replica| hdfs.journalnode_pod_fqdn(replica))
                     .collect::<Vec<_>>()
                     .join(";"),
@@ -424,50 +409,6 @@ fn build_rolegroup_config_map(
             "dfs.block.access.token.enable".to_string(),
             "true".to_string(),
         ),
-        // (
-        //     "dfs.data.transfer.protection".to_string(),
-        //     "authentication".to_string(),
-        // ),
-        // ("dfs.http.policy".to_string(), "HTTPS_ONLY".to_string()),
-        // TODO: "Privileged ports" don't really make sense in K8s, but we ought to sort out TLS anyway
-        // (
-        //     "ignore.secure.ports.for.testing".to_string(),
-        //     "true".to_string(),
-        // ),
-        // (
-        //     "dfs.journalnode.kerberos.principal".to_string(),
-        //     format!("jn/{}@{}", namenode_fqdn, kerberos_realm),
-        // ),
-        // (
-        //     "dfs.journalnode.keytab.file".to_string(),
-        //     "/kerberos/jn.service.keytab".to_string(),
-        // ),
-        // (
-        //     "dfs.namenode.kerberos.principal".to_string(),
-        //     format!("nn/{}@{}", namenode_fqdn, kerberos_realm),
-        // ),
-        // (
-        //     "dfs.namenode.keytab.file".to_string(),
-        //     "/kerberos/nn.service.keytab".to_string(),
-        // ),
-        // (
-        //     "dfs.datanode.kerberos.principal".to_string(),
-        //     format!("dn/{}@{}", namenode_fqdn, kerberos_realm),
-        // ),
-        // (
-        //     "dfs.datanode.keytab.file".to_string(),
-        //     "/kerberos/dn.service.keytab".to_string(),
-        // ),
-        // JournalNode SPNEGO
-        // (
-        //     "dfs.web.authentication.kerberos.principal".to_string(),
-        //     format!("HTTP/stackable-knode-1.kvm@{}", kerberos_realm),
-        //     // format!("HTTP/_HOST@{}", kerberos_realm),
-        // ),
-        // (
-        //     "dfs.web.authentication.kerberos.keytab".to_string(),
-        //     "/kerberos/spnego.service.keytab".to_string(),
-        // ),
     ];
     hdfs_site_config.extend(nn_props.into_iter());
 
@@ -492,22 +433,7 @@ fn build_rolegroup_config_map(
         )
         .add_data(
             CORE_SITE_XML.to_string(),
-            hadoop_config_xml([
-                ("fs.defaultFS", format!("hdfs://{}/", hdfs.nameservice_id())),
-                // ("hadoop.security.authentication", "kerberos".to_string()),
-                // ("hadoop.security.authorization", "false".to_string()),
-                // JournalNode/WebHDFS SPNEGO
-                // ("hadoop.http.authentication.type", "kerberos".to_string()),
-                // (
-                //     "hadoop.http.authentication.kerberos.principal",
-                //     // format!("HTTP/stackable-knode-1.kvm@{}", kerberos_realm),
-                //     format!("HTTP/_HOST@{}", kerberos_realm),
-                // ),
-                // (
-                //     "hadoop.http.authentication.kerberos.keytab",
-                //     "/kerberos/spnego.service.keytab".to_string(),
-                // ),
-            ]),
+            hadoop_config_xml([("fs.defaultFS", format!("hdfs://{}/", hdfs.nameservice_id()))]),
         )
         .add_data(
             HDFS_SITE_XML.to_string(),
@@ -526,99 +452,126 @@ fn build_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> HdfsOperatorResult<StatefulSet> {
+    let replicas;
+    let command;
+    let service_name = rolegroup_ref.object_name();
+    let mut hadoop_container = hadoop_container(hdfs)?;
+
     match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
-        HdfsRole::NameNode => todo!(),
-        HdfsRole::DataNode => todo!(),
-        HdfsRole::JournalNode => {
-            let role = hdfs
-                .spec
-                .journal_nodes
-                .as_ref()
-                .ok_or(Error::NoJournalNodeRole)?;
-            let rolegroup = role.role_groups.get(&rolegroup_ref.role_group).ok_or(
-                Error::RoleGroupNotFound {
-                    rolegroup: rolegroup_ref.role_group.clone(),
-                },
-            )?;
-            let journalnode_pod_template = PodTemplateSpec {
-                metadata: Some(ObjectMeta {
-                    labels: Some(hdfs.role_group_selector_labels(rolegroup_ref)),
-                    ..ObjectMeta::default()
-                }),
-                spec: Some(PodSpec {
-                    containers: vec![Container {
-                        name: "journalnode".to_string(),
-                        args: Some(vec![
-                            "/stackable/hadoop/bin/hdfs".to_string(),
-                            "journalnode".to_string(),
-                        ]),
-                        ports: Some(
-                            build_ports(hdfs, rolegroup_ref, rolegroup_config)?
-                                .iter()
-                                .map(|(name, value)| ContainerPort {
-                                    name: Some(name.clone()),
-                                    container_port: *value,
-                                    protocol: Some("TCP".to_string()),
-                                    ..ContainerPort::default()
-                                })
-                                .collect(),
-                        ),
-                        ..hadoop_container(hdfs)?
-                    }],
-                    volumes: Some(vec![Volume {
-                        name: "config".to_string(),
-                        config_map: Some(ConfigMapVolumeSource {
-                            name: Some(rolegroup_ref.object_name()),
-                            ..ConfigMapVolumeSource::default()
+        HdfsRole::DataNode => {
+            replicas = hdfs.datanode_replicas(Some(rolegroup_ref))?;
+            command = vec!["/opt/hadoop/bin/hdfs".to_string(), "datanode".to_string()];
+        }
+
+        HdfsRole::NameNode => {
+            replicas = hdfs.namenode_replicas(Some(rolegroup_ref))?;
+            command = vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                "/stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive \
+                     || /stackable/hadoop/bin/hdfs namenode -format -noninteractive \
+                     || true
+                     /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true"
+                    .to_string(),
+            ];
+            hadoop_container
+                .env
+                .get_or_insert_with(Vec::new)
+                .push(EnvVar {
+                    name: "ZOOKEEPER_BROKERS".to_string(),
+                    value_from: Some(EnvVarSource {
+                        config_map_key_ref: Some(ConfigMapKeySelector {
+                            name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
+                            key: "ZOOKEEPER_BROKERS".to_string(),
+                            ..ConfigMapKeySelector::default()
                         }),
-                        ..Volume::default()
-                    }]),
-                    //host_network: Some(true),
-                    //dns_policy: Some("ClusterFirstWithHostNet".to_string()),
-                    ..PodSpec::default()
-                }),
-            };
-            Ok(StatefulSet {
-                metadata: ObjectMetaBuilder::new()
-                    .name_and_namespace(hdfs)
-                    .name(&rolegroup_ref.object_name())
-                    .ownerreference_from_resource(hdfs, None, Some(true))
-                    .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
-                        source,
-                        obj_ref: ObjectRef::from_obj(hdfs),
-                    })?
-                    .with_recommended_labels(
-                        hdfs,
-                        APP_NAME,
-                        hdfs.version()?,
-                        &rolegroup_ref.role,
-                        &rolegroup_ref.role_group,
-                    )
-                    .build(),
-                spec: Some(StatefulSetSpec {
-                    pod_management_policy: Some("Parallel".to_string()),
-                    replicas: rolegroup.replicas.map(i32::from),
-                    selector: LabelSelector {
-                        match_labels: Some(role_group_selector_labels(
-                            hdfs,
-                            APP_NAME,
-                            &rolegroup_ref.role,
-                            &rolegroup_ref.role_group,
-                        )),
-                        ..LabelSelector::default()
-                    },
-                    service_name: hdfs.journalnode_name(),
-                    template: journalnode_pod_template,
-                    volume_claim_templates: Some(vec![local_disk_claim(
-                        "data",
-                        Quantity("1Gi".to_string()),
-                    )]),
-                    ..StatefulSetSpec::default()
-                }),
-                status: None,
-            })
+                        ..EnvVarSource::default()
+                    }),
+                    ..EnvVar::default()
+                });
+        }
+        HdfsRole::JournalNode => {
+            replicas = hdfs.journalnode_replicas(Some(rolegroup_ref))?;
+            command = vec![
+                "/stackable/hadoop/bin/hdfs".to_string(),
+                "journalnode".to_string(),
+            ];
         }
     }
+    let template = PodTemplateSpec {
+        metadata: Some(ObjectMeta {
+            labels: Some(hdfs.role_group_selector_labels(rolegroup_ref)),
+            ..ObjectMeta::default()
+        }),
+        spec: Some(PodSpec {
+            containers: vec![Container {
+                name: rolegroup_ref.role.clone(),
+                args: Some(command),
+                ports: Some(
+                    build_ports(hdfs, rolegroup_ref, rolegroup_config)?
+                        .iter()
+                        .map(|(name, value)| ContainerPort {
+                            name: Some(name.clone()),
+                            container_port: *value,
+                            protocol: Some("TCP".to_string()),
+                            ..ContainerPort::default()
+                        })
+                        .collect(),
+                ),
+                ..hadoop_container
+            }],
+            volumes: Some(vec![Volume {
+                name: "config".to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: Some(rolegroup_ref.object_name()),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            }]),
+            //host_network: Some(true),
+            //dns_policy: Some("ClusterFirstWithHostNet".to_string()),
+            ..PodSpec::default()
+        }),
+    };
+    Ok(StatefulSet {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(hdfs)
+            .name(&rolegroup_ref.object_name())
+            .ownerreference_from_resource(hdfs, None, Some(true))
+            .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
+                source,
+                obj_ref: ObjectRef::from_obj(hdfs),
+            })?
+            .with_recommended_labels(
+                hdfs,
+                APP_NAME,
+                hdfs.version()?,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            )
+            .build(),
+        spec: Some(StatefulSetSpec {
+            pod_management_policy: Some("Parallel".to_string()),
+            replicas: Some(i32::from(replicas)),
+            selector: LabelSelector {
+                match_labels: Some(role_group_selector_labels(
+                    hdfs,
+                    APP_NAME,
+                    &rolegroup_ref.role,
+                    &rolegroup_ref.role_group,
+                )),
+                ..LabelSelector::default()
+            },
+            service_name,
+            template,
+            volume_claim_templates: Some(vec![local_disk_claim(
+                "data",
+                Quantity("1Gi".to_string()),
+            )]),
+            ..StatefulSetSpec::default()
+        }),
+        status: None,
+    })
 }
 
 fn hadoop_container(hdfs: &HdfsCluster) -> HdfsOperatorResult<Container> {
@@ -635,29 +588,6 @@ fn hadoop_container(hdfs: &HdfsCluster) -> HdfsOperatorResult<Container> {
                 value: Some("/stackable/hadoop/etc/hadoop".to_string()),
                 ..EnvVar::default()
             },
-            // EnvVar {
-            //     name: "KRB5_TRACE".to_string(),
-            //     value: Some("/dev/stdout".to_string()),
-            //     ..EnvVar::default()
-            // },
-            // EnvVar {
-            //     name: "HADOOP_JAAS_DEBUG".to_string(),
-            //     value: Some("true".to_string()),
-            //     ..EnvVar::default()
-            // },
-            // EnvVar {
-            //     name: "JAVA_TOOL_OPTIONS".to_string(),
-            //     value: Some(
-            //         [
-            //             "-Djava.security.krb5.conf=/config/krb5.conf",
-            //             // "-Dsun.security.spnego.debug=true",
-            //             // "-Dsun.security.krb5.debug=true",
-            //             // "-Djava.security.debug=all",
-            //         ]
-            //         .join(" "),
-            //     ),
-            //     ..EnvVar::default()
-            // },
         ]),
         volume_mounts: Some(vec![
             VolumeMount {
@@ -670,11 +600,6 @@ fn hadoop_container(hdfs: &HdfsCluster) -> HdfsOperatorResult<Container> {
                 name: "config".to_string(),
                 ..VolumeMount::default()
             },
-            // VolumeMount {
-            //     mount_path: "/kerberos".to_string(),
-            //     name: "kerberos".to_string(),
-            //     ..VolumeMount::default()
-            // },
         ]),
         ..Container::default()
     })

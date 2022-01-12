@@ -106,7 +106,7 @@ impl HdfsCluster {
             self.metadata.namespace.as_deref().unwrap()
         )
     }
-    pub fn journalnode_pod_fqdn(&self, replica: i32) -> String {
+    pub fn journalnode_pod_fqdn(&self, replica: u16) -> String {
         format!(
             "{}-{}.{}",
             self.journalnode_name(),
@@ -130,16 +130,96 @@ impl HdfsCluster {
         group_labels
     }
 
-    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn server_role_service_fqdn(&self) -> Option<String> {
-        Some(format!(
-            "{}.{}.svc.cluster.local",
-            self.server_role_service_name()?,
-            self.metadata.namespace.as_ref()?
-        ))
+    /// Total sum or just the given opt_rolegroup_ref replicas of journal nodes.
+    /// Returns 1 if no replicas have been configured.
+    pub fn journalnode_replicas(
+        &self,
+        opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,
+    ) -> HdfsOperatorResult<u16> {
+        let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
+            self.spec
+                .journal_nodes
+                .as_ref()
+                .ok_or(Error::NoJournalNodeRole)?
+                .role_groups
+                .get(&rolegroup_ref.role_group)
+                .ok_or(Error::RoleGroupNotFound {
+                    rolegroup: rolegroup_ref.role_group.clone(),
+                })?
+                .replicas
+                .unwrap_or_default()
+        } else {
+            self.spec
+                .journal_nodes
+                .as_ref()
+                .ok_or(Error::NoJournalNodeRole)?
+                .role_groups
+                .values()
+                .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
+                .fold(0, |sum, r| sum + r)
+        };
+        Ok(if result > 0 { result } else { 1 })
     }
 
-    /// Metadata about a server rolegroup
+    /// Total sum or just the given opt_rolegroup_ref replicas of name nodes.
+    /// Returns 1 if no replicas have been configured.
+    pub fn namenode_replicas(&self, opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,) -> HdfsOperatorResult<u16> {
+        let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
+            self.spec
+                .name_nodes
+                .as_ref()
+                .ok_or(Error::NoJournalNodeRole)?
+                .role_groups
+                .get(&rolegroup_ref.role_group)
+                .ok_or(Error::RoleGroupNotFound {
+                    rolegroup: rolegroup_ref.role_group.clone(),
+                })?
+                .replicas
+                .unwrap_or_default()
+        }
+        else {
+            self
+            .spec
+            .name_nodes
+            .as_ref()
+            .ok_or(Error::NoNameNodeRole)?
+            .role_groups
+            .values()
+            .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
+            .fold(0, |sum, r| sum + r)
+        };
+        Ok(if result > 0 { result } else { 1 })
+    }
+
+    /// Total sum or just the given opt_rolegroup_ref replicas of data nodes.
+    pub fn datanode_replicas(&self, opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,) -> HdfsOperatorResult<u16> {
+        let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
+            self.spec
+                .data_nodes
+                .as_ref()
+                .ok_or(Error::NoJournalNodeRole)?
+                .role_groups
+                .get(&rolegroup_ref.role_group)
+                .ok_or(Error::RoleGroupNotFound {
+                    rolegroup: rolegroup_ref.role_group.clone(),
+                })?
+                .replicas
+                .unwrap_or_default()
+        }
+        else {
+            self
+            .spec
+            .data_nodes
+            .as_ref()
+            .ok_or(Error::NoNameNodeRole)?
+            .role_groups
+            .values()
+            .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
+            .fold(0, |sum, r| sum + r)
+        };
+        Ok(result)
+    }
+
     pub fn rolegroup_ref(
         &self,
         role_name: impl Into<String>,
