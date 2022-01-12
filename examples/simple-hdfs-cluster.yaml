@@ -4,6 +4,7 @@ metadata:
   name: simple
 spec:
   version: 3.2.2
+  zookeeperConfigMapName: simple-zk
   nameNodes:
     roleGroups:
       default:

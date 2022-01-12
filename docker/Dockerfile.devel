@@ -1,0 +1,12 @@
+FROM ubuntu:impish
+
+COPY stackable-hdfs-operator /stackable-hdfs-operator
+COPY deploy/config-spec/properties.yaml /etc/stackable/hdfs-operator/config-spec/properties.yaml
+
+RUN groupadd --gid 1000 stackable && useradd --uid 1000 --gid 1000 stackable
+
+USER 1000:1000
+
+ENTRYPOINT ["/stackable-hdfs-operator"]
+CMD ["run"]
+

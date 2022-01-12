@@ -43,10 +43,13 @@ pub struct HdfsClusterSpec {
     Clone, Debug, Deserialize, Display, EnumIter, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
 pub enum HdfsRole {
+    #[serde(rename = "namenode")]
     #[strum(serialize = "namenode")]
     NameNode,
+    #[serde(rename = "datanode")]
     #[strum(serialize = "datanode")]
     DataNode,
+    #[serde(rename = "journalnode")]
     #[strum(serialize = "journalnode")]
     JournalNode,
 }

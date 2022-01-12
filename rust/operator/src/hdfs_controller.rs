@@ -403,7 +403,7 @@ fn build_rolegroup_config_map(
         ),
         (
             "ha.zookeeper.quorum".to_string(),
-            "${env.ZOOKEEPER_BROKERS}".to_string(),
+            "${env.ZOOKEEPER}".to_string(),
         ),
         (
             "dfs.block.access.token.enable".to_string(),
@@ -460,7 +460,7 @@ fn build_rolegroup_statefulset(
     match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
         HdfsRole::DataNode => {
             replicas = hdfs.datanode_replicas(Some(rolegroup_ref))?;
-            command = vec!["/opt/hadoop/bin/hdfs".to_string(), "datanode".to_string()];
+            command = vec!["/stackable/hadoop/bin/hdfs".to_string(), "datanode".to_string()];
         }
 
         HdfsRole::NameNode => {
@@ -478,11 +478,11 @@ fn build_rolegroup_statefulset(
                 .env
                 .get_or_insert_with(Vec::new)
                 .push(EnvVar {
-                    name: "ZOOKEEPER_BROKERS".to_string(),
+                    name: "ZOOKEEPER".to_string(),
                     value_from: Some(EnvVarSource {
                         config_map_key_ref: Some(ConfigMapKeySelector {
                             name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
-                            key: "ZOOKEEPER_BROKERS".to_string(),
+                            key: "ZOOKEEPER".to_string(),
                             ..ConfigMapKeySelector::default()
                         }),
                         ..EnvVarSource::default()
