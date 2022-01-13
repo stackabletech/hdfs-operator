@@ -10,6 +10,7 @@ use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
+use std::cmp::{min, max};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
@@ -43,15 +44,15 @@ pub struct HdfsClusterSpec {
     Clone, Debug, Deserialize, Display, EnumIter, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
 pub enum HdfsRole {
+    #[serde(rename = "journalnode")]
+    #[strum(serialize = "journalnode")]
+    JournalNode,
     #[serde(rename = "namenode")]
     #[strum(serialize = "namenode")]
     NameNode,
     #[serde(rename = "datanode")]
     #[strum(serialize = "datanode")]
     DataNode,
-    #[serde(rename = "journalnode")]
-    #[strum(serialize = "journalnode")]
-    JournalNode,
 }
 
 impl HdfsCluster {
@@ -84,18 +85,16 @@ impl HdfsCluster {
     }
     pub fn namenode_fqdn(&self) -> String {
         format!(
-            "{}.{}.svc.cluster.local",
+            "{}.svc.cluster.local",
             self.namenode_name(),
-            self.metadata.namespace.as_deref().unwrap()
         )
     }
 
     pub fn namenode_pod_fqdn(&self, replica: i32) -> String {
         format!(
-            "{}-{}.{}",
+            "{}-{}.svc.cluster.local",
             self.namenode_name(),
             replica,
-            self.namenode_fqdn()
         )
     }
 
@@ -104,17 +103,15 @@ impl HdfsCluster {
     }
     pub fn journalnode_fqdn(&self) -> String {
         format!(
-            "{}.{}.svc.cluster.local",
+            "{}.svc.cluster.local",
             self.journalnode_name(),
-            self.metadata.namespace.as_deref().unwrap()
         )
     }
     pub fn journalnode_pod_fqdn(&self, replica: u16) -> String {
         format!(
-            "{}-{}.{}",
+            "{}-{}.svc.cluster.local",
             self.journalnode_name(),
             replica,
-            self.journalnode_fqdn()
         )
     }
 
@@ -130,6 +127,12 @@ impl HdfsCluster {
         );
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
+        match rolegroup_ref.role.as_str() {
+            "namenode" | "journalnode"  => { 
+                group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+            },
+            &_ => {},
+        };
         group_labels
     }
 
@@ -161,12 +164,16 @@ impl HdfsCluster {
                 .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
                 .fold(0, |sum, r| sum + r)
         };
-        Ok(if result > 0 { result } else { 1 })
+        Ok(max(1, result))
     }
 
     /// Total sum or just the given opt_rolegroup_ref replicas of name nodes.
-    /// Returns 1 if no replicas have been configured.
-    pub fn namenode_replicas(&self, opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,) -> HdfsOperatorResult<u16> {
+    /// Returns 2 if no replicas have been configured because there must be at least two namenodes in
+    /// a HA environment.
+    pub fn namenode_replicas(
+        &self,
+        opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,
+    ) -> HdfsOperatorResult<u16> {
         let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
             self.spec
                 .name_nodes
@@ -179,23 +186,24 @@ impl HdfsCluster {
                 })?
                 .replicas
                 .unwrap_or_default()
-        }
-        else {
-            self
-            .spec
-            .name_nodes
-            .as_ref()
-            .ok_or(Error::NoNameNodeRole)?
-            .role_groups
-            .values()
-            .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-            .fold(0, |sum, r| sum + r)
+        } else {
+            self.spec
+                .name_nodes
+                .as_ref()
+                .ok_or(Error::NoNameNodeRole)?
+                .role_groups
+                .values()
+                .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
+                .fold(0, |sum, r| sum + r)
         };
-        Ok(if result > 0 { result } else { 1 })
+        Ok(max(2, result))
     }
 
     /// Total sum or just the given opt_rolegroup_ref replicas of data nodes.
-    pub fn datanode_replicas(&self, opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,) -> HdfsOperatorResult<u16> {
+    pub fn datanode_replicas(
+        &self,
+        opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,
+    ) -> HdfsOperatorResult<u16> {
         let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
             self.spec
                 .data_nodes
@@ -208,17 +216,15 @@ impl HdfsCluster {
                 })?
                 .replicas
                 .unwrap_or_default()
-        }
-        else {
-            self
-            .spec
-            .data_nodes
-            .as_ref()
-            .ok_or(Error::NoNameNodeRole)?
-            .role_groups
-            .values()
-            .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-            .fold(0, |sum, r| sum + r)
+        } else {
+            self.spec
+                .data_nodes
+                .as_ref()
+                .ok_or(Error::NoNameNodeRole)?
+                .role_groups
+                .values()
+                .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
+                .fold(0, |sum, r| sum + r)
         };
         Ok(result)
     }

@@ -29,6 +29,12 @@ pub enum Error {
         name: String,
     },
 
+    #[error("Cannot create pod service [{name}]. Caused by: {source}")]
+    ApplyPodServiceFailed {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
     #[error("Cannot create role group config map {name}. Caused by: {source}")]
     ApplyRoleGroupConfigMap {
         source: stackable_operator::error::Error,
@@ -73,6 +79,22 @@ pub enum Error {
         role: String,
         role_group: String,
     },
+
+    #[error("Pod has no name")]
+    PodHasNoName,
+    #[error("Pod [{name}] has no uid")]
+    PodHasNoUid { name: String, },
+    #[error("Pod [{name}] has no labels")]
+    PodHasNoLabels { name: String, },
+    #[error("Pod [{name}] has no [role] label")]
+    PodHasNoRoleLabel { name: String, },
+    #[error("Pod [{name}] has no spec")]
+    PodHasNoSpec { name: String, },
+    #[error("Pod [{name}] has no container named [{role}]")]
+    PodHasNoContainer { name: String, role: String, },
+
+    #[error("Container [{name}] of pod [{pod}] has no ports.")]
+    ContainerHasNoPorts { name: String, pod: String,  },
 }
 
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;

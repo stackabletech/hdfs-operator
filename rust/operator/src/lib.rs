@@ -1,10 +1,13 @@
 mod hdfs_controller;
+mod pod_svc_controller;
 mod utils;
 
 use futures::StreamExt;
+use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
+use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::Context;
@@ -31,6 +34,7 @@ pub async fn create_controller(client: Client, product_config: ProductConfigMana
             )
             .instrument(info_span!("hdfs_controller"));
 
+            /*
     hdfs_controller
         .map(erase_controller_result_type)
         .for_each(|res| async {
@@ -45,11 +49,11 @@ pub async fn create_controller(client: Client, product_config: ProductConfigMana
             }
         })
         .await;
+        */
 
-    // TODO: Implement this when Hdfs is up and running.
-    /*let pod_svc_controller = Controller::new(
+    let pod_svc_controller = Controller::new(
         client.get_all_api::<Pod>(),
-        ListParams::default().labels(&format!("{}=true", pod_svc_controller::LABEL_ENABLE)),
+        ListParams::default().labels(&format!("{}=true", LABEL_ENABLE)),
     )
     .owns(client.get_all_api::<Pod>(), ListParams::default())
     .shutdown_on_signal()
@@ -73,5 +77,4 @@ pub async fn create_controller(client: Client, product_config: ProductConfigMana
         }
     })
     .await;
-    */
 }

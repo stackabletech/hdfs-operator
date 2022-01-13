@@ -1,6 +1,6 @@
 #!/bin/env sh
 
-cargo build
+#cargo build
 # this is because target is in .gitignore
 cp target/debug/stackable-hdfs-operator .
 docker build -t docker.stackable.tech/stackable/hdfs-operator:0.3.0-nightly -f docker/Dockerfile.devel .

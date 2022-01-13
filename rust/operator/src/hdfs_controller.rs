@@ -1,19 +1,16 @@
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{HdfsCluster, HdfsRole};
-use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-};
+use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, PodSpec, PodTemplateSpec, VolumeMount,
+    Container, ContainerPort, PodSpec, PodTemplateSpec, VolumeMount, ObjectFieldSelector,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
     core::v1::{
-        ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar,
-        EnvVarSource, ExecAction, ObjectFieldSelector, PersistentVolumeClaim,
-        PersistentVolumeClaimSpec, Probe, ResourceRequirements, Service, ServicePort, ServiceSpec,
-        Volume,
+        ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EnvVar, EnvVarSource,
+        PersistentVolumeClaim, PersistentVolumeClaimSpec, ResourceRequirements, Service,
+        ServicePort, ServiceSpec, Volume,
     },
 };
 use stackable_operator::k8s_openapi::apimachinery::pkg::{
@@ -24,16 +21,13 @@ use stackable_operator::kube::{
     api::ObjectMeta,
     runtime::controller::{Context, ReconcilerAction},
 };
-use stackable_operator::labels::{role_group_selector_labels, role_selector_labels};
-use stackable_operator::product_config::{
-    types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
-};
+use stackable_operator::labels::role_group_selector_labels;
+use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
 use stackable_operator::product_config_utils::Configuration;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
 };
-use stackable_operator::role_utils::{Role, RoleGroup, RoleGroupRef};
-use std::borrow::Cow;
+use stackable_operator::role_utils::{Role, RoleGroupRef};
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
@@ -59,22 +53,10 @@ pub async fn reconcile_hdfs(
     )
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
-    let role_namenode_config = validated_config
-        .get(&HdfsRole::NameNode.to_string())
-        .map(Cow::Borrowed)
-        .unwrap_or_default();
-
-    let ns = hdfs
-        .metadata
-        .namespace
-        .as_deref()
-        .ok_or(Error::ObjectHasNoNamespace {
-            obj_ref: ObjectRef::from_obj(&hdfs),
-        })?;
-
     for (role_name, group_config) in validated_config.iter() {
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup = hdfs.rolegroup_ref(role_name, rolegroup_name);
+            tracing::info!("Setting up rolegroup {:?}", rolegroup);
             let rg_service = build_rolegroup_service(&hdfs, &rolegroup, rolegroup_config)?;
             let rg_configmap = build_rolegroup_config_map(&hdfs, &rolegroup, rolegroup_config)?;
             let rg_statefulset = build_rolegroup_statefulset(&hdfs, &rolegroup, rolegroup_config)?;
@@ -149,6 +131,15 @@ fn build_role_properties(
         return Err(Error::NoDataNodeRole);
     }
 
+    if let Some(journal_nodes) = &hdfs.spec.journal_nodes {
+        result.insert(
+            HdfsRole::JournalNode.to_string(),
+            (pnk.clone(), journal_nodes.clone().erase()),
+        );
+    } else {
+        return Err(Error::NoJournalNodeRole);
+    }
+
     Ok(result)
 }
 
@@ -157,6 +148,7 @@ fn build_rolegroup_service(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<Service, Error> {
+    tracing::info!("Setting up Service for {:?}", rolegroup_ref);
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hdfs)
@@ -336,20 +328,17 @@ fn build_rolegroup_config_map(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> HdfsOperatorResult<ConfigMap> {
+    tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
     let nn_props: Vec<(String, String)> = (0..hdfs.namenode_replicas(None)?)
         .flat_map(|i| {
             [
                 (
-                    format!(
-                        "dfs.namenode.rpc-address.{}.name-{}",
-                        hdfs.nameservice_id(),
-                        i
-                    ),
+                    format!("dfs.namenode.rpc-address.{}.nn{}", hdfs.nameservice_id(), i),
                     format!("{}:8020", hdfs.namenode_pod_fqdn(i.into())),
                 ),
                 (
                     format!(
-                        "dfs.namenode.http-address.{}.name-{}",
+                        "dfs.namenode.http-address.{}.nn{}",
                         hdfs.nameservice_id(),
                         i
                     ),
@@ -367,7 +356,7 @@ fn build_rolegroup_config_map(
         (
             format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
             (0..hdfs.namenode_replicas(None)?)
-                .map(|i| format!("name-{}", i))
+                .map(|i| format!("nn{}", i))
                 .collect::<Vec<_>>()
                 .join(", "),
         ),
@@ -376,7 +365,7 @@ fn build_rolegroup_config_map(
             format!(
                 "qjournal://{}/{}",
                 (0..hdfs.journalnode_replicas(None)?)
-                    .map(|replica| hdfs.journalnode_pod_fqdn(replica))
+                    .map(|replica| format!("{}:8485", hdfs.journalnode_pod_fqdn(replica)))
                     .collect::<Vec<_>>()
                     .join(";"),
                 hdfs.nameservice_id()
@@ -399,14 +388,6 @@ fn build_rolegroup_config_map(
         ),
         (
             "dfs.ha.automatic-failover.enabled".to_string(),
-            "true".to_string(),
-        ),
-        (
-            "ha.zookeeper.quorum".to_string(),
-            "${env.ZOOKEEPER}".to_string(),
-        ),
-        (
-            "dfs.block.access.token.enable".to_string(),
             "true".to_string(),
         ),
     ];
@@ -433,7 +414,13 @@ fn build_rolegroup_config_map(
         )
         .add_data(
             CORE_SITE_XML.to_string(),
-            hadoop_config_xml([("fs.defaultFS", format!("hdfs://{}/", hdfs.nameservice_id()))]),
+            hadoop_config_xml([
+                ("fs.defaultFS", format!("hdfs://{}/", hdfs.nameservice_id())),
+                // (
+                //     "ha.zookeeper.quorum".to_string(),
+                //     "${env.ZOOKEEPER}".to_string(),
+                // ),
+            ]),
         )
         .add_data(
             HDFS_SITE_XML.to_string(),
@@ -452,6 +439,7 @@ fn build_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> HdfsOperatorResult<StatefulSet> {
+    tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let replicas;
     let command;
     let service_name = rolegroup_ref.object_name();
@@ -460,7 +448,10 @@ fn build_rolegroup_statefulset(
     match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
         HdfsRole::DataNode => {
             replicas = hdfs.datanode_replicas(Some(rolegroup_ref))?;
-            command = vec!["/stackable/hadoop/bin/hdfs".to_string(), "datanode".to_string()];
+            command = vec![
+                "/stackable/hadoop/bin/hdfs".to_string(),
+                "datanode".to_string(),
+            ];
         }
 
         HdfsRole::NameNode => {
@@ -474,10 +465,20 @@ fn build_rolegroup_statefulset(
                      /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true"
                     .to_string(),
             ];
-            hadoop_container
-                .env
-                .get_or_insert_with(Vec::new)
-                .push(EnvVar {
+            hadoop_container.env.get_or_insert_with(Vec::new)
+            .extend([
+                EnvVar {
+                    name: "NNID".to_string(),
+                    value_from: Some(EnvVarSource {
+                        field_ref: Some(ObjectFieldSelector {
+                            field_path: format!("metadata.labels.{}", LABEL_STS_POD_NAME),
+                            ..ObjectFieldSelector::default()
+                        }),
+                        ..EnvVarSource::default()
+                    }),
+                    ..EnvVar::default()
+                },
+                EnvVar {
                     name: "ZOOKEEPER".to_string(),
                     value_from: Some(EnvVarSource {
                         config_map_key_ref: Some(ConfigMapKeySelector {
@@ -488,7 +489,13 @@ fn build_rolegroup_statefulset(
                         ..EnvVarSource::default()
                     }),
                     ..EnvVar::default()
-                });
+                },
+                EnvVar {
+                    name: "HADOOP_OPTS".to_string(),
+                    value: Some("-Dha.zookeeper.quorum=$ZOOKEEPER -Ddfs.ha.namenode.id=$NNID".to_string()),
+                    ..EnvVar::default()
+                },
+            ]);
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.journalnode_replicas(Some(rolegroup_ref))?;

@@ -1,8 +1,12 @@
 
 pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";
+pub const FIELD_MANAGER_SCOPE_POD: &str = "pod-service";
 
 pub const APP_NAME: &str = "hdfs";
 pub const MANAGED_BY: &str = "hdfs-operator";
+
+pub const LABEL_ENABLE: &str = "hdfs.stackable.tech/pod-service";
+pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";
 
 pub const DFS_NAME_NODE_NAME_DIR: &str = "dfs.namenode.name.dir";
 pub const DFS_DATA_NODE_DATA_DIR: &str = "dfs.datanode.data.dir";
