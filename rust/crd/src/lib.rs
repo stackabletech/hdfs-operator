@@ -83,24 +83,6 @@ impl HdfsCluster {
     pub fn namenode_name(&self) -> String {
         format!("{}-namenode", self.nameservice_id())
     }
-/*    pub fn namenode_fqdn(&self) -> String {
-        format!("{}.svc.cluster.local", self.namenode_name(),)
-    }
-
-    pub fn namenode_pod_fqdn(&self, replica: i32) -> String {
-        format!("{}-{}.svc.cluster.local", self.namenode_name(), replica,)
-    }
-    */
-
-    pub fn journalnode_name(&self) -> String {
-        format!("{}-journalnode", self.nameservice_id())
-    }
-    pub fn journalnode_fqdn(&self) -> String {
-        format!("{}.svc.cluster.local", self.journalnode_name(),)
-    }
-    pub fn journalnode_pod_fqdn(&self, replica: u16) -> String {
-        format!("{}-{}.svc.cluster.local", self.journalnode_name(), replica,)
-    }
 
     pub fn role_group_selector_labels(
         &self,
