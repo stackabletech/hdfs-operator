@@ -151,3 +151,38 @@ properties:
           required: true
       asOfVersion: "0.0.0"
       description: "The datanode http server address and port."
+
+  - property:
+      propertyNames:
+        - name: "dfs.journalnode.http-address"
+          kind:
+            type: "file"
+            file: "hdfs-site.xml"
+      datatype:
+        type: "string"
+      defaultValues:
+        - fromVersion: "3.0.0"
+          value: "0.0.0.0:8480"
+      roles:
+        - name: "journanode"
+          required: false
+      asOfVersion: "0.0.0"
+      description: "The address and port the JournalNode HTTP server listens on. If the port is 0 then the server will start on a free port."
+
+  - property:
+      propertyNames:
+        - name: "dfs.journalnode.https-address"
+          kind:
+            type: "file"
+            file: "hdfs-site.xml"
+      datatype:
+        type: "string"
+      defaultValues:
+        - fromVersion: "3.0.0"
+          value: "0.0.0.0:8481"
+      roles:
+        - name: "journanode"
+          required: false
+      asOfVersion: "0.0.0"
+      description: "The address and port the JournalNode HTTPS server listens on. If the port is 0 then the server will start on a free port."
+

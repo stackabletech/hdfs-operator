@@ -83,18 +83,18 @@ pub enum Error {
     #[error("Pod has no name")]
     PodHasNoName,
     #[error("Pod [{name}] has no uid")]
-    PodHasNoUid { name: String, },
+    PodHasNoUid { name: String },
     #[error("Pod [{name}] has no labels")]
-    PodHasNoLabels { name: String, },
+    PodHasNoLabels { name: String },
     #[error("Pod [{name}] has no [role] label")]
-    PodHasNoRoleLabel { name: String, },
+    PodHasNoRoleLabel { name: String },
     #[error("Pod [{name}] has no spec")]
-    PodHasNoSpec { name: String, },
+    PodHasNoSpec { name: String },
     #[error("Pod [{name}] has no container named [{role}]")]
-    PodHasNoContainer { name: String, role: String, },
+    PodHasNoContainer { name: String, role: String },
 
     #[error("Container [{name}] of pod [{pod}] has no ports.")]
-    ContainerHasNoPorts { name: String, pod: String,  },
+    ContainerHasNoPorts { name: String, pod: String },
 }
 
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;

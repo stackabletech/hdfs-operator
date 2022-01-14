@@ -10,7 +10,7 @@ use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
-use std::cmp::{min, max};
+use std::cmp::max;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
@@ -83,36 +83,23 @@ impl HdfsCluster {
     pub fn namenode_name(&self) -> String {
         format!("{}-namenode", self.nameservice_id())
     }
-    pub fn namenode_fqdn(&self) -> String {
-        format!(
-            "{}.svc.cluster.local",
-            self.namenode_name(),
-        )
+/*    pub fn namenode_fqdn(&self) -> String {
+        format!("{}.svc.cluster.local", self.namenode_name(),)
     }
 
     pub fn namenode_pod_fqdn(&self, replica: i32) -> String {
-        format!(
-            "{}-{}.svc.cluster.local",
-            self.namenode_name(),
-            replica,
-        )
+        format!("{}-{}.svc.cluster.local", self.namenode_name(), replica,)
     }
+    */
 
     pub fn journalnode_name(&self) -> String {
         format!("{}-journalnode", self.nameservice_id())
     }
     pub fn journalnode_fqdn(&self) -> String {
-        format!(
-            "{}.svc.cluster.local",
-            self.journalnode_name(),
-        )
+        format!("{}.svc.cluster.local", self.journalnode_name(),)
     }
     pub fn journalnode_pod_fqdn(&self, replica: u16) -> String {
-        format!(
-            "{}-{}.svc.cluster.local",
-            self.journalnode_name(),
-            replica,
-        )
+        format!("{}-{}.svc.cluster.local", self.journalnode_name(), replica,)
     }
 
     pub fn role_group_selector_labels(
@@ -128,10 +115,10 @@ impl HdfsCluster {
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
         match rolegroup_ref.role.as_str() {
-            "namenode" | "journalnode"  => { 
+            "namenode" | "journalnode" => {
                 group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
-            },
-            &_ => {},
+            }
+            &_ => {}
         };
         group_labels
     }

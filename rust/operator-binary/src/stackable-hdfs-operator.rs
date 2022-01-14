@@ -1,11 +1,8 @@
-use clap::{crate_version, App, AppSettings, SubCommand};
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::cli::Command;
 use stackable_operator::kube::CustomResourceExt;
-use stackable_operator::{cli, logging};
 use stackable_operator::{client, error};
 use structopt::StructOpt;
-use tracing::error;
 
 mod built_info {
     // The file has been placed there by the build script.

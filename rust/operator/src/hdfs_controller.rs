@@ -3,7 +3,8 @@ use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{HdfsCluster, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, PodSpec, PodTemplateSpec, VolumeMount, ObjectFieldSelector,
+    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec,
+    VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -23,10 +24,10 @@ use stackable_operator::kube::{
 };
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
-use stackable_operator::product_config_utils::Configuration;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
 };
+use stackable_operator::product_config_utils::{Configuration, ValidatedRoleConfigByPropertyKind};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -53,12 +54,14 @@ pub async fn reconcile_hdfs(
     )
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
+    let nn_props = build_namenode_address_properties(&hdfs, &validated_config)?;
     for (role_name, group_config) in validated_config.iter() {
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup = hdfs.rolegroup_ref(role_name, rolegroup_name);
             tracing::info!("Setting up rolegroup {:?}", rolegroup);
             let rg_service = build_rolegroup_service(&hdfs, &rolegroup, rolegroup_config)?;
-            let rg_configmap = build_rolegroup_config_map(&hdfs, &rolegroup, rolegroup_config)?;
+            let rg_configmap =
+                build_rolegroup_config_map(&hdfs, &rolegroup, rolegroup_config, &nn_props)?;
             let rg_statefulset = build_rolegroup_statefulset(&hdfs, &rolegroup, rolegroup_config)?;
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -323,43 +326,65 @@ fn build_ports(
     })
 }
 
+fn build_namenode_address_properties(
+    hdfs: &HdfsCluster,
+    validated_config: &ValidatedRoleConfigByPropertyKind,
+) -> HdfsOperatorResult<Vec<(String, String)>> {
+    let mut namenode_ids: Vec<String> = vec![];
+
+    for (role_name, group_config) in validated_config.iter() {
+        if *role_name == HdfsRole::NameNode.to_string() {
+            for (rolegroup_name, _rolegroup_config) in group_config.iter() {
+                let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
+                namenode_ids.extend(
+                    (0..hdfs.namenode_replicas(Some(&rolegroup_ref))?)
+                        .flat_map(|i| [format!("{}-{}", rolegroup_ref.object_name(), i)]),
+                );
+            }
+        }
+    }
+
+    let mut result = vec![(
+        format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
+        namenode_ids.join(", "),
+    )];
+    result.extend(namenode_ids.iter().flat_map(|nnid| {
+        [
+            (
+                format!(
+                    "dfs.namenode.rpc-address.{}.{}",
+                    hdfs.nameservice_id(),
+                    nnid,
+                ),
+                format!("{}.svc.cluster.local:8020", nnid),
+            ),
+            (
+                format!(
+                    "dfs.namenode.http-address.{}.{}",
+                    hdfs.nameservice_id(),
+                    nnid,
+                ),
+                format!("{}.svc.cluster.local:9870", nnid),
+            ),
+        ]
+    }));
+
+    Ok(result)
+}
+
 fn build_rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    nn_props: &Vec<(String, String)>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
-    let nn_props: Vec<(String, String)> = (0..hdfs.namenode_replicas(None)?)
-        .flat_map(|i| {
-            [
-                (
-                    format!("dfs.namenode.rpc-address.{}.nn{}", hdfs.nameservice_id(), i),
-                    format!("{}:8020", hdfs.namenode_pod_fqdn(i.into())),
-                ),
-                (
-                    format!(
-                        "dfs.namenode.http-address.{}.nn{}",
-                        hdfs.nameservice_id(),
-                        i
-                    ),
-                    format!("{}:9870", hdfs.namenode_pod_fqdn(i.into())),
-                ),
-            ]
-        })
-        .collect();
 
     let mut hdfs_site_config = vec![
         ("dfs.namenode.name.dir".to_string(), "/data".to_string()),
         ("dfs.datanode.data.dir".to_string(), "/data".to_string()),
         ("dfs.journalnode.edits.dir".to_string(), "/data".to_string()),
         ("dfs.nameservices".to_string(), hdfs.nameservice_id()),
-        (
-            format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
-            (0..hdfs.namenode_replicas(None)?)
-                .map(|i| format!("nn{}", i))
-                .collect::<Vec<_>>()
-                .join(", "),
-        ),
         (
             "dfs.namenode.shared.edits.dir".to_string(),
             format!(
@@ -390,8 +415,12 @@ fn build_rolegroup_config_map(
             "dfs.ha.automatic-failover.enabled".to_string(),
             "true".to_string(),
         ),
+        (
+            "dfs.ha.namenode.id".to_string(),
+            "${env.POD_NAME}".to_string(),
+        ),
     ];
-    hdfs_site_config.extend(nn_props.into_iter());
+    hdfs_site_config.extend(nn_props.clone().into_iter());
 
     ConfigMapBuilder::new()
         .metadata(
@@ -416,10 +445,7 @@ fn build_rolegroup_config_map(
             CORE_SITE_XML.to_string(),
             hadoop_config_xml([
                 ("fs.defaultFS", format!("hdfs://{}/", hdfs.nameservice_id())),
-                // (
-                //     "ha.zookeeper.quorum".to_string(),
-                //     "${env.ZOOKEEPER}".to_string(),
-                // ),
+                ("ha.zookeeper.quorum", "${env.ZOOKEEPER}".to_string()),
             ]),
         )
         .add_data(
@@ -443,7 +469,8 @@ fn build_rolegroup_statefulset(
     let replicas;
     let command;
     let service_name = rolegroup_ref.object_name();
-    let mut hadoop_container = hadoop_container(hdfs)?;
+    let hadoop_container = hadoop_container(hdfs)?;
+    //let init_containers = init_containers(hdfs)?;
 
     match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
         HdfsRole::DataNode => {
@@ -465,37 +492,6 @@ fn build_rolegroup_statefulset(
                      /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true"
                     .to_string(),
             ];
-            hadoop_container.env.get_or_insert_with(Vec::new)
-            .extend([
-                EnvVar {
-                    name: "NNID".to_string(),
-                    value_from: Some(EnvVarSource {
-                        field_ref: Some(ObjectFieldSelector {
-                            field_path: format!("metadata.labels.{}", LABEL_STS_POD_NAME),
-                            ..ObjectFieldSelector::default()
-                        }),
-                        ..EnvVarSource::default()
-                    }),
-                    ..EnvVar::default()
-                },
-                EnvVar {
-                    name: "ZOOKEEPER".to_string(),
-                    value_from: Some(EnvVarSource {
-                        config_map_key_ref: Some(ConfigMapKeySelector {
-                            name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
-                            key: "ZOOKEEPER".to_string(),
-                            ..ConfigMapKeySelector::default()
-                        }),
-                        ..EnvVarSource::default()
-                    }),
-                    ..EnvVar::default()
-                },
-                EnvVar {
-                    name: "HADOOP_OPTS".to_string(),
-                    value: Some("-Dha.zookeeper.quorum=$ZOOKEEPER -Ddfs.ha.namenode.id=$NNID".to_string()),
-                    ..EnvVar::default()
-                },
-            ]);
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.journalnode_replicas(Some(rolegroup_ref))?;
@@ -535,8 +531,7 @@ fn build_rolegroup_statefulset(
                 }),
                 ..Volume::default()
             }]),
-            //host_network: Some(true),
-            //dns_policy: Some("ClusterFirstWithHostNet".to_string()),
+            // init_containers,
             ..PodSpec::default()
         }),
     };
@@ -595,6 +590,29 @@ fn hadoop_container(hdfs: &HdfsCluster) -> HdfsOperatorResult<Container> {
                 value: Some("/stackable/hadoop/etc/hadoop".to_string()),
                 ..EnvVar::default()
             },
+            EnvVar {
+                name: "POD_NAME".to_string(),
+                value_from: Some(EnvVarSource {
+                    field_ref: Some(ObjectFieldSelector {
+                        field_path: String::from("metadata.name"),
+                        ..ObjectFieldSelector::default()
+                    }),
+                    ..EnvVarSource::default()
+                }),
+                ..EnvVar::default()
+            },
+            EnvVar {
+                name: "ZOOKEEPER".to_string(),
+                value_from: Some(EnvVarSource {
+                    config_map_key_ref: Some(ConfigMapKeySelector {
+                        name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
+                        key: "ZOOKEEPER".to_string(),
+                        ..ConfigMapKeySelector::default()
+                    }),
+                    ..EnvVarSource::default()
+                }),
+                ..EnvVar::default()
+            },
         ]),
         volume_mounts: Some(vec![
             VolumeMount {
@@ -612,6 +630,60 @@ fn hadoop_container(hdfs: &HdfsCluster) -> HdfsOperatorResult<Container> {
     })
 }
 
+/*
+fn init_containers(hdfs: &HdfsCluster) -> HdfsOperatorResult<Option<Vec<Container>>> {
+    Ok(Some(vec![ Container {
+        image: Some(hdfs.image()?),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            [
+                "NNID=nn$(echo $POD_NAME | sed 's/.*-//')",
+                "sed -i 's/NNID_PLACEHOLDER/$NNID/' /stackable/hadoop/etc/hadoop/hdfs-site.xml",
+                "sed -i 's/ZOOKEEPER_PLACEHOLDER/$ZOOKEEPER/' /stackable/hadoop/etc/hadoop/core-site.xml",
+            ]
+            .join(" && "),
+        ]),
+        env: Some(vec![
+            EnvVar {
+                name: "POD_NAME".to_string(),
+                value_from: Some(EnvVarSource {
+                    field_ref: Some(ObjectFieldSelector {
+                        field_path: String::from("metadata.name"),
+                        ..ObjectFieldSelector::default()
+                    }),
+                    ..EnvVarSource::default()
+                }),
+                ..EnvVar::default()
+            },
+            EnvVar {
+                name: "ZOOKEEPER".to_string(),
+                value_from: Some(EnvVarSource {
+                    config_map_key_ref: Some(ConfigMapKeySelector {
+                        name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
+                        key: "ZOOKEEPER".to_string(),
+                        ..ConfigMapKeySelector::default()
+                    }),
+                    ..EnvVarSource::default()
+                }),
+                ..EnvVar::default()
+            },
+        ]),
+        volume_mounts: Some(vec![
+            VolumeMount {
+                mount_path: "/stackable/hadoop/etc/hadoop".to_string(),
+                name: "config".to_string(),
+                ..VolumeMount::default()
+            },
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(0),
+            ..SecurityContext::default()
+        }),
+        ..Container::default()
+    }]))
+}
+*/
 fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
     PersistentVolumeClaim {
         metadata: ObjectMeta {

@@ -34,7 +34,7 @@ pub async fn create_controller(client: Client, product_config: ProductConfigMana
             )
             .instrument(info_span!("hdfs_controller"));
 
-            /*
+    /*
     hdfs_controller
         .map(erase_controller_result_type)
         .for_each(|res| async {
