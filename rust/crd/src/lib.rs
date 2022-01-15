@@ -131,7 +131,7 @@ impl HdfsCluster {
                 .role_groups
                 .values()
                 .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-                .fold(0, |sum, r| sum + r)
+                .sum()
         };
         Ok(max(1, result))
     }
@@ -163,7 +163,7 @@ impl HdfsCluster {
                 .role_groups
                 .values()
                 .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-                .fold(0, |sum, r| sum + r)
+                .sum()
         };
         Ok(max(2, result))
     }
@@ -193,7 +193,7 @@ impl HdfsCluster {
                 .role_groups
                 .values()
                 .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-                .fold(0, |sum, r| sum + r)
+                .sum()
         };
         Ok(result)
     }

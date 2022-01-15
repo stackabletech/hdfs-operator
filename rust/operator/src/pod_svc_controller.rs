@@ -36,18 +36,8 @@ pub async fn reconcile_pod(pod: Pod, ctx: Context<Ctx>) -> HdfsOperatorResult<Re
         .containers
         .iter()
         .filter(|container| container.name == role.clone())
-        .next()
-        .ok_or(Error::PodHasNoContainer {
-            name: name.clone(),
-            role: role.clone(),
-        })?
-        .ports
-        .as_ref()
-        .ok_or(Error::ContainerHasNoPorts {
-            name: role.clone(),
-            pod: name.clone(),
-        })?
-        .iter()
+        .flat_map(|c| c.ports.as_ref())
+        .flat_map(|cp| cp.iter()) //(cp.name.clone().unwrap_or_default(), cp.container_port))
         .map(|cp| (cp.name.clone().unwrap_or_default(), cp.container_port))
         .collect();
 

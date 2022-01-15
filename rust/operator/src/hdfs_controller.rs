@@ -139,7 +139,7 @@ fn build_role_properties(
     if let Some(journal_nodes) = &hdfs.spec.journal_nodes {
         result.insert(
             HdfsRole::JournalNode.to_string(),
-            (pnk.clone(), journal_nodes.clone().erase()),
+            (pnk, journal_nodes.clone().erase()),
         );
     } else {
         return Err(Error::NoJournalNodeRole);
@@ -206,7 +206,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_NAME_NODE_HTTP_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:9870"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("9870"))
                     .parse::<i32>()
@@ -221,7 +221,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_NAME_NODE_RPC_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:8020"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("8020"))
                     .parse::<i32>()
@@ -238,7 +238,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_DATA_NODE_DATA_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:9866"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("9866"))
                     .parse::<i32>()
@@ -253,7 +253,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_DATA_NODE_HTTP_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:9864"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("9864"))
                     .parse::<i32>()
@@ -268,7 +268,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_DATA_NODE_IPC_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:9867"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("9867"))
                     .parse::<i32>()
@@ -285,7 +285,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_JOURNAL_NODE_HTTP_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:8480"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("8480"))
                     .parse::<i32>()
@@ -300,7 +300,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_JOURNAL_NODE_HTTPS_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:8481"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("8481"))
                     .parse::<i32>()
@@ -315,7 +315,7 @@ fn build_ports(
                     .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
                     .and_then(|c| c.get(DFS_JOURNAL_NODE_RPC_ADDRESS))
                     .unwrap_or(&String::from("0.0.0.0:8485"))
-                    .split(":")
+                    .split(':')
                     .last()
                     .unwrap_or(&String::from("8485"))
                     .parse::<i32>()
@@ -350,8 +350,8 @@ fn build_rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    namenode_ids: &Vec<String>,
-    journalnode_ids: &Vec<String>,
+    namenode_ids: &[String],
+    journalnode_ids: &[String],
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
