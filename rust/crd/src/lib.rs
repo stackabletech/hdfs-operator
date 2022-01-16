@@ -97,7 +97,7 @@ impl HdfsCluster {
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
         match rolegroup_ref.role.as_str() {
-            "namenode" | "journalnode" => {
+            "namenode" => {
                 group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
             }
             &_ => {}
@@ -208,6 +208,93 @@ impl HdfsCluster {
             role: role_name.into(),
             role_group: group_name.into(),
         }
+    }
+
+    /// List all pods expected to form the cluster for the given role
+    pub fn pods(
+        &self,
+        role: HdfsRole,
+    ) -> HdfsOperatorResult<Vec<HdfsPodRef>> {
+        let ns = self
+            .metadata
+            .namespace
+            .clone()
+            .ok_or(Error::NoNamespaceContext)?;
+
+        let rolegroup_replicas: Vec<(RoleGroupRef<HdfsCluster>, u16)> = match role {
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .iter()
+                .flat_map(|role| &role.role_groups)
+                // Order rolegroups consistently, to avoid spurious downstream rewrites
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(rolegroup_name, role_group)| {
+                    (
+                        self.rolegroup_ref(HdfsRole::JournalNode.to_string(), rolegroup_name),
+                        role_group.replicas.unwrap_or_default(),
+                    )
+                })
+                .collect(),
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .iter()
+                .flat_map(|role| &role.role_groups)
+                // Order rolegroups consistently, to avoid spurious downstream rewrites
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(rolegroup_name, role_group)| {
+                    (
+                        self.rolegroup_ref(HdfsRole::NameNode.to_string(), rolegroup_name),
+                         role_group.replicas.unwrap_or_default())
+                })
+                .collect(),
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .iter()
+                .flat_map(|role| &role.role_groups)
+                // Order rolegroups consistently, to avoid spurious downstream rewrites
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(rolegroup_name, role_group)| {
+                    (
+                        self.rolegroup_ref(HdfsRole::DataNode.to_string(), rolegroup_name),
+                        role_group.replicas.unwrap_or_default(),
+                    )
+                })
+                .collect(),
+        };
+
+        Ok(rolegroup_replicas
+            .iter()
+            .flat_map(move |(rolegroup_ref, replicas)| {
+                let ns = ns.clone();
+                (0..*replicas).map(move |i| HdfsPodRef {
+                    namespace: ns.clone(),
+                    role_group_service_name: rolegroup_ref.object_name(),
+                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
+                })
+            }).collect())
+    }
+}
+/// Reference to a single `Pod` that is a component of a [`ZookeeperCluster`]
+///
+/// Used for service discovery.
+pub struct HdfsPodRef {
+    pub namespace: String,
+    pub role_group_service_name: String,
+    pub pod_name: String,
+}
+
+impl HdfsPodRef {
+    pub fn fqdn(&self) -> String {
+        format!(
+            "{}.{}.{}.svc.cluster.local",
+            self.pod_name, self.role_group_service_name, self.namespace
+        )
     }
 }
 /// This is a struct to represent HDFS addresses (node_name/ip/interface and port)

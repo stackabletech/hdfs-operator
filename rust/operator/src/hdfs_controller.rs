@@ -1,10 +1,9 @@
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
-use stackable_hdfs_crd::{HdfsCluster, HdfsRole};
+use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec,
-    VolumeMount,
+    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -27,7 +26,7 @@ use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigM
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
 };
-use stackable_operator::product_config_utils::{Configuration, ValidatedRoleConfigByPropertyKind};
+use stackable_operator::product_config_utils::{Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -54,16 +53,21 @@ pub async fn reconcile_hdfs(
     )
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
-    let namenode_ids = node_ids(&hdfs, HdfsRole::NameNode, &validated_config)?;
-    let journalnode_ids = node_ids(&hdfs, HdfsRole::JournalNode, &validated_config)?;
+    let namenode_ids = hdfs.pods(HdfsRole::NameNode)?;
+    let journalnode_ids = hdfs.pods(HdfsRole::JournalNode)?;
 
     for (role_name, group_config) in validated_config.iter() {
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup = hdfs.rolegroup_ref(role_name, rolegroup_name);
             tracing::info!("Setting up rolegroup {:?}", rolegroup);
             let rg_service = build_rolegroup_service(&hdfs, &rolegroup, rolegroup_config)?;
-            let rg_configmap =
-                build_rolegroup_config_map(&hdfs, &rolegroup, rolegroup_config, &namenode_ids, &journalnode_ids)?;
+            let rg_configmap = build_rolegroup_config_map(
+                &hdfs,
+                &rolegroup,
+                rolegroup_config,
+                &namenode_ids,
+                &journalnode_ids,
+            )?;
             let rg_statefulset = build_rolegroup_statefulset(&hdfs, &rolegroup, rolegroup_config)?;
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -328,30 +332,12 @@ fn build_ports(
     })
 }
 
-/// Lists like simple-namenode-default-0, ...-1, ...-2
-fn node_ids(hdfs: &HdfsCluster, role: HdfsRole, validated_config: &ValidatedRoleConfigByPropertyKind) -> HdfsOperatorResult<Vec<String>> {
-    let mut node_ids: Vec<String> = vec![];
-
-    for (role_name, group_config) in validated_config.iter() {
-        if *role_name == role.to_string() {
-            for (rolegroup_name, _rolegroup_config) in group_config.iter() {
-                let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
-                node_ids.extend(
-                    (0..hdfs.namenode_replicas(Some(&rolegroup_ref))?)
-                        .flat_map(|i| [format!("{}-{}", rolegroup_ref.object_name(), i)]),
-                );
-            }
-        }
-    }
-    Ok(node_ids)
-}
-
 fn build_rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    namenode_ids: &[String],
-    journalnode_ids: &[String],
+    namenode_ids: &[HdfsPodRef],
+    journalnode_ids: &[HdfsPodRef],
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
@@ -360,12 +346,21 @@ fn build_rolegroup_config_map(
         ("dfs.datanode.data.dir".to_string(), "/data".to_string()),
         ("dfs.journalnode.edits.dir".to_string(), "/data".to_string()),
         ("dfs.nameservices".to_string(), hdfs.nameservice_id()),
-        ( format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()), namenode_ids.join(", "),),
+        (
+            format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
+            namenode_ids
+                .iter()
+                .map(|nn| nn.pod_name.clone())
+                .collect::<Vec<String>>()
+                .join(", "),
+        ),
         (
             "dfs.namenode.shared.edits.dir".to_string(),
             format!(
                 "qjournal://{}/{}",
-                    journalnode_ids.iter().map(|jnid| format!("{}.svc.cluster.local:8485", jnid))
+                journalnode_ids
+                    .iter()
+                    .map(|jnid| format!("{}:8485", jnid.fqdn()))
                     .collect::<Vec<_>>()
                     .join(";"),
                 hdfs.nameservice_id()
@@ -395,23 +390,23 @@ fn build_rolegroup_config_map(
             "${env.POD_NAME}".to_string(),
         ),
     ];
-    hdfs_site_config.extend( namenode_ids.iter().flat_map(|nnid| {
+    hdfs_site_config.extend(namenode_ids.iter().flat_map(|nnid| {
         [
             (
                 format!(
                     "dfs.namenode.rpc-address.{}.{}",
                     hdfs.nameservice_id(),
-                    nnid,
+                    nnid.pod_name,
                 ),
-                format!("{}.svc.cluster.local:8020", nnid),
+                format!("{}:8020", nnid.fqdn()),
             ),
             (
                 format!(
                     "dfs.namenode.http-address.{}.{}",
                     hdfs.nameservice_id(),
-                    nnid,
+                    nnid.pod_name,
                 ),
-                format!("{}.svc.cluster.local:9870", nnid),
+                format!("{}:9870", nnid.fqdn()),
             ),
         ]
     }));

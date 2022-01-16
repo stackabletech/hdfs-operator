@@ -14,11 +14,6 @@ spec:
         replicas: 2
         config:
           dfsNamenodeNameDir: /stackable/hadoop/namenode/data
-          ipcAddress:
-            port: 9000
-          httpAddress:
-            port: 60001
-          metricsPort: 50000
   dataNodes:
     roleGroups:
       default:
@@ -28,9 +23,6 @@ spec:
         replicas: 1
         config:
           dfsDatanodeNameDir: /stackable/hadoop/datannode/data
-          httpAddress:
-            port: 60002
-          metricsPort: 51000
   journalNodes:
     roleGroups:
       default:
@@ -38,10 +30,6 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         replicas: 1
-        config:
-          httpAddress:
-            port: 60003
-          metricsPort: 51000
 
 
 

@@ -95,6 +95,9 @@ pub enum Error {
 
     #[error("Container [{name}] of pod [{pod}] has no ports.")]
     ContainerHasNoPorts { name: String, pod: String },
+
+    #[error("Object has no associated namespace.")]
+    NoNamespaceContext,
 }
 
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
