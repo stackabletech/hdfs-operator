@@ -1,95 +1,57 @@
 = Installation
 
-There are three ways to run the HDFS Operator:
+There are two ways to run the HDFS Operator:
 
-1. Build from source. This is documented in xref:building.adoc[Building the Operator].
+1. Using Helm.
 
-2. Operating System packages (dep & RPM)
+2. Build from source.
 
-3. As a Docker container
-
-== Operating System Packages
-
-=== Debian
-
-We do provide `deb` packages for Debian 10:
-
-|===
-| Version | Repository
-
-| Development
-| `https://repo.stackable.tech/repository/deb-dev/ buster main`
-
-| Stable
-| `https://repo.stackable.tech/repository/deb-release/ buster main`
-|===
-
-To add these repositories run a command like this:
+== Using Helm
+Helm allows you to download and deploy Stackable operators on Kubernetes and is by far the easiest installation method. First ensure that you have installed the Stackable Operators Helm repository:
 
 [source,bash]
 ----
-echo "deb https://repo.stackable.tech/repository/deb-release/ buster main" | sudo tee -a /etc/apt/sources.list.d/stackable.list
+helm repo add stackable https://repo.stackable.tech/repository/helm-dev/
+helm repo update stackable
 ----
-
-After you added the repository run:
+Then install the Stackable Operator for Apache Hadoop
 
 [source,bash]
 ----
-sudo apt-get update
-sudo apt-get install stackable-hdfs-operator
+helm install hdfs-operator stackable/hdfs-operator
 ----
 
-=== RHEL/CentOS
+Helm will deploy the operator in a Kubernetes container and apply the CRDs for the Apache Hdfs service. You're now ready to deploy Apache Hdfs in Kubernetes as described in  xref:usage.adoc[Usage].
 
-We do provide `RPM` packages for RHEL 7 & 8.
+== Build from source
 
-|===
-| Version | Repository
+For development, testing and debugging purposes it is useful to be able to deploy a locally modified operator without the need to publish a container image and/or a helm chart.
 
-| Development RHEL 7
-| `https://repo.stackable.tech/repository/rpm-dev/el7`
-
-| Stable RHEL 7
-| `https://repo.stackable.tech/repository/rpm-release/el7`
-
-| Development RHEL 8
-| `https://repo.stackable.tech/repository/rpm-dev/el8`
-
-| Stable RHEL 8
-| `https://repo.stackable.tech/repository/rpm-release/el8`
-
-|===
-
-Add this to `/etc/yum.repos.d/stackable.repo` and make sure to pick the corrrect repository:
-
-[source]
-----
-[stackable]
-name=Stackable
-baseurl=https://repo.stackable.tech/repository/rpm-release/el8
-repo_gpgcheck=0
-enabled=1
-gpgcheck=0
-----
-
-Install the Operator:
+Requirements:
+* A recent Rust toolchain to compile the sources. Version 1.58 is the latest at the time of this writing.
+* Docker to build the image.
+* Optionally a local Kubernetes cluster like `kind` to run the operator and the Hdfs cluster.
 
 [source,bash]
 ----
-sudo yum install stackable-hdfs-operator
+cargo build
+cp target/debug/stackable-hdfs-operator .
+docker build -t docker.stackable.tech/stackable/hdfs-operator:0.3.0-nightly -f docker/Dockerfile.devel .
+rm stackable-hdfs-operator
 ----
 
-== Docker
+The image can then be loaded in local `kind` cluster like this:
 
-This Operator is published as a Docker image:
-
-[source]
-----
-docker.stackable.tech/stackable/hdfs-operator
-----
-
-To run it straight from Docker you can use this command:
 [source,bash]
 ----
-docker run -e HDFS_OPERATOR_LOG=trace -e KUBECONFIG=/root/.kube/k3s.yaml --mount type=bind,source="$HOME/.kube/k3s.yaml",target="/root/.kube/k3s.yaml" -it docker.stackable.tech/stackable/hdfs-operator:latest
+kind load docker-image docker.stackable.tech/stackable/hdfs-operator:0.3.0-nightly --name hdfs
 ----
+and the operator can be deployed by using the local Helm chart:
+
+[source,bash]
+----
+helm install hdfs-operator deploy/helm/hdfs-operator/
+----
+
+
+Now you can proceed to install a custom Apache Hdfs cluster as described in xref:usage.adoc[Usage].
