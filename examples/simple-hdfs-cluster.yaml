@@ -12,24 +12,20 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         replicas: 2
-        config:
-          dfsNamenodeNameDir: /stackable/hadoop/namenode/data
   dataNodes:
     roleGroups:
       default:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 1
-        config:
-          dfsDatanodeNameDir: /stackable/hadoop/datannode/data
+        replicas: 3
   journalNodes:
     roleGroups:
       default:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 1
+        replicas: 2
 
 
 
