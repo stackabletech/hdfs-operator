@@ -343,9 +343,13 @@ fn build_rolegroup_config_map(
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
     let mut hdfs_site_config = vec![
-        ("dfs.namenode.name.dir".to_string(), "/data".to_string()),
-        ("dfs.datanode.data.dir".to_string(), "/data".to_string()),
-        ("dfs.journalnode.edits.dir".to_string(), "/data".to_string()),
+        // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
+        // be formatted by the namenode, or used by the other services.
+        // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+        ("dfs.namenode.name.dir".to_string(), "/data/name".to_string()),
+        ("dfs.datanode.data.dir".to_string(), "/data/data".to_string()),
+        ("dfs.journalnode.edits.dir".to_string(), "/data/journal".to_string()),
+
         ("dfs.nameservices".to_string(), hdfs.nameservice_id()),
         (
             format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
@@ -460,7 +464,22 @@ fn build_rolegroup_statefulset(
     let command;
     let service_name = rolegroup_ref.object_name();
     let hadoop_container = hadoop_container(hdfs, rolegroup_ref, rolegroup_config)?;
-    let mut init_containers = None;
+
+    let mut init_containers = Some(vec![Container {
+        name: "chown-data".to_string(),
+        image: Some(hdfs.image()?),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            "chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(0),
+            ..SecurityContext::default()
+        }),
+        ..hadoop_container.clone()
+    }]);
+
     let mut containers = vec![];
 
     match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
@@ -474,8 +493,11 @@ fn build_rolegroup_statefulset(
 
         HdfsRole::NameNode => {
             replicas = hdfs.namenode_replicas(Some(rolegroup_ref))?;
-            command = vec!["/opt/hadoop/bin/hdfs".to_string(), "namenode".to_string()];
-            init_containers = Some(vec![Container {
+            command = vec![
+                "/stackable/hadoop/bin/hdfs".to_string(),
+                "namenode".to_string(),
+            ];
+            init_containers.get_or_insert_with(Vec::new).push(Container {
                 name: "format-namenode".to_string(),
                 image: Some(hdfs.image()?),
                 args: Some(vec![
@@ -487,12 +509,8 @@ fn build_rolegroup_statefulset(
                      /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true"
                         .to_string(),
                 ]),
-                security_context: Some(SecurityContext {
-                    run_as_user: Some(0),
-                    ..SecurityContext::default()
-                }),
                 ..hadoop_container.clone()
-            }]);
+            });
             containers.push(Container {
                 name: "zkfc".to_string(),
                 args: Some(vec![
@@ -554,7 +572,7 @@ fn build_rolegroup_statefulset(
             )
             .build(),
         spec: Some(StatefulSetSpec {
-            pod_management_policy: Some("Parallel".to_string()),
+            pod_management_policy: Some("OrderedReady".to_string()),
             replicas: Some(i32::from(replicas)),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
@@ -646,7 +664,6 @@ fn hadoop_container(
         ..Container::default()
     })
 }
-
 
 fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
     PersistentVolumeClaim {
