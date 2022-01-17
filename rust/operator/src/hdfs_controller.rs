@@ -3,7 +3,8 @@ use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, VolumeMount,
+    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, SecurityContext,
+    VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -23,10 +24,10 @@ use stackable_operator::kube::{
 };
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
+use stackable_operator::product_config_utils::Configuration;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
 };
-use stackable_operator::product_config_utils::{Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -458,8 +459,9 @@ fn build_rolegroup_statefulset(
     let replicas;
     let command;
     let service_name = rolegroup_ref.object_name();
-    let hadoop_container = hadoop_container(hdfs)?;
-    //let init_containers = init_containers(hdfs)?;
+    let hadoop_container = hadoop_container(hdfs, rolegroup_ref, rolegroup_config)?;
+    let mut init_containers = None;
+    let mut containers = vec![];
 
     match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
         HdfsRole::DataNode => {
@@ -472,15 +474,33 @@ fn build_rolegroup_statefulset(
 
         HdfsRole::NameNode => {
             replicas = hdfs.namenode_replicas(Some(rolegroup_ref))?;
-            command = vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                "/stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive \
+            command = vec!["/opt/hadoop/bin/hdfs".to_string(), "namenode".to_string()];
+            init_containers = Some(vec![Container {
+                name: "format-namenode".to_string(),
+                image: Some(hdfs.image()?),
+                args: Some(vec![
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    "/stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive \
                      || /stackable/hadoop/bin/hdfs namenode -format -noninteractive \
                      || true
                      /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true"
-                    .to_string(),
-            ];
+                        .to_string(),
+                ]),
+                security_context: Some(SecurityContext {
+                    run_as_user: Some(0),
+                    ..SecurityContext::default()
+                }),
+                ..hadoop_container.clone()
+            }]);
+            containers.push(Container {
+                name: "zkfc".to_string(),
+                args: Some(vec![
+                    "/stackable/hadoop/bin/hdfs".to_string(),
+                    "zkfc".to_string(),
+                ]),
+                ..hadoop_container.clone()
+            });
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.journalnode_replicas(Some(rolegroup_ref))?;
@@ -490,28 +510,21 @@ fn build_rolegroup_statefulset(
             ];
         }
     }
+
+    containers.push(Container {
+        name: rolegroup_ref.role.clone(),
+        args: Some(command),
+        ..hadoop_container
+    });
+
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
             labels: Some(hdfs.role_group_selector_labels(rolegroup_ref)),
             ..ObjectMeta::default()
         }),
         spec: Some(PodSpec {
-            containers: vec![Container {
-                name: rolegroup_ref.role.clone(),
-                args: Some(command),
-                ports: Some(
-                    build_ports(hdfs, rolegroup_ref, rolegroup_config)?
-                        .iter()
-                        .map(|(name, value)| ContainerPort {
-                            name: Some(name.clone()),
-                            container_port: *value,
-                            protocol: Some("TCP".to_string()),
-                            ..ContainerPort::default()
-                        })
-                        .collect(),
-                ),
-                ..hadoop_container
-            }],
+            containers,
+            init_containers,
             volumes: Some(vec![Volume {
                 name: "config".to_string(),
                 config_map: Some(ConfigMapVolumeSource {
@@ -520,7 +533,6 @@ fn build_rolegroup_statefulset(
                 }),
                 ..Volume::default()
             }]),
-            // init_containers,
             ..PodSpec::default()
         }),
     };
@@ -565,7 +577,11 @@ fn build_rolegroup_statefulset(
     })
 }
 
-fn hadoop_container(hdfs: &HdfsCluster) -> HdfsOperatorResult<Container> {
+fn hadoop_container(
+    hdfs: &HdfsCluster,
+    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+) -> HdfsOperatorResult<Container> {
     Ok(Container {
         image: Some(hdfs.image()?),
         env: Some(vec![
@@ -615,64 +631,23 @@ fn hadoop_container(hdfs: &HdfsCluster) -> HdfsOperatorResult<Container> {
                 ..VolumeMount::default()
             },
         ]),
+        ports: Some(
+            build_ports(hdfs, rolegroup_ref, rolegroup_config)?
+                .iter()
+                .map(|(name, value)| ContainerPort {
+                    name: Some(name.clone()),
+                    container_port: *value,
+                    protocol: Some("TCP".to_string()),
+                    ..ContainerPort::default()
+                })
+                .collect(),
+        ),
+
         ..Container::default()
     })
 }
 
-/*
-fn init_containers(hdfs: &HdfsCluster) -> HdfsOperatorResult<Option<Vec<Container>>> {
-    Ok(Some(vec![ Container {
-        image: Some(hdfs.image()?),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            [
-                "NNID=nn$(echo $POD_NAME | sed 's/.*-//')",
-                "sed -i 's/NNID_PLACEHOLDER/$NNID/' /stackable/hadoop/etc/hadoop/hdfs-site.xml",
-                "sed -i 's/ZOOKEEPER_PLACEHOLDER/$ZOOKEEPER/' /stackable/hadoop/etc/hadoop/core-site.xml",
-            ]
-            .join(" && "),
-        ]),
-        env: Some(vec![
-            EnvVar {
-                name: "POD_NAME".to_string(),
-                value_from: Some(EnvVarSource {
-                    field_ref: Some(ObjectFieldSelector {
-                        field_path: String::from("metadata.name"),
-                        ..ObjectFieldSelector::default()
-                    }),
-                    ..EnvVarSource::default()
-                }),
-                ..EnvVar::default()
-            },
-            EnvVar {
-                name: "ZOOKEEPER".to_string(),
-                value_from: Some(EnvVarSource {
-                    config_map_key_ref: Some(ConfigMapKeySelector {
-                        name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
-                        key: "ZOOKEEPER".to_string(),
-                        ..ConfigMapKeySelector::default()
-                    }),
-                    ..EnvVarSource::default()
-                }),
-                ..EnvVar::default()
-            },
-        ]),
-        volume_mounts: Some(vec![
-            VolumeMount {
-                mount_path: "/stackable/hadoop/etc/hadoop".to_string(),
-                name: "config".to_string(),
-                ..VolumeMount::default()
-            },
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..Container::default()
-    }]))
-}
-*/
+
 fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
     PersistentVolumeClaim {
         metadata: ObjectMeta {
