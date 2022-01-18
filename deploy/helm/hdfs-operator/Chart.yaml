@@ -1,12 +1,10 @@
 ---
 apiVersion: v2
 name: hdfs-operator
-version: <version_placeholder>
-appVersion: "<version_placeholder>"
+version: 0.3.0-nightly
+appVersion: "0.3.0-nightly"
 description: The Stackable Operator for Apache HDFS
-
 home: https://github.com/stackabletech/hdfs-operator
-
 maintainers:
   - name: Stackable
     url: https://www.stackable.tech
