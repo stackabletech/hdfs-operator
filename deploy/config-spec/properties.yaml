@@ -20,7 +20,7 @@ properties:
         unit: *unitUri
       roles:
         - name: "namenode"
-          required: true
+          required: false
         - name: "datanode"
           required: false
       asOfVersion: "0.0.0"
@@ -39,7 +39,7 @@ properties:
         - name: "namenode"
           required: false
         - name: "datanode"
-          required: true
+          required: false
       asOfVersion: "0.0.0"
       description: "Determines where on the local filesystem an DFS data node should store its blocks. If this is a comma-delimited list of directories, then data will be stored in all named directories, typically on different devices. Directories that do not exist are ignored."
 
