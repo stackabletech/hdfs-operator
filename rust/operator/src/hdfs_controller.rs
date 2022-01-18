@@ -24,11 +24,10 @@ use stackable_operator::kube::{
 };
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
-use stackable_operator::product_config_utils::Configuration;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
 };
-use stackable_operator::role_utils::{Role, RoleGroupRef};
+use stackable_operator::role_utils::RoleGroupRef;
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
@@ -46,7 +45,7 @@ pub async fn reconcile_hdfs(
 
     let validated_config = validate_all_roles_and_groups_config(
         hdfs.version()?,
-        &transform_all_roles_to_config(&hdfs, build_role_properties(&hdfs)?)
+        &transform_all_roles_to_config(&hdfs, hdfs.build_role_properties()?)
             .map_err(|source| Error::InvalidRoleConfig { source })?,
         &ctx.get_ref().product_config,
         false,
@@ -103,54 +102,6 @@ pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
     ReconcilerAction {
         requeue_after: Some(Duration::from_secs(5)),
     }
-}
-
-fn build_role_properties(
-    hdfs: &HdfsCluster,
-) -> HdfsOperatorResult<
-    HashMap<
-        String,
-        (
-            Vec<PropertyNameKind>,
-            Role<impl Configuration<Configurable = HdfsCluster>>,
-        ),
-    >,
-> {
-    let mut result = HashMap::new();
-    let pnk = vec![
-        PropertyNameKind::File(HDFS_SITE_XML.to_string()),
-        PropertyNameKind::File(CORE_SITE_XML.to_string()),
-        PropertyNameKind::Env,
-    ];
-
-    if let Some(name_nodes) = &hdfs.spec.name_nodes {
-        result.insert(
-            HdfsRole::NameNode.to_string(),
-            (pnk.clone(), name_nodes.clone().erase()),
-        );
-    } else {
-        return Err(Error::NoNameNodeRole);
-    }
-
-    if let Some(data_nodes) = &hdfs.spec.data_nodes {
-        result.insert(
-            HdfsRole::DataNode.to_string(),
-            (pnk.clone(), data_nodes.clone().erase()),
-        );
-    } else {
-        return Err(Error::NoDataNodeRole);
-    }
-
-    if let Some(journal_nodes) = &hdfs.spec.journal_nodes {
-        result.insert(
-            HdfsRole::JournalNode.to_string(),
-            (pnk, journal_nodes.clone().erase()),
-        );
-    } else {
-        return Err(Error::NoJournalNodeRole);
-    }
-
-    Ok(result)
 }
 
 fn build_rolegroup_service(
@@ -336,7 +287,7 @@ fn build_ports(
 fn build_rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_ids: &[HdfsPodRef],
     journalnode_ids: &[HdfsPodRef],
 ) -> HdfsOperatorResult<ConfigMap> {
@@ -453,6 +404,13 @@ fn build_rolegroup_config_map(
         .add_data(
             HDFS_SITE_XML.to_string(),
             hadoop_config_xml(hdfs_site_config),
+        )
+        .add_data(
+            LOG4J_PROPERTIES.to_string(),
+            rolegroup_config
+                .get(&PropertyNameKind::File(String::from(LOG4J_PROPERTIES)))
+                .and_then(|m| m.get(&String::from(LOG4J_PROPERTIES)).cloned())
+                .unwrap_or_else(|| String::from("")),
         )
         .build()
         .map_err(|source| Error::BuildRoleGroupConfig {

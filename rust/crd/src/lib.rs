@@ -7,11 +7,12 @@ use serde::{Deserialize, Serialize};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
+use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
 use std::cmp::max;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
 use strum_macros::Display;
@@ -278,6 +279,55 @@ impl HdfsCluster {
             })
             .collect())
     }
+
+    pub fn build_role_properties(
+        &self,
+    ) -> HdfsOperatorResult<
+        HashMap<
+            String,
+            (
+                Vec<PropertyNameKind>,
+                Role<impl Configuration<Configurable = HdfsCluster>>,
+            ),
+        >,
+    > {
+        let mut result = HashMap::new();
+        let pnk = vec![
+            PropertyNameKind::File(HDFS_SITE_XML.to_string()),
+            PropertyNameKind::File(CORE_SITE_XML.to_string()),
+            PropertyNameKind::File(LOG4J_PROPERTIES.to_string()),
+            PropertyNameKind::Env,
+        ];
+
+        if let Some(name_nodes) = &self.spec.name_nodes {
+            result.insert(
+                HdfsRole::NameNode.to_string(),
+                (pnk.clone(), name_nodes.clone().erase()),
+            );
+        } else {
+            return Err(Error::NoNameNodeRole);
+        }
+
+        if let Some(data_nodes) = &self.spec.data_nodes {
+            result.insert(
+                HdfsRole::DataNode.to_string(),
+                (pnk.clone(), data_nodes.clone().erase()),
+            );
+        } else {
+            return Err(Error::NoDataNodeRole);
+        }
+
+        if let Some(journal_nodes) = &self.spec.journal_nodes {
+            result.insert(
+                HdfsRole::JournalNode.to_string(),
+                (pnk, journal_nodes.clone().erase()),
+            );
+        } else {
+            return Err(Error::NoJournalNodeRole);
+        }
+
+        Ok(result)
+    }
 }
 /// Reference to a single `Pod` that is a component of a [`ZookeeperCluster`]
 ///
@@ -393,6 +443,7 @@ pub struct NameNodeConfig {
     pub metrics_port: Option<u16>,
     pub ipc_address: Option<HdfsAddress>,
     pub http_address: Option<HdfsAddress>,
+    pub log4j: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -404,6 +455,7 @@ pub struct DataNodeConfig {
     pub ipc_address: Option<HdfsAddress>,
     pub http_address: Option<HdfsAddress>,
     pub data_address: Option<HdfsAddress>,
+    pub log4j: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -413,6 +465,7 @@ pub struct JournalNodeConfig {
     pub https_address: Option<HdfsAddress>,
     pub rpc_address: Option<HdfsAddress>,
     pub metrics_port: Option<u16>,
+    pub log4j: Option<String>,
 }
 
 impl Configuration for NameNodeConfig {
@@ -475,6 +528,10 @@ impl Configuration for NameNodeConfig {
         } else if file == CORE_SITE_XML {
             if let Some(ipc_address) = &self.ipc_address {
                 result.insert(FS_DEFAULT.to_string(), Some(ipc_address.to_string()));
+            }
+        } else if file == LOG4J_PROPERTIES {
+            if let Some(log4j_properties) = &self.log4j {
+                result.insert(LOG4J_PROPERTIES.to_string(), Some(log4j_properties.clone()));
             }
         }
 
@@ -553,6 +610,10 @@ impl Configuration for DataNodeConfig {
                     Some(data_address.to_string()),
                 );
             }
+        } else if file == LOG4J_PROPERTIES {
+            if let Some(log4j_properties) = &self.log4j {
+                result.insert(LOG4J_PROPERTIES.to_string(), Some(log4j_properties.clone()));
+            }
         }
 
         Ok(result)
@@ -613,6 +674,10 @@ impl Configuration for JournalNodeConfig {
                     DFS_JOURNAL_NODE_RPC_ADDRESS.to_string(),
                     Some(rpc_address.to_string()),
                 );
+            }
+        } else if file == LOG4J_PROPERTIES {
+            if let Some(log4j_properties) = &self.log4j {
+                result.insert(LOG4J_PROPERTIES.to_string(), Some(log4j_properties.clone()));
             }
         }
 

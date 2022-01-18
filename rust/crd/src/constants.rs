@@ -31,6 +31,7 @@ pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
 
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
+pub const LOG4J_PROPERTIES: &str = "log4j.properties";
 
 pub const SERVICE_PORT_NAME_RPC: &str = "rpc";
 pub const SERVICE_PORT_NAME_IPC: &str = "ipc";
