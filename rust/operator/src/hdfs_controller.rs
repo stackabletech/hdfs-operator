@@ -53,22 +53,26 @@ pub async fn reconcile_hdfs(
     )
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
-    let namenode_ids = hdfs.pods(HdfsRole::NameNode)?;
-    let journalnode_ids = hdfs.pods(HdfsRole::JournalNode)?;
+    let namenode_ids = hdfs.pods(HdfsRole::NameNode, &validated_config)?;
+    let journalnode_ids = hdfs.pods(HdfsRole::JournalNode, &validated_config)?;
 
     for (role_name, group_config) in validated_config.iter() {
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
-            let rolegroup = hdfs.rolegroup_ref(role_name, rolegroup_name);
-            tracing::info!("Setting up rolegroup {:?}", rolegroup);
-            let rg_service = build_rolegroup_service(&hdfs, &rolegroup, rolegroup_config)?;
+            let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
+
+            let rolegroup_ports = HdfsCluster::build_ports(&rolegroup_ref, &validated_config)?;
+            let rg_service = build_rolegroup_service(&hdfs, &rolegroup_ref, &rolegroup_ports)?;
             let rg_configmap = build_rolegroup_config_map(
                 &hdfs,
-                &rolegroup,
+                &rolegroup_ref,
                 rolegroup_config,
                 &namenode_ids,
                 &journalnode_ids,
             )?;
-            let rg_statefulset = build_rolegroup_statefulset(&hdfs, &rolegroup, rolegroup_config)?;
+            let hadoop_container = hadoop_container(&hdfs, &rolegroup_ref, &rolegroup_ports)?;
+            let rg_statefulset =
+                build_rolegroup_statefulset(&hdfs, &rolegroup_ref, &hadoop_container)?;
+
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
                 .await
@@ -107,7 +111,7 @@ pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
 fn build_rolegroup_service(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    rolegroup_ports: &[(String, i32)],
 ) -> Result<Service, Error> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
     Ok(Service {
@@ -130,7 +134,7 @@ fn build_rolegroup_service(
         spec: Some(ServiceSpec {
             cluster_ip: Some("None".to_string()),
             ports: Some(
-                build_ports(hdfs, rolegroup_ref, rolegroup_config)?
+                rolegroup_ports
                     .iter()
                     .map(|(name, value)| ServicePort {
                         name: Some(name.clone()),
@@ -145,142 +149,6 @@ fn build_rolegroup_service(
             ..ServiceSpec::default()
         }),
         status: None,
-    })
-}
-
-// TODO: add metrics ports
-fn build_ports(
-    _hdfs: &HdfsCluster,
-    rolegroup: &RoleGroupRef<HdfsCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-) -> Result<Vec<(String, i32)>, Error> {
-    Ok(match serde_yaml::from_str(&rolegroup.role).unwrap() {
-        HdfsRole::NameNode => vec![
-            (
-                String::from(SERVICE_PORT_NAME_HTTP),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_NAME_NODE_HTTP_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:9870"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("9870"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_NAME_NODE_HTTP_ADDRESS),
-                    })?,
-            ),
-            (
-                String::from(SERVICE_PORT_NAME_RPC),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_NAME_NODE_RPC_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:8020"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("8020"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_NAME_NODE_RPC_ADDRESS),
-                    })?,
-            ),
-        ],
-        HdfsRole::DataNode => vec![
-            (
-                String::from(SERVICE_PORT_NAME_DATA),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_DATA_NODE_DATA_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:9866"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("9866"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_DATA_NODE_DATA_ADDRESS),
-                    })?,
-            ),
-            (
-                String::from(SERVICE_PORT_NAME_HTTP),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_DATA_NODE_HTTP_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:9864"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("9864"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_DATA_NODE_HTTP_ADDRESS),
-                    })?,
-            ),
-            (
-                String::from(SERVICE_PORT_NAME_IPC),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_DATA_NODE_IPC_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:9867"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("9867"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_DATA_NODE_IPC_ADDRESS),
-                    })?,
-            ),
-        ],
-        HdfsRole::JournalNode => vec![
-            (
-                String::from(SERVICE_PORT_NAME_HTTP),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_JOURNAL_NODE_HTTP_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:8480"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("8480"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_JOURNAL_NODE_HTTP_ADDRESS),
-                    })?,
-            ),
-            (
-                String::from(SERVICE_PORT_NAME_HTTPS),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_JOURNAL_NODE_HTTPS_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:8481"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("8481"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_JOURNAL_NODE_HTTPS_ADDRESS),
-                    })?,
-            ),
-            (
-                String::from(SERVICE_PORT_NAME_RPC),
-                rolegroup_config
-                    .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                    .and_then(|c| c.get(DFS_JOURNAL_NODE_RPC_ADDRESS))
-                    .unwrap_or(&String::from("0.0.0.0:8485"))
-                    .split(':')
-                    .last()
-                    .unwrap_or(&String::from("8485"))
-                    .parse::<i32>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: String::from(DFS_JOURNAL_NODE_RPC_ADDRESS),
-                    })?,
-            ),
-        ],
     })
 }
 
@@ -324,7 +192,13 @@ fn build_rolegroup_config_map(
                 "qjournal://{}/{}",
                 journalnode_ids
                     .iter()
-                    .map(|jnid| format!("{}:8485", jnid.fqdn()))
+                    .map(|jnid| format!(
+                        "{}:{}",
+                        jnid.fqdn(),
+                        jnid.ports
+                            .get(&String::from(DFS_JOURNAL_NODE_RPC_ADDRESS))
+                            .map_or(8485, |p| *p)
+                    ))
                     .collect::<Vec<_>>()
                     .join(";"),
                 hdfs.nameservice_id()
@@ -362,7 +236,13 @@ fn build_rolegroup_config_map(
                     hdfs.nameservice_id(),
                     nnid.pod_name,
                 ),
-                format!("{}:8020", nnid.fqdn()),
+                format!(
+                    "{}:{}",
+                    nnid.fqdn(),
+                    nnid.ports
+                        .get(&String::from(DFS_NAME_NODE_RPC_ADDRESS))
+                        .map_or(8020, |p| *p)
+                ),
             ),
             (
                 format!(
@@ -370,7 +250,13 @@ fn build_rolegroup_config_map(
                     hdfs.nameservice_id(),
                     nnid.pod_name,
                 ),
-                format!("{}:9870", nnid.fqdn()),
+                format!(
+                    "{}:{}",
+                    nnid.fqdn(),
+                    nnid.ports
+                        .get(&String::from(DFS_NAME_NODE_HTTP_ADDRESS))
+                        .map_or(9870, |p| *p)
+                ),
             ),
         ]
     }));
@@ -423,13 +309,12 @@ fn build_rolegroup_config_map(
 fn build_rolegroup_statefulset(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    hadoop_container: &Container,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let replicas;
     let command;
     let service_name = rolegroup_ref.object_name();
-    let hadoop_container = hadoop_container(hdfs, rolegroup_ref, rolegroup_config)?;
 
     let mut init_containers = Some(vec![Container {
         name: "chown-data".to_string(),
@@ -500,7 +385,7 @@ fn build_rolegroup_statefulset(
     containers.push(Container {
         name: rolegroup_ref.role.clone(),
         args: Some(command),
-        ..hadoop_container
+        ..hadoop_container.clone()
     });
 
     let template = PodTemplateSpec {
@@ -565,8 +450,8 @@ fn build_rolegroup_statefulset(
 
 fn hadoop_container(
     hdfs: &HdfsCluster,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    _rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    rolegroup_ports: &[(String, i32)],
 ) -> HdfsOperatorResult<Container> {
     Ok(Container {
         image: Some(hdfs.image()?),
@@ -618,7 +503,7 @@ fn hadoop_container(
             },
         ]),
         ports: Some(
-            build_ports(hdfs, rolegroup_ref, rolegroup_config)?
+            rolegroup_ports
                 .iter()
                 .map(|(name, value)| ContainerPort {
                     name: Some(name.clone()),

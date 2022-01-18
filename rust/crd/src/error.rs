@@ -98,6 +98,9 @@ pub enum Error {
 
     #[error("Object has no associated namespace.")]
     NoNamespaceContext,
+
+    #[error("Group [{group}] of role [{role}] not in validated config.")]
+    RolegroupNotInValidatedConfig { group: String, role: String },
 }
 
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
