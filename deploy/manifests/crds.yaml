@@ -89,6 +89,9 @@ spec:
                           required:
                             - port
                           type: object
+                        log4j:
+                          nullable: true
+                          type: string
                         metricsPort:
                           format: uint16
                           minimum: 0.0
@@ -168,6 +171,9 @@ spec:
                                 required:
                                   - port
                                 type: object
+                              log4j:
+                                nullable: true
+                                type: string
                               metricsPort:
                                 format: uint16
                                 minimum: 0.0
@@ -266,6 +272,9 @@ spec:
                           required:
                             - port
                           type: object
+                        log4j:
+                          nullable: true
+                          type: string
                         metricsPort:
                           format: uint16
                           minimum: 0.0
@@ -337,6 +346,9 @@ spec:
                                 required:
                                   - port
                                 type: object
+                              log4j:
+                                nullable: true
+                                type: string
                               metricsPort:
                                 format: uint16
                                 minimum: 0.0
@@ -457,6 +469,9 @@ spec:
                           required:
                             - port
                           type: object
+                        log4j:
+                          nullable: true
+                          type: string
                         metricsPort:
                           format: uint16
                           minimum: 0.0
@@ -522,6 +537,9 @@ spec:
                                 required:
                                   - port
                                 type: object
+                              log4j:
+                                nullable: true
+                                type: string
                               metricsPort:
                                 format: uint16
                                 minimum: 0.0
