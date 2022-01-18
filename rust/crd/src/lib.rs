@@ -211,10 +211,7 @@ impl HdfsCluster {
     }
 
     /// List all pods expected to form the cluster for the given role
-    pub fn pods(
-        &self,
-        role: HdfsRole,
-    ) -> HdfsOperatorResult<Vec<HdfsPodRef>> {
+    pub fn pods(&self, role: HdfsRole) -> HdfsOperatorResult<Vec<HdfsPodRef>> {
         let ns = self
             .metadata
             .namespace
@@ -248,7 +245,8 @@ impl HdfsCluster {
                 .map(|(rolegroup_name, role_group)| {
                     (
                         self.rolegroup_ref(HdfsRole::NameNode.to_string(), rolegroup_name),
-                         role_group.replicas.unwrap_or_default())
+                        role_group.replicas.unwrap_or_default(),
+                    )
                 })
                 .collect(),
             HdfsRole::DataNode => self
@@ -277,7 +275,8 @@ impl HdfsCluster {
                     role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                 })
-            }).collect())
+            })
+            .collect())
     }
 }
 /// Reference to a single `Pod` that is a component of a [`ZookeeperCluster`]

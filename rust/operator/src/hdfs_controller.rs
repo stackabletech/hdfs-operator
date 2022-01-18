@@ -346,10 +346,18 @@ fn build_rolegroup_config_map(
         // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
         // be formatted by the namenode, or used by the other services.
         // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-        ("dfs.namenode.name.dir".to_string(), "/data/name".to_string()),
-        ("dfs.datanode.data.dir".to_string(), "/data/data".to_string()),
-        ("dfs.journalnode.edits.dir".to_string(), "/data/journal".to_string()),
-
+        (
+            "dfs.namenode.name.dir".to_string(),
+            "/data/name".to_string(),
+        ),
+        (
+            "dfs.datanode.data.dir".to_string(),
+            "/data/data".to_string(),
+        ),
+        (
+            "dfs.journalnode.edits.dir".to_string(),
+            "/data/journal".to_string(),
+        ),
         ("dfs.nameservices".to_string(), hdfs.nameservice_id()),
         (
             format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
@@ -497,20 +505,22 @@ fn build_rolegroup_statefulset(
                 "/stackable/hadoop/bin/hdfs".to_string(),
                 "namenode".to_string(),
             ];
-            init_containers.get_or_insert_with(Vec::new).push(Container {
-                name: "format-namenode".to_string(),
-                image: Some(hdfs.image()?),
-                args: Some(vec![
-                    "sh".to_string(),
-                    "-c".to_string(),
-                    "/stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive \
+            init_containers
+                .get_or_insert_with(Vec::new)
+                .push(Container {
+                    name: "format-namenode".to_string(),
+                    image: Some(hdfs.image()?),
+                    args: Some(vec![
+                        "sh".to_string(),
+                        "-c".to_string(),
+                        "/stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive \
                      || /stackable/hadoop/bin/hdfs namenode -format -noninteractive \
                      || true
                      /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true"
-                        .to_string(),
-                ]),
-                ..hadoop_container.clone()
-            });
+                            .to_string(),
+                    ]),
+                    ..hadoop_container.clone()
+                });
             containers.push(Container {
                 name: "zkfc".to_string(),
                 args: Some(vec![
