@@ -19,6 +19,15 @@ spec:
       default:
         replicas: 3
         config: {}
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: simple-znode
+spec:
+  clusterRef:
+    name: simple-zk
+    namespace: default
 EOF
 ----
 
@@ -33,7 +42,7 @@ metadata:
   name: simple
 spec:
   version: 3.2.2
-  zookeeperConfigMapName: simple-zk
+  zookeeperConfigMapName: simple-znode
   nameNodes:
     roleGroups:
       default:
