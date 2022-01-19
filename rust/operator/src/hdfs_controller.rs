@@ -56,6 +56,20 @@ pub async fn reconcile_hdfs(
     let namenode_ids = hdfs.pods(HdfsRole::NameNode, &validated_config)?;
     let journalnode_ids = hdfs.pods(HdfsRole::JournalNode, &validated_config)?;
 
+    /*
+       let dis_configmap = build_discovery_config_map(
+                   &hdfs,
+                   &namenode_ids,
+                   &journalnode_ids,
+               )?;
+               client
+                   .apply_patch(FIELD_MANAGER_SCOPE, &dis_configmap, &dis_configmap)
+                   .await
+                   .map_err(|e| Error::ApplyDiscoveryConfigMap {
+                       source: e,
+                       name: rg_configmap.metadata.name.clone().unwrap_or_default(),
+                   })?;
+    */
     for (role_name, group_config) in validated_config.iter() {
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
@@ -155,7 +169,7 @@ fn build_rolegroup_service(
 fn build_rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_ids: &[HdfsPodRef],
     journalnode_ids: &[HdfsPodRef],
 ) -> HdfsOperatorResult<ConfigMap> {
@@ -293,10 +307,7 @@ fn build_rolegroup_config_map(
         )
         .add_data(
             LOG4J_PROPERTIES.to_string(),
-            rolegroup_config
-                .get(&PropertyNameKind::File(String::from(LOG4J_PROPERTIES)))
-                .and_then(|m| m.get(&String::from(LOG4J_PROPERTIES)).cloned())
-                .unwrap_or_else(|| String::from("")),
+            hdfs.spec.log4j.as_ref().unwrap_or(&"".to_string()),
         )
         .build()
         .map_err(|source| Error::BuildRoleGroupConfig {

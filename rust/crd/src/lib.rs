@@ -41,6 +41,7 @@ pub struct HdfsClusterSpec {
     pub data_nodes: Option<Role<DataNodeConfig>>,
     pub name_nodes: Option<Role<NameNodeConfig>>,
     pub journal_nodes: Option<Role<JournalNodeConfig>>,
+    pub log4j: Option<String>,
 }
 
 #[derive(
@@ -601,7 +602,6 @@ pub struct NameNodeConfig {
     pub metrics_port: Option<u16>,
     pub ipc_address: Option<HdfsAddress>,
     pub http_address: Option<HdfsAddress>,
-    pub log4j: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -613,7 +613,6 @@ pub struct DataNodeConfig {
     pub ipc_address: Option<HdfsAddress>,
     pub http_address: Option<HdfsAddress>,
     pub data_address: Option<HdfsAddress>,
-    pub log4j: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -623,7 +622,6 @@ pub struct JournalNodeConfig {
     pub https_address: Option<HdfsAddress>,
     pub rpc_address: Option<HdfsAddress>,
     pub metrics_port: Option<u16>,
-    pub log4j: Option<String>,
 }
 
 impl Configuration for NameNodeConfig {
@@ -686,10 +684,6 @@ impl Configuration for NameNodeConfig {
         } else if file == CORE_SITE_XML {
             if let Some(ipc_address) = &self.ipc_address {
                 result.insert(FS_DEFAULT.to_string(), Some(ipc_address.to_string()));
-            }
-        } else if file == LOG4J_PROPERTIES {
-            if let Some(log4j_properties) = &self.log4j {
-                result.insert(LOG4J_PROPERTIES.to_string(), Some(log4j_properties.clone()));
             }
         }
 
@@ -768,10 +762,6 @@ impl Configuration for DataNodeConfig {
                     Some(data_address.to_string()),
                 );
             }
-        } else if file == LOG4J_PROPERTIES {
-            if let Some(log4j_properties) = &self.log4j {
-                result.insert(LOG4J_PROPERTIES.to_string(), Some(log4j_properties.clone()));
-            }
         }
 
         Ok(result)
@@ -832,10 +822,6 @@ impl Configuration for JournalNodeConfig {
                     DFS_JOURNAL_NODE_RPC_ADDRESS.to_string(),
                     Some(rpc_address.to_string()),
                 );
-            }
-        } else if file == LOG4J_PROPERTIES {
-            if let Some(log4j_properties) = &self.log4j {
-                result.insert(LOG4J_PROPERTIES.to_string(), Some(log4j_properties.clone()));
             }
         }
 
