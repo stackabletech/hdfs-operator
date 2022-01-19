@@ -486,7 +486,7 @@ impl HdfsCluster {
         Ok(result)
     }
 }
-/// Reference to a single `Pod` that is a component of a [`ZookeeperCluster`]
+/// Reference to a single `Pod` that is a component of a [`HdfsCluster`]
 ///
 /// Used for service discovery.
 pub struct HdfsPodRef {
