@@ -260,7 +260,7 @@ fn extract_container_port(pod: &Pod, container_name: &str, port_name: &str) -> O
             if let Some(port) = container.ports.as_ref().and_then(|ports| {
                 ports
                     .iter()
-                    .find(|port| port.name == Some(port_name.to_string()))
+                    .find(|port| port.name == Some(port_name.to_string())).unwrap_or(9870)
             }) {
                 return Some(port.container_port.to_string());
             }

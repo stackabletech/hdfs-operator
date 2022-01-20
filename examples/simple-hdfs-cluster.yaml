@@ -39,7 +39,7 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 2
+        replicas: 3
 
 
 

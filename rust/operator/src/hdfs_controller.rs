@@ -53,23 +53,9 @@ pub async fn reconcile_hdfs(
     )
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
-    let namenode_ids = hdfs.pods(HdfsRole::NameNode, &validated_config)?;
-    let journalnode_ids = hdfs.pods(HdfsRole::JournalNode, &validated_config)?;
+    let namenode_podrefs = hdfs.pods(HdfsRole::NameNode, &validated_config)?;
+    let journalnode_podrefs = hdfs.pods(HdfsRole::JournalNode, &validated_config)?;
 
-    /*
-       let dis_configmap = build_discovery_config_map(
-                   &hdfs,
-                   &namenode_ids,
-                   &journalnode_ids,
-               )?;
-               client
-                   .apply_patch(FIELD_MANAGER_SCOPE, &dis_configmap, &dis_configmap)
-                   .await
-                   .map_err(|e| Error::ApplyDiscoveryConfigMap {
-                       source: e,
-                       name: rg_configmap.metadata.name.clone().unwrap_or_default(),
-                   })?;
-    */
     for (role_name, group_config) in validated_config.iter() {
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
@@ -80,12 +66,17 @@ pub async fn reconcile_hdfs(
                 &hdfs,
                 &rolegroup_ref,
                 rolegroup_config,
-                &namenode_ids,
-                &journalnode_ids,
+                &namenode_podrefs,
+                &journalnode_podrefs,
             )?;
             let hadoop_container = hadoop_container(&hdfs, &rolegroup_ref, &rolegroup_ports)?;
-            let rg_statefulset =
-                build_rolegroup_statefulset(&hdfs, &rolegroup_ref, &hadoop_container)?;
+            let rg_statefulset = build_rolegroup_statefulset(
+                &hdfs,
+                &rolegroup_ref,
+                &namenode_podrefs,
+                &journalnode_podrefs,
+                &hadoop_container,
+            )?;
 
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -170,8 +161,8 @@ fn build_rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    namenode_ids: &[HdfsPodRef],
-    journalnode_ids: &[HdfsPodRef],
+    namenode_podrefs: &[HdfsPodRef],
+    journalnode_podrefs: &[HdfsPodRef],
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
@@ -194,7 +185,7 @@ fn build_rolegroup_config_map(
         ("dfs.nameservices".to_string(), hdfs.nameservice_id()),
         (
             format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
-            namenode_ids
+            namenode_podrefs
                 .iter()
                 .map(|nn| nn.pod_name.clone())
                 .collect::<Vec<String>>()
@@ -204,7 +195,7 @@ fn build_rolegroup_config_map(
             "dfs.namenode.shared.edits.dir".to_string(),
             format!(
                 "qjournal://{}/{}",
-                journalnode_ids
+                journalnode_podrefs
                     .iter()
                     .map(|jnid| format!(
                         "{}:{}",
@@ -242,7 +233,7 @@ fn build_rolegroup_config_map(
             "${env.POD_NAME}".to_string(),
         ),
     ];
-    hdfs_site_config.extend(namenode_ids.iter().flat_map(|nnid| {
+    hdfs_site_config.extend(namenode_podrefs.iter().flat_map(|nnid| {
         [
             (
                 format!(
@@ -320,6 +311,8 @@ fn build_rolegroup_config_map(
 fn build_rolegroup_statefulset(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    namenode_podrefs: &[HdfsPodRef],
+    journalnode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
@@ -351,6 +344,31 @@ fn build_rolegroup_statefulset(
                 "/stackable/hadoop/bin/hdfs".to_string(),
                 "datanode".to_string(),
             ];
+            init_containers
+                .get_or_insert_with(Vec::new)
+                .extend([Container {
+                    name: "wait-for-namenodes".to_string(),
+                    image: Some(
+                        "docker.stackable.tech/stackable/tools:0.1.0-stackable0".to_string(),
+                    ),
+                    args: Some(vec![
+                        "sh".to_string(),
+                        "-c".to_string(),
+                        format!(
+                            "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
+                            namenode_podrefs
+                                .iter()
+                                .map(|pr| format!(
+                                    "http://{}:{}",
+                                    pr.fqdn(),
+                                    pr.ports.get(SERVICE_PORT_NAME_HTTP).map_or(9870, |p| *p)
+                                ))
+                                .collect::<Vec<String>>()
+                                .join(" ")
+                        ),
+                    ]),
+                    ..hadoop_container.clone()
+                }]);
         }
 
         HdfsRole::NameNode => {
@@ -359,22 +377,61 @@ fn build_rolegroup_statefulset(
                 "/stackable/hadoop/bin/hdfs".to_string(),
                 "namenode".to_string(),
             ];
-            init_containers
-                .get_or_insert_with(Vec::new)
-                .push(Container {
+            init_containers.get_or_insert_with(Vec::new).extend([
+                Container {
+                    name: "wait-for-journals".to_string(),
+                    image: Some("docker.stackable.tech/stackable/tools:0.1.0-stackable0".to_string()),
+                    args: Some(vec![
+                        "sh".to_string(),
+                        "-c".to_string(),
+                        format!(
+                            "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
+                            journalnode_podrefs
+                                .iter()
+                                .map(|pr| format!(
+                                    "http://{}:{}",
+                                    pr.fqdn(),
+                                    pr.ports.get(SERVICE_PORT_NAME_HTTP).map_or(8480, |p| *p)
+                                ))
+                                .collect::<Vec<String>>()
+                                .join(" ")
+                        ),
+                    ]),
+                    ..hadoop_container.clone()
+                },
+                Container {
                     name: "format-namenode".to_string(),
                     image: Some(hdfs.image()?),
                     args: Some(vec![
                         "sh".to_string(),
                         "-c".to_string(),
-                        "/stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive \
-                     || /stackable/hadoop/bin/hdfs namenode -format -noninteractive \
-                     || true
-                     /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true"
+                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -format -noninteractive"
                             .to_string(),
                     ]),
                     ..hadoop_container.clone()
-                });
+                },
+                Container {
+                    name: "format-journals".to_string(),
+                    image: Some(hdfs.image()?),
+                    args: Some(vec![
+                        "sh".to_string(),
+                        "-c".to_string(),
+                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -initializeSharedEdits -force"
+                            .to_string(),
+                    ]),
+                    ..hadoop_container.clone()
+                },
+                Container {
+                    name: "format-zk".to_string(),
+                    image: Some(hdfs.image()?),
+                    args: Some(vec![
+                        "sh".to_string(),
+                        "-c".to_string(),
+                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true".to_string(),
+                    ]),
+                    ..hadoop_container.clone()
+                },
+             ]);
             containers.push(Container {
                 name: "zkfc".to_string(),
                 args: Some(vec![
