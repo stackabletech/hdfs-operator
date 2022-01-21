@@ -44,7 +44,7 @@ pub async fn reconcile_hdfs(
     let client = &ctx.get_ref().client;
 
     let validated_config = validate_all_roles_and_groups_config(
-        hdfs.version()?,
+        hdfs.hdfs_version()?,
         &transform_all_roles_to_config(&hdfs, hdfs.build_role_properties()?)
             .map_err(|source| Error::InvalidRoleConfig { source })?,
         &ctx.get_ref().product_config,
@@ -53,24 +53,25 @@ pub async fn reconcile_hdfs(
     )
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
-    let namenode_podrefs = hdfs.pods(HdfsRole::NameNode, &validated_config)?;
-    let journalnode_podrefs = hdfs.pods(HdfsRole::JournalNode, &validated_config)?;
+    // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
+    let namenode_podrefs = hdfs.pod_refs(HdfsRole::NameNode, &validated_config)?;
+    let journalnode_podrefs = hdfs.pod_refs(HdfsRole::JournalNode, &validated_config)?;
 
     for (role_name, group_config) in validated_config.iter() {
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
+            let rolegroup_ports = HdfsCluster::rolegroup_ports(&rolegroup_ref, &validated_config)?;
+            let hadoop_container = hdfs_common_container(&hdfs, &rolegroup_ports)?;
 
-            let rolegroup_ports = HdfsCluster::build_ports(&rolegroup_ref, &validated_config)?;
-            let rg_service = build_rolegroup_service(&hdfs, &rolegroup_ref, &rolegroup_ports)?;
-            let rg_configmap = build_rolegroup_config_map(
+            let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, &rolegroup_ports)?;
+            let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
                 &journalnode_podrefs,
             )?;
-            let hadoop_container = hadoop_container(&hdfs, &rolegroup_ref, &rolegroup_ports)?;
-            let rg_statefulset = build_rolegroup_statefulset(
+            let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
                 &rolegroup_ref,
                 &namenode_podrefs,
@@ -113,7 +114,7 @@ pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
     }
 }
 
-fn build_rolegroup_service(
+fn rolegroup_service(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_ports: &[(String, i32)],
@@ -131,7 +132,7 @@ fn build_rolegroup_service(
             .with_recommended_labels(
                 hdfs,
                 APP_NAME,
-                hdfs.version()?,
+                hdfs.hdfs_version()?,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -149,7 +150,7 @@ fn build_rolegroup_service(
                     })
                     .collect(),
             ),
-            selector: Some(hdfs.role_group_selector_labels(rolegroup_ref)),
+            selector: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
@@ -157,7 +158,7 @@ fn build_rolegroup_service(
     })
 }
 
-fn build_rolegroup_config_map(
+fn rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -287,7 +288,7 @@ fn build_rolegroup_config_map(
                 .with_recommended_labels(
                     hdfs,
                     APP_NAME,
-                    hdfs.version()?,
+                    hdfs.hdfs_version()?,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
                 )
@@ -316,7 +317,7 @@ fn build_rolegroup_config_map(
         })
 }
 
-fn build_rolegroup_statefulset(
+fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     namenode_podrefs: &[HdfsPodRef],
@@ -330,7 +331,7 @@ fn build_rolegroup_statefulset(
 
     let mut init_containers = Some(vec![Container {
         name: "chown-data".to_string(),
-        image: Some(hdfs.image()?),
+        image: Some(hdfs.hdfs_image()?),
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
@@ -347,7 +348,7 @@ fn build_rolegroup_statefulset(
 
     match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
         HdfsRole::DataNode => {
-            replicas = hdfs.datanode_replicas(Some(rolegroup_ref))?;
+            replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
             command = vec![
                 "/stackable/hadoop/bin/hdfs".to_string(),
                 "datanode".to_string(),
@@ -380,15 +381,16 @@ fn build_rolegroup_statefulset(
         }
 
         HdfsRole::NameNode => {
-            replicas = hdfs.namenode_replicas(Some(rolegroup_ref))?;
+            replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             command = vec![
                 "/stackable/hadoop/bin/hdfs".to_string(),
                 "namenode".to_string(),
             ];
             init_containers.get_or_insert_with(Vec::new).extend([
+                // TODO: replace the "sleep" and "wait-for-journals" containers with a reliable health check for journal nodes.
                 Container {
-                    name: "debug".to_string(),
-                    image: Some(hdfs.image()?),
+                    name: "sleep".to_string(),
+                    image: Some(hdfs.hdfs_image()?),
                     args: Some(vec![
                         "sh".to_string(),
                         "-c".to_string(),
@@ -424,7 +426,7 @@ fn build_rolegroup_statefulset(
                 },
                 Container {
                     name: "format-namenode".to_string(),
-                    image: Some(hdfs.image()?),
+                    image: Some(hdfs.hdfs_image()?),
                     args: Some(vec![
                         "sh".to_string(),
                         "-c".to_string(),
@@ -439,7 +441,7 @@ fn build_rolegroup_statefulset(
                 },
                  Container {
                     name: "format-journals".to_string(),
-                    image: Some(hdfs.image()?),
+                    image: Some(hdfs.hdfs_image()?),
                     args: Some(vec![
                         "sh".to_string(),
                         "-c".to_string(),
@@ -454,7 +456,7 @@ fn build_rolegroup_statefulset(
                 },
                 Container {
                     name: "format-zk".to_string(),
-                    image: Some(hdfs.image()?),
+                    image: Some(hdfs.hdfs_image()?),
                     args: Some(vec![
                         "sh".to_string(),
                         "-c".to_string(),
@@ -477,7 +479,7 @@ fn build_rolegroup_statefulset(
             });
         }
         HdfsRole::JournalNode => {
-            replicas = hdfs.journalnode_replicas(Some(rolegroup_ref))?;
+            replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             command = vec![
                 "/stackable/hadoop/bin/hdfs".to_string(),
                 "journalnode".to_string(),
@@ -493,7 +495,7 @@ fn build_rolegroup_statefulset(
 
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
-            labels: Some(hdfs.role_group_selector_labels(rolegroup_ref)),
+            labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
             ..ObjectMeta::default()
         }),
         spec: Some(PodSpec {
@@ -522,7 +524,7 @@ fn build_rolegroup_statefulset(
             .with_recommended_labels(
                 hdfs,
                 APP_NAME,
-                hdfs.version()?,
+                hdfs.hdfs_version()?,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -551,13 +553,13 @@ fn build_rolegroup_statefulset(
     })
 }
 
-fn hadoop_container(
+/// Build a Container with common HDFS environment variables, ports and volume mounts set.
+fn hdfs_common_container(
     hdfs: &HdfsCluster,
-    _rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_ports: &[(String, i32)],
 ) -> HdfsOperatorResult<Container> {
     Ok(Container {
-        image: Some(hdfs.image()?),
+        image: Some(hdfs.hdfs_image()?),
         env: Some(vec![
             EnvVar {
                 name: "HADOOP_HOME".to_string(),

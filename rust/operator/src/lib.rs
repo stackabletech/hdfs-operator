@@ -34,23 +34,6 @@ pub async fn create_controller(client: Client, product_config: ProductConfigMana
             )
             .instrument(info_span!("hdfs_controller"));
 
-    /*
-    hdfs_controller
-        .map(erase_controller_result_type)
-        .for_each(|res| async {
-            match res {
-                Ok((obj, _)) => tracing::info!(object = %obj, "Reconciled object"),
-                Err(err) => {
-                    tracing::error!(
-                        error = &*err as &dyn std::error::Error,
-                        "Failed to reconcile object",
-                    )
-                }
-            }
-        })
-        .await;
-        */
-
     let pod_svc_controller = Controller::new(
         client.get_all_api::<Pod>(),
         ListParams::default().labels(&format!("{}=true", LABEL_ENABLE)),

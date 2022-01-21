@@ -1,3 +1,6 @@
+//! NodePort controller for exposing individual Pods.
+//!
+//! For pods with the label `hdfs.stackable.tech/pod-service=true` a NodePort is created that exposes the local node pod.
 use std::time::Duration;
 
 use stackable_hdfs_crd::constants::*;

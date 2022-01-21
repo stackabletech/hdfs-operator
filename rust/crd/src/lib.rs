@@ -60,7 +60,7 @@ pub enum HdfsRole {
 }
 
 impl HdfsCluster {
-    pub fn version(&self) -> HdfsOperatorResult<&str> {
+    pub fn hdfs_version(&self) -> HdfsOperatorResult<&str> {
         self.spec
             .version
             .as_deref()
@@ -69,26 +69,21 @@ impl HdfsCluster {
             })
     }
 
-    pub fn image(&self) -> HdfsOperatorResult<String> {
+    pub fn hdfs_image(&self) -> HdfsOperatorResult<String> {
         Ok(format!(
             "docker.stackable.tech/stackable/hadoop:{}-stackable0",
-            self.version()?
+            self.hdfs_version()?
         ))
     }
+    /// HDFS nameservice id used to identify the cluster in a high-availability environment.
     pub fn nameservice_id(&self) -> String {
         self.metadata.name.clone().unwrap()
     }
 
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn server_role_service_name(&self) -> Option<String> {
-        self.metadata.name.clone()
-    }
-
-    pub fn namenode_name(&self) -> String {
-        format!("{}-namenode", self.nameservice_id())
-    }
-
-    pub fn role_group_selector_labels(
+    /// Kubernetes labels to attach to Pods within a role group.
+    ///
+    /// The same labels are also used as selectors for Services and StatefulSets.
+    pub fn rolegroup_selector_labels(
         &self,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     ) -> BTreeMap<String, String> {
@@ -101,7 +96,9 @@ impl HdfsCluster {
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
         match rolegroup_ref.role.as_str() {
-            "namenode" => {
+            // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
+            // useful for development purposes.
+            "namenode" | "journalnode" | "datanode" => {
                 group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
             }
             &_ => {}
@@ -109,13 +106,13 @@ impl HdfsCluster {
         group_labels
     }
 
-    /// Total sum or just the given opt_rolegroup_ref replicas of journal nodes.
-    /// Returns 1 if no replicas have been configured.
-    pub fn journalnode_replicas(
+    /// Number of journal node replicas configured for the given `rolegroup_ref` or 1 if none is configured.
+    pub fn rolegroup_journalnode_replicas(
         &self,
-        opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
+        Ok(max(
+            1,
             self.spec
                 .journal_nodes
                 .as_ref()
@@ -126,28 +123,17 @@ impl HdfsCluster {
                     rolegroup: rolegroup_ref.role_group.clone(),
                 })?
                 .replicas
-                .unwrap_or_default()
-        } else {
-            self.spec
-                .journal_nodes
-                .as_ref()
-                .ok_or(Error::NoJournalNodeRole)?
-                .role_groups
-                .values()
-                .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-                .sum()
-        };
-        Ok(max(1, result))
+                .unwrap_or_default(),
+        ))
     }
 
-    /// Total sum or just the given opt_rolegroup_ref replicas of name nodes.
-    /// Returns 2 if no replicas have been configured because there must be at least two namenodes in
-    /// a HA environment.
-    pub fn namenode_replicas(
+    /// Number of name node replicas configured for the given `rolegroup_ref` or 2 if none is configured.
+    pub fn rolegroup_namenode_replicas(
         &self,
-        opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
+        Ok(max(
+            2,
             self.spec
                 .name_nodes
                 .as_ref()
@@ -158,48 +144,27 @@ impl HdfsCluster {
                     rolegroup: rolegroup_ref.role_group.clone(),
                 })?
                 .replicas
-                .unwrap_or_default()
-        } else {
-            self.spec
-                .name_nodes
-                .as_ref()
-                .ok_or(Error::NoNameNodeRole)?
-                .role_groups
-                .values()
-                .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-                .sum()
-        };
-        Ok(max(2, result))
+                .unwrap_or_default(),
+        ))
     }
 
-    /// Total sum or just the given opt_rolegroup_ref replicas of data nodes.
-    pub fn datanode_replicas(
+    /// Number of data node replicas configured for the given `rolegroup_ref`.
+    pub fn rolegroup_datanode_replicas(
         &self,
-        opt_rolegroup_ref: Option<&RoleGroupRef<Self>>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        let result = if let Some(rolegroup_ref) = opt_rolegroup_ref {
-            self.spec
-                .data_nodes
-                .as_ref()
-                .ok_or(Error::NoJournalNodeRole)?
-                .role_groups
-                .get(&rolegroup_ref.role_group)
-                .ok_or(Error::RoleGroupNotFound {
-                    rolegroup: rolegroup_ref.role_group.clone(),
-                })?
-                .replicas
-                .unwrap_or_default()
-        } else {
-            self.spec
-                .data_nodes
-                .as_ref()
-                .ok_or(Error::NoNameNodeRole)?
-                .role_groups
-                .values()
-                .map(|rolegroup| rolegroup.replicas.unwrap_or_default())
-                .sum()
-        };
-        Ok(result)
+        Ok(self
+            .spec
+            .data_nodes
+            .as_ref()
+            .ok_or(Error::NoJournalNodeRole)?
+            .role_groups
+            .get(&rolegroup_ref.role_group)
+            .ok_or(Error::RoleGroupNotFound {
+                rolegroup: rolegroup_ref.role_group.clone(),
+            })?
+            .replicas
+            .unwrap_or_default())
     }
 
     pub fn rolegroup_ref(
@@ -214,8 +179,10 @@ impl HdfsCluster {
         }
     }
 
-    /// List all pods expected to form the cluster for the given role
-    pub fn pods(
+    /// List all [HdfsPodRef]s expected for the given `role`
+    ///
+    /// The `validated_config` is used to extract the ports exposed by the pods.
+    pub fn pod_refs(
         &self,
         role: HdfsRole,
         validated_config: &ValidatedRoleConfigByPropertyKind,
@@ -236,7 +203,7 @@ impl HdfsCluster {
                     namespace: ns.clone(),
                     role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                    ports: HdfsCluster::build_ports(rolegroup_ref, validated_config)
+                    ports: HdfsCluster::rolegroup_ports(rolegroup_ref, validated_config)
                         .unwrap()
                         .into_iter()
                         .collect(),
@@ -295,8 +262,9 @@ impl HdfsCluster {
         }
     }
 
+    /// Return a list of porrts exposed by pods of the given `rolegroup_ref`.
     // TODO: add metrics ports
-    pub fn build_ports(
+    pub fn rolegroup_ports(
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
         validated_config: &ValidatedRoleConfigByPropertyKind,
     ) -> HdfsOperatorResult<Vec<(String, i32)>> {
@@ -554,43 +522,6 @@ impl TryFrom<&String> for HdfsAddress {
         Err(Error::HdfsAddressParseError {
             address: address.clone(),
         })
-    }
-}
-
-impl HdfsRole {
-    /// Returns the container start command for a HDFS node
-    /// Right now works only for images using hadoop2.7
-    /// # Arguments
-    ///
-    /// * `version` - Current specified cluster version
-    /// * `auto_format_fs` - Format directory via 'start-namenode' script
-    ///
-    pub fn get_command(&self, auto_format_fs: bool) -> Vec<String> {
-        match &self {
-            HdfsRole::DataNode => vec![
-                "bin/hdfs".to_string(),
-                "--config".to_string(),
-                CONFIG_DIR_NAME.to_string(),
-                "datanode".to_string(),
-            ],
-            HdfsRole::NameNode => {
-                if auto_format_fs {
-                    vec![
-                        "bin/start-namenode".to_string(),
-                        "--config".to_string(),
-                        CONFIG_DIR_NAME.to_string(),
-                    ]
-                } else {
-                    vec![
-                        "bin/hdfs".to_string(),
-                        "--config".to_string(),
-                        CONFIG_DIR_NAME.to_string(),
-                        "namenode".to_string(),
-                    ]
-                }
-            }
-            HdfsRole::JournalNode => vec!["bin/hdfs".to_string(), "journalnode".to_string()],
-        }
     }
 }
 
