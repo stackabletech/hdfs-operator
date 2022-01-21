@@ -189,7 +189,7 @@ fn build_rolegroup_config_map(
                 .iter()
                 .map(|nn| nn.pod_name.clone())
                 .collect::<Vec<String>>()
-                .join(", "),
+                .join(","),
         ),
         (
             "dfs.namenode.shared.edits.dir".to_string(),
@@ -235,6 +235,14 @@ fn build_rolegroup_config_map(
     ];
     hdfs_site_config.extend(namenode_podrefs.iter().flat_map(|nnid| {
         [
+            (
+                format!(
+                    "dfs.namenode.name.dir.{}.{}",
+                    hdfs.nameservice_id(),
+                    nnid.pod_name,
+                ),
+                "/data/name".to_string(),
+            ),
             (
                 format!(
                     "dfs.namenode.rpc-address.{}.{}",
@@ -326,7 +334,7 @@ fn build_rolegroup_statefulset(
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
-            "chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
+            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
         ]),
         security_context: Some(SecurityContext {
             run_as_user: Some(0),
@@ -379,6 +387,21 @@ fn build_rolegroup_statefulset(
             ];
             init_containers.get_or_insert_with(Vec::new).extend([
                 Container {
+                    name: "debug".to_string(),
+                    image: Some(hdfs.image()?),
+                    args: Some(vec![
+                        "sh".to_string(),
+                        "-c".to_string(),
+                        "ls -lR /data && sleep 30 || true"
+                            .to_string(),
+                    ]),
+                    security_context: Some(SecurityContext {
+                        run_as_user: Some(1000),
+                        ..SecurityContext::default()
+                    }),
+                    ..hadoop_container.clone()
+                },
+                Container {
                     name: "wait-for-journals".to_string(),
                     image: Some("docker.stackable.tech/stackable/tools:0.1.0-stackable0".to_string()),
                     args: Some(vec![
@@ -405,21 +428,29 @@ fn build_rolegroup_statefulset(
                     args: Some(vec![
                         "sh".to_string(),
                         "-c".to_string(),
-                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -format -noninteractive"
+                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -format -noninteractive || true"
                             .to_string(),
                     ]),
+                    security_context: Some(SecurityContext {
+                        run_as_user: Some(1000),
+                        ..SecurityContext::default()
+                    }),
                     ..hadoop_container.clone()
                 },
-                Container {
+                 Container {
                     name: "format-journals".to_string(),
                     image: Some(hdfs.image()?),
                     args: Some(vec![
                         "sh".to_string(),
                         "-c".to_string(),
-                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -initializeSharedEdits -force"
+                        "test  \"0\" -ne \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive|| true"
                             .to_string(),
                     ]),
-                    ..hadoop_container.clone()
+                    security_context: Some(SecurityContext {
+                        run_as_user: Some(1000),
+                        ..SecurityContext::default()
+                    }),
+                     ..hadoop_container.clone()
                 },
                 Container {
                     name: "format-zk".to_string(),
@@ -438,6 +469,10 @@ fn build_rolegroup_statefulset(
                     "/stackable/hadoop/bin/hdfs".to_string(),
                     "zkfc".to_string(),
                 ]),
+                security_context: Some(SecurityContext {
+                    run_as_user: Some(1000),
+                    ..SecurityContext::default()
+                }),
                 ..hadoop_container.clone()
             });
         }
@@ -581,7 +616,6 @@ fn hadoop_container(
                 })
                 .collect(),
         ),
-
         ..Container::default()
     })
 }
