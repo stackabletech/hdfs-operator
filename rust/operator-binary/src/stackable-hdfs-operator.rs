@@ -1,18 +1,18 @@
 use stackable_hdfs_crd::HdfsCluster;
-use stackable_operator::cli::Command;
+use stackable_operator::cli::{Command, ProductOperatorRun };
 use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::{client, error};
-use structopt::StructOpt;
+use clap::Parser;
 
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-#[derive(StructOpt)]
-#[structopt(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]
+#[derive(clap::Parser)]
+#[clap(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]
 struct Opts {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     cmd: Command,
 }
 
@@ -20,10 +20,10 @@ struct Opts {
 async fn main() -> Result<(), error::Error> {
     stackable_operator::logging::initialize_logging("HSFS_OPERATOR_LOG");
 
-    let opts = Opts::from_args();
+    let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&HdfsCluster::crd())?),
-        Command::Run { product_config } => {
+        Command::Run(ProductOperatorRun { product_config }) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,
