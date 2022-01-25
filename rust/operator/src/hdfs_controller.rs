@@ -1,10 +1,11 @@
+use lazy_static::lazy_static;
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, SecurityContext,
-    VolumeMount,
+    Container, ContainerPort, HTTPGetAction, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
+    SecurityContext, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -14,6 +15,7 @@ use stackable_operator::k8s_openapi::api::{
         ServicePort, ServiceSpec, Volume,
     },
 };
+use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::k8s_openapi::apimachinery::pkg::{
     api::resource::Quantity, apis::meta::v1::LabelSelector,
 };
@@ -30,6 +32,19 @@ use stackable_operator::product_config_utils::{
 use stackable_operator::role_utils::RoleGroupRef;
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
+
+lazy_static! {
+    /// Liveliness probe used by all master, worker and history containers.
+    static ref PROBE: Probe = Probe {
+        http_get: Some(HTTPGetAction {
+            port: IntOrString::String(String::from(SERVICE_PORT_NAME_METRICS)),
+            ..HTTPGetAction::default()
+        }),
+        period_seconds: Some(10),
+        initial_delay_seconds: Some(10),
+        ..Probe::default()
+    };
+}
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -492,6 +507,8 @@ fn rolegroup_statefulset(
         name: rolegroup_ref.role.clone(),
         args: Some(command),
         env: Some(env),
+        readiness_probe: Some(PROBE.clone()),
+        liveness_probe: Some(PROBE.clone()),
         ..hadoop_container.clone()
     });
 

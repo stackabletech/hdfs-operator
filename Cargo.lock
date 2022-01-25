@@ -1470,6 +1470,7 @@ version = "0.3.0-nightly"
 dependencies = [
  "async-trait",
  "futures",
+ "lazy_static",
  "serde",
  "serde_json",
  "serde_yaml",
