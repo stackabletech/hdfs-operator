@@ -263,7 +263,6 @@ impl HdfsCluster {
     }
 
     /// Return a list of porrts exposed by pods of the given `rolegroup_ref`.
-    // TODO: add metrics ports
     pub fn rolegroup_ports(
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
         validated_config: &ValidatedRoleConfigByPropertyKind,
@@ -278,6 +277,10 @@ impl HdfsCluster {
 
         Ok(match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
             HdfsRole::NameNode => vec![
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_NAME_NODE_METRICS_PORT,
+                ),
                 (
                     String::from(SERVICE_PORT_NAME_HTTP),
                     rolegroup_config
@@ -310,6 +313,10 @@ impl HdfsCluster {
                 ),
             ],
             HdfsRole::DataNode => vec![
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_DATA_NODE_METRICS_PORT,
+                ),
                 (
                     String::from(SERVICE_PORT_NAME_DATA),
                     rolegroup_config
@@ -358,6 +365,10 @@ impl HdfsCluster {
             ],
             HdfsRole::JournalNode => vec![
                 (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_JOURNAL_NODE_METRICS_PORT,
+                ),
+                (
                     String::from(SERVICE_PORT_NAME_HTTP),
                     rolegroup_config
                         .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
@@ -404,6 +415,14 @@ impl HdfsCluster {
                 ),
             ],
         })
+    }
+
+    pub fn default_role_metric_port(&self, role: HdfsRole) -> i32 {
+        match role {
+            HdfsRole::DataNode => DEFAULT_DATA_NODE_METRICS_PORT,
+            HdfsRole::JournalNode => DEFAULT_JOURNAL_NODE_METRICS_PORT,
+            HdfsRole::NameNode => DEFAULT_NAME_NODE_METRICS_PORT,
+        }
     }
 
     pub fn build_role_properties(

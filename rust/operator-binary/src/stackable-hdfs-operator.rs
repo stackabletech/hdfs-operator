@@ -1,8 +1,8 @@
+use clap::Parser;
 use stackable_hdfs_crd::HdfsCluster;
-use stackable_operator::cli::{Command, ProductOperatorRun };
+use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::{client, error};
-use clap::Parser;
 
 mod built_info {
     // The file has been placed there by the build script.

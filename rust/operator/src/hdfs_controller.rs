@@ -346,11 +346,13 @@ fn rolegroup_statefulset(
 
     let mut containers = vec![];
 
-    match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
+    let role = serde_yaml::from_str(&rolegroup_ref.role).unwrap();
+    match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
             command = vec![
                 "/stackable/hadoop/bin/hdfs".to_string(),
+                "--debug".to_string(),
                 "datanode".to_string(),
             ];
             init_containers
@@ -370,7 +372,7 @@ fn rolegroup_statefulset(
                                 .map(|pr| format!(
                                     "http://{}:{}",
                                     pr.fqdn(),
-                                    pr.ports.get(SERVICE_PORT_NAME_HTTP).map_or(9870, |p| *p)
+                                    pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_NAME_NODE_METRICS_PORT, |p| *p)
                                 ))
                                 .collect::<Vec<String>>()
                                 .join(" ")
@@ -384,25 +386,10 @@ fn rolegroup_statefulset(
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             command = vec![
                 "/stackable/hadoop/bin/hdfs".to_string(),
+                "--debug".to_string(),
                 "namenode".to_string(),
             ];
             init_containers.get_or_insert_with(Vec::new).extend([
-                // TODO: replace the "sleep" and "wait-for-journals" containers with a reliable health check for journal nodes.
-                Container {
-                    name: "sleep".to_string(),
-                    image: Some(hdfs.hdfs_image()?),
-                    args: Some(vec![
-                        "sh".to_string(),
-                        "-c".to_string(),
-                        "ls -lR /data && sleep 30 || true"
-                            .to_string(),
-                    ]),
-                    security_context: Some(SecurityContext {
-                        run_as_user: Some(1000),
-                        ..SecurityContext::default()
-                    }),
-                    ..hadoop_container.clone()
-                },
                 Container {
                     name: "wait-for-journals".to_string(),
                     image: Some("docker.stackable.tech/stackable/tools:0.1.0-stackable0".to_string()),
@@ -416,7 +403,7 @@ fn rolegroup_statefulset(
                                 .map(|pr| format!(
                                     "http://{}:{}",
                                     pr.fqdn(),
-                                    pr.ports.get(SERVICE_PORT_NAME_HTTP).map_or(8480, |p| *p)
+                                    pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_JOURNAL_NODE_METRICS_PORT, |p| *p)
                                 ))
                                 .collect::<Vec<String>>()
                                 .join(" ")
@@ -482,14 +469,29 @@ fn rolegroup_statefulset(
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             command = vec![
                 "/stackable/hadoop/bin/hdfs".to_string(),
+                "--debug".to_string(),
                 "journalnode".to_string(),
             ];
         }
     }
 
+    // We add the HADOOP_OPTS env var here, because we want to enable the jmx exporter everywhere *except* the zkfc container.
+    // There, it would cause an "address already in use" error and prevent the namenode container from starting.
+    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
+    env.push(EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(
+                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                    hdfs.default_role_metric_port(role),
+                        rolegroup_ref.role,)
+                ),
+                ..EnvVar::default()
+            },);
+
     containers.push(Container {
         name: rolegroup_ref.role.clone(),
         args: Some(command),
+        env: Some(env),
         ..hadoop_container.clone()
     });
 
@@ -566,6 +568,18 @@ fn hdfs_common_container(
                 value: Some("/stackable/hadoop".to_string()),
                 ..EnvVar::default()
             },
+            // EnvVar {
+            //     name: "HADOOP_OPTS".to_string(),
+            //     value: Some(
+            //         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+            //             rolegroup_ports.iter()
+            //             .filter_map(|(port_name, port)| if port_name == SERVICE_PORT_NAME_METRICS { Some(*port) } else { None })
+            //             .collect::<Vec<i32>>()
+            //             .get(0).unwrap_or(&hdfs.default_role_metric_port(serde_yaml::from_str(&rolegroup_ref.role).unwrap())),
+            //             rolegroup_ref.role,)
+            //     ),
+            //     ..EnvVar::default()
+            // },
             EnvVar {
                 name: "HADOOP_CONF_DIR".to_string(),
                 value: Some("/stackable/hadoop/etc/hadoop".to_string()),

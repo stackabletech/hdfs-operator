@@ -39,3 +39,7 @@ pub const SERVICE_PORT_NAME_HTTP: &str = "http";
 pub const SERVICE_PORT_NAME_HTTPS: &str = "https";
 pub const SERVICE_PORT_NAME_DATA: &str = "data";
 pub const SERVICE_PORT_NAME_METRICS: &str = "metrics";
+
+pub const DEFAULT_NAME_NODE_METRICS_PORT: i32 = 8183;
+pub const DEFAULT_JOURNAL_NODE_METRICS_PORT: i32 = 8081;
+pub const DEFAULT_DATA_NODE_METRICS_PORT: i32 = 8082;
