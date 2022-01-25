@@ -1,0 +1,25 @@
+= Implementation
+
+== Kubernetes objects
+
+This operator can be used to set up a highly available HDFS cluster. It implements three roles of the HDFS cluster:
+
+* Data Node - respoonsible for holding the actual data. *IMPORTANT* Currently the data is kept in `hostPath` volumes of 1GB and no configuration options are exposed to the user. Each data node has it's own volume.
+* Journal Node - responsible for keeping track of HDFS blocks and used to perform failovers in case the active name node fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
+* Name Node - responsible for keeping track of HDFS blocks and providing access to the data.
+
+The operator creates the following K8S objects per role group defined in the custom resource.
+
+* ClusterIP - used for intra-cluster communication.
+* ConfigMap - HDFS configuration files like `core-site.xml` and `hdfs-site.xml` are defined here and mounted in the pods.
+* StatefulSet - where the replica count of each role group is defined. By default, a cluster will have 2 name nodes, 3 journal nodes and 3 data nodes.
+
+In addition, a `NodePort` service is created for each pod that exposes all container ports to the outside world (from the perspective of K8S).
+
+== Monitoring
+
+The cluster can be monitored with Prometheus from inside or outside the K8S cluster.
+
+All services (with the exception of the Zookeeper daemon on the node names) run with the JMX exporter agent enabled and expose metrics on the `metrics` port. This port is available form the container level up to the NodePort services.
+
+The metrics endpoints are also used as liveliness probes by K8S.
