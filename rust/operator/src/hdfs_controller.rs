@@ -585,18 +585,6 @@ fn hdfs_common_container(
                 value: Some("/stackable/hadoop".to_string()),
                 ..EnvVar::default()
             },
-            // EnvVar {
-            //     name: "HADOOP_OPTS".to_string(),
-            //     value: Some(
-            //         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-            //             rolegroup_ports.iter()
-            //             .filter_map(|(port_name, port)| if port_name == SERVICE_PORT_NAME_METRICS { Some(*port) } else { None })
-            //             .collect::<Vec<i32>>()
-            //             .get(0).unwrap_or(&hdfs.default_role_metric_port(serde_yaml::from_str(&rolegroup_ref.role).unwrap())),
-            //             rolegroup_ref.role,)
-            //     ),
-            //     ..EnvVar::default()
-            // },
             EnvVar {
                 name: "HADOOP_CONF_DIR".to_string(),
                 value: Some("/stackable/hadoop/etc/hadoop".to_string()),
