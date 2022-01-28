@@ -273,16 +273,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "duplicate"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cdaf23abc9bcc47fda1ae3af68425a22b4dfbd745f9077be0eaad5320f75f52"
-dependencies = [
- "heck 0.3.2",
- "proc-macro-error",
-]
-
-[[package]]
 name = "dyn-clone"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1452,7 +1442,6 @@ dependencies = [
 name = "stackable-hdfs-crd"
 version = "0.3.0-nightly"
 dependencies = [
- "duplicate",
  "semver",
  "serde",
  "serde_json",
@@ -1500,8 +1489,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.8.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.8.0#e7ffe8e5804e62ee6c33a0e0d6a85e17f21bf0fd"
+version = "0.9.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.9.0#e7c3e2a10c7dd6469c1fdf2fc570e962ea776762"
 dependencies = [
  "async-trait",
  "backoff",

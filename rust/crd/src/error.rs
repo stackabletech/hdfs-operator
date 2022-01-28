@@ -20,8 +20,6 @@ pub enum Error {
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
-    #[error("no service name")]
-    GlobalServiceNameNotFound,
 
     #[error("Cannot create rolegroup service {name}. Caused by: {source}")]
     ApplyRoleGroupService {
@@ -52,9 +50,6 @@ pub enum Error {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<HdfsCluster>,
     },
-
-    #[error("HdfsAddress is missing.")]
-    HdfsAddressMissingError,
 
     #[error("Cannot parse address port [{address}], Caused by: {source}")]
     HdfsAddressPortParseError {
@@ -92,9 +87,6 @@ pub enum Error {
     PodHasNoSpec { name: String },
     #[error("Pod [{name}] has no container named [{role}]")]
     PodHasNoContainer { name: String, role: String },
-
-    #[error("Container [{name}] of pod [{pod}] has no ports.")]
-    ContainerHasNoPorts { name: String, pod: String },
 
     #[error("Object has no associated namespace.")]
     NoNamespaceContext,

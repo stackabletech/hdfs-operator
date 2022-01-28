@@ -19,11 +19,10 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrStrin
 use stackable_operator::k8s_openapi::apimachinery::pkg::{
     api::resource::Quantity, apis::meta::v1::LabelSelector,
 };
+use stackable_operator::kube::ResourceExt;
+use stackable_operator::kube::runtime::controller::{Context, ReconcilerAction};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::{
-    api::ObjectMeta,
-    runtime::controller::{Context, ReconcilerAction},
-};
+use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
 use stackable_operator::product_config_utils::{
@@ -198,9 +197,9 @@ fn rolegroup_config_map(
             "dfs.journalnode.edits.dir".to_string(),
             "/data/journal".to_string(),
         ),
-        ("dfs.nameservices".to_string(), hdfs.nameservice_id()),
+        ("dfs.nameservices".to_string(), hdfs.name()),
         (
-            format!("dfs.ha.namenodes.{}", hdfs.nameservice_id()),
+            format!("dfs.ha.namenodes.{}", hdfs.name()),
             namenode_podrefs
                 .iter()
                 .map(|nn| nn.pod_name.clone())
@@ -222,13 +221,13 @@ fn rolegroup_config_map(
                     ))
                     .collect::<Vec<_>>()
                     .join(";"),
-                hdfs.nameservice_id()
+                hdfs.name()
             ),
         ),
         (
             format!(
                 "dfs.client.failover.proxy.provider.{}",
-                hdfs.nameservice_id()
+                hdfs.name()
             ),
             "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider".to_string(),
         ),
@@ -254,7 +253,7 @@ fn rolegroup_config_map(
             (
                 format!(
                     "dfs.namenode.name.dir.{}.{}",
-                    hdfs.nameservice_id(),
+                    hdfs.name(),
                     nnid.pod_name,
                 ),
                 "/data/name".to_string(),
@@ -262,7 +261,7 @@ fn rolegroup_config_map(
             (
                 format!(
                     "dfs.namenode.rpc-address.{}.{}",
-                    hdfs.nameservice_id(),
+                    hdfs.name(),
                     nnid.pod_name,
                 ),
                 format!(
@@ -276,7 +275,7 @@ fn rolegroup_config_map(
             (
                 format!(
                     "dfs.namenode.http-address.{}.{}",
-                    hdfs.nameservice_id(),
+                    hdfs.name(),
                     nnid.pod_name,
                 ),
                 format!(
@@ -312,7 +311,7 @@ fn rolegroup_config_map(
         .add_data(
             CORE_SITE_XML.to_string(),
             hadoop_config_xml([
-                ("fs.defaultFS", format!("hdfs://{}/", hdfs.nameservice_id())),
+                ("fs.defaultFS", format!("hdfs://{}/", hdfs.name())),
                 ("ha.zookeeper.quorum", "${env.ZOOKEEPER}".to_string()),
             ]),
         )
@@ -587,7 +586,7 @@ fn hdfs_common_container(
             },
             EnvVar {
                 name: "HADOOP_CONF_DIR".to_string(),
-                value: Some("/stackable/hadoop/etc/hadoop".to_string()),
+                value: Some(String::from(CONFIG_DIR_NAME)),
                 ..EnvVar::default()
             },
             EnvVar {
@@ -621,7 +620,7 @@ fn hdfs_common_container(
                 ..VolumeMount::default()
             },
             VolumeMount {
-                mount_path: "/stackable/hadoop/etc/hadoop".to_string(),
+                mount_path: String::from(CONFIG_DIR_NAME),
                 name: "config".to_string(),
                 ..VolumeMount::default()
             },

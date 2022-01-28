@@ -16,6 +16,13 @@ The operator creates the following K8S objects per role group defined in the cus
 
 In addition, a `NodePort` service is created for each pod that exposes all container ports to the outside world (from the perspective of K8S).
 
+== HDFS
+
+In the custom resource you can specify the number of replicas per role group (name node, data node or journal node) but the operator will make sure that:
+* at least two name nodes are started
+* at least three data nodes are started
+* at least one journal node is started
+
 == Monitoring
 
 The cluster can be monitored with Prometheus from inside or outside the K8S cluster.

@@ -2,7 +2,6 @@ pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";
 pub const FIELD_MANAGER_SCOPE_POD: &str = "pod-service";
 
 pub const APP_NAME: &str = "hdfs";
-pub const MANAGED_BY: &str = "hdfs-operator";
 
 pub const LABEL_ENABLE: &str = "hdfs.stackable.tech/pod-service";
 pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";
@@ -27,7 +26,7 @@ pub const DFS_JOURNAL_NODE_HTTPS_ADDRESS: &str = "dfs.journalnode.https-address"
 pub const METRICS_PORT_PROPERTY: &str = "metricsPort";
 
 pub const CONFIG_MAP_TYPE_DATA: &str = "data";
-pub const CONFIG_DIR_NAME: &str = "/stackable/conf";
+pub const CONFIG_DIR_NAME: &str = "/stackable/hadoop/etc/hadoop";
 
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";

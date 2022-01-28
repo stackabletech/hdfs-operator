@@ -75,10 +75,6 @@ impl HdfsCluster {
             self.hdfs_version()?
         ))
     }
-    /// HDFS nameservice id used to identify the cluster in a high-availability environment.
-    pub fn nameservice_id(&self) -> String {
-        self.metadata.name.clone().unwrap()
-    }
 
     /// Kubernetes labels to attach to Pods within a role group.
     ///
@@ -204,7 +200,7 @@ impl HdfsCluster {
                     role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                     ports: HdfsCluster::rolegroup_ports(rolegroup_ref, validated_config)
-                        .unwrap()
+                        .unwrap_or_default()
                         .into_iter()
                         .collect(),
                 })
