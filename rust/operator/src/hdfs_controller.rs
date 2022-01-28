@@ -247,6 +247,10 @@ fn rolegroup_config_map(
             "dfs.ha.namenode.id".to_string(),
             "${env.POD_NAME}".to_string(),
         ),
+        (
+            "dfs.replication".to_string(),
+            hdfs.spec.dfs_replication.as_ref().unwrap_or(&3).to_string(),
+        ),
     ];
     hdfs_site_config.extend(namenode_podrefs.iter().flat_map(|nnid| {
         [

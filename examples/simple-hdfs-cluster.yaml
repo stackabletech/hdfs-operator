@@ -5,6 +5,7 @@ metadata:
 spec:
   version: 3.2.2
   zookeeperConfigMapName: simple-znode
+  dfsReplication: 3
   log4j: |-
     # Define some default values that can be overridden by system properties
     hadoop.root.logger=INFO,console

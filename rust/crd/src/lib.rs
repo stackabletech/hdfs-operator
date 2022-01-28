@@ -37,6 +37,7 @@ pub struct HdfsClusterSpec {
     pub data_nodes: Option<Role<DataNodeConfig>>,
     pub name_nodes: Option<Role<NameNodeConfig>>,
     pub journal_nodes: Option<Role<JournalNodeConfig>>,
+    pub dfs_replication: Option<u8>,
     pub log4j: Option<String>,
 }
 
@@ -371,23 +372,15 @@ impl HdfsPodRef {
 }
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NameNodeConfig {
-    pub dfs_namenode_name_dir: Option<String>,
-    pub dfs_replication: Option<u8>,
-}
+pub struct NameNodeConfig {}
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DataNodeConfig {
-    pub dfs_datanode_name_dir: Option<String>,
-    pub dfs_replication: Option<u8>,
-}
+pub struct DataNodeConfig {}
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct JournalNodeConfig {
-    pub metrics_port: Option<u16>,
-}
+pub struct JournalNodeConfig {}
 
 impl Configuration for NameNodeConfig {
     type Configurable = HdfsCluster;
@@ -412,27 +405,9 @@ impl Configuration for NameNodeConfig {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-        file: &str,
+        _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        if file == HDFS_SITE_XML {
-            if let Some(dfs_namenode_name_dir) = &self.dfs_namenode_name_dir {
-                result.insert(
-                    DFS_NAME_NODE_NAME_DIR.to_string(),
-                    Some(dfs_namenode_name_dir.to_string()),
-                );
-            }
-
-            if let Some(dfs_replication) = &self.dfs_replication {
-                result.insert(
-                    DFS_REPLICATION.to_string(),
-                    Some(dfs_replication.to_string()),
-                );
-            }
-        }
-
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 }
 
@@ -459,27 +434,9 @@ impl Configuration for DataNodeConfig {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-        file: &str,
+        _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        if file == HDFS_SITE_XML {
-            if let Some(dfs_datanode_name_dir) = &self.dfs_datanode_name_dir {
-                result.insert(
-                    DFS_DATA_NODE_DATA_DIR.to_string(),
-                    Some(dfs_datanode_name_dir.to_string()),
-                );
-            }
-
-            if let Some(dfs_replication) = &self.dfs_replication {
-                result.insert(
-                    DFS_REPLICATION.to_string(),
-                    Some(dfs_replication.to_string()),
-                );
-            }
-        }
-
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 }
 

@@ -35,15 +35,6 @@ spec:
                       type: object
                     config:
                       default: {}
-                      properties:
-                        dfsDatanodeNameDir:
-                          nullable: true
-                          type: string
-                        dfsReplication:
-                          format: uint8
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -67,15 +58,6 @@ spec:
                             type: object
                           config:
                             default: {}
-                            properties:
-                              dfsDatanodeNameDir:
-                                nullable: true
-                                type: string
-                              dfsReplication:
-                                format: uint8
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
                             type: object
                           configOverrides:
                             additionalProperties:
@@ -130,6 +112,11 @@ spec:
                   required:
                     - roleGroups
                   type: object
+                dfsReplication:
+                  format: uint8
+                  minimum: 0.0
+                  nullable: true
+                  type: integer
                 journalNodes:
                   nullable: true
                   properties:
@@ -140,12 +127,6 @@ spec:
                       type: object
                     config:
                       default: {}
-                      properties:
-                        metricsPort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -169,12 +150,6 @@ spec:
                             type: object
                           config:
                             default: {}
-                            properties:
-                              metricsPort:
-                                format: uint16
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
                             type: object
                           configOverrides:
                             additionalProperties:
@@ -242,15 +217,6 @@ spec:
                       type: object
                     config:
                       default: {}
-                      properties:
-                        dfsNamenodeNameDir:
-                          nullable: true
-                          type: string
-                        dfsReplication:
-                          format: uint8
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -274,15 +240,6 @@ spec:
                             type: object
                           config:
                             default: {}
-                            properties:
-                              dfsNamenodeNameDir:
-                                nullable: true
-                                type: string
-                              dfsReplication:
-                                format: uint8
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
                             type: object
                           configOverrides:
                             additionalProperties:
@@ -352,3 +309,4 @@ spec:
       served: true
       storage: true
       subresources: {}
+
