@@ -19,10 +19,10 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrStrin
 use stackable_operator::k8s_openapi::apimachinery::pkg::{
     api::resource::Quantity, apis::meta::v1::LabelSelector,
 };
-use stackable_operator::kube::ResourceExt;
+use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Context, ReconcilerAction};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::api::ObjectMeta;
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
 use stackable_operator::product_config_utils::{
@@ -225,10 +225,7 @@ fn rolegroup_config_map(
             ),
         ),
         (
-            format!(
-                "dfs.client.failover.proxy.provider.{}",
-                hdfs.name()
-            ),
+            format!("dfs.client.failover.proxy.provider.{}", hdfs.name()),
             "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider".to_string(),
         ),
         (
@@ -251,19 +248,11 @@ fn rolegroup_config_map(
     hdfs_site_config.extend(namenode_podrefs.iter().flat_map(|nnid| {
         [
             (
-                format!(
-                    "dfs.namenode.name.dir.{}.{}",
-                    hdfs.name(),
-                    nnid.pod_name,
-                ),
+                format!("dfs.namenode.name.dir.{}.{}", hdfs.name(), nnid.pod_name,),
                 "/data/name".to_string(),
             ),
             (
-                format!(
-                    "dfs.namenode.rpc-address.{}.{}",
-                    hdfs.name(),
-                    nnid.pod_name,
-                ),
+                format!("dfs.namenode.rpc-address.{}.{}", hdfs.name(), nnid.pod_name,),
                 format!(
                     "{}:{}",
                     nnid.fqdn(),
@@ -339,177 +328,32 @@ fn rolegroup_statefulset(
     hadoop_container: &Container,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
-    let replicas;
-    let command;
     let service_name = rolegroup_ref.object_name();
+    let hdfs_image = hdfs.hdfs_image()?;
 
-    let mut init_containers = Some(vec![Container {
-        name: "chown-data".to_string(),
-        image: Some(hdfs.hdfs_image()?),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..hadoop_container.clone()
-    }]);
-
-    let mut containers = vec![];
+    let replicas;
+    let init_containers;
+    let containers;
 
     let role = serde_yaml::from_str(&rolegroup_ref.role).unwrap();
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
-            command = vec![
-                "/stackable/hadoop/bin/hdfs".to_string(),
-                "--debug".to_string(),
-                "datanode".to_string(),
-            ];
-            init_containers
-                .get_or_insert_with(Vec::new)
-                .extend([Container {
-                    name: "wait-for-namenodes".to_string(),
-                    image: Some(
-                        "docker.stackable.tech/stackable/tools:0.1.0-stackable0".to_string(),
-                    ),
-                    args: Some(vec![
-                        "sh".to_string(),
-                        "-c".to_string(),
-                        format!(
-                            "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
-                            namenode_podrefs
-                                .iter()
-                                .map(|pr| format!(
-                                    "http://{}:{}",
-                                    pr.fqdn(),
-                                    pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_NAME_NODE_METRICS_PORT, |p| *p)
-                                ))
-                                .collect::<Vec<String>>()
-                                .join(" ")
-                        ),
-                    ]),
-                    ..hadoop_container.clone()
-                }]);
+            init_containers = datanode_init_containers(hdfs, namenode_podrefs, hadoop_container);
+            containers = datanode_containers(rolegroup_ref, hadoop_container);
         }
-
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
-            command = vec![
-                "/stackable/hadoop/bin/hdfs".to_string(),
-                "--debug".to_string(),
-                "namenode".to_string(),
-            ];
-            init_containers.get_or_insert_with(Vec::new).extend([
-                Container {
-                    name: "wait-for-journals".to_string(),
-                    image: Some("docker.stackable.tech/stackable/tools:0.1.0-stackable0".to_string()),
-                    args: Some(vec![
-                        "sh".to_string(),
-                        "-c".to_string(),
-                        format!(
-                            "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
-                            journalnode_podrefs
-                                .iter()
-                                .map(|pr| format!(
-                                    "http://{}:{}",
-                                    pr.fqdn(),
-                                    pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_JOURNAL_NODE_METRICS_PORT, |p| *p)
-                                ))
-                                .collect::<Vec<String>>()
-                                .join(" ")
-                        ),
-                    ]),
-                    ..hadoop_container.clone()
-                },
-                Container {
-                    name: "format-namenode".to_string(),
-                    image: Some(hdfs.hdfs_image()?),
-                    args: Some(vec![
-                        "sh".to_string(),
-                        "-c".to_string(),
-                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -format -noninteractive || true"
-                            .to_string(),
-                    ]),
-                    security_context: Some(SecurityContext {
-                        run_as_user: Some(1000),
-                        ..SecurityContext::default()
-                    }),
-                    ..hadoop_container.clone()
-                },
-                 Container {
-                    name: "format-journals".to_string(),
-                    image: Some(hdfs.hdfs_image()?),
-                    args: Some(vec![
-                        "sh".to_string(),
-                        "-c".to_string(),
-                        "test  \"0\" -ne \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive|| true"
-                            .to_string(),
-                    ]),
-                    security_context: Some(SecurityContext {
-                        run_as_user: Some(1000),
-                        ..SecurityContext::default()
-                    }),
-                     ..hadoop_container.clone()
-                },
-                Container {
-                    name: "format-zk".to_string(),
-                    image: Some(hdfs.hdfs_image()?),
-                    args: Some(vec![
-                        "sh".to_string(),
-                        "-c".to_string(),
-                        "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true".to_string(),
-                    ]),
-                    ..hadoop_container.clone()
-                },
-             ]);
-            containers.push(Container {
-                name: "zkfc".to_string(),
-                args: Some(vec![
-                    "/stackable/hadoop/bin/hdfs".to_string(),
-                    "zkfc".to_string(),
-                ]),
-                security_context: Some(SecurityContext {
-                    run_as_user: Some(1000),
-                    ..SecurityContext::default()
-                }),
-                ..hadoop_container.clone()
-            });
+            containers = namenode_containers(rolegroup_ref, hadoop_container);
+            init_containers =
+                namenode_init_containers(&hdfs_image, journalnode_podrefs, hadoop_container);
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
-            command = vec![
-                "/stackable/hadoop/bin/hdfs".to_string(),
-                "--debug".to_string(),
-                "journalnode".to_string(),
-            ];
+            containers = journalnode_containers(rolegroup_ref, hadoop_container);
+            init_containers = journalnode_init_containers(hadoop_container);
         }
     }
-
-    // We add the HADOOP_OPTS env var here, because we want to enable the jmx exporter everywhere *except* the zkfc container.
-    // There, it would cause an "address already in use" error and prevent the namenode container from starting.
-    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-    env.push(EnvVar {
-                name: "HADOOP_OPTS".to_string(),
-                value: Some(
-                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                    hdfs.default_role_metric_port(role),
-                        rolegroup_ref.role,)
-                ),
-                ..EnvVar::default()
-            },);
-
-    containers.push(Container {
-        name: rolegroup_ref.role.clone(),
-        args: Some(command),
-        env: Some(env),
-        readiness_probe: Some(PROBE.clone()),
-        liveness_probe: Some(PROBE.clone()),
-        ..hadoop_container.clone()
-    });
 
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
@@ -569,6 +413,250 @@ fn rolegroup_statefulset(
         }),
         status: None,
     })
+}
+
+fn journalnode_containers(
+    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    hadoop_container: &Container,
+) -> Vec<Container> {
+    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
+    env.push(EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(
+                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                    DEFAULT_JOURNAL_NODE_METRICS_PORT,
+                        rolegroup_ref.role,)
+                ),
+                ..EnvVar::default()
+            },);
+
+    vec![Container {
+        name: rolegroup_ref.role.clone(),
+        args: Some(vec![
+            "/stackable/hadoop/bin/hdfs".to_string(),
+            "--debug".to_string(),
+            "journalnode".to_string(),
+        ]),
+        readiness_probe: Some(PROBE.clone()),
+        liveness_probe: Some(PROBE.clone()),
+        env: Some(env),
+        ..hadoop_container.clone()
+    }]
+}
+
+fn namenode_containers(
+    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    hadoop_container: &Container,
+) -> Vec<Container> {
+    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
+    env.push(EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(
+                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                    DEFAULT_NAME_NODE_METRICS_PORT,
+                        rolegroup_ref.role,)
+                ),
+                ..EnvVar::default()
+            },);
+
+    vec![
+        Container {
+            name: rolegroup_ref.role.clone(),
+            args: Some(vec![
+                "/stackable/hadoop/bin/hdfs".to_string(),
+                "--debug".to_string(),
+                "namenode".to_string(),
+            ]),
+            env: Some(env),
+            readiness_probe: Some(PROBE.clone()),
+            liveness_probe: Some(PROBE.clone()),
+            ..hadoop_container.clone()
+        },
+        // Note that we don't add the HADOOP_OPTS env var to this container (zkfc)
+        // Here it would cause an "address already in use" error and prevent the namenode container from starting.
+        // Because the jmx exporter is not enabled here, also the readiness probes are not enabled.
+        Container {
+            name: String::from("zkfc"),
+            args: Some(vec![
+                "/stackable/hadoop/bin/hdfs".to_string(),
+                "zkfc".to_string(),
+            ]),
+            ..hadoop_container.clone()
+        },
+    ]
+}
+
+fn datanode_containers(
+    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    hadoop_container: &Container,
+) -> Vec<Container> {
+    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
+    env.push(EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(
+                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                    DEFAULT_DATA_NODE_METRICS_PORT,
+                        rolegroup_ref.role,)
+                ),
+                ..EnvVar::default()
+            },);
+
+    vec![Container {
+        name: rolegroup_ref.role.clone(),
+        args: Some(vec![
+            "/stackable/hadoop/bin/hdfs".to_string(),
+            "--debug".to_string(),
+            "datanode".to_string(),
+        ]),
+        env: Some(env),
+        readiness_probe: Some(PROBE.clone()),
+        liveness_probe: Some(PROBE.clone()),
+        ..hadoop_container.clone()
+    }]
+}
+
+fn datanode_init_containers(
+    _hdfs: &HdfsCluster,
+    namenode_podrefs: &[HdfsPodRef],
+    hadoop_container: &Container,
+) -> Option<Vec<Container>> {
+    Some(vec![
+    Container {
+        name: "chown-data".to_string(),
+        image: Some(String::from(TOOLS_IMAGE)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(0),
+            ..SecurityContext::default()
+        }),
+        ..hadoop_container.clone()
+    },
+    Container {
+        name: "wait-for-namenodes".to_string(),
+        image: Some(String::from(TOOLS_IMAGE)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            format!(
+                "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
+                namenode_podrefs
+                    .iter()
+                    .map(|pr| format!(
+                        "http://{}:{}",
+                        pr.fqdn(),
+                        pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_NAME_NODE_METRICS_PORT, |p| *p)
+                    ))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+        ]),
+        ..hadoop_container.clone()
+    },])
+}
+
+fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
+    Some(vec![Container {
+        name: "chown-data".to_string(),
+        image: Some(String::from(TOOLS_IMAGE)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(0),
+            ..SecurityContext::default()
+        }),
+        ..hadoop_container.clone()
+    }])
+}
+
+fn namenode_init_containers(
+    hdfs_image: &str,
+    journalnode_podrefs: &[HdfsPodRef],
+    hadoop_container: &Container,
+) -> Option<Vec<Container>> {
+    Some(vec![
+    Container {
+        name: "chown-data".to_string(),
+        image: Some(String::from(TOOLS_IMAGE)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(0),
+            ..SecurityContext::default()
+        }),
+        ..hadoop_container.clone()
+    },
+    Container {
+        name: "wait-for-journals".to_string(),
+        image: Some(String::from(TOOLS_IMAGE)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            format!(
+                "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
+                journalnode_podrefs
+                    .iter()
+                    .map(|pr| format!(
+                        "http://{}:{}",
+                        pr.fqdn(),
+                        pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_JOURNAL_NODE_METRICS_PORT, |p| *p)
+                    ))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+        ]),
+        ..hadoop_container.clone()
+    },
+    Container {
+        name: "format-namenode".to_string(),
+        image: Some(String::from(hdfs_image)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -format -noninteractive || true"
+                .to_string(),
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(1000),
+            ..SecurityContext::default()
+        }),
+        ..hadoop_container.clone()
+    },
+        Container {
+        name: "format-journals".to_string(),
+        image: Some(String::from(hdfs_image)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            "test  \"0\" -ne \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive|| true"
+                .to_string(),
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(1000),
+            ..SecurityContext::default()
+        }),
+            ..hadoop_container.clone()
+    },
+    Container {
+        name: "format-zk".to_string(),
+        image: Some(String::from(hdfs_image)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true".to_string(),
+        ]),
+        ..hadoop_container.clone()
+    },
+    ])
 }
 
 /// Build a Container with common HDFS environment variables, ports and volume mounts set.
@@ -636,6 +724,10 @@ fn hdfs_common_container(
                 })
                 .collect(),
         ),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(1000),
+            ..SecurityContext::default()
+        }),
         ..Container::default()
     })
 }

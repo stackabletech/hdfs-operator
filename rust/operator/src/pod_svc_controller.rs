@@ -40,7 +40,7 @@ pub async fn reconcile_pod(pod: Pod, ctx: Context<Ctx>) -> HdfsOperatorResult<Re
         .iter()
         .filter(|container| container.name == role.clone())
         .flat_map(|c| c.ports.as_ref())
-        .flat_map(|cp| cp.iter()) 
+        .flat_map(|cp| cp.iter())
         .map(|cp| (cp.name.clone().unwrap_or_default(), cp.container_port))
         .collect();
 
