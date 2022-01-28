@@ -8,15 +8,11 @@ use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::types::PropertyNameKind;
-use stackable_operator::product_config_utils::{
-    ConfigError, Configuration, ValidatedRoleConfigByPropertyKind,
-};
+use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
 use std::cmp::max;
 use std::collections::{BTreeMap, HashMap};
-use std::convert::TryFrom;
-use std::fmt::{Display, Formatter};
 use strum_macros::Display;
 use strum_macros::EnumIter;
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -45,7 +41,7 @@ pub struct HdfsClusterSpec {
 }
 
 #[derive(
-    Clone, Debug, Deserialize, Display, EnumIter, Eq, Hash, JsonSchema, PartialEq, Serialize,
+    Clone, Copy, Debug, Deserialize, Display, EnumIter, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
 pub enum HdfsRole {
     #[serde(rename = "journalnode")]
@@ -178,11 +174,7 @@ impl HdfsCluster {
     /// List all [HdfsPodRef]s expected for the given `role`
     ///
     /// The `validated_config` is used to extract the ports exposed by the pods.
-    pub fn pod_refs(
-        &self,
-        role: HdfsRole,
-        validated_config: &ValidatedRoleConfigByPropertyKind,
-    ) -> HdfsOperatorResult<Vec<HdfsPodRef>> {
+    pub fn pod_refs(&self, role: HdfsRole) -> HdfsOperatorResult<Vec<HdfsPodRef>> {
         let ns = self
             .metadata
             .namespace
@@ -199,10 +191,7 @@ impl HdfsCluster {
                     namespace: ns.clone(),
                     role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                    ports: HdfsCluster::rolegroup_ports(rolegroup_ref, validated_config)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .collect(),
+                    ports: HdfsCluster::role_ports(role).into_iter().collect(),
                 })
             })
             .collect())
@@ -258,20 +247,8 @@ impl HdfsCluster {
         }
     }
 
-    /// Return a list of porrts exposed by pods of the given `rolegroup_ref`.
-    pub fn rolegroup_ports(
-        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-        validated_config: &ValidatedRoleConfigByPropertyKind,
-    ) -> HdfsOperatorResult<Vec<(String, i32)>> {
-        let rolegroup_config = validated_config
-            .get(&rolegroup_ref.role)
-            .and_then(|groups| groups.get(&rolegroup_ref.role_group))
-            .ok_or(Error::RolegroupNotInValidatedConfig {
-                group: rolegroup_ref.role_group.clone(),
-                role: rolegroup_ref.role.clone(),
-            })?;
-
-        Ok(match serde_yaml::from_str(&rolegroup_ref.role).unwrap() {
+    pub fn role_ports(role: HdfsRole) -> Vec<(String, i32)> {
+        match role {
             HdfsRole::NameNode => vec![
                 (
                     String::from(SERVICE_PORT_NAME_METRICS),
@@ -279,33 +256,11 @@ impl HdfsCluster {
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_HTTP),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_NAME_NODE_HTTP_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:9870"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("9870"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_NAME_NODE_HTTP_ADDRESS),
-                        })?,
+                    DEFAULT_NAME_NODE_HTTP_PORT,
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_RPC),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_NAME_NODE_RPC_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:8020"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("8020"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_NAME_NODE_RPC_ADDRESS),
-                        })?,
+                    DEFAULT_NAME_NODE_RPC_PORT,
                 ),
             ],
             HdfsRole::DataNode => vec![
@@ -315,48 +270,15 @@ impl HdfsCluster {
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_DATA),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_DATA_NODE_DATA_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:9866"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("9866"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_DATA_NODE_DATA_ADDRESS),
-                        })?,
+                    DEFAULT_DATA_NODE_DATA_PORT,
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_HTTP),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_DATA_NODE_HTTP_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:9864"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("9864"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_DATA_NODE_HTTP_ADDRESS),
-                        })?,
+                    DEFAULT_DATA_NODE_HTTP_PORT,
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_IPC),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_DATA_NODE_IPC_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:9867"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("9867"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_DATA_NODE_IPC_ADDRESS),
-                        })?,
+                    DEFAULT_DATA_NODE_IPC_PORT,
                 ),
             ],
             HdfsRole::JournalNode => vec![
@@ -366,58 +288,17 @@ impl HdfsCluster {
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_HTTP),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_JOURNAL_NODE_HTTP_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:8480"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("8480"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_JOURNAL_NODE_HTTP_ADDRESS),
-                        })?,
+                    DEFAULT_JOURNAL_NODE_HTTP_PORT,
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_HTTPS),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_JOURNAL_NODE_HTTPS_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:8481"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("8481"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_JOURNAL_NODE_HTTPS_ADDRESS),
-                        })?,
+                    DEFAULT_JOURNAL_NODE_HTTPS_PORT,
                 ),
                 (
                     String::from(SERVICE_PORT_NAME_RPC),
-                    rolegroup_config
-                        .get(&PropertyNameKind::File(String::from(HDFS_SITE_XML)))
-                        .and_then(|c| c.get(DFS_JOURNAL_NODE_RPC_ADDRESS))
-                        .unwrap_or(&String::from("0.0.0.0:8485"))
-                        .split(':')
-                        .last()
-                        .unwrap_or(&String::from("8485"))
-                        .parse::<i32>()
-                        .map_err(|source| Error::HdfsAddressPortParseError {
-                            source,
-                            address: String::from(DFS_JOURNAL_NODE_RPC_ADDRESS),
-                        })?,
+                    DEFAULT_JOURNAL_NODE_RPC_PORT,
                 ),
             ],
-        })
-    }
-
-    pub fn default_role_metric_port(&self, role: HdfsRole) -> i32 {
-        match role {
-            HdfsRole::DataNode => DEFAULT_DATA_NODE_METRICS_PORT,
-            HdfsRole::JournalNode => DEFAULT_JOURNAL_NODE_METRICS_PORT,
-            HdfsRole::NameNode => DEFAULT_NAME_NODE_METRICS_PORT,
         }
     }
 
@@ -488,66 +369,11 @@ impl HdfsPodRef {
         )
     }
 }
-/// This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HdfsAddress {
-    pub interface: Option<String>,
-    pub port: u16,
-}
-
-impl HdfsAddress {
-    pub fn port(address: Option<&String>) -> Result<Option<String>, error::Error> {
-        if let Some(address) = address {
-            return Ok(Some(Self::try_from(address)?.port.to_string()));
-        }
-        Ok(None)
-    }
-}
-
-impl Display for HdfsAddress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}:{}",
-            self.interface.as_deref().unwrap_or("0.0.0.0"),
-            self.port
-        )
-    }
-}
-
-impl TryFrom<&String> for HdfsAddress {
-    type Error = error::Error;
-
-    fn try_from(address: &String) -> Result<Self, Self::Error> {
-        let elements = address.split(':').collect::<Vec<&str>>();
-
-        if let Some(port) = elements.get(1) {
-            return Ok(HdfsAddress {
-                interface: elements.get(0).map(|interface| interface.to_string()),
-                port: port
-                    .parse::<u16>()
-                    .map_err(|source| Error::HdfsAddressPortParseError {
-                        source,
-                        address: address.clone(),
-                    })?,
-            });
-        }
-
-        Err(Error::HdfsAddressParseError {
-            address: address.clone(),
-        })
-    }
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NameNodeConfig {
     pub dfs_namenode_name_dir: Option<String>,
     pub dfs_replication: Option<u8>,
-    pub metrics_port: Option<u16>,
-    pub ipc_address: Option<HdfsAddress>,
-    pub http_address: Option<HdfsAddress>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -555,18 +381,11 @@ pub struct NameNodeConfig {
 pub struct DataNodeConfig {
     pub dfs_datanode_name_dir: Option<String>,
     pub dfs_replication: Option<u8>,
-    pub metrics_port: Option<u16>,
-    pub ipc_address: Option<HdfsAddress>,
-    pub http_address: Option<HdfsAddress>,
-    pub data_address: Option<HdfsAddress>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JournalNodeConfig {
-    pub http_address: Option<HdfsAddress>,
-    pub https_address: Option<HdfsAddress>,
-    pub rpc_address: Option<HdfsAddress>,
     pub metrics_port: Option<u16>,
 }
 
@@ -578,16 +397,7 @@ impl Configuration for NameNodeConfig {
         _resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        if let Some(metrics_port) = self.metrics_port {
-            result.insert(
-                METRICS_PORT_PROPERTY.to_string(),
-                Some(metrics_port.to_string()),
-            );
-        }
-
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 
     fn compute_cli(
@@ -620,17 +430,6 @@ impl Configuration for NameNodeConfig {
                     Some(dfs_replication.to_string()),
                 );
             }
-
-            if let Some(http_address) = &self.http_address {
-                result.insert(
-                    DFS_NAME_NODE_HTTP_ADDRESS.to_string(),
-                    Some(http_address.to_string()),
-                );
-            }
-        } else if file == CORE_SITE_XML {
-            if let Some(ipc_address) = &self.ipc_address {
-                result.insert(FS_DEFAULT.to_string(), Some(ipc_address.to_string()));
-            }
         }
 
         Ok(result)
@@ -645,16 +444,7 @@ impl Configuration for DataNodeConfig {
         _resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        if let Some(metrics_port) = self.metrics_port {
-            result.insert(
-                METRICS_PORT_PROPERTY.to_string(),
-                Some(metrics_port.to_string()),
-            );
-        }
-
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 
     fn compute_cli(
@@ -687,27 +477,6 @@ impl Configuration for DataNodeConfig {
                     Some(dfs_replication.to_string()),
                 );
             }
-
-            if let Some(ipc_address) = &self.ipc_address {
-                result.insert(
-                    DFS_DATA_NODE_IPC_ADDRESS.to_string(),
-                    Some(ipc_address.to_string()),
-                );
-            }
-
-            if let Some(http_address) = &self.http_address {
-                result.insert(
-                    DFS_DATA_NODE_HTTP_ADDRESS.to_string(),
-                    Some(http_address.to_string()),
-                );
-            }
-
-            if let Some(data_address) = &self.data_address {
-                result.insert(
-                    DFS_DATA_NODE_DATA_ADDRESS.to_string(),
-                    Some(data_address.to_string()),
-                );
-            }
         }
 
         Ok(result)
@@ -722,16 +491,7 @@ impl Configuration for JournalNodeConfig {
         _resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        if let Some(metrics_port) = self.metrics_port {
-            result.insert(
-                METRICS_PORT_PROPERTY.to_string(),
-                Some(metrics_port.to_string()),
-            );
-        }
-
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 
     fn compute_cli(
@@ -746,31 +506,8 @@ impl Configuration for JournalNodeConfig {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-        file: &str,
+        _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        if file == HDFS_SITE_XML {
-            if let Some(http_address) = &self.http_address {
-                result.insert(
-                    DFS_JOURNAL_NODE_HTTP_ADDRESS.to_string(),
-                    Some(http_address.to_string()),
-                );
-            }
-            if let Some(https_address) = &self.https_address {
-                result.insert(
-                    DFS_JOURNAL_NODE_HTTPS_ADDRESS.to_string(),
-                    Some(https_address.to_string()),
-                );
-            }
-            if let Some(rpc_address) = &self.rpc_address {
-                result.insert(
-                    DFS_JOURNAL_NODE_RPC_ADDRESS.to_string(),
-                    Some(rpc_address.to_string()),
-                );
-            }
-        }
-
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 }

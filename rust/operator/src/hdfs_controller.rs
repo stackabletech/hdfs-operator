@@ -68,16 +68,18 @@ pub async fn reconcile_hdfs(
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
-    let namenode_podrefs = hdfs.pod_refs(HdfsRole::NameNode, &validated_config)?;
-    let journalnode_podrefs = hdfs.pod_refs(HdfsRole::JournalNode, &validated_config)?;
+    let namenode_podrefs = hdfs.pod_refs(HdfsRole::NameNode)?;
+    let journalnode_podrefs = hdfs.pod_refs(HdfsRole::JournalNode)?;
 
     for (role_name, group_config) in validated_config.iter() {
+        let role = serde_yaml::from_str(role_name).unwrap();
+        let role_ports = HdfsCluster::role_ports(role);
+        let hadoop_container = hdfs_common_container(&hdfs, &role_ports)?;
+
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
-            let rolegroup_ports = HdfsCluster::rolegroup_ports(&rolegroup_ref, &validated_config)?;
-            let hadoop_container = hdfs_common_container(&hdfs, &rolegroup_ports)?;
 
-            let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, &rolegroup_ports)?;
+            let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, &role_ports)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
@@ -87,6 +89,7 @@ pub async fn reconcile_hdfs(
             )?;
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
+                role,
                 &rolegroup_ref,
                 &namenode_podrefs,
                 &journalnode_podrefs,
@@ -322,6 +325,7 @@ fn rolegroup_config_map(
 
 fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
+    role: HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
@@ -335,7 +339,6 @@ fn rolegroup_statefulset(
     let init_containers;
     let containers;
 
-    let role = serde_yaml::from_str(&rolegroup_ref.role).unwrap();
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
@@ -344,14 +347,14 @@ fn rolegroup_statefulset(
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
-            containers = namenode_containers(rolegroup_ref, hadoop_container);
             init_containers =
                 namenode_init_containers(&hdfs_image, journalnode_podrefs, hadoop_container);
+            containers = namenode_containers(rolegroup_ref, hadoop_container);
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
-            containers = journalnode_containers(rolegroup_ref, hadoop_container);
             init_containers = journalnode_init_containers(hadoop_container);
+            containers = journalnode_containers(rolegroup_ref, hadoop_container);
         }
     }
 

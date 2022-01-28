@@ -38,58 +38,11 @@ spec:
                     config:
                       default: {}
                       properties:
-                        dataAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
                         dfsDatanodeNameDir:
                           nullable: true
                           type: string
                         dfsReplication:
                           format: uint8
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        httpAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
-                        ipcAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
-                        metricsPort:
-                          format: uint16
                           minimum: 0.0
                           nullable: true
                           type: integer
@@ -117,58 +70,11 @@ spec:
                           config:
                             default: {}
                             properties:
-                              dataAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
                               dfsDatanodeNameDir:
                                 nullable: true
                                 type: string
                               dfsReplication:
                                 format: uint8
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
-                              httpAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
-                              ipcAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
-                              metricsPort:
-                                format: uint16
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
@@ -237,53 +143,11 @@ spec:
                     config:
                       default: {}
                       properties:
-                        httpAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
-                        httpsAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
                         metricsPort:
                           format: uint16
                           minimum: 0.0
                           nullable: true
                           type: integer
-                        rpcAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -308,53 +172,11 @@ spec:
                           config:
                             default: {}
                             properties:
-                              httpAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
-                              httpsAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
                               metricsPort:
                                 format: uint16
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
-                              rpcAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
                             type: object
                           configOverrides:
                             additionalProperties:
@@ -431,39 +253,6 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
-                        httpAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
-                        ipcAddress:
-                          description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                          nullable: true
-                          properties:
-                            interface:
-                              nullable: true
-                              type: string
-                            port:
-                              format: uint16
-                              minimum: 0.0
-                              type: integer
-                          required:
-                            - port
-                          type: object
-                        metricsPort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -493,39 +282,6 @@ spec:
                                 type: string
                               dfsReplication:
                                 format: uint8
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
-                              httpAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
-                              ipcAddress:
-                                description: This is a struct to represent HDFS addresses (node_name/ip/interface and port)
-                                nullable: true
-                                properties:
-                                  interface:
-                                    nullable: true
-                                    type: string
-                                  port:
-                                    format: uint16
-                                    minimum: 0.0
-                                    type: integer
-                                required:
-                                  - port
-                                type: object
-                              metricsPort:
-                                format: uint16
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
