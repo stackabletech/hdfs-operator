@@ -12,8 +12,8 @@ build = "build.rs"
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.9.0" }
 stackable-hdfs-crd = { path = "../crd" }
 stackable-hdfs-operator = { path = "../operator" }
-clap = { version = "3.0.9", features = ["derive"] }
-tokio = { version = "1.15", features = ["macros", "rt-multi-thread"] }
+clap = { version = "3.0", features = ["derive"] }
+tokio = { version = "1.16", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 serde_yaml = "0.8"
 

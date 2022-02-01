@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
-use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
+use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
@@ -68,18 +68,18 @@ pub async fn reconcile_hdfs(
     .map_err(|source| Error::InvalidProductConfig { source })?;
 
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
-    let namenode_podrefs = hdfs.pod_refs(HdfsRole::NameNode)?;
-    let journalnode_podrefs = hdfs.pod_refs(HdfsRole::JournalNode)?;
+    let namenode_podrefs = hdfs.pod_refs(&HdfsRole::NameNode)?;
+    let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
 
     for (role_name, group_config) in validated_config.iter() {
-        let role = serde_yaml::from_str(role_name).unwrap();
-        let role_ports = HdfsCluster::role_ports(role);
-        let hadoop_container = hdfs_common_container(&hdfs, &role_ports)?;
+        let role: HdfsRole = serde_yaml::from_str(role_name).unwrap();
+        let role_ports = ROLE_PORTS.get(&role).unwrap().as_slice();
+        let hadoop_container = hdfs_common_container(&hdfs, role_ports)?;
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, &role_ports)?;
+            let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, role_ports)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
@@ -89,7 +89,7 @@ pub async fn reconcile_hdfs(
             )?;
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
-                role,
+                &role,
                 &rolegroup_ref,
                 &namenode_podrefs,
                 &journalnode_podrefs,
@@ -219,7 +219,7 @@ fn rolegroup_config_map(
                         "{}:{}",
                         jnid.fqdn(),
                         jnid.ports
-                            .get(&String::from(DFS_JOURNAL_NODE_RPC_ADDRESS))
+                            .get(&String::from("dfs.journalnode.rpc-address"))
                             .map_or(8485, |p| *p)
                     ))
                     .collect::<Vec<_>>()
@@ -264,8 +264,8 @@ fn rolegroup_config_map(
                     "{}:{}",
                     nnid.fqdn(),
                     nnid.ports
-                        .get(&String::from(DFS_NAME_NODE_RPC_ADDRESS))
-                        .map_or(8020, |p| *p)
+                        .get(&String::from("dfs.namenode.rpc-address"))
+                        .map_or(DEFAULT_NAME_NODE_RPC_PORT, |p| *p)
                 ),
             ),
             (
@@ -278,8 +278,8 @@ fn rolegroup_config_map(
                     "{}:{}",
                     nnid.fqdn(),
                     nnid.ports
-                        .get(&String::from(DFS_NAME_NODE_HTTP_ADDRESS))
-                        .map_or(9870, |p| *p)
+                        .get(&String::from("dfs.namenode.http-address"))
+                        .map_or(DEFAULT_NAME_NODE_HTTP_PORT, |p| *p)
                 ),
             ),
         ]
@@ -329,7 +329,7 @@ fn rolegroup_config_map(
 
 fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
-    role: HdfsRole,
+    role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],

@@ -1442,6 +1442,7 @@ dependencies = [
 name = "stackable-hdfs-crd"
 version = "0.3.0-nightly"
 dependencies = [
+ "lazy_static",
  "semver",
  "serde",
  "serde_json",
