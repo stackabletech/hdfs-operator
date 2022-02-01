@@ -1,7 +1,0 @@
-apiVersion: command.hdfs.stackable.tech/v1alpha1
-kind: Stop
-metadata:
-  name: hdfs-cluster-command-stop
-spec:
-  name: "simple"
-  rolling: true

@@ -1,42 +1,84 @@
 = Usage
 
-After installation, the CRD for this operator must be created:
+Since Apache Hdfs is installed in high-availability mode, an Apache Zookeeper cluster is required to coordinate the active/passive namenode.
 
-    kubectl apply -f /etc/stackable/hdfs-operator/crd/hdfscluster.crd.yaml
+Install the Stackable Zookeeper operator and an Apache Zookeeper cluster like this:
 
-To create a single node Apache HDFS (v3.2.2) cluster with Prometheus metrics exposed on port 50000 (name_node) and 51000 (data_node):
+[source,bash]
+----
+helm install zookeeper-operator stackable/zookeeper-operator
+cat <<EOF | kubectl apply -f -
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: simple-zk
+spec:
+  version: 3.5.8
+  servers:
+    roleGroups:
+      default:
+        replicas: 3
+        config: {}
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: simple-znode
+spec:
+  clusterRef:
+    name: simple-zk
+    namespace: default
+EOF
+----
 
-    cat <<EOF | kubectl apply -f -
-    apiVersion: hdfs.stackable.tech/v1alpha1
-    kind: HdfsCluster
-    metadata:
-      name: simple
-    spec:
-      version: 3.2.2
-      nameNodes:
-        roleGroups:
-          default:
-            selector:
-              matchLabels:
-                kubernetes.io/os: linux
-            replicas: 1
-            config:
-              dfsNamenodeNameDir: /stackable/data
-              ipcAddress:
-                port: 9000
-              httpAddress:
-                port: 60000
-              metricsPort: 50000
-      dataNodes:
-        roleGroups:
-          default:
-            selector:
-              matchLabels:
-                kubernetes.io/os: linux
-            replicas: 1
-            config:
-              dfsDatanodeNameDir: /stackable/data
-              httpAddress:
-                port: 61000
-              metricsPort: 51000
-    EOF
+Once a Zookeeper cluster and the operator are up and running, you can create an  Apache HDFS (v3.2.2) cluster like this:
+
+[source,bash]
+----
+cat <<EOF | kubectl apply -f -
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: simple
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: simple-znode
+  dfsReplication: 3
+  log4j: |-
+    # Define some default values that can be overridden by system properties
+    hadoop.root.logger=INFO,console
+    hadoop.log.dir=.
+    hadoop.log.file=hadoop.log
+    # Define the root logger to the system property "hadoop.root.logger".
+    log4j.rootLogger=${hadoop.root.logger}, EventCounter
+    # Logging Threshold
+    log4j.threshold=ALL
+    log4j.appender.console=org.apache.log4j.ConsoleAppender
+    log4j.appender.console.target=System.err
+    log4j.appender.console.layout=org.apache.log4j.PatternLayout
+    log4j.appender.console.layout.ConversionPattern=%d{ISO8601} %p %c{2}: %m%n
+    log4j.appender.EventCounter=org.apache.hadoop.log.metrics.EventCounter
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 3
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 3
+EOF
+----
+

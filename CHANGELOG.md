@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Complete rewrite to use `StatefulSet`s, `hostPath` volumes and the Kubernetes overlay network. ([#68])
+
+[#68]: https://github.com/stackabletech/hdfs-operator/pull/68
+
 ## [0.2.0] - 2021-11-12
 
 
