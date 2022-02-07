@@ -10,6 +10,8 @@ The Stackable Operator for Apache HDFS currently supports the following versions
 
 include::partial$supported-versions.adoc[]
 
+== Docker
+
 [source]
 ----
 docker pull docker.stackable.tech/stackable/hadoop:<version>
