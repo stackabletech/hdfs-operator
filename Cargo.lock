@@ -3,6 +3,17 @@
 version = 3
 
 [[package]]
+name = "ahash"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
+dependencies = [
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -228,16 +239,6 @@ dependencies = [
  "darling_core",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "dashmap"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
-dependencies = [
- "cfg-if",
- "num_cpus",
 ]
 
 [[package]]
@@ -711,9 +712,9 @@ dependencies = [
 
 [[package]]
 name = "k8s-openapi"
-version = "0.13.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f8de9873b904e74b3533f77493731ee26742418077503683db44e1b3c54aa5c"
+checksum = "0489fc937cc7616a9abfa61bf39c250d7e32e1325ef028c8d9278dd24ea395b3"
 dependencies = [
  "base64",
  "bytes",
@@ -726,9 +727,9 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.66.0"
+version = "0.68.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4b96944d327b752df4f62f3a31d8694892af06fb585747c0b5e664927823d1a"
+checksum = "d41f782ddd187a0d8965607679bbd741052106b75330696ce7d7712b13194d88"
 dependencies = [
  "k8s-openapi",
  "kube-client",
@@ -739,9 +740,9 @@ dependencies = [
 
 [[package]]
 name = "kube-client"
-version = "0.66.0"
+version = "0.68.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "232db1af3d3680f9289cf0b4db51b2b9fee22550fc65d25869e39b23e0aaa696"
+checksum = "cced1a3e738c2a4bccb52d33066632369c668f366a71c9c58139d9360e1a341d"
 dependencies = [
  "base64",
  "bytes",
@@ -775,9 +776,9 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "0.66.0"
+version = "0.68.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de491f8c9ee97117e0b47a629753e939c2392d5d0a40f6928e582a5fba328098"
+checksum = "6878656f5e349ef08b0a48d2b1841f1e68c4cf1ef42524feadad2f9a109dd888"
 dependencies = [
  "chrono",
  "form_urlencoded",
@@ -793,9 +794,9 @@ dependencies = [
 
 [[package]]
 name = "kube-derive"
-version = "0.66.0"
+version = "0.68.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcbb86bb3607245a67c8ad3a52aff41108f36b0d1e9e3e82ffb5760bfd84b965"
+checksum = "73f5fa510a64791242047fea4d807a5da06514ee714cace4b942d38a1126f0a8"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -806,17 +807,18 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.66.0"
+version = "0.68.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "710729592eb30219b4e84898e91dc991fe09ccafe2c17fec4e45c3426c61abe0"
+checksum = "0990fe3ab89a1217e6a4d4952e1ab0a24783265ed413228efbc489a00f86b3da"
 dependencies = [
+ "ahash",
  "backoff",
- "dashmap",
  "derivative",
  "futures",
  "json-patch",
  "k8s-openapi",
  "kube-client",
+ "parking_lot",
  "pin-project",
  "serde",
  "serde_json",
@@ -868,6 +870,15 @@ name = "linked-hash-map"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fb9b38af92608140b86b693604b9ffcc5824240a484d1ecd4795bacb2fe88f3"
+
+[[package]]
+name = "lock_api"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88943dd7ef4a2e5a4bfa2753aaab3013e34ce2533d1996fb18ef591e315e2b3b"
+dependencies = [
+ "scopeguard",
+]
 
 [[package]]
 name = "log"
@@ -1032,6 +1043,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e22443d1643a904602595ba1cd8f7d896afe56d26712531c5ff73a15b2fbf64"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
+dependencies = [
+ "instant",
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d76e8e1493bcac0d2766c42737f34458f1c8c50c0d23bcb24ea953affb273216"
+dependencies = [
+ "cfg-if",
+ "instant",
+ "libc",
+ "redox_syscall",
+ "smallvec",
+ "winapi",
 ]
 
 [[package]]
@@ -1292,6 +1328,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "scopeguard"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
+
+[[package]]
 name = "secrecy"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1490,8 +1532,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.9.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.9.0#e7c3e2a10c7dd6469c1fdf2fc570e962ea776762"
+version = "0.10.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.10.0#143165cf58e66b5e36d9774c188821248e5e4009"
 dependencies = [
  "async-trait",
  "backoff",
