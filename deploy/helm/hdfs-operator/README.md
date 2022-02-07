@@ -25,6 +25,7 @@ The usage of this operator and its CRDs is described in the [documentation](http
 
 The operator has example requests included in the [`/examples`](https://github.com/stackabletech/hdfs/operator/tree/main/examples) directory.
 
+
 ## Links
 
 https://github.com/stackabletech/hdfs-operator
