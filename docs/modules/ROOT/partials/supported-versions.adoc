@@ -1,0 +1,6 @@
+// The version ranges supported by HDFS-Operator
+// This is a separate file, since it is used by both the direct HDFS-Operator documentation, and the overarching
+// Stackable Platform documentation.
+
+- 3.2.2
+- 3.3.1
