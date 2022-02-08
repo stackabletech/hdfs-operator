@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-      - uses: reviewdog/action-markdownlint@v0.1
+      - uses: reviewdog/action-markdownlint@40f5a7a4afc06d314a2c3a72f42c387b5187deaa # renovate: tag=v0.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
