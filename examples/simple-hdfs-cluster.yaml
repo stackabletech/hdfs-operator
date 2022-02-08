@@ -1,10 +1,10 @@
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
-  name: simple
+  name: simple-hdfs
 spec:
   version: 3.2.2
-  zookeeperConfigMapName: simple-znode
+  zookeeperConfigMapName: simple-hdfs-znode
   dfsReplication: 3
   log4j: |-
     # Define some default values that can be overridden by system properties
@@ -41,7 +41,11 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         replicas: 3
-
-
-
-
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: simple-hdfs-znode
+spec:
+  clusterRef:
+    name: simple-zk
