@@ -30,6 +30,7 @@ use stackable_operator::product_config_utils::{
 };
 use stackable_operator::role_utils::RoleGroupRef;
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 use std::time::Duration;
 
 lazy_static! {
@@ -51,7 +52,7 @@ pub struct Ctx {
 }
 
 pub async fn reconcile_hdfs(
-    hdfs: HdfsCluster,
+    hdfs: Arc<HdfsCluster>,
     ctx: Context<Ctx>,
 ) -> HdfsOperatorResult<ReconcilerAction> {
     tracing::info!("Starting reconcile");
@@ -59,7 +60,7 @@ pub async fn reconcile_hdfs(
 
     let validated_config = validate_all_roles_and_groups_config(
         hdfs.hdfs_version()?,
-        &transform_all_roles_to_config(&hdfs, hdfs.build_role_properties()?)
+        &transform_all_roles_to_config(&*hdfs, hdfs.build_role_properties()?)
             .map_err(|source| Error::InvalidRoleConfig { source })?,
         &ctx.get_ref().product_config,
         false,
@@ -153,6 +154,7 @@ fn rolegroup_service(
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
+            .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
             cluster_ip: Some("None".to_string()),
