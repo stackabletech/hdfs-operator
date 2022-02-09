@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Complete rewrite to use `StatefulSet`s, `hostPath` volumes and the Kubernetes overlay network. ([#68])
-- `operator-rs` `0.8.0` → `0.10.0` ([#104]).
+- `operator-rs` `0.9.0` → `0.10.0` ([#104]).
 
 [#68]: https://github.com/stackabletech/hdfs-operator/pull/68
 [#104]: https://github.com/stackabletech/hdfs-operator/pull/104
