@@ -4,11 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Monitoring scraping label `prometheus.io/scrape: true` ([#104]).
+
 ### Changed
 
 - Complete rewrite to use `StatefulSet`s, `hostPath` volumes and the Kubernetes overlay network. ([#68])
+- `operator-rs` `0.9.0` → `0.10.0` ([#104]).
 
 [#68]: https://github.com/stackabletech/hdfs-operator/pull/68
+[#104]: https://github.com/stackabletech/hdfs-operator/pull/104
 
 ## [0.2.0] - 2021-11-12
 

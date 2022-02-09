@@ -1,8 +1,6 @@
 //! NodePort controller for exposing individual Pods.
 //!
 //! For pods with the label `hdfs.stackable.tech/pod-service=true` a NodePort is created that exposes the local node pod.
-use std::time::Duration;
-
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_operator::{
@@ -15,12 +13,17 @@ use stackable_operator::{
         runtime::controller::{Context, ReconcilerAction},
     },
 };
+use std::sync::Arc;
+use std::time::Duration;
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
 }
 
-pub async fn reconcile_pod(pod: Pod, ctx: Context<Ctx>) -> HdfsOperatorResult<ReconcilerAction> {
+pub async fn reconcile_pod(
+    pod: Arc<Pod>,
+    ctx: Context<Ctx>,
+) -> HdfsOperatorResult<ReconcilerAction> {
     tracing::info!("Starting reconcile");
 
     let name = pod.metadata.name.clone().ok_or(Error::PodHasNoName)?;
@@ -35,6 +38,7 @@ pub async fn reconcile_pod(pod: Pod, ctx: Context<Ctx>) -> HdfsOperatorResult<Re
 
     let ports: Vec<(String, i32)> = pod
         .spec
+        .as_ref()
         .ok_or(Error::PodHasNoSpec { name: name.clone() })?
         .containers
         .iter()
@@ -55,6 +59,7 @@ pub async fn reconcile_pod(pod: Pod, ctx: Context<Ctx>) -> HdfsOperatorResult<Re
                 uid: pod
                     .metadata
                     .uid
+                    .clone()
                     .ok_or(Error::PodHasNoUid { name: name.clone() })?,
                 ..OwnerReference::default()
             }]),
