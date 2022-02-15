@@ -86,7 +86,7 @@ EOF
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 
-IMPORTANT: Overriding certain properties will lead to faulty clusters. In general this means, do not change ports, hostnames or properties related to security. All these properties are configured by the operator either directly or by providing explicit user configuration properties in the future.
+IMPORTANT: Overriding certain properties can lead to faulty clusters. In general this means, do not change ports, hostnames or properties related to high-availability or security.
 
 === Configuration Properties
 
@@ -133,7 +133,7 @@ In a similar fashion, environment variables can be (over)written. For example pe
 
 [source,yaml]
 ----
-routers:
+nameNodes:
   roleGroups:
     default:
       config: {}
@@ -146,7 +146,7 @@ or per role:
 
 [source,yaml]
 ----
-routers:
+nameNodes:
   envOverrides:
     MY_ENV_VAR: "MY_VALUE"
   roleGroups:
@@ -154,3 +154,5 @@ routers:
       config: {}
       replicas: 1
 ----
+
+IMPORTANT: Some environment variables will be overriden by the operator and cannot be set manually by the user. These are `HADOOP_HOME`, `HADOOP_CONF_DIR`, `POD_NAME` and `ZOOKEEPER`.

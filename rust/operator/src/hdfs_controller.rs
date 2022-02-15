@@ -75,9 +75,14 @@ pub async fn reconcile_hdfs(
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = serde_yaml::from_str(role_name).unwrap();
         let role_ports = ROLE_PORTS.get(&role).unwrap().as_slice();
-        let hadoop_container = hdfs_common_container(&hdfs, role_ports)?;
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
+            let hadoop_container = hdfs_common_container(
+                &hdfs,
+                role_ports,
+                rolegroup_config.get(&PropertyNameKind::Env),
+            )?;
+
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
             let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, role_ports)?;
@@ -180,13 +185,23 @@ fn rolegroup_service(
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
-    let mut hdfs_site_config = vec![
+    let mut hdfs_site_config: BTreeMap<String, String> = rolegroup_config
+        .get(&PropertyNameKind::File(HDFS_SITE_XML.to_string()))
+        .cloned()
+        .unwrap_or_default();
+    tracing::debug!(
+        "role {} configOverrides for hdfs-site.xml: {:?}",
+        &rolegroup_ref.role,
+        hdfs_site_config
+    );
+
+    hdfs_site_config.extend(vec![
         // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
         // be formatted by the namenode, or used by the other services.
         // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
@@ -253,7 +268,7 @@ fn rolegroup_config_map(
             "dfs.replication".to_string(),
             hdfs.spec.dfs_replication.as_ref().unwrap_or(&3).to_string(),
         ),
-    ];
+    ]);
     hdfs_site_config.extend(namenode_podrefs.iter().flat_map(|nnid| {
         [
             (
@@ -287,6 +302,22 @@ fn rolegroup_config_map(
         ]
     }));
 
+    let mut hdfs_core_config = rolegroup_config
+        .get(&PropertyNameKind::File(CORE_SITE_XML.to_string()))
+        .cloned()
+        .unwrap_or_default();
+
+    hdfs_core_config.extend(vec![
+        (
+            String::from("fs.defaultFS"),
+            format!("hdfs://{}/", hdfs.name()),
+        ),
+        (
+            String::from("ha.zookeeper.quorum"),
+            "${env.ZOOKEEPER}".to_string(),
+        ),
+    ]);
+
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
@@ -308,10 +339,7 @@ fn rolegroup_config_map(
         )
         .add_data(
             CORE_SITE_XML.to_string(),
-            hadoop_config_xml([
-                ("fs.defaultFS", format!("hdfs://{}/", hdfs.name())),
-                ("ha.zookeeper.quorum", "${env.ZOOKEEPER}".to_string()),
-            ]),
+            hadoop_config_xml(hdfs_core_config),
         )
         .add_data(
             HDFS_SITE_XML.to_string(),
@@ -672,44 +700,57 @@ fn namenode_init_containers(
 fn hdfs_common_container(
     hdfs: &HdfsCluster,
     rolegroup_ports: &[(String, i32)],
+    env_overrides: Option<&BTreeMap<String, String>>,
 ) -> HdfsOperatorResult<Container> {
+    let mut env: Vec<EnvVar> = env_overrides
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|(k, v)| EnvVar {
+            name: k.clone(),
+            value: Some(v.clone()),
+            ..EnvVar::default()
+        })
+        .collect();
+
+    env.extend(vec![
+        EnvVar {
+            name: "HADOOP_HOME".to_string(),
+            value: Some("/stackable/hadoop".to_string()),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "HADOOP_CONF_DIR".to_string(),
+            value: Some(String::from(CONFIG_DIR_NAME)),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "POD_NAME".to_string(),
+            value_from: Some(EnvVarSource {
+                field_ref: Some(ObjectFieldSelector {
+                    field_path: String::from("metadata.name"),
+                    ..ObjectFieldSelector::default()
+                }),
+                ..EnvVarSource::default()
+            }),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "ZOOKEEPER".to_string(),
+            value_from: Some(EnvVarSource {
+                config_map_key_ref: Some(ConfigMapKeySelector {
+                    name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
+                    key: "ZOOKEEPER".to_string(),
+                    ..ConfigMapKeySelector::default()
+                }),
+                ..EnvVarSource::default()
+            }),
+            ..EnvVar::default()
+        },
+    ]);
     Ok(Container {
         image: Some(hdfs.hdfs_image()?),
-        env: Some(vec![
-            EnvVar {
-                name: "HADOOP_HOME".to_string(),
-                value: Some("/stackable/hadoop".to_string()),
-                ..EnvVar::default()
-            },
-            EnvVar {
-                name: "HADOOP_CONF_DIR".to_string(),
-                value: Some(String::from(CONFIG_DIR_NAME)),
-                ..EnvVar::default()
-            },
-            EnvVar {
-                name: "POD_NAME".to_string(),
-                value_from: Some(EnvVarSource {
-                    field_ref: Some(ObjectFieldSelector {
-                        field_path: String::from("metadata.name"),
-                        ..ObjectFieldSelector::default()
-                    }),
-                    ..EnvVarSource::default()
-                }),
-                ..EnvVar::default()
-            },
-            EnvVar {
-                name: "ZOOKEEPER".to_string(),
-                value_from: Some(EnvVarSource {
-                    config_map_key_ref: Some(ConfigMapKeySelector {
-                        name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
-                        key: "ZOOKEEPER".to_string(),
-                        ..ConfigMapKeySelector::default()
-                    }),
-                    ..EnvVarSource::default()
-                }),
-                ..EnvVar::default()
-            },
-        ]),
+        env: Some(env),
         volume_mounts: Some(vec![
             VolumeMount {
                 mount_path: "/data".to_string(),
