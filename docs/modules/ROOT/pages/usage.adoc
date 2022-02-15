@@ -90,11 +90,11 @@ IMPORTANT: Overriding certain properties can lead to faulty clusters. In general
 
 === Configuration Properties
 
-For a role or role group, at the same level of `config`, you can specify `configOverrides` for the `hdfs-site.xml` and `core-site.xml`. For example, if you want to set additional properties on the namenode servers, adapt the `namenode` section of the cluster resource like so:
+For a role or role group, at the same level of `config`, you can specify `configOverrides` for the `hdfs-site.xml` and `core-site.xml`. For example, if you want to set additional properties on the namenode servers, adapt the `nameNodes` section of the cluster resource like so:
 
 [source,yaml]
 ----
-namenode:
+nameNodes:
   roleGroups:
     default:
       config: [...]
