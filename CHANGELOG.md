@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The possibility to specifiy `configOverrides` and `envOverrides` ([#108]).
+
+[#108]: https://github.com/stackabletech/hdfs-operator/pull/108
 ## [0.3.0] - 2022-02-14
 
 ### Added
