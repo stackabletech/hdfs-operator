@@ -18,7 +18,7 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
-    stackable_operator::logging::initialize_logging("HSFS_OPERATOR_LOG");
+    stackable_operator::logging::initialize_logging("HDFS_OPERATOR_LOG");
 
     let opts = Opts::parse();
     match opts.cmd {
