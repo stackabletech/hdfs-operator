@@ -293,8 +293,16 @@ jobs:
         # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
         # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
       - name: Update version if PR
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release-') }}
         run: python/cargo_version.py -m pr${{ github.event.pull_request.number }}
+
+        # This step checks if the current run was triggered by a push to a pr (or a pr being created) and the HEAD
+        # branch start with "release-".
+        # If this is the case the commit one commit before the current HEAD is checked out, as this will be the commit
+        # containing the release version.
+      - name: Roll back one commit if release PR
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-') }}
+        run: git checkout HEAD~1
 
       # Recreate charts with changed version if needed
       - name: Clean charts
