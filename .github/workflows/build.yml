@@ -277,6 +277,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # renovate: tag=v2.4.0
+        with:
+          fetch-depth: 3
       - uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # renovate: tag=v2
         if: ${{ github.event_name == 'pull_request' }}
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
