@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 17.02.2022
+
 ### Added
 
 - The possibility to specifiy `configOverrides` and `envOverrides` ([#122]).
