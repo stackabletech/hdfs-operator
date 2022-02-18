@@ -70,24 +70,11 @@ rules:
     verbs:
       - get
   - apiGroups:
-      - command.hdfs.stackable.tech
+      - events.k8s.io
     resources:
-      - inits
-      - restarts
-      - starts
-      - stops
-      - formats
+      - events
     verbs:
-      - get
-      - list
-      - patch
-      - watch
-  - apiGroups:
-      - command.hdfs.stackable.tech
-    resources:
-      - inits/status
-    verbs:
-      - patch
+      - create
   - apiGroups:
       - hdfs.stackable.tech
     resources:
