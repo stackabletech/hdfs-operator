@@ -7,8 +7,15 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - The possibility to specifiy `configOverrides` and `envOverrides` ([#122]).
+- Reconciliation errors are now reported as Kubernetes events ([#130]).
+
+### Changed
+
+- `operator-rs` `0.10.0` -> `0.12.0` ([#130]).
 
 [#122]: https://github.com/stackabletech/hdfs-operator/pull/122
+[#130]: https://github.com/stackabletech/hdfs-operator/pull/130
+
 ## [0.3.0] - 2022-02-14
 
 ### Added
