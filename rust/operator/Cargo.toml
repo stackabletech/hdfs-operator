@@ -11,7 +11,6 @@ version = "0.4.0-nightly"
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.12.0" }
 stackable-hdfs-crd = { path = "../crd" }
 
-async-trait = "0.1"
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
