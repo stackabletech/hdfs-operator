@@ -69,24 +69,11 @@ rules:
     verbs:
       - get
   - apiGroups:
-      - command.{{ include "operator.name" . }}.stackable.tech
+      - events.k8s.io
     resources:
-      - inits
-      - restarts
-      - starts
-      - stops
-      - formats
+      - events
     verbs:
-      - get
-      - list
-      - patch
-      - watch
-  - apiGroups:
-      - command.{{ include "operator.name" . }}.stackable.tech
-    resources:
-      - inits/status
-    verbs:
-      - patch
+      - create
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:

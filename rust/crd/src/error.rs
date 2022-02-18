@@ -1,8 +1,12 @@
 use crate::HdfsCluster;
-use stackable_operator::kube::runtime::reflector::ObjectRef;
+use stackable_operator::{
+    kube::runtime::reflector::ObjectRef, logging::controller::ReconcilerError,
+};
 use std::str::FromStr;
+use strum::EnumDiscriminants;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, EnumDiscriminants)]
+#[strum_discriminants(derive(strum::IntoStaticStr))]
 pub enum Error {
     #[error("object has no version")]
     ObjectHasNoVersion { obj_ref: ObjectRef<HdfsCluster> },
@@ -94,5 +98,10 @@ pub enum Error {
     #[error("Group [{group}] of role [{role}] not in validated config.")]
     RolegroupNotInValidatedConfig { group: String, role: String },
 }
-
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
+
+impl ReconcilerError for Error {
+    fn category(&self) -> &'static str {
+        ErrorDiscriminants::from(self).into()
+    }
+}
