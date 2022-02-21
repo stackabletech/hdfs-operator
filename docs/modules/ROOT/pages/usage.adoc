@@ -82,6 +82,11 @@ spec:
 EOF
 ----
 
+== Monitoring
+
+The managed HDFS instances are automatically configured to export Prometheus metrics. See
+xref:home::monitoring.adoc[] for more details.
+
 == Configuration & Environment Overrides
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
