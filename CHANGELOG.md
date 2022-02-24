@@ -8,13 +8,16 @@ All notable changes to this project will be documented in this file.
 
 - The possibility to specifiy `configOverrides` and `envOverrides` ([#122]).
 - Reconciliation errors are now reported as Kubernetes events ([#130]).
+- Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
+  a single namespace to watch ([#134]).
 
 ### Changed
 
-- `operator-rs` `0.10.0` -> `0.12.0` ([#130]).
+- `operator-rs` `0.10.0` -> `0.13.0` ([#130],[#134]).
 
 [#122]: https://github.com/stackabletech/hdfs-operator/pull/122
 [#130]: https://github.com/stackabletech/hdfs-operator/pull/130
+[#134]: https://github.com/stackabletech/hdfs-operator/pull/134
 
 ## [0.3.0] - 2022-02-14
 
