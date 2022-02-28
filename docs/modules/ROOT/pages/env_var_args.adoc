@@ -10,7 +10,7 @@
 [source]
 ----
 export PRODUCT_CONFIG=/foo/bar/properties.yaml
-cargo run -- run
+stackable-hdfs-operator run
 ----
 
 or via docker:
@@ -38,7 +38,7 @@ The operator will **only** watch for resources in the provided namespace `test`:
 [source]
 ----
 export WATCH_NAMESPACE=test
-cargo run -- run
+stackable-hdfs-operator run
 ----
 
 or via docker:
