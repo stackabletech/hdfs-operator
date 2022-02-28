@@ -23,7 +23,10 @@ async fn main() -> Result<(), error::Error> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&HdfsCluster::crd())?),
-        Command::Run(ProductOperatorRun { product_config }) => {
+        Command::Run(ProductOperatorRun {
+            product_config,
+            watch_namespace,
+        }) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,
@@ -37,7 +40,8 @@ async fn main() -> Result<(), error::Error> {
                 "/etc/stackable/hdfs-operator/config-spec/properties.yaml",
             ])?;
             let client = client::create_client(Some("hdfs.stackable.tech".to_string())).await?;
-            stackable_hdfs_operator::create_controller(client, product_config).await;
+            stackable_hdfs_operator::create_controller(client, product_config, watch_namespace)
+                .await;
         }
     };
 

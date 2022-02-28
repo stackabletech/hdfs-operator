@@ -12,35 +12,46 @@ use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::Context;
 use stackable_operator::kube::runtime::Controller;
 use stackable_operator::logging::controller::report_controller_reconciled;
+use stackable_operator::namespace::WatchNamespace;
 use stackable_operator::product_config::ProductConfigManager;
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-pub async fn create_controller(client: Client, product_config: ProductConfigManager) {
-    let hdfs_controller =
-        Controller::new(client.get_all_api::<HdfsCluster>(), ListParams::default())
-            .owns(client.get_all_api::<StatefulSet>(), ListParams::default())
-            .owns(client.get_all_api::<Service>(), ListParams::default())
-            .owns(client.get_all_api::<ConfigMap>(), ListParams::default())
-            .shutdown_on_signal()
-            .run(
-                hdfs_controller::reconcile_hdfs,
-                hdfs_controller::error_policy,
-                Context::new(hdfs_controller::Ctx {
-                    client: client.clone(),
-                    product_config,
-                }),
-            )
-            .map(|res| {
-                report_controller_reconciled(&client, "hdfsclusters.hdfs.stackable.tech", &res)
-            })
-            .instrument(info_span!("hdfs_controller"));
+pub async fn create_controller(
+    client: Client,
+    product_config: ProductConfigManager,
+    namespace: WatchNamespace,
+) {
+    let hdfs_controller = Controller::new(
+        namespace.get_api::<HdfsCluster>(&client),
+        ListParams::default(),
+    )
+    .owns(
+        namespace.get_api::<StatefulSet>(&client),
+        ListParams::default(),
+    )
+    .owns(namespace.get_api::<Service>(&client), ListParams::default())
+    .owns(
+        namespace.get_api::<ConfigMap>(&client),
+        ListParams::default(),
+    )
+    .shutdown_on_signal()
+    .run(
+        hdfs_controller::reconcile_hdfs,
+        hdfs_controller::error_policy,
+        Context::new(hdfs_controller::Ctx {
+            client: client.clone(),
+            product_config,
+        }),
+    )
+    .map(|res| report_controller_reconciled(&client, "hdfsclusters.hdfs.stackable.tech", &res))
+    .instrument(info_span!("hdfs_controller"));
 
     let pod_svc_controller = Controller::new(
-        client.get_all_api::<Pod>(),
+        namespace.get_api::<Pod>(&client),
         ListParams::default().labels(&format!("{}=true", LABEL_ENABLE)),
     )
-    .owns(client.get_all_api::<Pod>(), ListParams::default())
+    .owns(namespace.get_api::<Pod>(&client), ListParams::default())
     .shutdown_on_signal()
     .run(
         pod_svc_controller::reconcile_pod,

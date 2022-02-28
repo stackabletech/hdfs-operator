@@ -14,8 +14,8 @@ use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
 use std::cmp::max;
 use std::collections::{BTreeMap, HashMap};
-use strum_macros::Display;
-use strum_macros::EnumIter;
+use strum::{Display, EnumIter};
+
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "hdfs.stackable.tech",
