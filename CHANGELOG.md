@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `operator-rs` `0.10.0` -> `0.13.0` ([#130], [#134], [#148]).
-- `HADOOP_OPTS` for jmx exporter specified to `HADOOP_NAMENODE_OPTS`, `HADOOP_DATANODE_OPTS` and `HADOOP_JOURNALNODE_OPTS` to fix cli tool ([#148]). 
+- `HADOOP_OPTS` for jmx exporter specified to `HADOOP_NAMENODE_OPTS`, `HADOOP_DATANODE_OPTS` and `HADOOP_JOURNALNODE_OPTS` to fix cli tool ([#148]).
 
 [#122]: https://github.com/stackabletech/hdfs-operator/pull/122
 [#130]: https://github.com/stackabletech/hdfs-operator/pull/130
