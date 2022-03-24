@@ -34,3 +34,22 @@ pub const DEFAULT_JOURNAL_NODE_METRICS_PORT: i32 = 8081;
 pub const DEFAULT_JOURNAL_NODE_HTTP_PORT: i32 = 8480;
 pub const DEFAULT_JOURNAL_NODE_HTTPS_PORT: i32 = 8481;
 pub const DEFAULT_JOURNAL_NODE_RPC_PORT: i32 = 8485;
+
+// hdfs-site.xml
+// namenode
+pub const DFS_NAMENODE_NAME_DIR: &str = "dfs.namenode.name.dir";
+pub const DFS_NAMENODE_SHARED_EDITS_DIR: &str = "dfs.namenode.shared.edits.dir";
+pub const DFS_NAMENODE_RPC_ADDRESS: &str = "dfs.namenode.rpc-address";
+pub const DFS_NAMENODE_HTTP_ADDRESS: &str = "dfs.namenode.http-address";
+// datanode
+pub const DFS_DATANODE_DATA_DIR: &str = "dfs.datanode.data.dir";
+// journalnode
+pub const DFS_JOURNALNODE_EDITS_DIR: &str = "dfs.journalnode.edits.dir";
+pub const DFS_JOURNALNODE_RPC_ADDRESS: &str = "dfs.journalnode.rpc-address";
+// misc
+pub const DFS_REPLICATION: &str = "dfs.replication";
+pub const DFS_NAME_SERVICES: &str = "dfs.nameservices";
+
+// core-site.xml
+pub const FS_DEFAULT_FS: &str = "fs.defaultFS";
+pub const HA_ZOOKEEPER_QUORUM: &str = "ha.zookeeper.quorum";

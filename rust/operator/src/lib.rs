@@ -1,3 +1,5 @@
+//mod discovery;
+mod config;
 mod hdfs_controller;
 mod pod_svc_controller;
 

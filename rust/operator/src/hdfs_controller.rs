@@ -191,132 +191,157 @@ fn rolegroup_config_map(
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
-    let mut hdfs_site_config: BTreeMap<String, String> = rolegroup_config
-        .get(&PropertyNameKind::File(HDFS_SITE_XML.to_string()))
-        .cloned()
-        .unwrap_or_default();
-    tracing::debug!(
-        "role {} configOverrides for hdfs-site.xml: {:?}",
-        &rolegroup_ref.role,
-        hdfs_site_config
-    );
+    let mut hdfs_site_xml = String::new();
+    let mut core_site_xml = String::new();
 
-    hdfs_site_config.extend(vec![
-        // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
-        // be formatted by the namenode, or used by the other services.
-        // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-        (
-            "dfs.namenode.name.dir".to_string(),
-            "/data/name".to_string(),
-        ),
-        (
-            "dfs.datanode.data.dir".to_string(),
-            "/data/data".to_string(),
-        ),
-        (
-            "dfs.journalnode.edits.dir".to_string(),
-            "/data/journal".to_string(),
-        ),
-        ("dfs.nameservices".to_string(), hdfs.name()),
-        (
-            format!("dfs.ha.namenodes.{}", hdfs.name()),
-            namenode_podrefs
-                .iter()
-                .map(|nn| nn.pod_name.clone())
-                .collect::<Vec<String>>()
-                .join(","),
-        ),
-        (
-            "dfs.namenode.shared.edits.dir".to_string(),
-            format!(
-                "qjournal://{}/{}",
-                journalnode_podrefs
-                    .iter()
-                    .map(|jnid| format!(
-                        "{}:{}",
-                        jnid.fqdn(),
-                        jnid.ports
-                            .get(&String::from("dfs.journalnode.rpc-address"))
-                            .map_or(8485, |p| *p)
-                    ))
-                    .collect::<Vec<_>>()
-                    .join(";"),
-                hdfs.name()
-            ),
-        ),
-        (
-            format!("dfs.client.failover.proxy.provider.{}", hdfs.name()),
-            "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider".to_string(),
-        ),
-        (
-            "dfs.ha.fencing.methods".to_string(),
-            "shell(/bin/true)".to_string(),
-        ),
-        (
-            "dfs.ha.nn.not-become-active-in-safemode".to_string(),
-            "true".to_string(),
-        ),
-        (
-            "dfs.ha.automatic-failover.enabled".to_string(),
-            "true".to_string(),
-        ),
-        (
-            "dfs.ha.namenode.id".to_string(),
-            "${env.POD_NAME}".to_string(),
-        ),
-        (
-            "dfs.replication".to_string(),
-            hdfs.spec.dfs_replication.as_ref().unwrap_or(&3).to_string(),
-        ),
-    ]);
-    hdfs_site_config.extend(namenode_podrefs.iter().flat_map(|nnid| {
-        [
-            (
-                format!("dfs.namenode.name.dir.{}.{}", hdfs.name(), nnid.pod_name,),
-                "/data/name".to_string(),
-            ),
-            (
-                format!("dfs.namenode.rpc-address.{}.{}", hdfs.name(), nnid.pod_name,),
-                format!(
-                    "{}:{}",
-                    nnid.fqdn(),
-                    nnid.ports
-                        .get(&String::from("dfs.namenode.rpc-address"))
-                        .map_or(DEFAULT_NAME_NODE_RPC_PORT, |p| *p)
-                ),
-            ),
-            (
-                format!(
-                    "dfs.namenode.http-address.{}.{}",
-                    hdfs.name(),
-                    nnid.pod_name,
-                ),
-                format!(
-                    "{}:{}",
-                    nnid.fqdn(),
-                    nnid.ports
-                        .get(&String::from("dfs.namenode.http-address"))
-                        .map_or(DEFAULT_NAME_NODE_HTTP_PORT, |p| *p)
-                ),
-            ),
-        ]
-    }));
+    for (property_name_kind, config) in rolegroup_config {
+        let mut config_opt: BTreeMap<String, Option<String>> = config
+            .iter()
+            .map(|(k, v)| (k.clone(), Some(v.clone())))
+            .collect();
 
-    let mut hdfs_core_config = rolegroup_config
-        .get(&PropertyNameKind::File(CORE_SITE_XML.to_string()))
-        .cloned()
-        .unwrap_or_default();
+        match property_name_kind {
+            PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
+                tracing::debug!(
+                    "role {} configOverrides for hdfs-site.xml: {:?}",
+                    &rolegroup_ref.role,
+                    config
+                );
+                // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
+                // be formatted by the namenode, or used by the other services.
+                // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                config_opt.insert(
+                    DFS_NAMENODE_NAME_DIR.to_string(),
+                    Some("/data/name".to_string()),
+                );
+                config_opt.insert(
+                    DFS_DATANODE_DATA_DIR.to_string(),
+                    Some("/data/data".to_string()),
+                );
+                config_opt.insert(
+                    DFS_JOURNALNODE_EDITS_DIR.to_string(),
+                    Some("/data/journal".to_string()),
+                );
+                config_opt.insert(DFS_NAME_SERVICES.to_string(), Some(hdfs.name()));
+                config_opt.insert(
+                    format!("dfs.ha.namenodes.{}", hdfs.name()),
+                    Some(
+                        namenode_podrefs
+                            .iter()
+                            .map(|nn| nn.pod_name.clone())
+                            .collect::<Vec<String>>()
+                            .join(","),
+                    ),
+                );
+                config_opt.insert(
+                    DFS_NAMENODE_SHARED_EDITS_DIR.to_string(),
+                    Some(format!(
+                        "qjournal://{}/{}",
+                        journalnode_podrefs
+                            .iter()
+                            .map(|jnid| format!(
+                                "{}:{}",
+                                jnid.fqdn(),
+                                jnid.ports
+                                    .get(&String::from(DFS_JOURNALNODE_RPC_ADDRESS))
+                                    .map_or(DEFAULT_JOURNAL_NODE_RPC_PORT, |p| *p)
+                            ))
+                            .collect::<Vec<_>>()
+                            .join(";"),
+                        hdfs.name()
+                    )),
+                );
+                config_opt.insert(
+                    format!("dfs.client.failover.proxy.provider.{}", hdfs.name()),
+                    Some(
+                        "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
+                            .to_string(),
+                    ),
+                );
+                config_opt.insert(
+                    "dfs.ha.fencing.methods".to_string(),
+                    Some("shell(/bin/true)".to_string()),
+                );
+                config_opt.insert(
+                    "dfs.ha.nn.not-become-active-in-safemode".to_string(),
+                    Some("true".to_string()),
+                );
+                config_opt.insert(
+                    "dfs.ha.automatic-failover.enabled".to_string(),
+                    Some("true".to_string()),
+                );
+                config_opt.insert(
+                    "dfs.ha.namenode.id".to_string(),
+                    Some("${env.POD_NAME}".to_string()),
+                );
+                config_opt.insert(
+                    DFS_REPLICATION.to_string(),
+                    Some(hdfs.spec.dfs_replication.as_ref().unwrap_or(&3).to_string()),
+                );
 
-    hdfs_core_config.extend(vec![
-        (
-            String::from("fs.defaultFS"),
-            format!("hdfs://{}/", hdfs.name()),
-        ),
-        (
-            String::from("ha.zookeeper.quorum"),
-            "${env.ZOOKEEPER}".to_string(),
-        ),
-    ]);
+                for nnid in namenode_podrefs {
+                    config_opt.insert(
+                        format!(
+                            "{}.{}.{}",
+                            DFS_NAMENODE_NAME_DIR,
+                            hdfs.name(),
+                            nnid.pod_name,
+                        ),
+                        Some("/data/name".to_string()),
+                    );
+                    config_opt.insert(
+                        format!(
+                            "{}.{}.{}",
+                            DFS_NAMENODE_RPC_ADDRESS,
+                            hdfs.name(),
+                            nnid.pod_name,
+                        ),
+                        Some(format!(
+                            "{}:{}",
+                            nnid.fqdn(),
+                            nnid.ports
+                                .get(&String::from(DFS_NAMENODE_RPC_ADDRESS))
+                                .map_or(DEFAULT_NAME_NODE_RPC_PORT, |p| *p)
+                        )),
+                    );
+                    config_opt.insert(
+                        format!(
+                            "{}.{}.{}",
+                            DFS_NAMENODE_HTTP_ADDRESS,
+                            hdfs.name(),
+                            nnid.pod_name,
+                        ),
+                        Some(format!(
+                            "{}:{}",
+                            nnid.fqdn(),
+                            nnid.ports
+                                .get(&String::from(DFS_NAMENODE_HTTP_ADDRESS))
+                                .map_or(DEFAULT_NAME_NODE_HTTP_PORT, |p| *p)
+                        )),
+                    );
+                }
+
+                // generate xml string
+                hdfs_site_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opt.iter());
+            }
+            PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
+                config_opt.insert(
+                    String::from(FS_DEFAULT_FS),
+                    Some(format!("hdfs://{}/", hdfs.name())),
+                );
+                config_opt.insert(
+                    String::from(HA_ZOOKEEPER_QUORUM),
+                    Some("${env.ZOOKEEPER}".to_string()),
+                );
+
+                // generate xml string
+                core_site_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opt.iter());
+            }
+            _ => {}
+        }
+    }
 
     ConfigMapBuilder::new()
         .metadata(
@@ -337,14 +362,8 @@ fn rolegroup_config_map(
                 )
                 .build(),
         )
-        .add_data(
-            CORE_SITE_XML.to_string(),
-            hadoop_config_xml(hdfs_core_config),
-        )
-        .add_data(
-            HDFS_SITE_XML.to_string(),
-            hadoop_config_xml(hdfs_site_config),
-        )
+        .add_data(CORE_SITE_XML.to_string(), core_site_xml)
+        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
         .add_data(
             LOG4J_PROPERTIES.to_string(),
             hdfs.spec.log4j.as_ref().unwrap_or(&"".to_string()),
@@ -798,22 +817,4 @@ fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
         }),
         ..PersistentVolumeClaim::default()
     }
-}
-
-fn hadoop_config_xml<I: IntoIterator<Item = (K, V)>, K: AsRef<str>, V: AsRef<str>>(
-    kvs: I,
-) -> String {
-    use std::fmt::Write;
-    let mut xml = "<configuration>\n".to_string();
-    for (k, v) in kvs {
-        writeln!(
-            xml,
-            "<property><name>{}</name><value>{}</value></property>",
-            k.as_ref(),
-            v.as_ref()
-        )
-        .unwrap();
-    }
-    xml.push_str("</configuration>");
-    xml
 }
