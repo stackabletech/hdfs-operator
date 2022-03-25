@@ -64,7 +64,7 @@ impl HdfsSiteConfigBuilder {
     }
 
     pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
-        self.config.extend(properties);
+        self.config.extend(properties.clone());
         self
     }
 
@@ -237,7 +237,7 @@ impl CoreSiteConfigBuilder {
     }
 
     pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
-        self.config.extend(properties);
+        self.config.extend(properties.clone());
         self
     }
 

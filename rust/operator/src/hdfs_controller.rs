@@ -214,7 +214,7 @@ fn rolegroup_config_map(
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
-                let builder =
+                hdfs_site_xml =
                     HdfsSiteConfigBuilder::new(hdfs.name(), HdfsNodeDataDirectory::default())
                         // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
                         // be formatted by the namenode, or used by the other services.
@@ -233,21 +233,18 @@ fn rolegroup_config_map(
                         .add("dfs.ha.fencing.methods", "shell(/bin/true)")
                         .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                         .add("dfs.ha.automatic-failover.enabled", "true")
-                        .add("dfs.ha.namenode.id", "${env.POD_NAME}");
-
-                // overrides
-                builder.extend(config);
-                hdfs_site_xml = builder.build_as_xml();
+                        .add("dfs.ha.namenode.id", "${env.POD_NAME}")
+                        // the extend with config must come last in order to have overrides working!!!
+                        .extend(config)
+                        .build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
-                let builder = CoreSiteConfigBuilder::new(hdfs.name())
+                core_site_xml = CoreSiteConfigBuilder::new(hdfs.name())
                     .fs_default_fs()
-                    .ha_zookeeper_quorum();
-
-                // overrides
-                builder.extend(config);
-
-                core_site_xml = builder.build_as_xml()
+                    .ha_zookeeper_quorum()
+                    // the extend with config must come last in order to have overrides working!!!
+                    .extend(config)
+                    .build_as_xml();
             }
             _ => {}
         }
