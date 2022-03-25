@@ -111,6 +111,14 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
+    pub fn dfs_client_failover_proxy_provider(&mut self) -> &mut Self {
+        self.config.insert(
+            format!("dfs.client.failover.proxy.provider.{}", self.logical_name),
+            "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider".to_string(),
+        );
+        self
+    }
+
     pub fn dfs_namenode_shared_edits_dir(
         &mut self,
         journalnode_podrefs: &[HdfsPodRef],

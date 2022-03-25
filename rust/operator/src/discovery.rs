@@ -10,6 +10,8 @@ use stackable_operator::{
     kube::ResourceExt,
 };
 
+/// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
+/// for clients.
 pub fn build_discovery_configmap(
     hdfs: &HdfsCluster,
     namenode_podrefs: &[HdfsPodRef],
@@ -42,6 +44,8 @@ fn build_discovery_hdfs_site_xml(logical_name: String, namenode_podrefs: &[HdfsP
         .dfs_name_services()
         .dfs_ha_namenodes(namenode_podrefs)
         .dfs_namenode_rpc_address_ha(namenode_podrefs)
+        .dfs_namenode_http_address_ha(namenode_podrefs)
+        .dfs_client_failover_proxy_provider()
         .build_as_xml()
 }
 
