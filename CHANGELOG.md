@@ -11,7 +11,8 @@ All notable changes to this project will be documented in this file.
 - Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
   a single namespace to watch ([#134]).
 - Config builder for `hdfs-site.xml` and `core-site.xml` ([#150]).
-- Discovery configmap that exposes the namenode services for clients to connect ([#150]). 
+- Discovery configmap that exposes the namenode services for clients to connect ([#150]).
+- Documented service discovery for namenodes ([#150]). 
 
 ### Changed
 
