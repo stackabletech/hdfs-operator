@@ -63,6 +63,11 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
+    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
+        self.config.extend(properties);
+        self
+    }
+
     pub fn dfs_namenode_name_dir(&mut self) -> &mut Self {
         self.config.insert(
             DFS_NAMENODE_NAME_DIR.to_string(),
@@ -228,6 +233,11 @@ impl CoreSiteConfigBuilder {
             HA_ZOOKEEPER_QUORUM.to_string(),
             "${env.ZOOKEEPER}".to_string(),
         );
+        self
+    }
+
+    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
+        self.config.extend(properties);
         self
     }
 
