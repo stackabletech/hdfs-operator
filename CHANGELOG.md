@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - Reconciliation errors are now reported as Kubernetes events ([#130]).
 - Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
   a single namespace to watch ([#134]).
+- Config builder for `hdfs-site.xml` and `core-site.xml` ([#150]).
+- Discovery configmap that exposes the namenode services for clients to connect ([#150]). 
 
 ### Changed
 
@@ -18,6 +20,7 @@ All notable changes to this project will be documented in this file.
 [#122]: https://github.com/stackabletech/hdfs-operator/pull/122
 [#130]: https://github.com/stackabletech/hdfs-operator/pull/130
 [#134]: https://github.com/stackabletech/hdfs-operator/pull/134
+[#150]: https://github.com/stackabletech/hdfs-operator/pull/150
 
 ## [0.3.0] - 2022-02-14
 
