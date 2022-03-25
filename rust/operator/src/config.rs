@@ -1,24 +1,12 @@
 use stackable_hdfs_crd::constants::{
     DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_RPC_PORT,
+    DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
+    DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_NAME_DIR,
+    DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_NAME_SERVICES, DFS_REPLICATION,
+    FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
 };
 use stackable_hdfs_crd::HdfsPodRef;
 use std::collections::BTreeMap;
-
-// hdfs-site.xml
-pub const DFS_NAMENODE_NAME_DIR: &str = "dfs.namenode.name.dir";
-pub const DFS_NAMENODE_SHARED_EDITS_DIR: &str = "dfs.namenode.shared.edits.dir";
-pub const DFS_NAMENODE_RPC_ADDRESS: &str = "dfs.namenode.rpc-address";
-pub const DFS_NAMENODE_HTTP_ADDRESS: &str = "dfs.namenode.http-address";
-pub const DFS_DATANODE_DATA_DIR: &str = "dfs.datanode.data.dir";
-pub const DFS_JOURNALNODE_EDITS_DIR: &str = "dfs.journalnode.edits.dir";
-pub const DFS_JOURNALNODE_RPC_ADDRESS: &str = "dfs.journalnode.rpc-address";
-pub const DFS_REPLICATION: &str = "dfs.replication";
-pub const DFS_NAME_SERVICES: &str = "dfs.nameservices";
-pub const DFS_HA_NAMENODES: &str = "dfs.ha.namenodes";
-
-// core-site.xml
-pub const FS_DEFAULT_FS: &str = "fs.defaultFS";
-pub const HA_ZOOKEEPER_QUORUM: &str = "ha.zookeeper.quorum";
 
 // dirs
 pub const NAMENODE_DIR: &str = "/data/name";

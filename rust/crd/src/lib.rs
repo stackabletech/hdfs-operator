@@ -416,11 +416,18 @@ impl Configuration for NameNodeConfig {
 
     fn compute_files(
         &self,
-        _resource: &Self::Configurable,
+        resource: &Self::Configurable,
         _role_name: &str,
-        _file: &str,
+        file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+        let mut config = BTreeMap::new();
+        if file == HDFS_SITE_XML {
+            if let Some(replication) = &resource.spec.dfs_replication {
+                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
+            }
+        }
+
+        Ok(config)
     }
 }
 
@@ -445,11 +452,18 @@ impl Configuration for DataNodeConfig {
 
     fn compute_files(
         &self,
-        _resource: &Self::Configurable,
+        resource: &Self::Configurable,
         _role_name: &str,
-        _file: &str,
+        file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+        let mut config = BTreeMap::new();
+        if file == HDFS_SITE_XML {
+            if let Some(replication) = &resource.spec.dfs_replication {
+                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
+            }
+        }
+
+        Ok(config)
     }
 }
 
