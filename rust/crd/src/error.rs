@@ -49,6 +49,12 @@ pub enum Error {
         name: String,
     },
 
+    #[error("Cannot create discovery config map {name}. Caused by: {source}")]
+    ApplyDiscoveryConfigMap {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
     #[error("No metadata for [{obj_ref}]. Caused by: {source}")]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
@@ -77,6 +83,12 @@ pub enum Error {
         source: stackable_operator::error::Error,
         role: String,
         role_group: String,
+    },
+
+    #[error("Cannot build config discovery config map {name}. Caused by: {source}")]
+    BuildDiscoveryConfigMap {
+        source: stackable_operator::error::Error,
+        name: String,
     },
 
     #[error("Pod has no name")]

@@ -14,52 +14,94 @@ pub const DFS_JOURNALNODE_EDITS_DIR: &str = "dfs.journalnode.edits.dir";
 pub const DFS_JOURNALNODE_RPC_ADDRESS: &str = "dfs.journalnode.rpc-address";
 pub const DFS_REPLICATION: &str = "dfs.replication";
 pub const DFS_NAME_SERVICES: &str = "dfs.nameservices";
+pub const DFS_HA_NAMENODES: &str = "dfs.ha.namenodes";
 
 // core-site.xml
 pub const FS_DEFAULT_FS: &str = "fs.defaultFS";
 pub const HA_ZOOKEEPER_QUORUM: &str = "ha.zookeeper.quorum";
 
+// dirs
+pub const NAMENODE_DIR: &str = "/data/name";
+pub const DATANODE_DIR: &str = "/data/data";
+pub const JOURNALNODE_DIR: &str = "/data/journal";
+
+#[derive(Clone)]
+pub struct HdfsNodeDataDirectory {
+    pub namenode: String,
+    pub datanode: String,
+    pub journalnode: String,
+}
+
+impl Default for HdfsNodeDataDirectory {
+    fn default() -> Self {
+        HdfsNodeDataDirectory {
+            namenode: NAMENODE_DIR.to_string(),
+            datanode: DATANODE_DIR.to_string(),
+            journalnode: JOURNALNODE_DIR.to_string(),
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct HdfsSiteConfigBuilder {
     config: BTreeMap<String, String>,
+    data_directory: HdfsNodeDataDirectory,
+    logical_name: String,
 }
 
 impl HdfsSiteConfigBuilder {
-    pub fn new() -> Self {
+    pub fn new(logical_name: String, data_directory: HdfsNodeDataDirectory) -> Self {
         HdfsSiteConfigBuilder {
             config: BTreeMap::new(),
+            data_directory,
+            logical_name,
         }
     }
 
-    pub fn dfs_namenode_name_dir(&mut self, dir: impl Into<String>) -> &mut Self {
-        self.config.insert(DFS_NAMENODE_NAME_DIR.to_string(), dir);
+    pub fn add(&mut self, property: &str, value: &str) -> &mut Self {
+        self.config.insert(property.to_string(), value.to_string());
         self
     }
 
-    pub fn dfs_datanode_data_dir(&mut self, dir: impl Into<String>) -> &mut Self {
-        self.config.insert(DFS_DATANODE_DATA_DIR.to_string(), dir);
-        self
-    }
-
-    pub fn dfs_journalnode_edits_dir(&mut self, dir: impl Into<String>) -> &mut Self {
-        self.config
-            .insert(DFS_JOURNALNODE_EDITS_DIR.to_string(), dir);
-        self
-    }
-
-    pub fn dfs_name_services(&mut self, logical_name: impl Into<String>) -> &mut Self {
-        self.config
-            .insert(DFS_NAME_SERVICES.to_string(), logical_name);
-        self
-    }
-
-    pub fn dfs_ha_namenodes(
-        &mut self,
-        logical_name: &str,
-        namenode_podrefs: &[HdfsPodRef],
-    ) -> &mut Self {
+    pub fn dfs_namenode_name_dir(&mut self) -> &mut Self {
         self.config.insert(
-            format!("dfs.ha.namenodes.{}", logical_name),
+            DFS_NAMENODE_NAME_DIR.to_string(),
+            self.data_directory.namenode.clone(),
+        );
+        self
+    }
+
+    pub fn dfs_datanode_data_dir(&mut self) -> &mut Self {
+        self.config.insert(
+            DFS_DATANODE_DATA_DIR.to_string(),
+            self.data_directory.datanode.clone(),
+        );
+        self
+    }
+
+    pub fn dfs_journalnode_edits_dir(&mut self) -> &mut Self {
+        self.config.insert(
+            DFS_JOURNALNODE_EDITS_DIR.to_string(),
+            self.data_directory.journalnode.clone(),
+        );
+        self
+    }
+
+    pub fn dfs_name_services(&mut self) -> &mut Self {
+        self.config
+            .insert(DFS_NAME_SERVICES.to_string(), self.logical_name.clone());
+        self
+    }
+
+    pub fn dfs_replication(&mut self, replication: u8) -> &mut Self {
+        self.config
+            .insert(DFS_REPLICATION.to_string(), replication.to_string());
+        self
+    }
+
+    pub fn dfs_ha_namenodes(&mut self, namenode_podrefs: &[HdfsPodRef]) -> &mut Self {
+        self.config.insert(
+            format!("{}.{}", DFS_HA_NAMENODES, self.logical_name),
             namenode_podrefs
                 .iter()
                 .map(|nn| nn.pod_name.clone())
@@ -88,35 +130,27 @@ impl HdfsSiteConfigBuilder {
                     ))
                     .collect::<Vec<_>>()
                     .join(";"),
-                hdfs.name()
+                self.logical_name
             ),
         );
         self
     }
 
-    // This required? https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithNFS.html
-    pub fn dfs_namenode_name_dir_ha(
-        &mut self,
-        logical_name: &str,
-        dir: impl Into<String>,
-        namenode_podrefs: &[HdfsPodRef],
-    ) -> &mut Self {
+    pub fn dfs_namenode_name_dir_ha(&mut self, namenode_podrefs: &[HdfsPodRef]) -> &mut Self {
         for nn in namenode_podrefs {
             self.config.insert(
-                format!("{}.{}.{}", DFS_NAMENODE_NAME_DIR, logical_name, nn.pod_name),
-                dir.to_string(),
+                format!(
+                    "{}.{}.{}",
+                    DFS_NAMENODE_NAME_DIR, self.logical_name, nn.pod_name
+                ),
+                self.data_directory.namenode.clone(),
             );
         }
         self
     }
 
-    pub fn dfs_namenode_rpc_address_ha(
-        &mut self,
-        logical_name: &str,
-        namenode_podrefs: &[HdfsPodRef],
-    ) -> &mut Self {
+    pub fn dfs_namenode_rpc_address_ha(&mut self, namenode_podrefs: &[HdfsPodRef]) -> &mut Self {
         self.dfs_namenode_address_ha(
-            logical_name,
             namenode_podrefs,
             DFS_NAMENODE_RPC_ADDRESS,
             DEFAULT_NAME_NODE_RPC_PORT,
@@ -124,13 +158,8 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn dfs_namenode_http_address_ha(
-        &mut self,
-        logical_name: &str,
-        namenode_podrefs: &[HdfsPodRef],
-    ) -> &mut Self {
+    pub fn dfs_namenode_http_address_ha(&mut self, namenode_podrefs: &[HdfsPodRef]) -> &mut Self {
         self.dfs_namenode_address_ha(
-            logical_name,
             namenode_podrefs,
             DFS_NAMENODE_HTTP_ADDRESS,
             DEFAULT_NAME_NODE_HTTP_PORT,
@@ -140,14 +169,13 @@ impl HdfsSiteConfigBuilder {
 
     fn dfs_namenode_address_ha(
         &mut self,
-        logical_name: &str,
         namenode_podrefs: &[HdfsPodRef],
         address: &str,
         default_port: i32,
     ) -> &mut Self {
         for nn in namenode_podrefs {
             self.config.insert(
-                format!("{}.{}.{}", address, logical_name, nn.pod_name),
+                format!("{}.{}.{}", address, self.logical_name, nn.pod_name),
                 format!(
                     "{}:{}",
                     nn.fqdn(),
@@ -157,24 +185,32 @@ impl HdfsSiteConfigBuilder {
         }
         self
     }
+
+    pub fn build_as_xml(&self) -> String {
+        let transformed_config = transform_for_product_config(&self.config);
+
+        stackable_operator::product_config::writer::to_hadoop_xml(transformed_config.iter())
+    }
 }
 
 #[derive(Clone, Default)]
 pub struct CoreSiteConfigBuilder {
     config: BTreeMap<String, String>,
+    logical_name: String,
 }
 
 impl CoreSiteConfigBuilder {
-    pub fn new() -> Self {
+    pub fn new(logical_name: String) -> Self {
         CoreSiteConfigBuilder {
             config: BTreeMap::new(),
+            logical_name,
         }
     }
 
-    pub fn fs_default_fs(&mut self, logical_name: &str) -> &mut Self {
+    pub fn fs_default_fs(&mut self) -> &mut Self {
         self.config.insert(
             FS_DEFAULT_FS.to_string(),
-            format!("hdfs://{}/", logical_name),
+            format!("hdfs://{}/", self.logical_name),
         );
         self
     }
@@ -186,4 +222,18 @@ impl CoreSiteConfigBuilder {
         );
         self
     }
+
+    pub fn build_as_xml(&self) -> String {
+        let transformed_config = transform_for_product_config(&self.config);
+        stackable_operator::product_config::writer::to_hadoop_xml(transformed_config.iter())
+    }
+}
+
+fn transform_for_product_config(
+    config: &BTreeMap<String, String>,
+) -> BTreeMap<String, Option<String>> {
+    config
+        .iter()
+        .map(|(k, v)| (k.clone(), Some(v.clone())))
+        .collect::<BTreeMap<String, Option<String>>>()
 }
