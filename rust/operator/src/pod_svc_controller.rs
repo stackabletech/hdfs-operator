@@ -10,7 +10,7 @@ use stackable_operator::{
     },
     kube::{
         core::ObjectMeta,
-        runtime::controller::{Context, ReconcilerAction},
+        runtime::controller::{Action, Context},
     },
 };
 use std::sync::Arc;
@@ -20,10 +20,7 @@ pub struct Ctx {
     pub client: stackable_operator::client::Client,
 }
 
-pub async fn reconcile_pod(
-    pod: Arc<Pod>,
-    ctx: Context<Ctx>,
-) -> HdfsOperatorResult<ReconcilerAction> {
+pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Context<Ctx>) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
 
     let name = pod.metadata.name.clone().ok_or(Error::PodHasNoName)?;
@@ -89,13 +86,9 @@ pub async fn reconcile_pod(
         .apply_patch(FIELD_MANAGER_SCOPE_POD, &svc, &svc)
         .await
         .map_err(|source| Error::ApplyPodServiceFailed { source, name })?;
-    Ok(ReconcilerAction {
-        requeue_after: None,
-    })
+    Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
-    ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(5)),
-    }
+pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+    Action::requeue(Duration::from_secs(5))
 }
