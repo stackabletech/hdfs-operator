@@ -22,7 +22,7 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::{
     api::resource::Quantity, apis::meta::v1::LabelSelector,
 };
 use stackable_operator::kube::api::ObjectMeta;
-use stackable_operator::kube::runtime::controller::{Context, ReconcilerAction};
+use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
@@ -56,7 +56,7 @@ pub struct Ctx {
 pub async fn reconcile_hdfs(
     hdfs: Arc<HdfsCluster>,
     ctx: Context<Ctx>,
-) -> HdfsOperatorResult<ReconcilerAction> {
+) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
 
@@ -143,15 +143,11 @@ pub async fn reconcile_hdfs(
         }
     }
 
-    Ok(ReconcilerAction {
-        requeue_after: None,
-    })
+    Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
-    ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(5)),
-    }
+pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+    Action::requeue(Duration::from_secs(5))
 }
 
 fn rolegroup_service(
@@ -384,7 +380,7 @@ fn journalnode_containers(
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
     env.push(EnvVar {
-                name: "HADOOP_OPTS".to_string(),
+                name: "HADOOP_JOURNALNODE_OPTS".to_string(),
                 value: Some(
                     format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
                     DEFAULT_JOURNAL_NODE_METRICS_PORT,
@@ -413,7 +409,7 @@ fn namenode_containers(
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
     env.push(EnvVar {
-                name: "HADOOP_OPTS".to_string(),
+                name: "HADOOP_NAMENODE_OPTS".to_string(),
                 value: Some(
                     format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
                     DEFAULT_NAME_NODE_METRICS_PORT,
@@ -435,7 +431,7 @@ fn namenode_containers(
             liveness_probe: Some(PROBE.clone()),
             ..hadoop_container.clone()
         },
-        // Note that we don't add the HADOOP_OPTS env var to this container (zkfc)
+        // Note that we don't add the HADOOP_OPTS / HADOOP_NAMENODE_OPTS env var to this container (zkfc)
         // Here it would cause an "address already in use" error and prevent the namenode container from starting.
         // Because the jmx exporter is not enabled here, also the readiness probes are not enabled.
         Container {
@@ -455,7 +451,7 @@ fn datanode_containers(
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
     env.push(EnvVar {
-                name: "HADOOP_OPTS".to_string(),
+                name: "HADOOP_DATANODE_OPTS".to_string(),
                 value: Some(
                     format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
                     DEFAULT_DATA_NODE_METRICS_PORT,
