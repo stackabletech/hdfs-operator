@@ -1,4 +1,3 @@
-//mod discovery;
 mod config;
 mod discovery;
 mod hdfs_controller;
