@@ -1,4 +1,6 @@
-use crate::config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder};
+use crate::config::{
+    CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
+};
 use crate::discovery::build_discovery_configmap;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
@@ -378,7 +380,7 @@ fn journalnode_containers(
     vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
-            "/stackable/hadoop/bin/hdfs".to_string(),
+            format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
             "--debug".to_string(),
             "journalnode".to_string(),
         ]),
@@ -408,7 +410,7 @@ fn namenode_containers(
         Container {
             name: rolegroup_ref.role.clone(),
             args: Some(vec![
-                "/stackable/hadoop/bin/hdfs".to_string(),
+                format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
                 "--debug".to_string(),
                 "namenode".to_string(),
             ]),
@@ -423,7 +425,7 @@ fn namenode_containers(
         Container {
             name: String::from("zkfc"),
             args: Some(vec![
-                "/stackable/hadoop/bin/hdfs".to_string(),
+                format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
                 "zkfc".to_string(),
             ]),
             ..hadoop_container.clone()
@@ -444,12 +446,12 @@ fn datanode_containers(
                         rolegroup_ref.role,)
                 ),
                 ..EnvVar::default()
-            },);
+            });
 
     vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
-            "/stackable/hadoop/bin/hdfs".to_string(),
+            format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
             "--debug".to_string(),
             "datanode".to_string(),
         ]),
@@ -481,7 +483,7 @@ fn datanode_init_containers(
                   for id in {pod_names}
                   do
                     echo -n \"Checking pod $id... \"
-                    SERVICE_STATE=$(/stackable/hadoop/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
                     if [ \"$SERVICE_STATE\" = \"active\" ] || [ \"$SERVICE_STATE\" = \"standby\" ]
                     then
                       echo \"$SERVICE_STATE\"
@@ -498,7 +500,10 @@ fn datanode_init_containers(
                   echo \"\"
                   sleep 5
                 done
-            ", pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" "))
+            ",
+            hadoop_home = HADOOP_HOME,
+            pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" ")
+            )
         ]),
         ..hadoop_container.clone()
     },])
@@ -536,7 +541,7 @@ fn namenode_init_containers(
                  for id in {pod_names}
                  do
                    echo -n \"Checking pod $id... \"
-                   SERVICE_STATE=$(/stackable/hadoop/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
                    if [ \"$SERVICE_STATE\" == \"active\" ]
                    then
                      ACTIVE_NAMENODE=$id
@@ -552,14 +557,15 @@ fn namenode_init_containers(
                    if [ -z ${{ACTIVE_NAMENODE+x}} ]
                    then
                      echo \"Create pod $POD_NAME as active namenode.\"
-                     /stackable/hadoop/bin/hdfs namenode -format -noninteractive
+                     {hadoop_home}/bin/hdfs namenode -format -noninteractive
                    else
                      echo \"Create pod $POD_NAME as standby namenode.\" 
-                     /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive 
+                     {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive 
                    fi
                  else
                    echo \"Pod $POD_NAME already formatted. Skipping...\"
                  fi",
+                hadoop_home = HADOOP_HOME,
                 pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" "),
                 // TODO: What if overridden? We should not default here then!
                 namenode_dir = HdfsNodeDataDirectory::default().namenode,
@@ -577,7 +583,7 @@ fn namenode_init_containers(
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
-            "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive || true".to_string(),
+            format!("test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", hadoop_home = HADOOP_HOME)
         ]),
         ..hadoop_container.clone()
     },
@@ -593,8 +599,9 @@ fn chown_init_container(node_dir: &str, hadoop_container: &Container) -> Contain
             "sh".to_string(),
             "-c".to_string(),
             format!(
-                "mkdir -p {} && chown -R stackable:stackable /data && chmod -R a=,u=rwX /data",
-                node_dir
+                "mkdir -p {node_dir} && chown -R stackable:stackable {data_dir} && chmod -R a=,u=rwX {data_dir}",
+                node_dir = node_dir,
+                data_dir = ROOT_DATA_DIR
             ),
         ]),
         security_context: Some(SecurityContext {
@@ -643,7 +650,7 @@ fn hdfs_common_container(
     env.extend(vec![
         EnvVar {
             name: "HADOOP_HOME".to_string(),
-            value: Some("/stackable/hadoop".to_string()),
+            value: Some(String::from(HADOOP_HOME)),
             ..EnvVar::default()
         },
         EnvVar {
@@ -680,7 +687,7 @@ fn hdfs_common_container(
         env: Some(env),
         volume_mounts: Some(vec![
             VolumeMount {
-                mount_path: "/data".to_string(),
+                mount_path: String::from(ROOT_DATA_DIR),
                 name: "data".to_string(),
                 ..VolumeMount::default()
             },

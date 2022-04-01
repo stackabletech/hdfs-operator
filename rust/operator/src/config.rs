@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 pub const NAMENODE_DIR: &str = "/data/name";
 pub const DATANODE_DIR: &str = "/data/data";
 pub const JOURNALNODE_DIR: &str = "/data/journal";
+pub const ROOT_DATA_DIR: &str = "/data";
 
 #[derive(Clone)]
 pub struct HdfsNodeDataDirectory {
