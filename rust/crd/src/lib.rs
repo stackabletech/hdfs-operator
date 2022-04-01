@@ -167,19 +167,10 @@ impl HdfsCluster {
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
+        // TODO: should we warn if only 1 replica is provided in the spec?
         Ok(max(
             1,
-            self.spec
-                .journal_nodes
-                .as_ref()
-                .ok_or(Error::NoJournalNodeRole)?
-                .role_groups
-                .get(&rolegroup_ref.role_group)
-                .ok_or(Error::RoleGroupNotFound {
-                    rolegroup: rolegroup_ref.role_group.clone(),
-                })?
-                .replicas
-                .unwrap_or_default(),
+            HdfsCluster::extract_replicas(self.spec.journal_nodes.as_ref(), rolegroup_ref)?,
         ))
     }
 
@@ -188,19 +179,10 @@ impl HdfsCluster {
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
+        // TODO: should we warn if only 1 replica is provided in the spec?
         Ok(max(
             2,
-            self.spec
-                .name_nodes
-                .as_ref()
-                .ok_or(Error::NoJournalNodeRole)?
-                .role_groups
-                .get(&rolegroup_ref.role_group)
-                .ok_or(Error::RoleGroupNotFound {
-                    rolegroup: rolegroup_ref.role_group.clone(),
-                })?
-                .replicas
-                .unwrap_or_default(),
+            HdfsCluster::extract_replicas(self.spec.name_nodes.as_ref(), rolegroup_ref)?,
         ))
     }
 
@@ -209,11 +191,19 @@ impl HdfsCluster {
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        Ok(self
-            .spec
-            .data_nodes
+        HdfsCluster::extract_replicas(self.spec.data_nodes.as_ref(), rolegroup_ref)
+    }
+
+    /// Number of replicas for a given `role` and `rolegroup_ref`.
+    fn extract_replicas<T>(
+        role: Option<&Role<T>>,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> HdfsOperatorResult<u16> {
+        Ok(role
             .as_ref()
-            .ok_or(Error::NoJournalNodeRole)?
+            .ok_or(Error::MissingNodeRole {
+                role: rolegroup_ref.role.clone(),
+            })?
             .role_groups
             .get(&rolegroup_ref.role_group)
             .ok_or(Error::RoleGroupNotFound {
@@ -341,7 +331,9 @@ impl HdfsCluster {
                 (pnk.clone(), name_nodes.clone().erase()),
             );
         } else {
-            return Err(Error::NoNameNodeRole);
+            return Err(Error::MissingNodeRole {
+                role: HdfsRole::NameNode.to_string(),
+            });
         }
 
         if let Some(data_nodes) = &self.spec.data_nodes {
@@ -350,7 +342,9 @@ impl HdfsCluster {
                 (pnk.clone(), data_nodes.clone().erase()),
             );
         } else {
-            return Err(Error::NoDataNodeRole);
+            return Err(Error::MissingNodeRole {
+                role: HdfsRole::DataNode.to_string(),
+            });
         }
 
         if let Some(journal_nodes) = &self.spec.journal_nodes {
@@ -359,7 +353,9 @@ impl HdfsCluster {
                 (pnk, journal_nodes.clone().erase()),
             );
         } else {
-            return Err(Error::NoJournalNodeRole);
+            return Err(Error::MissingNodeRole {
+                role: HdfsRole::JournalNode.to_string(),
+            });
         }
 
         Ok(result)

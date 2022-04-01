@@ -1,13 +1,12 @@
 use crate::config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder};
 use crate::discovery::build_discovery_configmap;
-use lazy_static::lazy_static;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, HTTPGetAction, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
-    SecurityContext, VolumeMount,
+    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
+    SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -34,19 +33,6 @@ use stackable_operator::role_utils::RoleGroupRef;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
-
-lazy_static! {
-    /// Liveliness probe used by all master, worker and history containers.
-    static ref PROBE: Probe = Probe {
-        http_get: Some(HTTPGetAction {
-            port: IntOrString::String(String::from(SERVICE_PORT_NAME_METRICS)),
-            ..HTTPGetAction::default()
-        }),
-        period_seconds: Some(10),
-        initial_delay_seconds: Some(10),
-        ..Probe::default()
-    };
-}
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -115,7 +101,6 @@ pub async fn reconcile_hdfs(
                 &role,
                 &rolegroup_ref,
                 &namenode_podrefs,
-                &journalnode_podrefs,
                 &hadoop_container,
             )?;
 
@@ -284,7 +269,6 @@ fn rolegroup_statefulset(
     role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     namenode_podrefs: &[HdfsPodRef],
-    journalnode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
@@ -298,13 +282,14 @@ fn rolegroup_statefulset(
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
-            init_containers = datanode_init_containers(hdfs, namenode_podrefs, hadoop_container);
+            init_containers =
+                datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container);
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             init_containers =
-                namenode_init_containers(&hdfs_image, journalnode_podrefs, hadoop_container);
+                namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container);
         }
         HdfsRole::JournalNode => {
@@ -379,6 +364,7 @@ fn journalnode_containers(
     hadoop_container: &Container,
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
+
     env.push(EnvVar {
                 name: "HADOOP_JOURNALNODE_OPTS".to_string(),
                 value: Some(
@@ -396,8 +382,8 @@ fn journalnode_containers(
             "--debug".to_string(),
             "journalnode".to_string(),
         ]),
-        readiness_probe: Some(PROBE.clone()),
-        liveness_probe: Some(PROBE.clone()),
+        readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
+        liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
         env: Some(env),
         ..hadoop_container.clone()
     }]
@@ -427,8 +413,8 @@ fn namenode_containers(
                 "namenode".to_string(),
             ]),
             env: Some(env),
-            readiness_probe: Some(PROBE.clone()),
-            liveness_probe: Some(PROBE.clone()),
+            readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
+            liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
             ..hadoop_container.clone()
         },
         // Note that we don't add the HADOOP_OPTS / HADOOP_NAMENODE_OPTS env var to this container (zkfc)
@@ -468,142 +454,122 @@ fn datanode_containers(
             "datanode".to_string(),
         ]),
         env: Some(env),
-        readiness_probe: Some(PROBE.clone()),
-        liveness_probe: Some(PROBE.clone()),
+        readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
+        liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
         ..hadoop_container.clone()
     }]
 }
 
 fn datanode_init_containers(
-    _hdfs: &HdfsCluster,
+    hdfs_image: &str,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    Container {
-        name: "chown-data".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..hadoop_container.clone()
-    },
+    chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
     Container {
         name: "wait-for-namenodes".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
+        image: Some(String::from(hdfs_image)),
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
-            format!(
-                "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
-                namenode_podrefs
-                    .iter()
-                    .map(|pr| format!(
-                        "http://{}:{}",
-                        pr.fqdn(),
-                        pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_NAME_NODE_METRICS_PORT, |p| *p)
-                    ))
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            ),
+            format!("
+                echo \"Waiting for namenodes to get ready:\"
+                while true
+                do
+                  ALL_NODES_READY=true
+                  for id in {pod_names}
+                  do
+                    echo -n \"Checking pod $id... \"
+                    SERVICE_STATE=$(/stackable/hadoop/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                    if [ \"$SERVICE_STATE\" = \"active\" ] || [ \"$SERVICE_STATE\" = \"standby\" ]
+                    then
+                      echo \"$SERVICE_STATE\"
+                    else 
+                      echo \"not ready\"
+                      ALL_NODES_READY=false
+                    fi
+                  done
+                  if [ \"$ALL_NODES_READY\" == \"true\" ]
+                  then
+                    echo \"All namenodes ready!\" 
+                    break
+                  fi
+                  echo \"\"
+                  sleep 5
+                done
+            ", pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" "))
         ]),
         ..hadoop_container.clone()
     },])
 }
 
 fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
-    Some(vec![Container {
-        name: "chown-data".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..hadoop_container.clone()
-    }])
+    Some(vec![chown_init_container(
+        &HdfsNodeDataDirectory::default().journalnode,
+        hadoop_container,
+    )])
 }
 
 fn namenode_init_containers(
     hdfs_image: &str,
-    journalnode_podrefs: &[HdfsPodRef],
+    namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    Container {
-        name: "chown-data".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..hadoop_container.clone()
-    },
-    Container {
-        name: "wait-for-journals".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            format!(
-                "for jn in {}; do until curl --fail --connect-timeout 2 $jn; do sleep 2; done; done",
-                journalnode_podrefs
-                    .iter()
-                    .map(|pr| format!(
-                        "http://{}:{}",
-                        pr.fqdn(),
-                        pr.ports.get(SERVICE_PORT_NAME_METRICS).map_or(DEFAULT_JOURNAL_NODE_METRICS_PORT, |p| *p)
-                    ))
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            ),
-        ]),
-        ..hadoop_container.clone()
-    },
+    chown_init_container(&HdfsNodeDataDirectory::default().namenode, hadoop_container),
     Container {
         name: "format-namenode".to_string(),
         image: Some(String::from(hdfs_image)),
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
-            "test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -format -noninteractive || true"
-                .to_string(),
+            // First step we check for active namenodes. This step should return an active namenode
+            // for e.g. scaling. It may fail if the active namenode is restarted and the standby
+            // namenode takes over.
+            // This is why in the second part we check if the node is formatted already via
+            // $NAMENODE_DIR/current/VERSION. Then we dont do anything.
+            // If there is no active namenode, the current pod is not formatted we format as
+            // active namenode. Otherwise as standby node.
+            format!("
+                 echo \"Start formatting namenode $POD_NAME. Checking for active namenodes:\"
+                 for id in {pod_names}
+                 do
+                   echo -n \"Checking pod $id... \"
+                   SERVICE_STATE=$(/stackable/hadoop/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                   if [ \"$SERVICE_STATE\" == \"active\" ]
+                   then
+                     ACTIVE_NAMENODE=$id
+                     echo \"active\"
+                     break
+                   fi
+                   echo \"\" 
+                 done
+                
+                 set -e
+                 if [ ! -f \"{namenode_dir}/current/VERSION\" ]
+                 then
+                   if [ -z ${{ACTIVE_NAMENODE+x}} ]
+                   then
+                     echo \"Create pod $POD_NAME as active namenode.\"
+                     /stackable/hadoop/bin/hdfs namenode -format -noninteractive
+                   else
+                     echo \"Create pod $POD_NAME as standby namenode.\" 
+                     /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive 
+                   fi
+                 else
+                   echo \"Pod $POD_NAME already formatted. Skipping...\"
+                 fi",
+                pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" "),
+                // TODO: What if overridden? We should not default here then!
+                namenode_dir = HdfsNodeDataDirectory::default().namenode,
+            ),
         ]),
         security_context: Some(SecurityContext {
             run_as_user: Some(1000),
             ..SecurityContext::default()
         }),
         ..hadoop_container.clone()
-    },
-        Container {
-        name: "format-journals".to_string(),
-        image: Some(String::from(hdfs_image)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            "test  \"0\" -ne \"$(echo $POD_NAME | sed -e 's/.*-//')\" && /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive|| true"
-                .to_string(),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(1000),
-            ..SecurityContext::default()
-        }),
-            ..hadoop_container.clone()
     },
     Container {
         name: "format-zk".to_string(),
@@ -616,6 +582,45 @@ fn namenode_init_containers(
         ..hadoop_container.clone()
     },
     ])
+}
+
+/// Creates a container that chowns and chmods the provided `node_dir`.
+fn chown_init_container(node_dir: &str, hadoop_container: &Container) -> Container {
+    Container {
+        name: "chown-data".to_string(),
+        image: Some(String::from(TOOLS_IMAGE)),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            format!(
+                "mkdir -p {} && chown -R stackable:stackable /data && chmod -R a=,u=rwX /data",
+                node_dir
+            ),
+        ]),
+        security_context: Some(SecurityContext {
+            run_as_user: Some(0),
+            ..SecurityContext::default()
+        }),
+        ..hadoop_container.clone()
+    }
+}
+
+/// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
+/// for liveness or readiness probes
+fn tcp_socket_action_probe(
+    port_name: &str,
+    period_seconds: i32,
+    initial_delay_seconds: i32,
+) -> Probe {
+    Probe {
+        tcp_socket: Some(TCPSocketAction {
+            port: IntOrString::String(String::from(port_name)),
+            ..TCPSocketAction::default()
+        }),
+        period_seconds: Some(period_seconds),
+        initial_delay_seconds: Some(initial_delay_seconds),
+        ..Probe::default()
+    }
 }
 
 /// Build a Container with common HDFS environment variables, ports and volume mounts set.

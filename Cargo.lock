@@ -1489,7 +1489,6 @@ name = "stackable-hdfs-operator"
 version = "0.4.0-nightly"
 dependencies = [
  "futures",
- "lazy_static",
  "serde",
  "serde_json",
  "serde_yaml",
