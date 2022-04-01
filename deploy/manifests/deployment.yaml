@@ -1,15 +1,12 @@
 ---
-# Source: hdfs-operator/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hdfs-operator-deployment
   labels:
-    helm.sh/chart: hdfs-operator-0.4.0-nightly
     app.kubernetes.io/name: hdfs-operator
     app.kubernetes.io/instance: hdfs-operator
     app.kubernetes.io/version: "0.4.0-nightly"
-    app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
   strategy:
@@ -25,16 +22,13 @@ spec:
         app.kubernetes.io/instance: hdfs-operator
     spec:
       serviceAccountName: hdfs-operator-serviceaccount
-      securityContext:
-        {}
+      securityContext: {}
       containers:
         - name: hdfs-operator
-          securityContext:
-            {}
+          securityContext: {}
           image: "docker.stackable.tech/stackable/hdfs-operator:0.4.0-nightly"
           imagePullPolicy: IfNotPresent
-          resources:
-            {}
+          resources: {}
           volumeMounts:
             - mountPath: /etc/stackable/hdfs-operator/config-spec
               name: config-spec
