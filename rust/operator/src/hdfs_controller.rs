@@ -4,8 +4,9 @@ use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, HTTPGetAction, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
-    SecurityContext, VolumeMount,
+    CSIVolumeSource, Container, ContainerPort, EmptyDirVolumeSource, HTTPGetAction,
+    ObjectFieldSelector, PodSecurityContext, PodSpec, PodTemplateSpec, Probe, SecurityContext,
+    VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -32,6 +33,8 @@ use stackable_operator::role_utils::RoleGroupRef;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
+
+const KEYSTORE_DIR_NAME: &str = "/stackable/keystore";
 
 lazy_static! {
     /// Liveliness probe used by all master, worker and history containers.
@@ -264,6 +267,23 @@ fn rolegroup_config_map(
             "dfs.replication".to_string(),
             hdfs.spec.dfs_replication.as_ref().unwrap_or(&3).to_string(),
         ),
+        (
+            "dfs.block.access.token.enable".to_string(),
+            "true".to_string(),
+        ),
+        (
+            "dfs.data.transfer.protection".to_string(),
+            "authentication".to_string(),
+        ),
+        ("dfs.http.policy".to_string(), "HTTPS_ONLY".to_string()),
+        (
+            "dfs.https.client.keystore.resource".to_string(),
+            "ssl-client.xml".to_string(),
+        ),
+        (
+            "dfs.https.server.keystore.resource".to_string(),
+            "ssl-server.xml".to_string(),
+        ),
     ]);
     hdfs_site_config.extend(namenode_podrefs.iter().flat_map(|nnid| {
         [
@@ -312,7 +332,81 @@ fn rolegroup_config_map(
             String::from("ha.zookeeper.quorum"),
             "${env.ZOOKEEPER}".to_string(),
         ),
+        (
+            "hadoop.security.authentication".to_string(),
+            "kerberos".to_string(),
+        ),
+        (
+            "hadoop.security.authorization".to_string(),
+            "true".to_string(),
+        ),
+        (
+            "hadoop.registry.kerberos.realm".to_string(),
+            "CLUSTER.LOCAL".to_string(),
+        ),
+        (
+            "dfs.web.authentication.kerberos.principal".to_string(),
+            "HTTP/_HOST@CLUSTER.LOCAL".to_string(),
+        ),
+        (
+            "dfs.journalnode.kerberos.internal.spnego.principal".to_string(),
+            "HTTP/_HOST@CLUSTER.LOCAL".to_string(),
+        ),
+        (
+            "dfs.journalnode.kerberos.principal".to_string(),
+            "jn/_HOST@CLUSTER.LOCAL".to_string(),
+        ),
+        (
+            "dfs.namenode.kerberos.principal".to_string(),
+            "nn/_HOST@CLUSTER.LOCAL".to_string(),
+        ),
+        (
+            "dfs.datanode.kerberos.principal".to_string(),
+            "dn/_HOST@CLUSTER.LOCAL".to_string(),
+        ),
+        (
+            "dfs.web.authentication.keytab.file".to_string(),
+            "/kerberos/keytab".to_string(),
+        ),
+        (
+            "dfs.journalnode.keytab.file".to_string(),
+            "/kerberos/keytab".to_string(),
+        ),
+        (
+            "dfs.namenode.keytab.file".to_string(),
+            "/kerberos/keytab".to_string(),
+        ),
+        (
+            "dfs.datanode.keytab.file".to_string(),
+            "/kerberos/keytab".to_string(),
+        ),
     ]);
+
+    let ssl_server_config = [
+        (
+            "ssl.server.keystore.location".to_string(),
+            format!("{KEYSTORE_DIR_NAME}/keystore.p12"),
+        ),
+        (
+            "ssl.server.keystore.password".to_string(),
+            "secret".to_string(),
+        ),
+        ("ssl.server.keystore.type".to_string(), "pkcs12".to_string()),
+    ];
+    let ssl_client_config = [
+        (
+            "ssl.client.truststore.location".to_string(),
+            format!("{KEYSTORE_DIR_NAME}/truststore.p12"),
+        ),
+        (
+            "ssl.client.truststore.password".to_string(),
+            "secret".to_string(),
+        ),
+        (
+            "ssl.client.truststore.type".to_string(),
+            "pkcs12".to_string(),
+        ),
+    ];
 
     ConfigMapBuilder::new()
         .metadata(
@@ -340,6 +434,14 @@ fn rolegroup_config_map(
         .add_data(
             HDFS_SITE_XML.to_string(),
             hadoop_config_xml(hdfs_site_config),
+        )
+        .add_data(
+            "ssl-server.xml".to_string(),
+            hadoop_config_xml(ssl_server_config),
+        )
+        .add_data(
+            "ssl-client.xml".to_string(),
+            hadoop_config_xml(ssl_client_config),
         )
         .add_data(
             LOG4J_PROPERTIES.to_string(),
@@ -396,14 +498,78 @@ fn rolegroup_statefulset(
         spec: Some(PodSpec {
             containers,
             init_containers,
-            volumes: Some(vec![Volume {
-                name: "config".to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: Some(rolegroup_ref.object_name()),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            }]),
+            volumes: Some(vec![
+                Volume {
+                    name: "config".to_string(),
+                    config_map: Some(ConfigMapVolumeSource {
+                        name: Some(rolegroup_ref.object_name()),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                },
+                Volume {
+                    name: "kerberos".to_string(),
+                    csi: Some(CSIVolumeSource {
+                        driver: "secrets.stackable.tech".to_string(),
+                        volume_attributes: Some(
+                            [
+                                (
+                                    "secrets.stackable.tech/class".to_string(),
+                                    "kerberos".to_string(),
+                                ),
+                                (
+                                    "secrets.stackable.tech/scope".to_string(),
+                                    "pod,node".to_string(),
+                                ),
+                                (
+                                    "secrets.stackable.tech/kerberos.service.names".to_string(),
+                                    match role {
+                                        HdfsRole::JournalNode => "jn,HTTP",
+                                        HdfsRole::NameNode => "nn,HTTP",
+                                        HdfsRole::DataNode => "dn,HTTP",
+                                    }
+                                    .to_string(),
+                                ),
+                            ]
+                            .into(),
+                        ),
+                        ..CSIVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                },
+                Volume {
+                    name: "tls".to_string(),
+                    csi: Some(CSIVolumeSource {
+                        driver: "secrets.stackable.tech".to_string(),
+                        volume_attributes: Some(
+                            [
+                                (
+                                    "secrets.stackable.tech/class".to_string(),
+                                    "tls".to_string(),
+                                ),
+                                (
+                                    "secrets.stackable.tech/scope".to_string(),
+                                    "pod,node".to_string(),
+                                ),
+                            ]
+                            .into(),
+                        ),
+                        ..CSIVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                },
+                Volume {
+                    name: "keystore".to_string(),
+                    empty_dir: Some(EmptyDirVolumeSource::default()),
+                    ..Volume::default()
+                },
+            ]),
+            security_context: Some(PodSecurityContext {
+                fs_group: Some(9999),
+                ..PodSecurityContext::default()
+            }),
+            // host_network: Some(true),
+            // dns_policy: Some("ClusterFirstWithHostNet".to_string()),
             ..PodSpec::default()
         }),
     };
@@ -514,6 +680,7 @@ fn namenode_containers(
                 "/stackable/hadoop/bin/hdfs".to_string(),
                 "zkfc".to_string(),
             ]),
+            ports: None,
             ..hadoop_container.clone()
         },
     ]
@@ -548,12 +715,41 @@ fn datanode_containers(
     }]
 }
 
+fn prepare_tls_init_container(hadoop_container: &Container) -> Container {
+    Container {
+            name: "prepare-tls".to_string(),
+            image: Some(String::from(TOOLS_IMAGE)),
+            args: Some(vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                [
+        "echo Storing password",
+        &format!("echo secret > {keystore_directory}/password", keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Cleaning up truststore - just in case",
+        &format!("rm -f {keystore_directory}/truststore.p12", keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Creating truststore",
+        &format!("keytool -importcert -file /stackable/tls/ca.crt -keystore {keystore_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", 
+                 keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Creating certificate chain",
+        &format!("cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {keystore_directory}/chain.crt", keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Creating keystore",
+        &format!("openssl pkcs12 -export -in {keystore_directory}/chain.crt -inkey /stackable/tls/tls.key -out {keystore_directory}/keystore.p12 --passout file:{keystore_directory}/password", 
+                 keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Cleaning up password",
+        &format!("rm -f {keystore_directory}/password", keystore_directory = KEYSTORE_DIR_NAME),
+    ].join(" && "),
+            ]),
+            ..hadoop_container.clone()
+        }
+}
+
 fn datanode_init_containers(
     _hdfs: &HdfsCluster,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
+        prepare_tls_init_container(hadoop_container),
     Container {
         name: "chown-data".to_string(),
         image: Some(String::from(TOOLS_IMAGE)),
@@ -588,24 +784,28 @@ fn datanode_init_containers(
             ),
         ]),
         ..hadoop_container.clone()
-    },])
+    },
+    ])
 }
 
 fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
-    Some(vec![Container {
-        name: "chown-data".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..hadoop_container.clone()
-    }])
+    Some(vec![
+        prepare_tls_init_container(hadoop_container),
+        Container {
+            name: "chown-data".to_string(),
+            image: Some(String::from(TOOLS_IMAGE)),
+            args: Some(vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                " chown -R stackable:stackable /data && chmod -R a=,u=rwX /data".to_string(),
+            ]),
+            security_context: Some(SecurityContext {
+                run_as_user: Some(0),
+                ..SecurityContext::default()
+            }),
+            ..hadoop_container.clone()
+        },
+    ])
 }
 
 fn namenode_init_containers(
@@ -613,7 +813,12 @@ fn namenode_init_containers(
     journalnode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
+    let hadoop_container = Container {
+        ports: None,
+        ..hadoop_container.clone()
+    };
     Some(vec![
+        prepare_tls_init_container(&hadoop_container),
     Container {
         name: "chown-data".to_string(),
         image: Some(String::from(TOOLS_IMAGE)),
@@ -743,6 +948,30 @@ fn hdfs_common_container(
             }),
             ..EnvVar::default()
         },
+        EnvVar {
+            name: "HADOOP_OPTS".to_string(),
+            value: Some(
+                "-Djava.security.krb5.conf=/kerberos/krb5.conf"
+                    // "-Djava.security.krb5.conf=/kerberos/krb5.conf -Dsun.security.krb5.debug=true -Dsun.security.spnego.debug=true -Dsun.security.krb5.disableReferrals=true -Djava.security.debug=certpath"
+                    .to_string(),
+            ),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "HADOOP_JAAS_DEBUG".to_string(),
+            value: Some("true".to_string()),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "KRB5_CONFIG".to_string(),
+            value: Some("/kerberos/krb5.conf".to_string()),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "KRB5_TRACE".to_string(),
+            value: Some("/dev/stdout".to_string()),
+            ..EnvVar::default()
+        },
     ]);
     Ok(Container {
         image: Some(hdfs.hdfs_image()?),
@@ -756,6 +985,21 @@ fn hdfs_common_container(
             VolumeMount {
                 mount_path: String::from(CONFIG_DIR_NAME),
                 name: "config".to_string(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                mount_path: "/kerberos".to_string(),
+                name: "kerberos".to_string(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                mount_path: KEYSTORE_DIR_NAME.to_string(),
+                name: "keystore".to_string(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                mount_path: "/stackable/tls".to_string(),
+                name: "tls".to_string(),
                 ..VolumeMount::default()
             },
         ]),
