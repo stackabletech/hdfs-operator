@@ -57,11 +57,11 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 3
+        replicas: 1
   journalNodes:
     roleGroups:
       default:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 3
+        replicas: 1
