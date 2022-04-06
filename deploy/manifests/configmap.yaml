@@ -77,14 +77,11 @@ data:
           datatype:
             type: "string"
             unit: *unitUri
-          defaultValues:
-            - fromVersion: "0.0.0"
-              value: "0.0.0.0:9000"
           roles:
             - name: "namenode"
-              required: true
+              required: false
             - name: "datanode"
-              required: true
+              required: false
           asOfVersion: "0.0.0"
           description: "The name of the default file system. A URI whose scheme and authority determine the FileSystem implementation. The uri's scheme determines the config property (fs.SCHEME.impl) naming the FileSystem implementation class. The uri's authority is used to determine the host, port, etc. for a filesystem."
 
@@ -96,9 +93,6 @@ data:
                 file: "hdfs-site.xml"
           datatype:
             type: "string"
-          defaultValues:
-            - fromVersion: "3.0.0"
-              value: "0.0.0.0:9870"
           roles:
             - name: "namenode"
               required: false
@@ -113,12 +107,9 @@ data:
                 file: "hdfs-site.xml"
           datatype:
             type: "string"
-          defaultValues:
-            - fromVersion: "3.0.0"
-              value: "0.0.0.0:9867"
           roles:
             - name: "datanode"
-              required: true
+              required: false
           asOfVersion: "0.0.0"
           description: "The datanode ipc server address and port."
 
@@ -130,12 +121,9 @@ data:
                 file: "hdfs-site.xml"
           datatype:
             type: "string"
-          defaultValues:
-            - fromVersion: "3.0.0"
-              value: "0.0.0.0:9866"
           roles:
             - name: "datanode"
-              required: true
+              required: false
           asOfVersion: "0.0.0"
           description: "The datanode server address and port for data transfer."
 
@@ -147,12 +135,9 @@ data:
                 file: "hdfs-site.xml"
           datatype:
             type: "string"
-          defaultValues:
-            - fromVersion: "3.0.0"
-              value: "0.0.0.0:9864"
           roles:
             - name: "datanode"
-              required: true
+              required: false
           asOfVersion: "0.0.0"
           description: "The datanode http server address and port."
 
@@ -164,11 +149,8 @@ data:
                 file: "hdfs-site.xml"
           datatype:
             type: "string"
-          defaultValues:
-            - fromVersion: "3.0.0"
-              value: "0.0.0.0:8480"
           roles:
-            - name: "journanode"
+            - name: "journalnode"
               required: false
           asOfVersion: "0.0.0"
           description: "The address and port the JournalNode HTTP server listens on. If the port is 0 then the server will start on a free port."
@@ -181,11 +163,8 @@ data:
                 file: "hdfs-site.xml"
           datatype:
             type: "string"
-          defaultValues:
-            - fromVersion: "3.0.0"
-              value: "0.0.0.0:8481"
           roles:
-            - name: "journanode"
+            - name: "journalnode"
               required: false
           asOfVersion: "0.0.0"
           description: "The address and port the JournalNode HTTPS server listens on. If the port is 0 then the server will start on a free port."

@@ -8,19 +8,15 @@ use strum::EnumDiscriminants;
 #[derive(Debug, thiserror::Error, EnumDiscriminants)]
 #[strum_discriminants(derive(strum::IntoStaticStr))]
 pub enum Error {
-    #[error("object has no version")]
+    #[error("Object has no version")]
     ObjectHasNoVersion { obj_ref: ObjectRef<HdfsCluster> },
-    #[error("no namenode role defined")]
-    NoNameNodeRole,
-    #[error("no datanode role defined")]
-    NoDataNodeRole,
-    #[error("no journalnode role defined")]
-    NoJournalNodeRole,
-    #[error("invalid role configuration: {source}")]
+    #[error("Missing node role {role}")]
+    MissingNodeRole { role: String },
+    #[error("Invalid role configuration: {source}")]
     InvalidRoleConfig {
         source: stackable_operator::product_config_utils::ConfigError,
     },
-    #[error("invalid product configuration: {source}")]
+    #[error("Invalid product configuration: {source}")]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
@@ -45,6 +41,12 @@ pub enum Error {
 
     #[error("Cannot create role group stateful set {name}. Caused by: {source}")]
     ApplyRoleGroupStatefulSet {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
+    #[error("Cannot create discovery config map {name}. Caused by: {source}")]
+    ApplyDiscoveryConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
@@ -77,6 +79,12 @@ pub enum Error {
         source: stackable_operator::error::Error,
         role: String,
         role_group: String,
+    },
+
+    #[error("Cannot build config discovery config map {name}. Caused by: {source}")]
+    BuildDiscoveryConfigMap {
+        source: stackable_operator::error::Error,
+        name: String,
     },
 
     #[error("Pod has no name")]

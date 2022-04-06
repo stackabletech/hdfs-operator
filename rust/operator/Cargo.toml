@@ -19,4 +19,3 @@ thiserror = "1.0"
 tokio = { version = "1.17", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-futures = { version = "0.2", features = ["futures-03"] }
-lazy_static = "1.4"

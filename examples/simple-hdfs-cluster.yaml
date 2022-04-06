@@ -29,7 +29,7 @@ metadata:
 spec:
   version: 3.2.2
   zookeeperConfigMapName: simple-hdfs-znode
-  dfsReplication: 3
+  dfsReplication: 1
   log4j: |-
     # Define some default values that can be overridden by system properties
     hadoop.root.logger=INFO,console
@@ -57,11 +57,11 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 3
+        replicas: 1
   journalNodes:
     roleGroups:
       default:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 3
+        replicas: 1

@@ -91,7 +91,7 @@ xref:home::monitoring.adoc[] for more details.
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 
-IMPORTANT: Overriding certain properties can lead to faulty clusters. In general this means, do not change ports, hostnames or properties related to high-availability or security.
+IMPORTANT: Overriding certain properties can lead to faulty clusters. In general this means, do not change ports, hostnames or properties related to data dirs, high-availability or security.
 
 === Configuration Properties
 
