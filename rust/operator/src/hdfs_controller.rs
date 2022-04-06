@@ -477,7 +477,8 @@ fn datanode_init_containers(
             "-c".to_string(),
             format!("
                 echo \"Waiting for namenodes to get ready:\"
-                while true
+                n=0
+                while [ ${{n}} -lt 12 ];
                 do
                   ALL_NODES_READY=true
                   for id in {pod_names}
@@ -498,6 +499,7 @@ fn datanode_init_containers(
                     break
                   fi
                   echo \"\"
+                  n=$(( n  + 1))
                   sleep 5
                 done
             ",
