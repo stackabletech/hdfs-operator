@@ -162,14 +162,13 @@ impl HdfsCluster {
         group_labels
     }
 
-    /// Number of journal node replicas configured for the given `rolegroup_ref` or 1 if none is configured.
+    /// Number of journal node replicas configured for the given `rolegroup_ref` or 3 if none is configured.
     pub fn rolegroup_journalnode_replicas(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        // TODO: should we warn if only 1 replica is provided in the spec?
         Ok(max(
-            1,
+            3,
             HdfsCluster::extract_replicas(self.spec.journal_nodes.as_ref(), rolegroup_ref)?,
         ))
     }
@@ -179,7 +178,6 @@ impl HdfsCluster {
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        // TODO: should we warn if only 1 replica is provided in the spec?
         Ok(max(
             2,
             HdfsCluster::extract_replicas(self.spec.name_nodes.as_ref(), rolegroup_ref)?,

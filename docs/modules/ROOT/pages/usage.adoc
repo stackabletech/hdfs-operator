@@ -82,6 +82,8 @@ spec:
 EOF
 ----
 
+IMPORTANT: When scaling namenodes up, make sure to increase the replica count only by one and not more nodes at once.
+
 == Monitoring
 
 The managed HDFS instances are automatically configured to export Prometheus metrics. See
