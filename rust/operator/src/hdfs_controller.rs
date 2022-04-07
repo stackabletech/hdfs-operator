@@ -802,7 +802,7 @@ fn build_invalid_replica_message(
     let min_replicas = role.min_replicas();
 
     if replicas < min_replicas {
-        Some(format!("{rn}: {replicas} less than {min_replicas}"))
+        Some(format!("{rn}: only has {replicas} replicas configured, it is strongly recommended to use at least {min_replicas}"))
     } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
         Some(format!("{rn}: {replicas} should not be even"))
     } else if role.check_valid_dfs_replication() {
