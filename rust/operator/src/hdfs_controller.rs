@@ -757,9 +757,7 @@ fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
     }
 }
 
-/// Reports an error coming from a controller to Kubernetes
-///
-/// This is inteded to be executed on the log entries returned by [`kube::runtime::Controller::run`]
+/// Publish a Kubernetes event for the `hdfs` cluster resource.
 async fn publish_event(
     hdfs: &HdfsCluster,
     client: &Client,
