@@ -56,6 +56,24 @@ pub enum HdfsRole {
     DataNode,
 }
 
+impl HdfsRole {
+    pub fn min_replicas(&self) -> u16 {
+        match self {
+            HdfsRole::JournalNode => 3,
+            HdfsRole::DataNode => 1,
+            HdfsRole::NameNode => 2,
+        }
+    }
+
+    pub fn replicas_can_be_even(&self) -> bool {
+        match self {
+            HdfsRole::JournalNode => false,
+            HdfsRole::DataNode => true,
+            HdfsRole::NameNode => true,
+        }
+    }
+}
+
 lazy_static! {
     pub static ref ROLE_PORTS: HashMap<HdfsRole, Vec<(String, i32)>> = [
         (
@@ -247,7 +265,10 @@ impl HdfsCluster {
             .collect())
     }
 
-    pub fn rolegroup_ref_and_replicas(&self, role: &HdfsRole) -> Vec<(RoleGroupRef<HdfsCluster>, u16)> {
+    pub fn rolegroup_ref_and_replicas(
+        &self,
+        role: &HdfsRole,
+    ) -> Vec<(RoleGroupRef<HdfsCluster>, u16)> {
         match role {
             HdfsRole::JournalNode => self
                 .spec

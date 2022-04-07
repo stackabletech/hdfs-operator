@@ -25,7 +25,7 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::{
 };
 use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
-use stackable_operator::kube::runtime::events::{Recorder, Reporter, Event, EventType};
+use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
@@ -37,6 +37,7 @@ use stackable_operator::role_utils::RoleGroupRef;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
+use strum::IntoEnumIterator;
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -50,13 +51,17 @@ pub async fn reconcile_hdfs(
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
 
-    let jn_replicas: u16 = hdfs
-        .rolegroup_ref_and_replicas(&HdfsRole::JournalNode)
-        .iter()
-        .map(|tuple| tuple.1)
-        .sum();
-    if jn_replicas < 3 || 0 == jn_replicas % 2 {
-        publish_controller_error_as_k8s_event(&hdfs, client,  "Invalid journal node replicas").await?;
+    for role in HdfsRole::iter() {
+        if let Some(content) = build_invalid_replica_message(&hdfs, &role) {
+            publish_event(
+                &hdfs,
+                client,
+                "Reconcile",
+                "Invalid replicas",
+                content.as_ref(),
+            )
+            .await?;
+        }
     }
 
     let validated_config = validate_all_roles_and_groups_config(
@@ -750,9 +755,11 @@ fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
 /// Reports an error coming from a controller to Kubernetes
 ///
 /// This is inteded to be executed on the log entries returned by [`kube::runtime::Controller::run`]
-pub async fn publish_controller_error_as_k8s_event(
+async fn publish_event(
     hdfs: &HdfsCluster,
     client: &Client,
+    action: &str,
+    reason: &str,
     message: &str,
 ) -> Result<(), Error> {
     let reporter = Reporter {
@@ -765,10 +772,31 @@ pub async fn publish_controller_error_as_k8s_event(
     let recorder = Recorder::new(client.as_kube_client(), reporter, object_ref.into());
     recorder
         .publish(Event {
-            action: "Scheduling".into(),
-            reason: "Pulling".into(),
+            action: action.into(),
+            reason: reason.into(),
             note: Some(message.into()),
             type_: EventType::Warning,
             secondary: None,
-        }).await.map_err(|source| Error::PublishEvent { source })
+        })
+        .await
+        .map_err(|source| Error::PublishEvent { source })
+}
+
+fn build_invalid_replica_message(hdfs: &HdfsCluster, role: &HdfsRole) -> Option<String> {
+    let replicas: u16 = hdfs
+        .rolegroup_ref_and_replicas(role)
+        .iter()
+        .map(|tuple| tuple.1)
+        .sum();
+
+    let rn = role.to_string();
+    let min_replicas = role.min_replicas();
+
+    if replicas < min_replicas {
+        Some(format!("{rn}: {replicas} less than {min_replicas}"))
+    } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
+        Some(format!("{rn}: {replicas} should not be even"))
+    } else {
+        None
+    }
 }
