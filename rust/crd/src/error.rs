@@ -105,6 +105,11 @@ pub enum Error {
 
     #[error("Group [{group}] of role [{role}] not in validated config.")]
     RolegroupNotInValidatedConfig { group: String, role: String },
+
+    #[error("Failed to publish event")]
+    PublishEvent {
+        source: stackable_operator::kube::Error,
+    },
 }
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
 

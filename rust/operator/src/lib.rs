@@ -46,7 +46,7 @@ pub async fn create_controller(
             product_config,
         }),
     )
-    .map(|res| report_controller_reconciled(&client, "hdfsclusters.hdfs.stackable.tech", &res))
+    .map(|res| report_controller_reconciled(&client, CONTROLLER_NAME, &res))
     .instrument(info_span!("hdfs_controller"));
 
     let pod_svc_controller = Controller::new(

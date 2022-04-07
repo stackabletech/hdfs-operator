@@ -12,7 +12,6 @@ use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
-use std::cmp::max;
 use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter};
 
@@ -55,6 +54,32 @@ pub enum HdfsRole {
     #[serde(rename = "datanode")]
     #[strum(serialize = "datanode")]
     DataNode,
+}
+
+impl HdfsRole {
+    pub fn min_replicas(&self) -> u16 {
+        match self {
+            HdfsRole::JournalNode => 3,
+            HdfsRole::DataNode => 1,
+            HdfsRole::NameNode => 2,
+        }
+    }
+
+    pub fn replicas_can_be_even(&self) -> bool {
+        match self {
+            HdfsRole::JournalNode => false,
+            HdfsRole::DataNode => true,
+            HdfsRole::NameNode => true,
+        }
+    }
+
+    pub fn check_valid_dfs_replication(&self) -> bool {
+        match self {
+            HdfsRole::JournalNode => false,
+            HdfsRole::NameNode => false,
+            HdfsRole::DataNode => true,
+        }
+    }
 }
 
 lazy_static! {
@@ -162,26 +187,20 @@ impl HdfsCluster {
         group_labels
     }
 
-    /// Number of journal node replicas configured for the given `rolegroup_ref` or 3 if none is configured.
+    /// Number of journal node replicas configured for the given `rolegroup_ref`
     pub fn rolegroup_journalnode_replicas(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        Ok(max(
-            3,
-            HdfsCluster::extract_replicas(self.spec.journal_nodes.as_ref(), rolegroup_ref)?,
-        ))
+        HdfsCluster::extract_replicas(self.spec.journal_nodes.as_ref(), rolegroup_ref)
     }
 
-    /// Number of name node replicas configured for the given `rolegroup_ref` or 2 if none is configured.
+    /// Number of name node replicas configured for the given `rolegroup_ref`
     pub fn rolegroup_namenode_replicas(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
     ) -> HdfsOperatorResult<u16> {
-        Ok(max(
-            2,
-            HdfsCluster::extract_replicas(self.spec.name_nodes.as_ref(), rolegroup_ref)?,
-        ))
+        HdfsCluster::extract_replicas(self.spec.name_nodes.as_ref(), rolegroup_ref)
     }
 
     /// Number of data node replicas configured for the given `rolegroup_ref`.
@@ -254,7 +273,10 @@ impl HdfsCluster {
             .collect())
     }
 
-    fn rolegroup_ref_and_replicas(&self, role: &HdfsRole) -> Vec<(RoleGroupRef<HdfsCluster>, u16)> {
+    pub fn rolegroup_ref_and_replicas(
+        &self,
+        role: &HdfsRole,
+    ) -> Vec<(RoleGroupRef<HdfsCluster>, u16)> {
         match role {
             HdfsRole::JournalNode => self
                 .spec

@@ -55,7 +55,7 @@ properties:
         max: "512"
       defaultValues:
         - fromVersion: "0.0.0"
-          value: "1"
+          value: "3"
       roles:
         - name: "namenode"
           required: true

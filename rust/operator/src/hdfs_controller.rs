@@ -6,6 +6,7 @@ use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
+use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
     SecurityContext, TCPSocketAction, VolumeMount,
@@ -24,6 +25,7 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::{
 };
 use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
+use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
@@ -77,9 +79,22 @@ pub async fn reconcile_hdfs(
             name: discovery_cm.metadata.name.clone().unwrap_or_default(),
         })?;
 
+    let dfs_replication = hdfs.spec.dfs_replication;
+
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = serde_yaml::from_str(role_name).unwrap();
         let role_ports = ROLE_PORTS.get(&role).unwrap().as_slice();
+
+        if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {
+            publish_event(
+                &hdfs,
+                client,
+                "Reconcile",
+                "Invalid replicas",
+                content.as_ref(),
+            )
+            .await?;
+        }
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let hadoop_container = hdfs_common_container(
@@ -205,7 +220,13 @@ fn rolegroup_config_map(
                         .dfs_namenode_name_dir()
                         .dfs_datanode_data_dir()
                         .dfs_journalnode_edits_dir()
-                        .dfs_replication(*hdfs.spec.dfs_replication.as_ref().unwrap_or(&3))
+                        .dfs_replication(
+                            *hdfs
+                                .spec
+                                .dfs_replication
+                                .as_ref()
+                                .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
+                        )
                         .dfs_name_services()
                         .dfs_ha_namenodes(namenode_podrefs)
                         .dfs_namenode_shared_edits_dir(journalnode_podrefs)
@@ -733,5 +754,75 @@ fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
             ..PersistentVolumeClaimSpec::default()
         }),
         ..PersistentVolumeClaim::default()
+    }
+}
+
+/// Publish a Kubernetes event for the `hdfs` cluster resource.
+async fn publish_event(
+    hdfs: &HdfsCluster,
+    client: &Client,
+    action: &str,
+    reason: &str,
+    message: &str,
+) -> Result<(), Error> {
+    let reporter = Reporter {
+        controller: CONTROLLER_NAME.into(),
+        instance: None,
+    };
+
+    let object_ref = ObjectRef::from_obj(hdfs);
+
+    let recorder = Recorder::new(client.as_kube_client(), reporter, object_ref.into());
+    recorder
+        .publish(Event {
+            action: action.into(),
+            reason: reason.into(),
+            note: Some(message.into()),
+            type_: EventType::Warning,
+            secondary: None,
+        })
+        .await
+        .map_err(|source| Error::PublishEvent { source })
+}
+
+fn build_invalid_replica_message(
+    hdfs: &HdfsCluster,
+    role: &HdfsRole,
+    dfs_replication: Option<u8>,
+) -> Option<String> {
+    let replicas: u16 = hdfs
+        .rolegroup_ref_and_replicas(role)
+        .iter()
+        .map(|tuple| tuple.1)
+        .sum();
+
+    let rn = role.to_string();
+    let min_replicas = role.min_replicas();
+
+    if replicas < min_replicas {
+        Some(format!("{rn}: only has {replicas} replicas configured, it is strongly recommended to use at least [{min_replicas}]"))
+    } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
+        Some(format!("{rn}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"))
+    } else if role.check_valid_dfs_replication() {
+        match dfs_replication {
+            None => {
+                if replicas < u16::from(DEFAULT_DFS_REPLICATION_FACTOR) {
+                    Some(format!(
+                        "{rn}: HDFS replication factor not set. Using default value of [{DEFAULT_DFS_REPLICATION_FACTOR}] which is greater than data node replicas [{replicas}]"
+                    ))
+                } else {
+                    None
+                }
+            }
+            Some(dfsr) => {
+                if replicas < u16::from(dfsr) {
+                    Some(format!("{rn}: HDFS replication factor [{dfsr}] is configured greater than data node replicas [{replicas}]"))
+                } else {
+                    None
+                }
+            }
+        }
+    } else {
+        None
     }
 }
