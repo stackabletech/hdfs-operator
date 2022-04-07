@@ -220,7 +220,13 @@ fn rolegroup_config_map(
                         .dfs_namenode_name_dir()
                         .dfs_datanode_data_dir()
                         .dfs_journalnode_edits_dir()
-                        .dfs_replication(*hdfs.spec.dfs_replication.as_ref().unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR))
+                        .dfs_replication(
+                            *hdfs
+                                .spec
+                                .dfs_replication
+                                .as_ref()
+                                .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
+                        )
                         .dfs_name_services()
                         .dfs_ha_namenodes(namenode_podrefs)
                         .dfs_namenode_shared_edits_dir(journalnode_podrefs)
