@@ -804,7 +804,7 @@ fn build_invalid_replica_message(
     if replicas < min_replicas {
         Some(format!("{rn}: only has {replicas} replicas configured, it is strongly recommended to use at least {min_replicas}"))
     } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
-        Some(format!("{rn}: {replicas} should not be even"))
+        Some(format!("{rn}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"))
     } else if role.check_valid_dfs_replication() {
         match dfs_replication {
             None => {
