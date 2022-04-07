@@ -800,23 +800,23 @@ fn build_invalid_replica_message(
     let min_replicas = role.min_replicas();
 
     if replicas < min_replicas {
-        Some(format!("{rn}: only has {replicas} replicas configured, it is strongly recommended to use at least {min_replicas}"))
+        Some(format!("{rn}: only has {replicas} replicas configured, it is strongly recommended to use at least [{min_replicas}]"))
     } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
         Some(format!("{rn}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"))
     } else if role.check_valid_dfs_replication() {
         match dfs_replication {
             None => {
-                if replicas >= u16::from(DEFAULT_DFS_REPLICATION_FACTOR) {
+                if replicas < u16::from(DEFAULT_DFS_REPLICATION_FACTOR) {
                     Some(format!(
-                        "{rn}: HDFS replication factor not set. Using default value of {DEFAULT_DFS_REPLICATION_FACTOR}"
+                        "{rn}: HDFS replication factor not set. Using default value of [{DEFAULT_DFS_REPLICATION_FACTOR}] which is greater than data node replicas [{replicas}]"
                     ))
                 } else {
                     None
                 }
             }
             Some(dfsr) => {
-                if u16::from(dfsr) > replicas {
-                    Some(format!("{rn}: HDFS replication factor [{dfsr}] greater than data node replicas [{replicas}]"))
+                if replicas < u16::from(dfsr) {
+                    Some(format!("{rn}: HDFS replication factor [{dfsr}] is configured greater than data node replicas [{replicas}]"))
                 } else {
                     None
                 }
