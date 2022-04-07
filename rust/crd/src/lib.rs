@@ -72,6 +72,14 @@ impl HdfsRole {
             HdfsRole::NameNode => true,
         }
     }
+
+    pub fn check_valid_dfs_replication(&self) -> bool {
+        match self {
+            HdfsRole::JournalNode => false,
+            HdfsRole::NameNode => false,
+            HdfsRole::DataNode => true,
+        }
+    }
 }
 
 lazy_static! {
