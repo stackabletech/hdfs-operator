@@ -6,6 +6,7 @@ use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
+use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
     SecurityContext, TCPSocketAction, VolumeMount,
@@ -24,6 +25,7 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::{
 };
 use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
+use stackable_operator::kube::runtime::events::{Recorder, Reporter, Event, EventType};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
@@ -47,6 +49,15 @@ pub async fn reconcile_hdfs(
 ) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
+
+    let jn_replicas: u16 = hdfs
+        .rolegroup_ref_and_replicas(&HdfsRole::JournalNode)
+        .iter()
+        .map(|tuple| tuple.1)
+        .sum();
+    if jn_replicas < 3 || 0 == jn_replicas % 2 {
+        publish_controller_error_as_k8s_event(&hdfs, client,  "Invalid journal node replicas").await?;
+    }
 
     let validated_config = validate_all_roles_and_groups_config(
         hdfs.hdfs_version()?,
@@ -734,4 +745,30 @@ fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
         }),
         ..PersistentVolumeClaim::default()
     }
+}
+
+/// Reports an error coming from a controller to Kubernetes
+///
+/// This is inteded to be executed on the log entries returned by [`kube::runtime::Controller::run`]
+pub async fn publish_controller_error_as_k8s_event(
+    hdfs: &HdfsCluster,
+    client: &Client,
+    message: &str,
+) -> Result<(), Error> {
+    let reporter = Reporter {
+        controller: CONTROLLER_NAME.into(),
+        instance: None,
+    };
+
+    let object_ref = ObjectRef::from_obj(hdfs);
+
+    let recorder = Recorder::new(client.as_kube_client(), reporter, object_ref.into());
+    recorder
+        .publish(Event {
+            action: "Scheduling".into(),
+            reason: "Pulling".into(),
+            note: Some(message.into()),
+            type_: EventType::Warning,
+            secondary: None,
+        }).await.map_err(|source| Error::PublishEvent { source })
 }
