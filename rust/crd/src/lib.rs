@@ -5,6 +5,11 @@ use constants::*;
 use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    PersistentVolumeClaim, PersistentVolumeClaimSpec, ResourceRequirements,
+};
+use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
+use stackable_operator::kube::core::ObjectMeta;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
@@ -39,6 +44,7 @@ pub struct HdfsClusterSpec {
     pub journal_nodes: Option<Role<JournalNodeConfig>>,
     pub dfs_replication: Option<u8>,
     pub log4j: Option<String>,
+    pub pvcs: Option<Vec<PVCFields>>,
 }
 
 #[derive(
@@ -230,6 +236,29 @@ impl HdfsCluster {
             .unwrap_or_default())
     }
 
+    pub fn rolegroup_pvc(
+        &self,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> PersistentVolumeClaim {
+        let empty: Vec<PVCFields> = vec![];
+        self.spec
+            .pvcs
+            .as_ref()
+            .unwrap_or(&empty)
+            .iter()
+            .find(|&p| p.role == rolegroup_ref.role && p.role_group == rolegroup_ref.role_group)
+            .map_or(
+                disk_claim("data", Quantity("1Gi".to_string()), None),
+                |pvcfields| {
+                    disk_claim(
+                        "data",
+                        pvcfields.capacity.clone(),
+                        pvcfields.storage_class_name.clone(),
+                    )
+                },
+            )
+    }
+
     pub fn rolegroup_ref(
         &self,
         role_name: impl Into<String>,
@@ -399,7 +428,17 @@ impl HdfsPodRef {
         )
     }
 }
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PVCFields {
+    pub role: String,
+    pub role_group: String,
+    pub capacity: Quantity,
+    pub storage_class_name: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NameNodeConfig {}
 
@@ -509,5 +548,28 @@ impl Configuration for JournalNodeConfig {
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
+    }
+}
+
+fn disk_claim(
+    name: &str,
+    size: Quantity,
+    storage_class_name: Option<String>,
+) -> PersistentVolumeClaim {
+    PersistentVolumeClaim {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            ..ObjectMeta::default()
+        },
+        spec: Some(PersistentVolumeClaimSpec {
+            access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+            storage_class_name,
+            resources: Some(ResourceRequirements {
+                requests: Some(BTreeMap::from([("storage".to_string(), size)])),
+                ..ResourceRequirements::default()
+            }),
+            ..PersistentVolumeClaimSpec::default()
+        }),
+        ..PersistentVolumeClaim::default()
     }
 }

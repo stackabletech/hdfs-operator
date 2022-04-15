@@ -14,15 +14,12 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
     core::v1::{
-        ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EnvVar, EnvVarSource,
-        PersistentVolumeClaim, PersistentVolumeClaimSpec, ResourceRequirements, Service,
+        ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EnvVar, EnvVarSource, Service,
         ServicePort, ServiceSpec, Volume,
     },
 };
+use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use stackable_operator::k8s_openapi::apimachinery::pkg::{
-    api::resource::Quantity, apis::meta::v1::LabelSelector,
-};
 use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
@@ -372,10 +369,7 @@ fn rolegroup_statefulset(
             },
             service_name,
             template,
-            volume_claim_templates: Some(vec![local_disk_claim(
-                "data",
-                Quantity("1Gi".to_string()),
-            )]),
+            volume_claim_templates: Some(vec![hdfs.rolegroup_pvc(rolegroup_ref)]),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -737,24 +731,6 @@ fn hdfs_common_container(
         }),
         ..Container::default()
     })
-}
-
-fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
-    PersistentVolumeClaim {
-        metadata: ObjectMeta {
-            name: Some(name.to_string()),
-            ..ObjectMeta::default()
-        },
-        spec: Some(PersistentVolumeClaimSpec {
-            access_modes: Some(vec!["ReadWriteOnce".to_string()]),
-            resources: Some(ResourceRequirements {
-                requests: Some(BTreeMap::from([("storage".to_string(), size)])),
-                ..ResourceRequirements::default()
-            }),
-            ..PersistentVolumeClaimSpec::default()
-        }),
-        ..PersistentVolumeClaim::default()
-    }
 }
 
 /// Publish a Kubernetes event for the `hdfs` cluster resource.
