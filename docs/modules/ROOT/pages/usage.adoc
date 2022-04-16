@@ -163,3 +163,26 @@ nameNodes:
 ----
 
 IMPORTANT: Some environment variables will be overriden by the operator and cannot be set manually by the user. These are `HADOOP_HOME`, `HADOOP_CONF_DIR`, `POD_NAME` and `ZOOKEEPER`.
+
+=== Storage for data volumes
+
+You can mount volumes where data is stored by specifiying https://kubernetes.io/docs/concepts/storage/persistent-volumes[PersistentVolumeClaims] for each individual role group like so:
+
+[source,yaml]
+----
+pvcs:
+  nameNodes:
+    - roleGroup: default
+      capacity: 128Mi
+      storageClassName: local-storage
+  journalNodes:
+    - roleGroup: default
+      capacity: 256Mi
+  dataNodes:
+    - roleGroup: default
+      capacity: 2Gi 
+----
+
+In the above example, namenodes will store data (the location of `dfs.namenode.name.dir`) on a `128Mi` local volume, journal nodes will have on a `256Mi` volume for the `dfs.journalnode.edits.dir` location and the data nodes will store data (`dfs.datanode.data.dir`) on a `2Gi` volume. The `storageClassName` is optional.
+
+By default, in case nothing is configured in the custom resource for a certain role group, each Pod will have a `1Gi` large local volume mount for the data location.

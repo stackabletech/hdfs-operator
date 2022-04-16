@@ -369,7 +369,7 @@ fn rolegroup_statefulset(
             },
             service_name,
             template,
-            volume_claim_templates: Some(vec![hdfs.rolegroup_pvc(rolegroup_ref)]),
+            volume_claim_templates: Some(vec![hdfs.rolegroup_pvc(role, rolegroup_ref)]),
             ..StatefulSetSpec::default()
         }),
         status: None,

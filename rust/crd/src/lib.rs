@@ -44,7 +44,7 @@ pub struct HdfsClusterSpec {
     pub journal_nodes: Option<Role<JournalNodeConfig>>,
     pub dfs_replication: Option<u8>,
     pub log4j: Option<String>,
-    pub pvcs: Option<Vec<PVCFields>>,
+    pub pvcs: Option<RolePVCFields>,
 }
 
 #[derive(
@@ -238,15 +238,33 @@ impl HdfsCluster {
 
     pub fn rolegroup_pvc(
         &self,
+        role: &HdfsRole,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     ) -> PersistentVolumeClaim {
         let empty: Vec<PVCFields> = vec![];
-        self.spec
-            .pvcs
-            .as_ref()
+
+        let role_pvcs = match role {
+            HdfsRole::DataNode => self
+                .spec
+                .pvcs
+                .as_ref()
+                .and_then(|pvcs| pvcs.data_nodes.as_ref()),
+            HdfsRole::JournalNode => self
+                .spec
+                .pvcs
+                .as_ref()
+                .and_then(|pvcs| pvcs.journal_nodes.as_ref()),
+            HdfsRole::NameNode => self
+                .spec
+                .pvcs
+                .as_ref()
+                .and_then(|pvcs| pvcs.name_nodes.as_ref()),
+        };
+
+        role_pvcs
             .unwrap_or(&empty)
             .iter()
-            .find(|&p| p.role == rolegroup_ref.role && p.role_group == rolegroup_ref.role_group)
+            .find(|&p| p.role_group == rolegroup_ref.role_group)
             .map_or(
                 disk_claim("data", Quantity("1Gi".to_string()), None),
                 |pvcfields| {
@@ -431,8 +449,15 @@ impl HdfsPodRef {
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RolePVCFields {
+    pub name_nodes: Option<Vec<PVCFields>>,
+    pub journal_nodes: Option<Vec<PVCFields>>,
+    pub data_nodes: Option<Vec<PVCFields>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PVCFields {
-    pub role: String,
     pub role_group: String,
     pub capacity: Quantity,
     pub storage_class_name: Option<String>,
