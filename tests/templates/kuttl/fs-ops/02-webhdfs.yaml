@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: webhdfs
+  labels:
+    app: webhdfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhdfs
+  template:
+    metadata:
+      labels:
+        app: webhdfs
+    spec:
+      containers:
+      - name: webhdfs
+        image: python:3.10-slim
+        stdin: true
+        tty: true
