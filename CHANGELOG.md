@@ -13,7 +13,8 @@ All notable changes to this project will be documented in this file.
 - Config builder for `hdfs-site.xml` and `core-site.xml` ([#150]).
 - Discovery configmap that exposes the namenode services for clients to connect ([#150]).
 - Documented service discovery for namenodes ([#150]).
-- Publish warning events when role replicas don't meet certain minimum requirements ([#162])
+- Publish warning events when role replicas don't meet certain minimum requirements ([#162]).
+- PVCs can now be configured for data storage ([#164]).
 
 ### Changed
 
@@ -25,7 +26,8 @@ All notable changes to this project will be documented in this file.
 [#134]: https://github.com/stackabletech/hdfs-operator/pull/134
 [#148]: https://github.com/stackabletech/hdfs-operator/pull/148
 [#150]: https://github.com/stackabletech/hdfs-operator/pull/150
-[#159]: https://github.com/stackabletech/hdfs-operator/pull/162
+[#162]: https://github.com/stackabletech/hdfs-operator/pull/162
+[#164]: https://github.com/stackabletech/hdfs-operator/pull/164
 
 ## [0.3.0] - 2022-02-14
 
