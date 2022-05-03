@@ -87,7 +87,7 @@ IMPORTANT: When scaling namenodes up, make sure to increase the replica count on
 == Monitoring
 
 The managed HDFS instances are automatically configured to export Prometheus metrics. See
-xref:home::monitoring.adoc[] for more details.
+xref:home:operators:monitoring.adoc[] for more details.
 
 == Configuration & Environment Overrides
 
