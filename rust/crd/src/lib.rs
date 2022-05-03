@@ -306,7 +306,14 @@ impl HdfsCluster {
             selectors: None,
         });
 
-        pvc_config.build_pvc("data", None)
+        tracing::debug!(
+            "rolegroup_pvc role [{:?}] rolegroup_ref [{:?}] pvc_config {:?}",
+            role,
+            rolegroup_ref,
+            pvc_config
+        );
+
+        pvc_config.build_pvc("data", Some(vec!["ReadWriteOnce"]))
     }
 
     pub fn rolegroup_ref(
@@ -685,6 +692,71 @@ mod test {
 
         assert_eq!(
             &Quantity("512Mi".to_owned()),
+            data_node_pvc
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn test_pvc_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    config:
+      dataStorage:
+        capacity: 128Mi
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    config:
+      dataStorage:
+        capacity: 5Gi
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    config:
+      dataStorage:
+        capacity: 512Mi
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+
+        ";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("5Gi".to_owned()),
             data_node_pvc
                 .spec
                 .unwrap()
