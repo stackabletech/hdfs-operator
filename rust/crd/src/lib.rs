@@ -6,11 +6,7 @@ use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use stackable_operator::commons::resources::PvcConfig;
-use stackable_operator::k8s_openapi::api::core::v1::{
-    PersistentVolumeClaim, PersistentVolumeClaimSpec, ResourceRequirements,
-};
-use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
-use stackable_operator::kube::core::ObjectMeta;
+use stackable_operator::k8s_openapi::api::core::v1::PersistentVolumeClaim;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
@@ -45,6 +41,21 @@ pub struct HdfsClusterSpec {
     pub journal_nodes: Option<Role<JournalNodeConfig>>,
     pub dfs_replication: Option<u8>,
     pub log4j: Option<String>,
+}
+
+impl Default for HdfsClusterSpec {
+    fn default() -> HdfsClusterSpec {
+        HdfsClusterSpec {
+            version: None,
+            auto_format_fs: None,
+            zookeeper_config_map_name: "zookeeper-config-map-for-hdfs".to_owned(),
+            data_nodes: None,
+            name_nodes: None,
+            journal_nodes: None,
+            dfs_replication: None,
+            log4j: None,
+        }
+    }
 }
 
 #[derive(
@@ -236,12 +247,18 @@ impl HdfsCluster {
             .unwrap_or_default())
     }
 
+    /// Build a PersistentVolumeClaim for the given [rolegroup_ref].
+    /// The PVC can be defined at the role or rolegroup level and as usual, the
+    /// following precedence rules are implemented:
+    /// 1. group pvc
+    /// 2. role pvc
+    /// 3. a default PVC with 1Gi capacity
     pub fn rolegroup_pvc(
         &self,
         role: &HdfsRole,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     ) -> PersistentVolumeClaim {
-        let pvcs = match role {
+        let rg_pvc_config: Option<PvcConfig> = match role {
             HdfsRole::DataNode => self
                 .spec
                 .data_nodes
@@ -273,11 +290,23 @@ impl HdfsCluster {
                 })
                 .and_then(|node_config| node_config.data_storage.clone()),
         };
+        let role_pvc_config: Option<PvcConfig> = match role {
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.data_storage.clone()),
+            _ => None,
+        };
 
-        pvcs.map_or(
-            disk_claim("data", Quantity("1Gi".to_string()), None),
-            |pvcfields| pvcfields.build_pvc("data", None),
-        )
+        let pvc_config = rg_pvc_config.or(role_pvc_config).unwrap_or(PvcConfig {
+            capacity: "1Gi".to_owned(),
+            storage_class: None,
+            selectors: None,
+        });
+
+        pvc_config.build_pvc("data", None)
     }
 
     pub fn rolegroup_ref(
@@ -569,25 +598,102 @@ impl Configuration for JournalNodeConfig {
     }
 }
 
-fn disk_claim(
-    name: &str,
-    size: Quantity,
-    storage_class_name: Option<String>,
-) -> PersistentVolumeClaim {
-    PersistentVolumeClaim {
-        metadata: ObjectMeta {
-            name: Some(name.to_string()),
-            ..ObjectMeta::default()
-        },
-        spec: Some(PersistentVolumeClaimSpec {
-            access_modes: Some(vec!["ReadWriteOnce".to_string()]),
-            storage_class_name,
-            resources: Some(ResourceRequirements {
-                requests: Some(BTreeMap::from([("storage".to_string(), size)])),
-                ..ResourceRequirements::default()
-            }),
-            ..PersistentVolumeClaimSpec::default()
-        }),
-        ..PersistentVolumeClaim::default()
+#[cfg(test)]
+mod test {
+    use super::{DataNodeConfig, HdfsCluster, HdfsClusterSpec, HdfsRole};
+    use stackable_operator::builder::meta::ObjectMetaBuilder;
+    use stackable_operator::commons::resources::PvcConfig;
+    use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
+    use stackable_operator::role_utils::{CommonConfiguration, Role, RoleGroup};
+    use std::collections::{BTreeMap, HashMap};
+
+    #[test]
+    pub fn test_pvc_rolegroup() {
+        let hdfs = HdfsCluster {
+            metadata: ObjectMetaBuilder::new().name("test").build(),
+            spec: HdfsClusterSpec {
+                data_nodes: Some(Role {
+                    config: CommonConfiguration {
+                        config: DataNodeConfig { data_storage: None },
+                        config_overrides: HashMap::new(),
+                        env_overrides: HashMap::new(),
+                        cli_overrides: BTreeMap::new(),
+                    },
+                    role_groups: [(
+                        "default".to_owned(),
+                        RoleGroup {
+                            config: CommonConfiguration {
+                                config: DataNodeConfig {
+                                    data_storage: Some(PvcConfig {
+                                        capacity: "512Mi".to_owned(),
+                                        ..PvcConfig::default()
+                                    }),
+                                },
+                                config_overrides: HashMap::new(),
+                                env_overrides: HashMap::new(),
+                                cli_overrides: BTreeMap::new(),
+                            },
+                            replicas: None,
+                            selector: None,
+                        },
+                    )]
+                    .into(),
+                }),
+                ..HdfsClusterSpec::default()
+            },
+        };
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("512Mi".to_owned()),
+            data_node_pvc
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
+    }
+    #[test]
+    pub fn test_pvc_role() {
+        let hdfs = HdfsCluster {
+            metadata: ObjectMetaBuilder::new().name("test").build(),
+            spec: HdfsClusterSpec {
+                data_nodes: Some(Role {
+                    config: CommonConfiguration {
+                        config: DataNodeConfig {
+                            data_storage: Some(PvcConfig {
+                                capacity: "512Mi".to_owned(),
+                                ..PvcConfig::default()
+                            }),
+                        },
+                        config_overrides: HashMap::new(),
+                        env_overrides: HashMap::new(),
+                        cli_overrides: BTreeMap::new(),
+                    },
+                    role_groups: [].into(),
+                }),
+                ..HdfsClusterSpec::default()
+            },
+        };
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("512Mi".to_owned()),
+            data_node_pvc
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
     }
 }

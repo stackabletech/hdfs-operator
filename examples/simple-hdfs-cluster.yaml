@@ -48,7 +48,7 @@ spec:
     roleGroups:
       default:
         dataStorage:
-          capacity: 2Gi
+          capacity: 256Mi
         selector:
           matchLabels:
             kubernetes.io/os: linux
@@ -66,7 +66,7 @@ spec:
     roleGroups:
       default:
         dataStorage:
-          capacity: 1Gi
+          capacity: 512Mi
         selector:
           matchLabels:
             kubernetes.io/os: linux
