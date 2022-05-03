@@ -5,6 +5,7 @@ use constants::*;
 use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use stackable_operator::commons::resources::PvcConfig;
 use stackable_operator::k8s_openapi::api::core::v1::{
     PersistentVolumeClaim, PersistentVolumeClaimSpec, ResourceRequirements,
 };
@@ -44,7 +45,6 @@ pub struct HdfsClusterSpec {
     pub journal_nodes: Option<Role<JournalNodeConfig>>,
     pub dfs_replication: Option<u8>,
     pub log4j: Option<String>,
-    pub pvcs: Option<RolePVCFields>,
 }
 
 #[derive(
@@ -241,40 +241,43 @@ impl HdfsCluster {
         role: &HdfsRole,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     ) -> PersistentVolumeClaim {
-        let empty: Vec<PVCFields> = vec![];
-
-        let role_pvcs = match role {
+        let pvcs = match role {
             HdfsRole::DataNode => self
                 .spec
-                .pvcs
+                .data_nodes
                 .as_ref()
-                .and_then(|pvcs| pvcs.data_nodes.as_ref()),
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.data_storage.clone()),
             HdfsRole::JournalNode => self
                 .spec
-                .pvcs
+                .journal_nodes
                 .as_ref()
-                .and_then(|pvcs| pvcs.journal_nodes.as_ref()),
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.data_storage.clone()),
             HdfsRole::NameNode => self
                 .spec
-                .pvcs
+                .name_nodes
                 .as_ref()
-                .and_then(|pvcs| pvcs.name_nodes.as_ref()),
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.data_storage.clone()),
         };
 
-        role_pvcs
-            .unwrap_or(&empty)
-            .iter()
-            .find(|&p| p.role_group == rolegroup_ref.role_group)
-            .map_or(
-                disk_claim("data", Quantity("1Gi".to_string()), None),
-                |pvcfields| {
-                    disk_claim(
-                        "data",
-                        pvcfields.capacity.clone(),
-                        pvcfields.storage_class_name.clone(),
-                    )
-                },
-            )
+        pvcs.map_or(
+            disk_claim("data", Quantity("1Gi".to_string()), None),
+            |pvcfields| pvcfields.build_pvc("data", None),
+        )
     }
 
     pub fn rolegroup_ref(
@@ -449,31 +452,21 @@ impl HdfsPodRef {
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RolePVCFields {
-    pub name_nodes: Option<Vec<PVCFields>>,
-    pub journal_nodes: Option<Vec<PVCFields>>,
-    pub data_nodes: Option<Vec<PVCFields>>,
+pub struct NameNodeConfig {
+    data_storage: Option<PvcConfig>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PVCFields {
-    pub role_group: String,
-    pub capacity: Quantity,
-    pub storage_class_name: Option<String>,
+pub struct DataNodeConfig {
+    data_storage: Option<PvcConfig>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NameNodeConfig {}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DataNodeConfig {}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct JournalNodeConfig {}
+pub struct JournalNodeConfig {
+    data_storage: Option<PvcConfig>,
+}
 
 impl Configuration for NameNodeConfig {
     type Configurable = HdfsCluster;

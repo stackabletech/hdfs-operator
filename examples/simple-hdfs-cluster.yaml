@@ -44,19 +44,11 @@ spec:
     log4j.appender.console.layout=org.apache.log4j.PatternLayout
     log4j.appender.console.layout.ConversionPattern=%d{ISO8601} %p %c{2}: %m%n
     log4j.appender.EventCounter=org.apache.hadoop.log.metrics.EventCounter
-  pvcs:
-    nameNodes:
-      - roleGroup: default
-        capacity: 128Mi
-    journalNodes:
-      - roleGroup: default
-        capacity: 256Mi
-    dataNodes:
-      - roleGroup: default
-        capacity: 2Gi
   nameNodes:
     roleGroups:
       default:
+        dataStorage:
+          capacity: 2Gi
         selector:
           matchLabels:
             kubernetes.io/os: linux
@@ -64,6 +56,8 @@ spec:
   dataNodes:
     roleGroups:
       default:
+        dataStorage:
+          capacity: 1Gi
         selector:
           matchLabels:
             kubernetes.io/os: linux
@@ -71,6 +65,8 @@ spec:
   journalNodes:
     roleGroups:
       default:
+        dataStorage:
+          capacity: 1Gi
         selector:
           matchLabels:
             kubernetes.io/os: linux
