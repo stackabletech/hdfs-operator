@@ -247,7 +247,7 @@ impl HdfsCluster {
             .unwrap_or_default())
     }
 
-    /// Build a PersistentVolumeClaim for the given [rolegroup_ref].
+    /// Build a PersistentVolumeClaim for the given rolegroup_ref.
     /// The PVC can be defined at the role or rolegroup level and as usual, the
     /// following precedence rules are implemented:
     /// 1. group pvc
