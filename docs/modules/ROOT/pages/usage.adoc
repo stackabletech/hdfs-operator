@@ -173,10 +173,11 @@ You can mount volumes where data is stored by specifiying https://kubernetes.io/
 dataNodes:
   roleGroups:
     default:
-      dataStorage:
-        capacity: 128Gi
+      config:
+        dataStorage:
+          capacity: 128Gi
 ----
 
-In the above example, data nodes will store data (the location of `dfs.datanode.name.dir`) on a `128Gi` local volume.
+In the above example, all data nodes in the default group will store data (the location of `dfs.datanode.name.dir`) on a `128Gi` volume.
 
 By default, in case nothing is configured in the custom resource for a certain role group, each Pod will have a `1Gi` large local volume mount for the data location.

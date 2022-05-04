@@ -47,8 +47,9 @@ spec:
   nameNodes:
     roleGroups:
       default:
-        dataStorage:
-          capacity: 256Mi
+        config:
+          dataStorage:
+            capacity: 256Mi
         selector:
           matchLabels:
             kubernetes.io/os: linux
@@ -56,8 +57,9 @@ spec:
   dataNodes:
     roleGroups:
       default:
-        dataStorage:
-          capacity: 1Gi
+        config:
+          dataStorage:
+            capacity: 1Gi
         selector:
           matchLabels:
             kubernetes.io/os: linux
@@ -65,8 +67,9 @@ spec:
   journalNodes:
     roleGroups:
       default:
-        dataStorage:
-          capacity: 512Mi
+        config:
+          dataStorage:
+            capacity: 512Mi
         selector:
           matchLabels:
             kubernetes.io/os: linux
