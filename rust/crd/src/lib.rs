@@ -705,7 +705,72 @@ mod test {
     }
 
     #[test]
-    pub fn test_pvc_from_yaml() {
+    pub fn test_pvc_rolegroup_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    roleGroups:
+      default:
+        config:
+          dataStorage:
+            capacity: 128Mi
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        config:
+          dataStorage:
+            capacity: 5Gi
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        config:
+          dataStorage:
+            capacity: 512Mi
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+
+        ";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("5Gi".to_owned()),
+            data_node_pvc
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn test_pvc_role_from_yaml() {
         let cr = "
 ---
 apiVersion: hdfs.stackable.tech/v1alpha1
