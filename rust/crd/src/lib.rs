@@ -319,9 +319,9 @@ impl HdfsCluster {
                 .and_then(|node_config| node_config.data_storage.clone()),
         };
 
-        let mut tmp_pvc_config = role_pvc_config.unwrap_or(default_pvc_config.clone());
+        let mut tmp_pvc_config = role_pvc_config.unwrap_or_else(|| default_pvc_config.clone());
         tmp_pvc_config.merge(&default_pvc_config);
-        let mut pvc_config = rg_pvc_config.unwrap_or(tmp_pvc_config.clone());
+        let mut pvc_config = rg_pvc_config.unwrap_or_else(|| tmp_pvc_config.clone());
         pvc_config.merge(&tmp_pvc_config);
 
         tracing::debug!(
