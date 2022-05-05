@@ -6,6 +6,7 @@ use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use stackable_operator::commons::resources::PvcConfig;
+use stackable_operator::config::merge::Merge;
 use stackable_operator::k8s_openapi::api::core::v1::PersistentVolumeClaim;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
@@ -258,7 +259,13 @@ impl HdfsCluster {
         role: &HdfsRole,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     ) -> PersistentVolumeClaim {
-        let rg_pvc_config: Option<PvcConfig> = match role {
+        let default_pvc_config: PvcConfig = PvcConfig {
+            capacity: Some("1Gi".to_string()),
+            storage_class: None,
+            selectors: None,
+        };
+
+        let rg_pvc_config = match role {
             HdfsRole::DataNode => self
                 .spec
                 .data_nodes
@@ -290,21 +297,32 @@ impl HdfsCluster {
                 })
                 .and_then(|node_config| node_config.data_storage.clone()),
         };
-        let role_pvc_config: Option<PvcConfig> = match role {
+
+        let role_pvc_config = match role {
             HdfsRole::DataNode => self
                 .spec
                 .data_nodes
                 .as_ref()
                 .map(|role| &role.config.config)
                 .and_then(|node_config| node_config.data_storage.clone()),
-            _ => None,
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.data_storage.clone()),
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.data_storage.clone()),
         };
 
-        let pvc_config = rg_pvc_config.or(role_pvc_config).unwrap_or(PvcConfig {
-            capacity: "1Gi".to_owned(),
-            storage_class: None,
-            selectors: None,
-        });
+        let mut tmp_pvc_config = role_pvc_config.unwrap_or(default_pvc_config.clone());
+        tmp_pvc_config.merge(&default_pvc_config);
+        let mut pvc_config = rg_pvc_config.unwrap_or(tmp_pvc_config.clone());
+        pvc_config.merge(&tmp_pvc_config);
 
         tracing::debug!(
             "rolegroup_pvc role [{:?}] rolegroup_ref [{:?}] pvc_config {:?}",
@@ -607,102 +625,8 @@ impl Configuration for JournalNodeConfig {
 
 #[cfg(test)]
 mod test {
-    use super::{DataNodeConfig, HdfsCluster, HdfsClusterSpec, HdfsRole};
-    use stackable_operator::builder::meta::ObjectMetaBuilder;
-    use stackable_operator::commons::resources::PvcConfig;
+    use super::{HdfsCluster, HdfsRole};
     use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
-    use stackable_operator::role_utils::{CommonConfiguration, Role, RoleGroup};
-    use std::collections::{BTreeMap, HashMap};
-
-    #[test]
-    pub fn test_pvc_rolegroup() {
-        let hdfs = HdfsCluster {
-            metadata: ObjectMetaBuilder::new().name("test").build(),
-            spec: HdfsClusterSpec {
-                data_nodes: Some(Role {
-                    config: CommonConfiguration {
-                        config: DataNodeConfig { data_storage: None },
-                        config_overrides: HashMap::new(),
-                        env_overrides: HashMap::new(),
-                        cli_overrides: BTreeMap::new(),
-                    },
-                    role_groups: [(
-                        "default".to_owned(),
-                        RoleGroup {
-                            config: CommonConfiguration {
-                                config: DataNodeConfig {
-                                    data_storage: Some(PvcConfig {
-                                        capacity: "512Mi".to_owned(),
-                                        ..PvcConfig::default()
-                                    }),
-                                },
-                                config_overrides: HashMap::new(),
-                                env_overrides: HashMap::new(),
-                                cli_overrides: BTreeMap::new(),
-                            },
-                            replicas: None,
-                            selector: None,
-                        },
-                    )]
-                    .into(),
-                }),
-                ..HdfsClusterSpec::default()
-            },
-        };
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
-
-        assert_eq!(
-            &Quantity("512Mi".to_owned()),
-            data_node_pvc
-                .spec
-                .unwrap()
-                .resources
-                .unwrap()
-                .requests
-                .unwrap()
-                .get("storage")
-                .unwrap()
-        );
-    }
-    #[test]
-    pub fn test_pvc_role() {
-        let hdfs = HdfsCluster {
-            metadata: ObjectMetaBuilder::new().name("test").build(),
-            spec: HdfsClusterSpec {
-                data_nodes: Some(Role {
-                    config: CommonConfiguration {
-                        config: DataNodeConfig {
-                            data_storage: Some(PvcConfig {
-                                capacity: "512Mi".to_owned(),
-                                ..PvcConfig::default()
-                            }),
-                        },
-                        config_overrides: HashMap::new(),
-                        env_overrides: HashMap::new(),
-                        cli_overrides: BTreeMap::new(),
-                    },
-                    role_groups: [].into(),
-                }),
-                ..HdfsClusterSpec::default()
-            },
-        };
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
-
-        assert_eq!(
-            &Quantity("512Mi".to_owned()),
-            data_node_pvc
-                .spec
-                .unwrap()
-                .resources
-                .unwrap()
-                .requests
-                .unwrap()
-                .get("storage")
-                .unwrap()
-        );
-    }
 
     #[test]
     pub fn test_pvc_rolegroup_from_yaml() {
@@ -721,9 +645,6 @@ spec:
   nameNodes:
     roleGroups:
       default:
-        config:
-          dataStorage:
-            capacity: 128Mi
         selector:
           matchLabels:
             kubernetes.io/os: linux
@@ -741,9 +662,6 @@ spec:
   journalNodes:
     roleGroups:
       default:
-        config:
-          dataStorage:
-            capacity: 512Mi
         selector:
           matchLabels:
             kubernetes.io/os: linux
@@ -784,9 +702,6 @@ spec:
   log4j: |-
     hadoop.root.logger=INFO,console
   nameNodes:
-    config:
-      dataStorage:
-        capacity: 128Mi
     roleGroups:
       default:
         selector:
@@ -804,9 +719,6 @@ spec:
             kubernetes.io/os: linux
         replicas: 1
   journalNodes:
-    config:
-      dataStorage:
-        capacity: 512Mi
     roleGroups:
       default:
         selector:
@@ -822,6 +734,62 @@ spec:
 
         assert_eq!(
             &Quantity("5Gi".to_owned()),
+            data_node_pvc
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn test_pvc_default_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+
+        ";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("1Gi".to_owned()),
             data_node_pvc
                 .spec
                 .unwrap()
