@@ -110,6 +110,9 @@ pub async fn reconcile_hdfs(
                 &namenode_podrefs,
                 &journalnode_podrefs,
             )?;
+
+            //let(pvc, rr) = hdfs.resources(&role, &rolegroup_ref);
+
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
                 &role,
@@ -483,14 +486,15 @@ fn datanode_init_containers(
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
-    Container {
-        name: "wait-for-namenodes".to_string(),
-        image: Some(String::from(hdfs_image)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            format!("
+        chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
+        Container {
+            name: "wait-for-namenodes".to_string(),
+            image: Some(String::from(hdfs_image)),
+            args: Some(vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                format!(
+                    "
                 echo \"Waiting for namenodes to get ready:\"
                 n=0
                 while [ ${{n}} -lt 12 ];
@@ -499,18 +503,18 @@ fn datanode_init_containers(
                   for id in {pod_names}
                   do
                     echo -n \"Checking pod $id... \"
-                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
                     if [ \"$SERVICE_STATE\" = \"active\" ] || [ \"$SERVICE_STATE\" = \"standby\" ]
                     then
                       echo \"$SERVICE_STATE\"
-                    else 
+                    else
                       echo \"not ready\"
                       ALL_NODES_READY=false
                     fi
                   done
                   if [ \"$ALL_NODES_READY\" == \"true\" ]
                   then
-                    echo \"All namenodes ready!\" 
+                    echo \"All namenodes ready!\"
                     break
                   fi
                   echo \"\"
@@ -518,12 +522,17 @@ fn datanode_init_containers(
                   sleep 5
                 done
             ",
-            hadoop_home = HADOOP_HOME,
-            pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" ")
-            )
-        ]),
-        ..hadoop_container.clone()
-    },])
+                    hadoop_home = HADOOP_HOME,
+                    pod_names = namenode_podrefs
+                        .iter()
+                        .map(|pod_ref| pod_ref.pod_name.as_ref())
+                        .collect::<Vec<&str>>()
+                        .join(" ")
+                ),
+            ]),
+            ..hadoop_container.clone()
+        },
+    ])
 }
 
 fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
@@ -558,16 +567,16 @@ fn namenode_init_containers(
                  for id in {pod_names}
                  do
                    echo -n \"Checking pod $id... \"
-                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
                    if [ \"$SERVICE_STATE\" == \"active\" ]
                    then
                      ACTIVE_NAMENODE=$id
                      echo \"active\"
                      break
                    fi
-                   echo \"\" 
+                   echo \"\"
                  done
-                
+
                  set -e
                  if [ ! -f \"{namenode_dir}/current/VERSION\" ]
                  then
@@ -576,8 +585,8 @@ fn namenode_init_containers(
                      echo \"Create pod $POD_NAME as active namenode.\"
                      {hadoop_home}/bin/hdfs namenode -format -noninteractive
                    else
-                     echo \"Create pod $POD_NAME as standby namenode.\" 
-                     {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive 
+                     echo \"Create pod $POD_NAME as standby namenode.\"
+                     {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                    fi
                  else
                    echo \"Pod $POD_NAME already formatted. Skipping...\"

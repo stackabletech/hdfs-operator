@@ -5,9 +5,11 @@ use constants::*;
 use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use stackable_operator::commons::resources::PvcConfig;
-use stackable_operator::config::merge::Merge;
-use stackable_operator::k8s_openapi::api::core::v1::PersistentVolumeClaim;
+use stackable_operator::commons::resources::{
+    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
+};
+use stackable_operator::config::merge::{chainable_merge, Merge};
+use stackable_operator::k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
@@ -246,6 +248,124 @@ impl HdfsCluster {
             })?
             .replicas
             .unwrap_or_default())
+    }
+
+    pub fn resources(
+        &self,
+        role: &HdfsRole,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> (PersistentVolumeClaim, ResourceRequirements) {
+        let mut rg_resources = self.rolegroup_resources(role, rolegroup_ref);
+        let mut role_resources = self.role_resources(role, rolegroup_ref);
+        let mut default_resources = Some(self.default_resources(role, rolegroup_ref));
+
+        let r = [
+            default_resources.as_mut(),
+            role_resources.as_mut(),
+            rg_resources.as_mut(),
+        ]
+        .into_iter()
+        .flatten()
+        .reduce(|old, new| chainable_merge(new, old))
+        .unwrap(); // always succeeds because default_resources is Some()
+
+        let result_1 = r
+            .storage
+            .data
+            .build_pvc("data", Some(vec!["ReadWriteOnce"]));
+        let result_2 = r.clone().into();
+
+        (result_1, result_2)
+    }
+
+    fn rolegroup_resources(
+        &self,
+        role: &HdfsRole,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> Option<Resources<Storage, NoRuntimeLimits>> {
+        match role {
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.resources.clone()),
+        }
+    }
+
+    fn role_resources(
+        &self,
+        role: &HdfsRole,
+        _rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> Option<Resources<Storage, NoRuntimeLimits>> {
+        match role {
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.resources.clone()),
+        }
+    }
+
+    fn default_resources(
+        &self,
+        _role: &HdfsRole,
+        _rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> Resources<Storage, NoRuntimeLimits> {
+        Resources {
+            cpu: CpuLimits {
+                min: None,
+                max: None,
+            },
+            memory: MemoryLimits {
+                limit: None,
+                runtime_limits: NoRuntimeLimits {},
+            },
+            storage: Storage {
+                data: PvcConfig {
+                    capacity: Some("1Gi".to_owned()),
+                    storage_class: None,
+                    selectors: None,
+                },
+            },
+        }
     }
 
     /// Build a PersistentVolumeClaim for the given rolegroup_ref.
@@ -504,22 +624,32 @@ impl HdfsPodRef {
     }
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Storage {
+    #[serde(default)]
+    data: PvcConfig,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NameNodeConfig {
     data_storage: Option<PvcConfig>,
+    resources: Option<Resources<Storage, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataNodeConfig {
     data_storage: Option<PvcConfig>,
+    resources: Option<Resources<Storage, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JournalNodeConfig {
     data_storage: Option<PvcConfig>,
+    resources: Option<Resources<Storage, NoRuntimeLimits>>,
 }
 
 impl Configuration for NameNodeConfig {
@@ -747,7 +877,7 @@ spec:
     }
 
     #[test]
-    pub fn test_pvc_default_from_yaml() {
+    pub fn test_resources_default_from_yaml() {
         let cr = "
 ---
 apiVersion: hdfs.stackable.tech/v1alpha1
@@ -786,12 +916,11 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let data_node_pvc = hdfs.rolegroup_pvc(&HdfsRole::DataNode, &data_node_rg_ref);
+        let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
 
         assert_eq!(
             &Quantity("1Gi".to_owned()),
-            data_node_pvc
-                .spec
+            pvc.spec
                 .unwrap()
                 .resources
                 .unwrap()
