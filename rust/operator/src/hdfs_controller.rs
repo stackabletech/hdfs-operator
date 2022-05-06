@@ -9,7 +9,7 @@ use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
-    SecurityContext, TCPSocketAction, VolumeMount,
+    ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -110,8 +110,6 @@ pub async fn reconcile_hdfs(
                 &namenode_podrefs,
                 &journalnode_podrefs,
             )?;
-
-            //let(pvc, rr) = hdfs.resources(&role, &rolegroup_ref);
 
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
@@ -302,23 +300,25 @@ fn rolegroup_statefulset(
     let init_containers;
     let containers;
 
+    let (pvc, rr) = hdfs.resources(role, rolegroup_ref);
+
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
             init_containers =
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = datanode_containers(rolegroup_ref, hadoop_container);
+            containers = datanode_containers(rolegroup_ref, hadoop_container, &rr);
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             init_containers =
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = namenode_containers(rolegroup_ref, hadoop_container);
+            containers = namenode_containers(rolegroup_ref, hadoop_container, &rr);
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = journalnode_init_containers(hadoop_container);
-            containers = journalnode_containers(rolegroup_ref, hadoop_container);
+            containers = journalnode_containers(rolegroup_ref, hadoop_container, &rr);
         }
     }
 
@@ -372,7 +372,7 @@ fn rolegroup_statefulset(
             },
             service_name,
             template,
-            volume_claim_templates: Some(vec![hdfs.rolegroup_pvc(role, rolegroup_ref)]),
+            volume_claim_templates: Some(pvc),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -382,6 +382,7 @@ fn rolegroup_statefulset(
 fn journalnode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
+    resources: &ResourceRequirements,
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
 
@@ -405,6 +406,7 @@ fn journalnode_containers(
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
         env: Some(env),
+        resources: Some(resources.clone()),
         ..hadoop_container.clone()
     }]
 }
@@ -412,6 +414,7 @@ fn journalnode_containers(
 fn namenode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
+    resources: &ResourceRequirements,
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
     env.push(EnvVar {
@@ -446,6 +449,7 @@ fn namenode_containers(
                 format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
                 "zkfc".to_string(),
             ]),
+            resources: Some(resources.clone()),
             ..hadoop_container.clone()
         },
     ]
@@ -454,6 +458,7 @@ fn namenode_containers(
 fn datanode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
+    resources: &ResourceRequirements,
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
     env.push(EnvVar {
@@ -476,6 +481,7 @@ fn datanode_containers(
         env: Some(env),
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
+        resources: Some(resources.clone()),
         ..hadoop_container.clone()
     }]
 }
