@@ -29,8 +29,10 @@ spec:
     log4j.appender.EventCounter=org.apache.hadoop.log.metrics.EventCounter
   nameNodes:
     config:
-      dataStorage:
-        capacity: 128Mi
+      resources:
+        storage:
+          data:
+            capacity: 256Mi
     roleGroups:
       default:
         selector:
@@ -39,8 +41,10 @@ spec:
         replicas: 2
   dataNodes:
     config:
-      dataStorage:
-        capacity: 1Gi
+      resources:
+        storage:
+          data:
+            capacity: 1Gi
     roleGroups:
       default:
         selector:
@@ -49,8 +53,10 @@ spec:
         replicas: 1
   journalNodes:
     config:
-      dataStorage:
-        capacity: 512Mi
+      resources:
+        storage:
+          data:
+            capacity: 512Mi
     roleGroups:
       default:
         selector:

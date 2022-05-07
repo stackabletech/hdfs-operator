@@ -992,49 +992,4 @@ spec:
         };
         assert_eq!(expected, rr);
     }
-
-    #[test]
-    pub fn test_rr_default_from_yaml() {
-        let cr = "
----
-apiVersion: hdfs.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: hdfs
-spec:
-  version: 3.2.2
-  zookeeperConfigMapName: hdfs-zk
-  dfsReplication: 1
-  log4j: |-
-    hadoop.root.logger=INFO,console
-  nameNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 2
-  dataNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-
-        ";
-
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (_, rr) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
-
-        assert!(rr.limits.is_none());
-    }
 }
