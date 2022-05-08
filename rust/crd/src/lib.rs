@@ -716,9 +716,7 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 1
-
-        ";
+        replicas: 1";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
