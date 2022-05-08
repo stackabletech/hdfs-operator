@@ -166,7 +166,7 @@ IMPORTANT: Some environment variables will be overriden by the operator and cann
 
 === Storage for data volumes
 
-You can mount volumes where data is stored by specifiying https://kubernetes.io/docs/concepts/storage/persistent-volumes[PersistentVolumeClaims] for each individual role group like so:
+You can mount volumes where data is stored by specifiying https://kubernetes.io/docs/concepts/storage/persistent-volumes[PersistentVolumeClaims] for each individual role group:
 
 [source,yaml]
 ----
