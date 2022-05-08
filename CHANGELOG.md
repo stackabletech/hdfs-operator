@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - Discovery configmap that exposes the namenode services for clients to connect ([#150]).
 - Documented service discovery for namenodes ([#150]).
 - Publish warning events when role replicas don't meet certain minimum requirements ([#162]).
-- PVCs for data storage, cpu and memory limits are now onfigurable ([#164]).
+- PVCs for data storage, cpu and memory limits are now configurable ([#164]).
 
 ### Changed
 
