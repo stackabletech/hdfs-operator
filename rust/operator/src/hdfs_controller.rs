@@ -300,25 +300,25 @@ fn rolegroup_statefulset(
     let init_containers;
     let containers;
 
-    let (pvc, rr) = hdfs.resources(role, rolegroup_ref);
+    let (pvc, resources) = hdfs.resources(role, rolegroup_ref);
 
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
             init_containers =
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = datanode_containers(rolegroup_ref, hadoop_container, &rr);
+            containers = datanode_containers(rolegroup_ref, hadoop_container, &resources);
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             init_containers =
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = namenode_containers(rolegroup_ref, hadoop_container, &rr);
+            containers = namenode_containers(rolegroup_ref, hadoop_container, &resources);
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = journalnode_init_containers(hadoop_container);
-            containers = journalnode_containers(rolegroup_ref, hadoop_container, &rr);
+            containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources);
         }
     }
 

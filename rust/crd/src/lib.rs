@@ -46,21 +46,6 @@ pub struct HdfsClusterSpec {
     pub log4j: Option<String>,
 }
 
-impl Default for HdfsClusterSpec {
-    fn default() -> HdfsClusterSpec {
-        HdfsClusterSpec {
-            version: None,
-            auto_format_fs: None,
-            zookeeper_config_map_name: "zookeeper-config-map-for-hdfs".to_owned(),
-            data_nodes: None,
-            name_nodes: None,
-            journal_nodes: None,
-            dfs_replication: None,
-            log4j: None,
-        }
-    }
-}
-
 #[derive(
     Clone, Debug, Deserialize, Display, EnumIter, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
@@ -262,8 +247,8 @@ impl HdfsCluster {
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     ) -> (Vec<PersistentVolumeClaim>, ResourceRequirements) {
         let mut rg_resources = self.rolegroup_resources(role, rolegroup_ref);
-        let mut role_resources = self.role_resources(role, rolegroup_ref);
-        let mut default_resources = Some(self.default_resources(role, rolegroup_ref));
+        let mut role_resources = self.role_resources(role);
+        let mut default_resources = Some(self.default_resources());
 
         let r = [
             default_resources.as_mut(),
@@ -323,11 +308,7 @@ impl HdfsCluster {
         }
     }
 
-    fn role_resources(
-        &self,
-        role: &HdfsRole,
-        _rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> Option<Resources<Storage, NoRuntimeLimits>> {
+    fn role_resources(&self, role: &HdfsRole) -> Option<Resources<Storage, NoRuntimeLimits>> {
         match role {
             HdfsRole::DataNode => self
                 .spec
@@ -350,11 +331,7 @@ impl HdfsCluster {
         }
     }
 
-    fn default_resources(
-        &self,
-        _role: &HdfsRole,
-        _rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> Resources<Storage, NoRuntimeLimits> {
+    fn default_resources(&self) -> Resources<Storage, NoRuntimeLimits> {
         Resources {
             cpu: CpuLimits {
                 min: None,
