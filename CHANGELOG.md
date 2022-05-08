@@ -8,13 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - The possibility to specify `configOverrides` and `envOverrides` ([#122]).
 - Reconciliation errors are now reported as Kubernetes events ([#130]).
-- Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
-  a single namespace to watch ([#134]).
+- Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify a single namespace to watch ([#134]).
 - Config builder for `hdfs-site.xml` and `core-site.xml` ([#150]).
 - Discovery configmap that exposes the namenode services for clients to connect ([#150]).
 - Documented service discovery for namenodes ([#150]).
 - Publish warning events when role replicas don't meet certain minimum requirements ([#162]).
 - PVCs for data storage, cpu and memory limits are now configurable ([#164]).
+- Fix environment variable names according to <https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/ClusterSetup.html#Configuring_Environment_of_Hadoop_Daemons> ([#164]).
 
 ### Changed
 
@@ -54,6 +54,7 @@ All notable changes to this project will be documented in this file.
 ## [0.1.0] - 2021-10-27
 
 ### Changed
+
 - Switched to operator-rs tag 0.3.0 ([#13])
 
 [#13]: https://github.com/stackabletech/hdfs-operator/pull/13

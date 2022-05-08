@@ -387,7 +387,7 @@ fn journalnode_containers(
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
 
     env.push(EnvVar {
-                name: "HADOOP_JOURNALNODE_OPTS".to_string(),
+                name: "HDFS_JOURNALNODE_OPTS".to_string(),
                 value: Some(
                     format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
                     DEFAULT_JOURNAL_NODE_METRICS_PORT,
@@ -418,7 +418,7 @@ fn namenode_containers(
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
     env.push(EnvVar {
-                name: "HADOOP_NAMENODE_OPTS".to_string(),
+                name: "HDFS_NAMENODE_OPTS".to_string(),
                 value: Some(
                     format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
                     DEFAULT_NAME_NODE_METRICS_PORT,
@@ -462,7 +462,7 @@ fn datanode_containers(
 ) -> Vec<Container> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
     env.push(EnvVar {
-                name: "HADOOP_DATANODE_OPTS".to_string(),
+                name: "HDFS_DATANODE_OPTS".to_string(),
                 value: Some(
                     format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
                     DEFAULT_DATA_NODE_METRICS_PORT,
