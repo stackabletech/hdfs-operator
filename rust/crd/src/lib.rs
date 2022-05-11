@@ -160,7 +160,7 @@ impl HdfsCluster {
 
     pub fn hdfs_image(&self) -> HdfsOperatorResult<String> {
         Ok(format!(
-            "docker.stackable.tech/stackable/hadoop:{}-stackable0",
+            "docker.stackable.tech/teozkr/hadoop:{}-customaddr3",
             self.hdfs_version()?
         ))
     }

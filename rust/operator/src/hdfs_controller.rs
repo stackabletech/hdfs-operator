@@ -238,6 +238,9 @@ fn rolegroup_config_map(
                         .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                         .add("dfs.ha.automatic-failover.enabled", "true")
                         .add("dfs.ha.namenode.id", "${env.POD_NAME}")
+                        .add("dfs.datanode.hostname", "${env.NODE_IP}")
+                        .add("dfs.client.use.datanode.hostname", "true")
+                        .add("dfs.datanode.use.datanode.hostname", "true")
                         // the extend with config must come last in order to have overrides working!!!
                         .extend(config)
                         .build_as_xml();
@@ -472,10 +475,16 @@ fn datanode_containers(
     vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
-            format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
-            "--debug".to_string(),
-            "datanode".to_string(),
+            "sh".to_string(),
+            "-c".to_string(),
+            format!(
+                r#"kubectl get svc $POD_NAME -o json > /data/pod-svc && kubectl get node $NODE_NAME -o json > /data/pod-node && DATA_PORT=$(jq '.spec.ports[] | select(.name == "data") | .nodePort' /data/pod-svc) HTTP_PORT=$(jq '.spec.ports[] | select(.name == "http") | .nodePort' /data/pod-svc) IPC_PORT=$(jq '.spec.ports[] | select(.name == "ipc") | .nodePort' /data/pod-svc) NODE_IP=$(jq -r '.status.addresses | map(select(.type == "ExternalIP")) | .[0].address' /data/pod-node) {HADOOP_HOME}/bin/hdfs --debug datanode"#
+            ),
+            // "--debug".to_string(),
+            // "datanode".to_string(),
         ]),
+        tty: Some(true),
+        stdin: Some(true),
         env: Some(env),
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
@@ -686,6 +695,17 @@ fn hdfs_common_container(
             value_from: Some(EnvVarSource {
                 field_ref: Some(ObjectFieldSelector {
                     field_path: String::from("metadata.name"),
+                    ..ObjectFieldSelector::default()
+                }),
+                ..EnvVarSource::default()
+            }),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "NODE_NAME".to_string(),
+            value_from: Some(EnvVarSource {
+                field_ref: Some(ObjectFieldSelector {
+                    field_path: String::from("spec.nodeName"),
                     ..ObjectFieldSelector::default()
                 }),
                 ..EnvVarSource::default()
