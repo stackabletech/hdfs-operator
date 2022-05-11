@@ -239,8 +239,6 @@ fn rolegroup_config_map(
                         .add("dfs.ha.automatic-failover.enabled", "true")
                         .add("dfs.ha.namenode.id", "${env.POD_NAME}")
                         .add("dfs.datanode.hostname", "${env.NODE_IP}")
-                        .add("dfs.client.use.datanode.hostname", "true")
-                        .add("dfs.datanode.use.datanode.hostname", "true")
                         // the extend with config must come last in order to have overrides working!!!
                         .extend(config)
                         .build_as_xml();
