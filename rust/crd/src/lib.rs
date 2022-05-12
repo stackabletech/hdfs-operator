@@ -180,9 +180,9 @@ impl HdfsCluster {
         );
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
-        // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
-        // useful for development purposes.
-        group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+        if rolegroup_ref.role == "datanode" {
+            group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+        }
 
         group_labels
     }
@@ -268,6 +268,7 @@ impl HdfsCluster {
                         .iter()
                         .map(|(n, p)| (n.clone(), *p))
                         .collect(),
+                    external_name: None,
                 })
             })
             .collect())
@@ -384,19 +385,23 @@ impl HdfsCluster {
 /// Reference to a single `Pod` that is a component of a [`HdfsCluster`]
 ///
 /// Used for service discovery.
+#[derive(Clone, Debug)]
 pub struct HdfsPodRef {
     pub namespace: String,
     pub role_group_service_name: String,
     pub pod_name: String,
     pub ports: HashMap<String, i32>,
+    pub external_name: Option<String>,
 }
 
 impl HdfsPodRef {
     pub fn fqdn(&self) -> String {
-        format!(
-            "{}.{}.{}.svc.cluster.local",
-            self.pod_name, self.role_group_service_name, self.namespace
-        )
+        self.external_name.clone().unwrap_or_else(|| {
+            format!(
+                "{}.{}.{}.svc.cluster.local",
+                self.pod_name, self.role_group_service_name, self.namespace
+            )
+        })
     }
 }
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

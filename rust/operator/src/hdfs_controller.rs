@@ -62,22 +62,11 @@ pub async fn reconcile_hdfs(
 
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
     let namenode_podrefs = hdfs.pod_refs(&HdfsRole::NameNode)?;
+    let mut namenode_external_podrefs = namenode_podrefs
+        .iter()
+        .map(|podref| (&podref.pod_name, podref.clone()))
+        .collect::<HashMap<_, _>>();
     let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
-
-    let discovery_cm = build_discovery_configmap(&hdfs, &namenode_podrefs).map_err(|e| {
-        Error::BuildDiscoveryConfigMap {
-            source: e,
-            name: hdfs.name(),
-        }
-    })?;
-
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
-        .await
-        .map_err(|e| Error::ApplyDiscoveryConfigMap {
-            source: e,
-            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
-        })?;
 
     let dfs_replication = hdfs.spec.dfs_replication;
 
@@ -120,6 +109,11 @@ pub async fn reconcile_hdfs(
                 &namenode_podrefs,
                 &hadoop_container,
             )?;
+            let rg_namenode_services = if role == HdfsRole::NameNode {
+                namenode_load_balancer_services(&hdfs, &rolegroup_ref)?
+            } else {
+                Vec::new()
+            };
 
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -142,8 +136,47 @@ pub async fn reconcile_hdfs(
                     source: e,
                     name: rg_statefulset.metadata.name.clone().unwrap_or_default(),
                 })?;
+            for rg_namenode_svc in rg_namenode_services {
+                let name = rg_namenode_svc.metadata.name.clone().unwrap_or_default();
+                let applied_svc = client
+                    .apply_patch(FIELD_MANAGER_SCOPE, &rg_namenode_svc, &rg_namenode_svc)
+                    .await
+                    .map_err(|e| Error::ApplyRoleGroupService {
+                        source: e,
+                        name: name.clone(),
+                    })?;
+                if let Some(namenode_external_pod_ref) = namenode_external_podrefs.get_mut(&name) {
+                    namenode_external_pod_ref.external_name =
+                        applied_svc.status.and_then(|status| {
+                            status
+                                .load_balancer?
+                                .ingress?
+                                .into_iter()
+                                .flat_map(|ingress| [ingress.hostname, ingress.ip])
+                                .flatten()
+                                .next()
+                        });
+                }
+            }
         }
     }
+
+    let discovery_cm = build_discovery_configmap(
+        &hdfs,
+        &namenode_external_podrefs.into_values().collect::<Vec<_>>(),
+    )
+    .map_err(|e| Error::BuildDiscoveryConfigMap {
+        source: e,
+        name: hdfs.name(),
+    })?;
+
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        .await
+        .map_err(|e| Error::ApplyDiscoveryConfigMap {
+            source: e,
+            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
+        })?;
 
     Ok(Action::await_change())
 }
@@ -195,6 +228,59 @@ fn rolegroup_service(
         }),
         status: None,
     })
+}
+
+fn namenode_load_balancer_services(
+    hdfs: &HdfsCluster,
+    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+) -> Result<Vec<Service>, Error> {
+    let mut services = Vec::new();
+    for replica in 0..hdfs.rolegroup_namenode_replicas(rolegroup_ref)? {
+        let replica_name = format!("{}-{replica}", rolegroup_ref.object_name());
+        services.push(Service {
+            metadata: ObjectMetaBuilder::new()
+                .name_and_namespace(hdfs)
+                .name(&replica_name)
+                .ownerreference_from_resource(hdfs, None, Some(true))
+                .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
+                    source,
+                    obj_ref: ObjectRef::from_obj(hdfs),
+                })?
+                .with_recommended_labels(
+                    hdfs,
+                    APP_NAME,
+                    hdfs.hdfs_version()?,
+                    &rolegroup_ref.role,
+                    &rolegroup_ref.role_group,
+                )
+                .with_label("prometheus.io/scrape", "true")
+                .build(),
+            spec: Some(ServiceSpec {
+                type_: Some("LoadBalancer".to_string()),
+                selector: Some(
+                    [(
+                        "statefulset.kubernetes.io/pod-name".to_string(),
+                        replica_name,
+                    )]
+                    .into(),
+                ),
+                ports: Some(
+                    ROLE_PORTS[&HdfsRole::NameNode]
+                        .iter()
+                        .map(|(name, port)| ServicePort {
+                            name: Some(name.clone()),
+                            port: *port,
+                            ..ServicePort::default()
+                        })
+                        .collect(),
+                ),
+                publish_not_ready_addresses: Some(true),
+                ..ServiceSpec::default()
+            }),
+            status: None,
+        })
+    }
+    Ok(services)
 }
 
 fn rolegroup_config_map(
