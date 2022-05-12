@@ -10,6 +10,7 @@ use stackable_operator::commons::resources::{
 };
 use stackable_operator::config::merge::{chainable_merge, Merge};
 use stackable_operator::k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements};
+use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
@@ -343,7 +344,7 @@ impl HdfsCluster {
             },
             storage: Storage {
                 data: PvcConfig {
-                    capacity: Some("1Gi".to_owned()),
+                    capacity: Some(Quantity("1Gi".to_owned())),
                     storage_class: None,
                     selectors: None,
                 },

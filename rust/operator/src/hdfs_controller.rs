@@ -26,6 +26,7 @@ use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Repo
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
+use stackable_operator::memory::to_java_heap;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -307,18 +308,18 @@ fn rolegroup_statefulset(
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
             init_containers =
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = datanode_containers(rolegroup_ref, hadoop_container, &resources);
+            containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             init_containers =
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = namenode_containers(rolegroup_ref, hadoop_container, &resources);
+            containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = journalnode_init_containers(hadoop_container);
-            containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources);
+            containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
     }
 
@@ -383,20 +384,39 @@ fn journalnode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
     resources: &ResourceRequirements,
-) -> Vec<Container> {
+) -> HdfsOperatorResult<Vec<Container>> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
 
-    env.push(EnvVar {
-                name: "HDFS_JOURNALNODE_OPTS".to_string(),
-                value: Some(
-                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                    DEFAULT_JOURNAL_NODE_METRICS_PORT,
-                        rolegroup_ref.role,)
-                ),
-                ..EnvVar::default()
-            },);
+    let heap_opts = resources
+        .limits
+        .as_ref()
+        .and_then(|l| l.get("memory"))
+        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
+        .unwrap_or_else(|| Ok("".to_string()))
+        .map_err(|source| Error::JournalnodeJavaHeapConfig { source })?;
 
-    vec![Container {
+    let opts = vec![
+        Some(
+            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+            DEFAULT_JOURNAL_NODE_METRICS_PORT,
+            rolegroup_ref.role,)
+        ),
+        Some(heap_opts),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<String>>()
+    .join(" ")
+    .trim()
+    .to_string();
+
+    env.push(EnvVar {
+        name: "HDFS_JOURNALNODE_OPTS".to_string(),
+        value: Some(opts),
+        ..EnvVar::default()
+    });
+
+    Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
             format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
@@ -408,26 +428,46 @@ fn journalnode_containers(
         env: Some(env),
         resources: Some(resources.clone()),
         ..hadoop_container.clone()
-    }]
+    }])
 }
 
 fn namenode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
     resources: &ResourceRequirements,
-) -> Vec<Container> {
+) -> HdfsOperatorResult<Vec<Container>> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-    env.push(EnvVar {
-                name: "HDFS_NAMENODE_OPTS".to_string(),
-                value: Some(
-                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                    DEFAULT_NAME_NODE_METRICS_PORT,
-                        rolegroup_ref.role,)
-                ),
-                ..EnvVar::default()
-            },);
 
-    vec![
+    let heap_opts = resources
+        .limits
+        .as_ref()
+        .and_then(|l| l.get("memory"))
+        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
+        .unwrap_or_else(|| Ok("".to_string()))
+        .map_err(|source| Error::NamenodeJavaHeapConfig { source })?;
+
+    let opts = vec![
+        Some(
+            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                DEFAULT_NAME_NODE_METRICS_PORT,
+                rolegroup_ref.role,)
+        ),
+        Some(heap_opts),
+        ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<String>>()
+    .join(" ")
+    .trim()
+    .to_string();
+
+    env.push(EnvVar {
+        name: "HDFS_NAMENODE_OPTS".to_string(),
+        value: Some(opts),
+        ..EnvVar::default()
+    });
+
+    Ok(vec![
         Container {
             name: rolegroup_ref.role.clone(),
             args: Some(vec![
@@ -440,7 +480,7 @@ fn namenode_containers(
             liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
             ..hadoop_container.clone()
         },
-        // Note that we don't add the HADOOP_OPTS / HADOOP_NAMENODE_OPTS env var to this container (zkfc)
+        // Note that we don't add the HADOOP_OPTS / HDFS_NAMENODE_OPTS env var to this container (zkfc)
         // Here it would cause an "address already in use" error and prevent the namenode container from starting.
         // Because the jmx exporter is not enabled here, also the readiness probes are not enabled.
         Container {
@@ -452,26 +492,43 @@ fn namenode_containers(
             resources: Some(resources.clone()),
             ..hadoop_container.clone()
         },
-    ]
+    ])
 }
 
 fn datanode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
     resources: &ResourceRequirements,
-) -> Vec<Container> {
+) -> HdfsOperatorResult<Vec<Container>> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-    env.push(EnvVar {
-                name: "HDFS_DATANODE_OPTS".to_string(),
-                value: Some(
-                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                    DEFAULT_DATA_NODE_METRICS_PORT,
-                        rolegroup_ref.role,)
-                ),
-                ..EnvVar::default()
-            });
 
-    vec![Container {
+    let heap_opts = resources
+        .limits
+        .as_ref()
+        .and_then(|l| l.get("memory"))
+        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
+        .unwrap_or_else(|| Ok("".to_string()))
+        .map_err(|source| Error::DatanodeJavaHeapConfig { source })?;
+
+    let opts = vec![
+        Some(
+            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                DEFAULT_DATA_NODE_METRICS_PORT,
+                rolegroup_ref.role,)),
+        Some(heap_opts),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<String>>()
+    .join(" ");
+
+    env.push(EnvVar {
+        name: "HDFS_DATANODE_OPTS".to_string(),
+        value: Some(opts),
+        ..EnvVar::default()
+    });
+
+    Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
             format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
@@ -483,7 +540,7 @@ fn datanode_containers(
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
         resources: Some(resources.clone()),
         ..hadoop_container.clone()
-    }]
+    }])
 }
 
 fn datanode_init_containers(

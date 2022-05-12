@@ -196,10 +196,14 @@ nameNodes:
       config:
         resources:
           memory:
-            limit: '64Mi'
+            limit: '2Gi'
 ----
 
 In this example, each namenode container in the "default" group will have a maximum of 64 megabytes of memory. To be more precise, these memory limits apply to the containers running the name node daemons but not to any sidecar containers that are part of the namenod's pod.
+
+Setting this property will automatically also set the maximum Java heap size for the corresponding process to 80% of the available memory. Be aware that if the memory constraint is too low, the cluster might fail to start. If pods terminate with an 'OOMKilled' status and the cluster doesn't start, try increasing the memory limit.
+
+
 
 For more details regarding Kubernetes memory requests and limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/[Assign Memory Resources to Containers and Pods].
 

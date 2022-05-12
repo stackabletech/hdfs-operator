@@ -74,6 +74,8 @@ spec:
         storage:
           data:
             capacity: 512Mi
+        memory:
+          limit: '1Gi'
     roleGroups:
       default:
         selector:

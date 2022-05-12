@@ -55,3 +55,5 @@ pub const DFS_HA_NAMENODES: &str = "dfs.ha.namenodes";
 // core-site.xml
 pub const FS_DEFAULT_FS: &str = "fs.defaultFS";
 pub const HA_ZOOKEEPER_QUORUM: &str = "ha.zookeeper.quorum";
+
+pub const JVM_HEAP_FACTOR: f32 = 0.8;
