@@ -8,99 +8,97 @@ use strum::EnumDiscriminants;
 #[derive(Debug, thiserror::Error, EnumDiscriminants)]
 #[strum_discriminants(derive(strum::IntoStaticStr))]
 pub enum Error {
-    #[error("Object has no version")]
+    #[error("object has no version")]
     ObjectHasNoVersion { obj_ref: ObjectRef<HdfsCluster> },
-    #[error("Missing node role {role}")]
+    #[error("missing node role {role}")]
     MissingNodeRole { role: String },
-    #[error("Invalid role configuration: {source}")]
+    #[error("invalid role configuration")]
     InvalidRoleConfig {
         #[source]
         source: stackable_operator::product_config_utils::ConfigError,
     },
-    #[error("Invalid product configuration: {source}")]
+    #[error("invalid product configuration")]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
 
-    #[error("Cannot create rolegroup service {name}. Caused by: {source}")]
+    #[error("cannot create rolegroup service {name}")]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("Cannot create namenode service {name}")]
+    #[error("cannot create namenode service {name}")]
     ApplyNameNodeService {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("Cannot create pod service [{name}]. Caused by: {source}")]
+    #[error("cannot create pod service {name}")]
     ApplyPodServiceFailed {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("Cannot create role service account {name}")]
+    #[error("cannot create role service account {name}")]
     ApplyRoleServiceAccount {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("Cannot apply rolebinding {name} to role service account")]
+    #[error("cannot apply rolebinding {name} to role service account")]
     ApplyRoleRoleBinding {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("Cannot create role group config map {name}. Caused by: {source}")]
+    #[error("cannot create role group config map {name}")]
     ApplyRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("Cannot create role group stateful set {name}. Caused by: {source}")]
+    #[error("cannot create role group stateful set {name}")]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("Cannot create discovery config map {name}. Caused by: {source}")]
+    #[error("cannot create discovery config map {name}")]
     ApplyDiscoveryConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[error("No metadata for [{obj_ref}]. Caused by: {source}")]
+    #[error("no metadata for {obj_ref}")]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<HdfsCluster>,
     },
 
-    #[error("Cannot parse address port [{address}], Caused by: {source}")]
+    #[error("cannot parse address port {address:?}")]
     HdfsAddressPortParseError {
         source: <i32 as FromStr>::Err,
         address: String,
     },
 
-    #[error("Cannot parse port [{address}]")]
+    #[error("cannot parse port {address:?}")]
     HdfsAddressParseError { address: String },
 
-    #[error("Cannot find rolegroup [{rolegroup}]")]
+    #[error("cannot find rolegroup {rolegroup}")]
     RoleGroupNotFound { rolegroup: String },
 
-    #[error("Object has no namespace [{obj_ref}]")]
+    #[error("object {obj_ref} has no namespace")]
     ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
 
-    #[error(
-        "Cannot build config for role [{role}] and rolegroup [{role_group}]. Caused by: {source}"
-    )]
+    #[error("cannot build config for role {role} and rolegroup {role_group}")]
     BuildRoleGroupConfig {
         source: stackable_operator::error::Error,
         role: String,
         role_group: String,
     },
 
-    #[error("Cannot build config discovery config map {name}. Caused by: {source}")]
+    #[error("cannot build config discovery config map {name}")]
     BuildDiscoveryConfigMap {
         source: stackable_operator::error::Error,
         name: String,
@@ -108,24 +106,24 @@ pub enum Error {
 
     #[error("Pod has no name")]
     PodHasNoName,
-    #[error("Pod [{name}] has no uid")]
+    #[error("Pod {name} has no uid")]
     PodHasNoUid { name: String },
-    #[error("Pod [{name}] has no labels")]
+    #[error("Pod {name} has no labels")]
     PodHasNoLabels { name: String },
-    #[error("Pod [{name}] has no [role] label")]
+    #[error("Pod {name} has no [role] label")]
     PodHasNoRoleLabel { name: String },
-    #[error("Pod [{name}] has no spec")]
+    #[error("Pod {name} has no spec")]
     PodHasNoSpec { name: String },
-    #[error("Pod [{name}] has no container named [{role}]")]
+    #[error("Pod {name} has no container named {role}")]
     PodHasNoContainer { name: String, role: String },
 
-    #[error("Object has no associated namespace.")]
+    #[error("object has no associated namespace.")]
     NoNamespaceContext,
 
-    #[error("Group [{group}] of role [{role}] not in validated config.")]
+    #[error("group {group} of role {role} not in validated config.")]
     RolegroupNotInValidatedConfig { group: String, role: String },
 
-    #[error("Failed to publish event")]
+    #[error("failed to publish event")]
     PublishEvent {
         source: stackable_operator::kube::Error,
     },
