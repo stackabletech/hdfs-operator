@@ -37,6 +37,9 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            - name: HDFS_DATANODE_CLUSTERROLE
+              value: {{ .Release.Name }}-hdfs-datanode-clusterrole
           volumeMounts:
             - mountPath: /etc/stackable/{{ include "operator.appname" . }}/config-spec
               name: config-spec

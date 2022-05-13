@@ -14,6 +14,7 @@ pub enum Error {
     MissingNodeRole { role: String },
     #[error("Invalid role configuration: {source}")]
     InvalidRoleConfig {
+        #[source]
         source: stackable_operator::product_config_utils::ConfigError,
     },
     #[error("Invalid product configuration: {source}")]
@@ -27,8 +28,26 @@ pub enum Error {
         name: String,
     },
 
+    #[error("Cannot create namenode service {name}")]
+    ApplyNameNodeService {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
     #[error("Cannot create pod service [{name}]. Caused by: {source}")]
     ApplyPodServiceFailed {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
+    #[error("Cannot create role service account {name}")]
+    ApplyRoleServiceAccount {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+
+    #[error("Cannot apply rolebinding {name} to role service account")]
+    ApplyRoleRoleBinding {
         source: stackable_operator::error::Error,
         name: String,
     },

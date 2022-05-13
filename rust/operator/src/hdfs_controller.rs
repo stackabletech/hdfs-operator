@@ -2,6 +2,7 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
+use crate::ControllerConfig;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
@@ -9,7 +10,10 @@ use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
-    SecurityContext, TCPSocketAction, VolumeMount,
+    SecurityContext, ServiceAccount, TCPSocketAction, VolumeMount,
+};
+use stackable_operator::k8s_openapi::api::rbac::v1::{
+    ClusterRole, ClusterRoleBinding, RoleBinding, RoleRef, Subject,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -23,6 +27,7 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrStrin
 use stackable_operator::k8s_openapi::apimachinery::pkg::{
     api::resource::Quantity, apis::meta::v1::LabelSelector,
 };
+use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
@@ -40,6 +45,7 @@ use std::time::Duration;
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
+    pub controller_config: ControllerConfig,
     pub product_config: ProductConfigManager,
 }
 
@@ -49,6 +55,7 @@ pub async fn reconcile_hdfs(
 ) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
+    let controller_config = &ctx.get_ref().controller_config;
 
     let validated_config = validate_all_roles_and_groups_config(
         hdfs.hdfs_version()?,
@@ -69,6 +76,40 @@ pub async fn reconcile_hdfs(
     let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
 
     let dfs_replication = hdfs.spec.dfs_replication;
+
+    let (datanode_serviceaccount, datanode_rolebinding) =
+        datanode_serviceaccount(&hdfs, controller_config)?;
+
+    client
+        .apply_patch(
+            FIELD_MANAGER_SCOPE,
+            &datanode_serviceaccount,
+            &datanode_serviceaccount,
+        )
+        .await
+        .map_err(|e| Error::ApplyRoleServiceAccount {
+            source: e,
+            name: datanode_serviceaccount
+                .metadata
+                .name
+                .clone()
+                .unwrap_or_default(),
+        })?;
+    client
+        .apply_patch(
+            FIELD_MANAGER_SCOPE,
+            &datanode_rolebinding,
+            &datanode_rolebinding,
+        )
+        .await
+        .map_err(|e| Error::ApplyRoleRoleBinding {
+            source: e,
+            name: datanode_rolebinding
+                .metadata
+                .name
+                .clone()
+                .unwrap_or_default(),
+        })?;
 
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = serde_yaml::from_str(role_name).unwrap();
@@ -108,6 +149,11 @@ pub async fn reconcile_hdfs(
                 &rolegroup_ref,
                 &namenode_podrefs,
                 &hadoop_container,
+                datanode_rolebinding
+                    .metadata
+                    .name
+                    .as_deref()
+                    .unwrap_or_default(),
             )?;
             let rg_namenode_services = if role == HdfsRole::NameNode {
                 namenode_load_balancer_services(&hdfs, &rolegroup_ref)?
@@ -141,7 +187,7 @@ pub async fn reconcile_hdfs(
                 let applied_svc = client
                     .apply_patch(FIELD_MANAGER_SCOPE, &rg_namenode_svc, &rg_namenode_svc)
                     .await
-                    .map_err(|e| Error::ApplyRoleGroupService {
+                    .map_err(|e| Error::ApplyNameNodeService {
                         source: e,
                         name: name.clone(),
                     })?;
@@ -183,6 +229,57 @@ pub async fn reconcile_hdfs(
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
+}
+
+fn datanode_serviceaccount(
+    hdfs: &HdfsCluster,
+    controller_config: &ControllerConfig,
+) -> Result<(ServiceAccount, ClusterRoleBinding), Error> {
+    let role_name = HdfsRole::DataNode.to_string();
+    let sa_name = format!("{}-{role_name}", hdfs.metadata.name.as_ref().unwrap());
+    let sa = ServiceAccount {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(hdfs)
+            .name(&sa_name)
+            .ownerreference_from_resource(hdfs, None, Some(true))
+            .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
+                source,
+                obj_ref: ObjectRef::from_obj(hdfs),
+            })?
+            .with_recommended_labels(hdfs, APP_NAME, hdfs.hdfs_version()?, &role_name, "global")
+            .build(),
+        ..ServiceAccount::default()
+    };
+    // Use a name that the user doesn't control directly when creating cluster-wide objects
+    // to avoid letting the user manipulate us into overriding another existing binding
+    let binding_name = format!(
+        "hdfs-{role_name}-{}",
+        hdfs.metadata.uid.as_deref().unwrap_or_default()
+    );
+    // Must be a cluster binding to allow access to global resources (Node)
+    let binding = ClusterRoleBinding {
+        metadata: ObjectMetaBuilder::new()
+            .name(binding_name)
+            .ownerreference_from_resource(hdfs, None, Some(true))
+            .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
+                source,
+                obj_ref: ObjectRef::from_obj(hdfs),
+            })?
+            .with_recommended_labels(hdfs, APP_NAME, hdfs.hdfs_version()?, &role_name, "global")
+            .build(),
+        role_ref: RoleRef {
+            api_group: ClusterRole::GROUP.to_string(),
+            kind: ClusterRole::KIND.to_string(),
+            name: controller_config.datanode_clusterrole.clone(),
+        },
+        subjects: Some(vec![Subject {
+            api_group: Some(ServiceAccount::GROUP.to_string()),
+            kind: ServiceAccount::KIND.to_string(),
+            name: sa_name,
+            namespace: sa.metadata.namespace.clone(),
+        }]),
+    };
+    Ok((sa, binding))
 }
 
 fn rolegroup_service(
@@ -380,6 +477,7 @@ fn rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
+    datanode_service_account_name: &str,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
@@ -388,6 +486,7 @@ fn rolegroup_statefulset(
     let replicas;
     let init_containers;
     let containers;
+    let service_account_name;
 
     match role {
         HdfsRole::DataNode => {
@@ -395,17 +494,20 @@ fn rolegroup_statefulset(
             init_containers =
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container);
+            service_account_name = Some(datanode_service_account_name.to_string());
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             init_containers =
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container);
+            service_account_name = None;
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = journalnode_init_containers(hadoop_container);
             containers = journalnode_containers(rolegroup_ref, hadoop_container);
+            service_account_name = None;
         }
     }
 
@@ -425,6 +527,7 @@ fn rolegroup_statefulset(
                 }),
                 ..Volume::default()
             }]),
+            service_account_name,
             ..PodSpec::default()
         }),
     };
