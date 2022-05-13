@@ -1691,8 +1691,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.19.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#6d4ba512d8cd300582a55af232db31d172c3a49f"
+version = "0.20.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.20.0#ac3f79b354d62a6d769e7f23106763455c322f04"
 dependencies = [
  "backoff",
  "chrono",
@@ -1725,8 +1725,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator-derive"
-version = "0.17.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#6d4ba512d8cd300582a55af232db31d172c3a49f"
+version = "0.20.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.20.0#ac3f79b354d62a6d769e7f23106763455c322f04"
 dependencies = [
  "darling 0.14.1",
  "proc-macro2",
@@ -1764,9 +1764,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.93"
+version = "1.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04066589568b72ec65f42d65a1a52436e954b168773148893c020269563decf2"
+checksum = "a07e33e919ebcd69113d5be0e4d70c5707004ff45188910106854f38b960df4a"
 dependencies = [
  "proc-macro2",
  "quote",
