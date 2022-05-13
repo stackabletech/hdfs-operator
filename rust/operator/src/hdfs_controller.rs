@@ -13,7 +13,7 @@ use stackable_operator::k8s_openapi::api::core::v1::{
     SecurityContext, ServiceAccount, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{
-    ClusterRole, ClusterRoleBinding, RoleBinding, RoleRef, Subject,
+    ClusterRole, ClusterRoleBinding, RoleRef, Subject,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
