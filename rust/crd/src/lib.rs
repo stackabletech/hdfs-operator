@@ -5,6 +5,12 @@ use constants::*;
 use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use stackable_operator::commons::resources::{
+    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
+};
+use stackable_operator::config::merge::{chainable_merge, Merge};
+use stackable_operator::k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements};
+use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
@@ -230,6 +236,122 @@ impl HdfsCluster {
             .unwrap_or_default())
     }
 
+    /// Build the [`PersistentVolumeClaim`]s and [`ResourceRequirements`] for the given `rolegroup_ref`.
+    /// These can be defined at the role or rolegroup level and as usual, the
+    /// following precedence rules are implemented:
+    /// 1. group pvc
+    /// 2. role pvc
+    /// 3. a default PVC with 1Gi capacity
+    pub fn resources(
+        &self,
+        role: &HdfsRole,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> (Vec<PersistentVolumeClaim>, ResourceRequirements) {
+        let mut rg_resources = self.rolegroup_resources(role, rolegroup_ref);
+        let mut role_resources = self.role_resources(role);
+        let mut default_resources = Some(self.default_resources());
+
+        let r = [
+            default_resources.as_mut(),
+            role_resources.as_mut(),
+            rg_resources.as_mut(),
+        ]
+        .into_iter()
+        .flatten()
+        .reduce(|old, new| chainable_merge(new, old))
+        .unwrap(); // always succeeds because default_resources is Some()
+
+        let result_1 = r
+            .storage
+            .data
+            .build_pvc("data", Some(vec!["ReadWriteOnce"]));
+        let result_2 = r.clone().into();
+
+        (vec![result_1], result_2)
+    }
+
+    fn rolegroup_resources(
+        &self,
+        role: &HdfsRole,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> Option<Resources<Storage, NoRuntimeLimits>> {
+        match role {
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .and_then(|role| {
+                    role.role_groups
+                        .get(&rolegroup_ref.role_group)
+                        .map(|rg| &rg.config.config)
+                })
+                .and_then(|node_config| node_config.resources.clone()),
+        }
+    }
+
+    fn role_resources(&self, role: &HdfsRole) -> Option<Resources<Storage, NoRuntimeLimits>> {
+        match role {
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.resources.clone()),
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .map(|role| &role.config.config)
+                .and_then(|node_config| node_config.resources.clone()),
+        }
+    }
+
+    fn default_resources(&self) -> Resources<Storage, NoRuntimeLimits> {
+        Resources {
+            cpu: CpuLimits {
+                min: None,
+                max: None,
+            },
+            memory: MemoryLimits {
+                limit: None,
+                runtime_limits: NoRuntimeLimits {},
+            },
+            storage: Storage {
+                data: PvcConfig {
+                    capacity: Some(Quantity("1Gi".to_owned())),
+                    storage_class: None,
+                    selectors: None,
+                },
+            },
+        }
+    }
+
     pub fn rolegroup_ref(
         &self,
         role_name: impl Into<String>,
@@ -399,17 +521,31 @@ impl HdfsPodRef {
         )
     }
 }
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NameNodeConfig {}
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DataNodeConfig {}
+struct Storage {
+    #[serde(default)]
+    data: PvcConfig,
+}
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct JournalNodeConfig {}
+pub struct NameNodeConfig {
+    resources: Option<Resources<Storage, NoRuntimeLimits>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataNodeConfig {
+    resources: Option<Resources<Storage, NoRuntimeLimits>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalNodeConfig {
+    resources: Option<Resources<Storage, NoRuntimeLimits>>,
+}
 
 impl Configuration for NameNodeConfig {
     type Configurable = HdfsCluster;
@@ -509,5 +645,327 @@ impl Configuration for JournalNodeConfig {
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{HdfsCluster, HdfsRole};
+    use stackable_operator::k8s_openapi::{
+        api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
+    };
+
+    #[test]
+    pub fn test_pvc_rolegroup_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        config:
+          resources:
+            storage:
+              data:
+                capacity: 5Gi
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("5Gi".to_owned()),
+            pvc[0]
+                .clone()
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn test_pvc_role_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    config:
+      resources:
+        storage:
+          data:
+            capacity: 5Gi
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+
+        ";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("5Gi".to_owned()),
+            pvc[0]
+                .clone()
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn test_pvc_default_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+
+        ";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        assert_eq!(
+            &Quantity("1Gi".to_owned()),
+            pvc[0]
+                .clone()
+                .spec
+                .unwrap()
+                .resources
+                .unwrap()
+                .requests
+                .unwrap()
+                .get("storage")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn test_rr_role_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    config:
+      resources:
+        memory:
+          limit: '64Mi'
+        cpu:
+          max: '500m'
+          min: '250m'
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+
+        ";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let (_, rr) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        let expected = ResourceRequirements {
+            requests: Some(
+                [
+                    ("memory".to_string(), Quantity("64Mi".to_string())),
+                    ("cpu".to_string(), Quantity("250m".to_string())),
+                ]
+                .into(),
+            ),
+            limits: Some(
+                [
+                    ("memory".to_string(), Quantity("64Mi".to_string())),
+                    ("cpu".to_string(), Quantity("500m".to_string())),
+                ]
+                .into(),
+            ),
+        };
+        assert_eq!(expected, rr);
+    }
+    #[test]
+    pub fn test_rr_rg_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  version: 3.2.2
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
+  log4j: |-
+    hadoop.root.logger=INFO,console
+  nameNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        config:
+          resources:
+            memory:
+              limit: '64Mi'
+            cpu:
+              max: '500m'
+              min: '250m'
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 1
+
+        ";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
+        let (_, rr) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+
+        let expected = ResourceRequirements {
+            requests: Some(
+                [
+                    ("memory".to_string(), Quantity("64Mi".to_string())),
+                    ("cpu".to_string(), Quantity("250m".to_string())),
+                ]
+                .into(),
+            ),
+            limits: Some(
+                [
+                    ("memory".to_string(), Quantity("64Mi".to_string())),
+                    ("cpu".to_string(), Quantity("500m".to_string())),
+                ]
+                .into(),
+            ),
+        };
+        assert_eq!(expected, rr);
     }
 }

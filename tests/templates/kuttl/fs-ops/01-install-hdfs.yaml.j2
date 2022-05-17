@@ -1,35 +1,18 @@
 ---
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperCluster
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
 metadata:
-  name: simple-zk
-spec:
-  version: 3.5.8
-  servers:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 3
-        config: {}
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: simple-hdfs-znode
-spec:
-  clusterRef:
-    name: simple-zk
+  name: install-hdfs
+timeout: 180
 ---
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
-  name: simple-hdfs
+  name: hdfs
 spec:
-  version: 3.2.2
-  zookeeperConfigMapName: simple-hdfs-znode
-  dfsReplication: 3
+  version: {{ test_scenario['values']['hadoop'] }}
+  zookeeperConfigMapName: hdfs-zk
+  dfsReplication: 1
   log4j: |-
     # Define some default values that can be overridden by system properties
     hadoop.root.logger=INFO,console
@@ -67,18 +50,16 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 3
+        replicas: 1
   journalNodes:
     config:
       resources:
         storage:
           data:
             capacity: 512Mi
-        memory:
-          limit: '1Gi'
     roleGroups:
       default:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        replicas: 3
+        replicas: 1

@@ -1,0 +1,14 @@
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: hdfs-zk
+spec:
+  servers:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          myidOffset: 10
+  version: {{ test_scenario['values']['zookeeper'] }}
+  stopped: false

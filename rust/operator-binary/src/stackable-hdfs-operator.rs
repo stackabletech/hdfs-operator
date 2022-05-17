@@ -18,15 +18,20 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
-    stackable_operator::logging::initialize_logging("HDFS_OPERATOR_LOG");
-
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&HdfsCluster::crd())?),
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
+            tracing_target,
         }) => {
+            stackable_operator::logging::initialize_logging(
+                "HDFS_OPERATOR_LOG",
+                "hdfs",
+                tracing_target,
+            );
+
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,

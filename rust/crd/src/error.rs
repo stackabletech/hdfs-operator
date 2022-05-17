@@ -110,6 +110,21 @@ pub enum Error {
     PublishEvent {
         source: stackable_operator::kube::Error,
     },
+
+    #[error("Name node Java heap config: {source}")]
+    NamenodeJavaHeapConfig {
+        source: stackable_operator::error::Error,
+    },
+
+    #[error("Data node Java heap config: {source}")]
+    DatanodeJavaHeapConfig {
+        source: stackable_operator::error::Error,
+    },
+
+    #[error("Journal node Java heap config: {source}")]
+    JournalnodeJavaHeapConfig {
+        source: stackable_operator::error::Error,
+    },
 }
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
 

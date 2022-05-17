@@ -1,0 +1,13 @@
+---
+dimensions:
+  - name: hadoop
+    values:
+      - 3.2.2
+  - name: zookeeper
+    values:
+      - 3.5.8
+tests:
+  - name: fs-ops
+    dimensions:
+      - hadoop
+      - zookeeper
