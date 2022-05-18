@@ -20,6 +20,8 @@ All notable changes to this project will be documented in this file.
 
 - `operator-rs` `0.10.0` -> `0.15.0` ([#130], [#134], [#148]).
 - `HADOOP_OPTS` for jmx exporter specified to `HADOOP_NAMENODE_OPTS`, `HADOOP_DATANODE_OPTS` and `HADOOP_JOURNALNODE_OPTS` to fix cli tool ([#148]).
+- [BREAKING] Specifying the product version has been changed to adhere to [ADR018](https://docs.stackable.tech/home/contributor/adr/ADR018-product_image_versioning.html) instead of just specifying the product version you will now have to add the Stackable image version as well, so `version: 3.5.8` becomes (for example) `version: 3.5.8-stackable0.1.0` ([#180])
+
 
 [#122]: https://github.com/stackabletech/hdfs-operator/pull/122
 [#130]: https://github.com/stackabletech/hdfs-operator/pull/130
@@ -28,6 +30,7 @@ All notable changes to this project will be documented in this file.
 [#150]: https://github.com/stackabletech/hdfs-operator/pull/150
 [#162]: https://github.com/stackabletech/hdfs-operator/pull/162
 [#164]: https://github.com/stackabletech/hdfs-operator/pull/164
+[#180]: https://github.com/stackabletech/hdfs-operator/pull/180
 
 ## [0.3.0] - 2022-02-14
 

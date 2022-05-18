@@ -13,7 +13,7 @@ kind: ZookeeperCluster
 metadata:
   name: simple-zk
 spec:
-  version: 3.5.8
+  version: 3.5.8-stackable0.7.0
   servers:
     roleGroups:
       default:
@@ -31,7 +31,11 @@ spec:
 EOF
 ----
 
-Once a Zookeeper cluster and the operator are up and running, you can create an  Apache HDFS (v3.2.2) cluster like this:
+Once a Zookeeper cluster and the operator are up and running, you can create an  Apache HDFS cluster like shown below.
+Please note that the version you need to specify is not only the version of Hadoop which you want to roll out, but has to be amended with a Stackable version as shown.
+This Stackable version is the version of the underlying container image which is used to execute the processes.
+For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop%2Ftags[image registry].
+It should generally be safe to simply use the latest image version that is available.
 
 [source,bash]
 ----
@@ -41,7 +45,7 @@ kind: HdfsCluster
 metadata:
   name: simple
 spec:
-  version: 3.2.2
+  version: 3.2.2-stackable0.5.0
   zookeeperConfigMapName: simple-znode
   dfsReplication: 3
   log4j: |-
