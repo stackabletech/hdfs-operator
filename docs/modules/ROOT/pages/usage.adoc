@@ -31,7 +31,7 @@ spec:
 EOF
 ----
 
-Once a Zookeeper cluster and the operator are up and running, you can create an  Apache HDFS cluster like shown below.
+Once a Zookeeper cluster and the operator are up and running, you can create an Apache HDFS cluster like shown below.
 Please note that the version you need to specify is not only the version of Hadoop which you want to roll out, but has to be amended with a Stackable version as shown.
 This Stackable version is the version of the underlying container image which is used to execute the processes.
 For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop%2Ftags[image registry].
