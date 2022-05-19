@@ -149,7 +149,7 @@ pub async fn reconcile_hdfs(
                 &rolegroup_ref,
                 &namenode_podrefs,
                 &hadoop_container,
-                datanode_rolebinding
+                datanode_serviceaccount
                     .metadata
                     .name
                     .as_deref()
