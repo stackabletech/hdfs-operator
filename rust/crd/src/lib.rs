@@ -186,6 +186,10 @@ impl HdfsCluster {
         let mut group_labels = self.rolegroup_selector_labels(rolegroup_ref);
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
+        group_labels.insert(
+            "enrichment.stackable.tech/enabled".to_string(),
+            "true".to_string(),
+        );
         if rolegroup_ref.role == HdfsRole::DataNode.to_string() {
             group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
         }

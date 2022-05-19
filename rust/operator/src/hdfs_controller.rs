@@ -12,9 +12,7 @@ use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
     SecurityContext, ServiceAccount, TCPSocketAction, VolumeMount,
 };
-use stackable_operator::k8s_openapi::api::rbac::v1::{
-    ClusterRole, ClusterRoleBinding, RoleRef, Subject,
-};
+use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
     core::v1::{
@@ -233,7 +231,7 @@ pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
 fn datanode_serviceaccount(
     hdfs: &HdfsCluster,
     controller_config: &ControllerConfig,
-) -> Result<(ServiceAccount, ClusterRoleBinding), Error> {
+) -> Result<(ServiceAccount, RoleBinding), Error> {
     let role_name = HdfsRole::DataNode.to_string();
     let sa_name = format!("{}-{role_name}", hdfs.metadata.name.as_ref().unwrap());
     let sa = ServiceAccount {
@@ -249,15 +247,16 @@ fn datanode_serviceaccount(
             .build(),
         ..ServiceAccount::default()
     };
-    // Use a name that the user doesn't control directly when creating cluster-wide objects
+    // Use a name that the user doesn't control directly
     // to avoid letting the user manipulate us into overriding another existing binding
     let binding_name = format!(
         "hdfs-{role_name}-{}",
         hdfs.metadata.uid.as_deref().unwrap_or_default()
     );
     // Must be a cluster binding to allow access to global resources (Node)
-    let binding = ClusterRoleBinding {
+    let binding = RoleBinding {
         metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(hdfs)
             .name(binding_name)
             .ownerreference_from_resource(hdfs, None, Some(true))
             .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
@@ -659,7 +658,7 @@ fn datanode_containers(
             "sh".to_string(),
             "-c".to_string(),
             format!(
-                r#"kubectl get svc $POD_NAME -o json > /data/pod-svc && kubectl get node $NODE_NAME -o json > /data/pod-node && DATA_PORT=$(jq '.spec.ports[] | select(.name == "data") | .nodePort' /data/pod-svc) HTTP_PORT=$(jq '.spec.ports[] | select(.name == "http") | .nodePort' /data/pod-svc) IPC_PORT=$(jq '.spec.ports[] | select(.name == "ipc") | .nodePort' /data/pod-svc) NODE_IP=$(jq -r '.status.addresses | map(select(.type == "ExternalIP")) | .[0].address' /data/pod-node) {HADOOP_HOME}/bin/hdfs --debug datanode"#
+                r#"kubectl get svc $POD_NAME -o json > /data/pod-svc && DATA_PORT=$(jq '.spec.ports[] | select(.name == "data") | .nodePort' /data/pod-svc) HTTP_PORT=$(jq '.spec.ports[] | select(.name == "http") | .nodePort' /data/pod-svc) IPC_PORT=$(jq '.spec.ports[] | select(.name == "ipc") | .nodePort' /data/pod-svc) {HADOOP_HOME}/bin/hdfs --debug datanode"#
             ),
             // "--debug".to_string(),
             // "datanode".to_string(),
@@ -883,10 +882,12 @@ fn hdfs_common_container(
             ..EnvVar::default()
         },
         EnvVar {
-            name: "NODE_NAME".to_string(),
+            name: "NODE_IP".to_string(),
             value_from: Some(EnvVarSource {
                 field_ref: Some(ObjectFieldSelector {
-                    field_path: String::from("spec.nodeName"),
+                    field_path: String::from(
+                        "metadata.annotations['enrichment.stackable.tech/node-address']",
+                    ),
                     ..ObjectFieldSelector::default()
                 }),
                 ..EnvVarSource::default()
