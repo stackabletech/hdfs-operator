@@ -165,25 +165,30 @@ impl HdfsCluster {
         ))
     }
 
-    /// Kubernetes labels to attach to Pods within a role group.
-    ///
-    /// The same labels are also used as selectors for Services and StatefulSets.
+    /// Kubernetes labels to select Pods within a role group.
     pub fn rolegroup_selector_labels(
         &self,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     ) -> BTreeMap<String, String> {
-        let mut group_labels = role_group_selector_labels(
+        role_group_selector_labels(
             self,
             APP_NAME,
             &rolegroup_ref.role,
             &rolegroup_ref.role_group,
-        );
+        )
+    }
+
+    /// Kubernetes labels to attach to Pods within a role group.
+    pub fn rolegroup_pod_labels(
+        &self,
+        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    ) -> BTreeMap<String, String> {
+        let mut group_labels = self.rolegroup_selector_labels(rolegroup_ref);
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
-        if rolegroup_ref.role == "datanode" {
+        if rolegroup_ref.role == HdfsRole::DataNode.to_string() {
             group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
         }
-
         group_labels
     }
 

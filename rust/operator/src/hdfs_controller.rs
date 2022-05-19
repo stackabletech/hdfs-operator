@@ -33,7 +33,6 @@ use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
-use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -513,7 +512,7 @@ fn rolegroup_statefulset(
 
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
-            labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
+            labels: Some(hdfs.rolegroup_pod_labels(rolegroup_ref)),
             ..ObjectMeta::default()
         }),
         spec: Some(PodSpec {
@@ -552,12 +551,7 @@ fn rolegroup_statefulset(
             pod_management_policy: Some("OrderedReady".to_string()),
             replicas: Some(i32::from(replicas)),
             selector: LabelSelector {
-                match_labels: Some(role_group_selector_labels(
-                    hdfs,
-                    APP_NAME,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                )),
+                match_labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
                 ..LabelSelector::default()
             },
             service_name,
