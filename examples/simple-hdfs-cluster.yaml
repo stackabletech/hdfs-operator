@@ -4,7 +4,7 @@ kind: ZookeeperCluster
 metadata:
   name: simple-zk
 spec:
-  version: 3.5.8
+  version: 3.5.8-stackable0.7.0
   servers:
     roleGroups:
       default:
@@ -27,7 +27,7 @@ kind: HdfsCluster
 metadata:
   name: simple-hdfs
 spec:
-  version: 3.2.2
+  version: 3.2.2-stackable0.5.0
   zookeeperConfigMapName: simple-hdfs-znode
   dfsReplication: 3
   log4j: |-
