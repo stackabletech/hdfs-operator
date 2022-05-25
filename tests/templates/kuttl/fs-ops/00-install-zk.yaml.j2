@@ -5,6 +5,11 @@ metadata:
   name: hdfs-zk
 spec:
   servers:
+    config:
+      resources:
+        storage:
+          data:
+            capacity: '2Gi'
     roleGroups:
       default:
         replicas: 1
