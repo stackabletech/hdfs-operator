@@ -1,5 +1,5 @@
 certifi==2022.6.15
-charset-normalizer==2.1.0
+charset-normalizer==2.0.12 # Do not upgrade to 2.1.0 (requests expects ~2.0.x)
 idna==3.3
 requests==2.28.0
 urllib3==1.26.9
