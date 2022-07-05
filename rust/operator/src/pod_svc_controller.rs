@@ -8,10 +8,7 @@ use stackable_operator::{
         api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
         apimachinery::pkg::apis::meta::v1::OwnerReference,
     },
-    kube::{
-        core::ObjectMeta,
-        runtime::controller::{Action, Context},
-    },
+    kube::{core::ObjectMeta, runtime::controller::Action},
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,7 +17,7 @@ pub struct Ctx {
     pub client: stackable_operator::client::Client,
 }
 
-pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Context<Ctx>) -> HdfsOperatorResult<Action> {
+pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
 
     let name = pod.metadata.name.clone().ok_or(Error::PodHasNoName)?;
@@ -81,14 +78,13 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Context<Ctx>) -> HdfsOperatorResu
         }),
         ..Service::default()
     };
-    ctx.get_ref()
-        .client
+    ctx.client
         .apply_patch(FIELD_MANAGER_SCOPE_POD, &svc, &svc)
         .await
         .map_err(|source| Error::ApplyPodServiceFailed { source, name })?;
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }

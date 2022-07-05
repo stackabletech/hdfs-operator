@@ -21,7 +21,7 @@ use stackable_operator::k8s_openapi::api::{
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::api::ObjectMeta;
-use stackable_operator::kube::runtime::controller::{Action, Context};
+use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
@@ -41,18 +41,15 @@ pub struct Ctx {
     pub product_config: ProductConfigManager,
 }
 
-pub async fn reconcile_hdfs(
-    hdfs: Arc<HdfsCluster>,
-    ctx: Context<Ctx>,
-) -> HdfsOperatorResult<Action> {
+pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
-    let client = &ctx.get_ref().client;
+    let client = &ctx.client;
 
     let validated_config = validate_all_roles_and_groups_config(
         hdfs.hdfs_version()?,
         &transform_all_roles_to_config(&*hdfs, hdfs.build_role_properties()?)
             .map_err(|source| Error::InvalidRoleConfig { source })?,
-        &ctx.get_ref().product_config,
+        &ctx.product_config,
         false,
         false,
     )
@@ -147,7 +144,7 @@ pub async fn reconcile_hdfs(
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
