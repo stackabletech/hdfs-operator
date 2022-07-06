@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Include chart name when installing with a custom release name ([#205])
+
+[#205]: https://github.com/stackabletech/hdfs-operator/pull/205
+
 ## [0.4.0] - 2022-06-30
 
 ### Added
