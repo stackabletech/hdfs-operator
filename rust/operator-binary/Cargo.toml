@@ -13,7 +13,7 @@ stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git",
 stackable-hdfs-crd = { path = "../crd" }
 stackable-hdfs-operator = { path = "../operator" }
 clap = { version = "3.2", features = ["derive"] }
-tokio = { version = "1.19", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 serde_yaml = "0.8"
 
