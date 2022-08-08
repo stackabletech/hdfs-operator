@@ -9,8 +9,9 @@ use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
-    SecurityContext, ServiceAccount, TCPSocketAction, VolumeMount,
+    Container, ContainerPort, EphemeralVolumeSource, ObjectFieldSelector,
+    PersistentVolumeClaimTemplate, PodSpec, PodTemplateSpec, Probe, SecurityContext,
+    ServiceAccount, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::api::{
@@ -419,7 +420,7 @@ fn rolegroup_config_map(
                         .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                         .add("dfs.ha.automatic-failover.enabled", "true")
                         .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                        .add("dfs.datanode.hostname", "${env.NODE_IP}")
+                        .add("dfs.datanode.hostname", "${env.NODE_ADDR}")
                         // the extend with config must come last in order to have overrides working!!!
                         .extend(config)
                         .build_as_xml();
@@ -517,14 +518,45 @@ fn rolegroup_statefulset(
         spec: Some(PodSpec {
             containers,
             init_containers,
-            volumes: Some(vec![Volume {
-                name: "config".to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: Some(rolegroup_ref.object_name()),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            }]),
+            volumes: Some(vec![
+                Volume {
+                    name: "config".to_string(),
+                    config_map: Some(ConfigMapVolumeSource {
+                        name: Some(rolegroup_ref.object_name()),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                },
+                Volume {
+                    name: "lb".to_string(),
+                    ephemeral: Some(EphemeralVolumeSource {
+                        volume_claim_template: Some(PersistentVolumeClaimTemplate {
+                            metadata: Some(ObjectMeta {
+                                annotations: Some(
+                                    [(
+                                        "lb.stackable.tech/lb-class".to_string(),
+                                        "nodeport".to_string(),
+                                    )]
+                                    .into(),
+                                ),
+                                ..Default::default()
+                            }),
+                            spec: PersistentVolumeClaimSpec {
+                                access_modes: Some(vec!["ReadWriteMany".to_string()]),
+                                resources: Some(ResourceRequirements {
+                                    requests: Some(
+                                        [("storage".to_string(), Quantity("1".to_string()))].into(),
+                                    ),
+                                    ..Default::default()
+                                }),
+                                storage_class_name: Some("lb.stackable.tech".to_string()),
+                                ..Default::default()
+                            },
+                        }),
+                    }),
+                    ..Volume::default()
+                },
+            ]),
             service_account_name,
             ..PodSpec::default()
         }),
@@ -658,7 +690,7 @@ fn datanode_containers(
             "sh".to_string(),
             "-c".to_string(),
             format!(
-                r#"kubectl get svc $POD_NAME -o json > /data/pod-svc && DATA_PORT=$(jq '.spec.ports[] | select(.name == "data") | .nodePort' /data/pod-svc) HTTP_PORT=$(jq '.spec.ports[] | select(.name == "http") | .nodePort' /data/pod-svc) IPC_PORT=$(jq '.spec.ports[] | select(.name == "ipc") | .nodePort' /data/pod-svc) {HADOOP_HOME}/bin/hdfs --debug datanode"#
+                r#"NODE_ADDR=$(cat /stackabel/lb/default-address/address) DATA_PORT=$(cat /stackable/lb/default-address/ports/data) HTTP_PORT=$(cat /stackable/lb/default-address/ports/http) IPC_PORT=$(cat /stackable/lb/default-address/ports/ipc) {HADOOP_HOME}/bin/hdfs --debug datanode"#
             ),
             // "--debug".to_string(),
             // "datanode".to_string(),
@@ -882,19 +914,6 @@ fn hdfs_common_container(
             ..EnvVar::default()
         },
         EnvVar {
-            name: "NODE_IP".to_string(),
-            value_from: Some(EnvVarSource {
-                field_ref: Some(ObjectFieldSelector {
-                    field_path: String::from(
-                        "metadata.annotations['enrichment.stackable.tech/node-address']",
-                    ),
-                    ..ObjectFieldSelector::default()
-                }),
-                ..EnvVarSource::default()
-            }),
-            ..EnvVar::default()
-        },
-        EnvVar {
             name: "ZOOKEEPER".to_string(),
             value_from: Some(EnvVarSource {
                 config_map_key_ref: Some(ConfigMapKeySelector {
@@ -919,6 +938,11 @@ fn hdfs_common_container(
             VolumeMount {
                 mount_path: String::from(CONFIG_DIR_NAME),
                 name: "config".to_string(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                mount_path: "/stackable/lb".to_string(),
+                name: "lb".to_string(),
                 ..VolumeMount::default()
             },
         ]),
