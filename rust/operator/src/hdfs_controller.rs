@@ -2,6 +2,7 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
+use crate::OPERATOR_NAME;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
@@ -24,7 +25,6 @@ use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::memory::to_java_heap;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
@@ -59,12 +59,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let namenode_podrefs = hdfs.pod_refs(&HdfsRole::NameNode)?;
     let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
 
-    let discovery_cm = build_discovery_configmap(&hdfs, &namenode_podrefs).map_err(|e| {
-        Error::BuildDiscoveryConfigMap {
-            source: e,
-            name: hdfs.name(),
-        }
-    })?;
+    let discovery_cm = build_discovery_configmap(&hdfs, &namenode_podrefs)
+        .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
 
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
@@ -167,6 +163,7 @@ fn rolegroup_service(
                 hdfs,
                 APP_NAME,
                 hdfs.hdfs_version()?,
+                OPERATOR_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -202,44 +199,52 @@ fn rolegroup_config_map(
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
+    let hdfs_name = hdfs
+        .metadata
+        .name
+        .as_deref()
+        .ok_or(Error::ObjectHasNoName)?;
+
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
 
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
-                hdfs_site_xml =
-                    HdfsSiteConfigBuilder::new(hdfs.name(), HdfsNodeDataDirectory::default())
-                        // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
-                        // be formatted by the namenode, or used by the other services.
-                        // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-                        .dfs_namenode_name_dir()
-                        .dfs_datanode_data_dir()
-                        .dfs_journalnode_edits_dir()
-                        .dfs_replication(
-                            *hdfs
-                                .spec
-                                .dfs_replication
-                                .as_ref()
-                                .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
-                        )
-                        .dfs_name_services()
-                        .dfs_ha_namenodes(namenode_podrefs)
-                        .dfs_namenode_shared_edits_dir(journalnode_podrefs)
-                        .dfs_namenode_name_dir_ha(namenode_podrefs)
-                        .dfs_namenode_rpc_address_ha(namenode_podrefs)
-                        .dfs_namenode_http_address_ha(namenode_podrefs)
-                        .dfs_client_failover_proxy_provider()
-                        .add("dfs.ha.fencing.methods", "shell(/bin/true)")
-                        .add("dfs.ha.nn.not-become-active-in-safemode", "true")
-                        .add("dfs.ha.automatic-failover.enabled", "true")
-                        .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                        // the extend with config must come last in order to have overrides working!!!
-                        .extend(config)
-                        .build_as_xml();
+                hdfs_site_xml = HdfsSiteConfigBuilder::new(
+                    hdfs_name.to_string(),
+                    HdfsNodeDataDirectory::default(),
+                )
+                // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
+                // be formatted by the namenode, or used by the other services.
+                // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                .dfs_namenode_name_dir()
+                .dfs_datanode_data_dir()
+                .dfs_journalnode_edits_dir()
+                .dfs_replication(
+                    *hdfs
+                        .spec
+                        .dfs_replication
+                        .as_ref()
+                        .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
+                )
+                .dfs_name_services()
+                .dfs_ha_namenodes(namenode_podrefs)
+                .dfs_namenode_shared_edits_dir(journalnode_podrefs)
+                .dfs_namenode_name_dir_ha(namenode_podrefs)
+                .dfs_namenode_rpc_address_ha(namenode_podrefs)
+                .dfs_namenode_http_address_ha(namenode_podrefs)
+                .dfs_client_failover_proxy_provider()
+                .add("dfs.ha.fencing.methods", "shell(/bin/true)")
+                .add("dfs.ha.nn.not-become-active-in-safemode", "true")
+                .add("dfs.ha.automatic-failover.enabled", "true")
+                .add("dfs.ha.namenode.id", "${env.POD_NAME}")
+                // the extend with config must come last in order to have overrides working!!!
+                .extend(config)
+                .build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
-                core_site_xml = CoreSiteConfigBuilder::new(hdfs.name())
+                core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
                     // the extend with config must come last in order to have overrides working!!!
@@ -264,6 +269,7 @@ fn rolegroup_config_map(
                     hdfs,
                     APP_NAME,
                     hdfs.hdfs_version()?,
+                    OPERATOR_NAME,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
                 )
@@ -352,6 +358,7 @@ fn rolegroup_statefulset(
                 hdfs,
                 APP_NAME,
                 hdfs.hdfs_version()?,
+                OPERATOR_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
