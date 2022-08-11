@@ -69,6 +69,8 @@ pub enum Error {
     #[error("Cannot find rolegroup [{rolegroup}]")]
     RoleGroupNotFound { rolegroup: String },
 
+    #[error("Object has no name")]
+    ObjectHasNoName,
     #[error("Object has no namespace [{obj_ref}]")]
     ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
 
@@ -81,10 +83,9 @@ pub enum Error {
         role_group: String,
     },
 
-    #[error("Cannot build config discovery config map {name}. Caused by: {source}")]
+    #[error("Cannot build config discovery config map. Caused by: {source}")]
     BuildDiscoveryConfigMap {
         source: stackable_operator::error::Error,
-        name: String,
     },
 
     #[error("Pod has no name")]
