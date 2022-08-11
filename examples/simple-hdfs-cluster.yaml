@@ -27,7 +27,7 @@ kind: HdfsCluster
 metadata:
   name: simple-hdfs
 spec:
-  version: 3.2.2
+  version: 3.3.3-stackable0.1.0
   zookeeperConfigMapName: simple-hdfs-znode
   dfsReplication: 3
   log4j: |-
@@ -45,6 +45,11 @@ spec:
     log4j.appender.console.layout.ConversionPattern=%d{ISO8601} %p %c{2}: %m%n
     log4j.appender.EventCounter=org.apache.hadoop.log.metrics.EventCounter
   nameNodes:
+    config:
+      resources:
+        storage:
+          data:
+            capacity: 256Mi
     roleGroups:
       default:
         selector:
@@ -52,6 +57,11 @@ spec:
             kubernetes.io/os: linux
         replicas: 2
   dataNodes:
+    config:
+      resources:
+        storage:
+          data:
+            capacity: 1Gi
     roleGroups:
       default:
         selector:
@@ -59,6 +69,13 @@ spec:
             kubernetes.io/os: linux
         replicas: 3
   journalNodes:
+    config:
+      resources:
+        storage:
+          data:
+            capacity: 512Mi
+        memory:
+          limit: '1Gi'
     roleGroups:
       default:
         selector:

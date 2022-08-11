@@ -3,6 +3,7 @@ use crate::config::{
 };
 use crate::discovery::build_discovery_configmap;
 use crate::ControllerConfig;
+use crate::OPERATOR_NAME;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
@@ -10,15 +11,14 @@ use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, EphemeralVolumeSource, ObjectFieldSelector,
-    PersistentVolumeClaimTemplate, PodSpec, PodTemplateSpec, Probe, SecurityContext,
-    ServiceAccount, TCPSocketAction, VolumeMount,
+    PersistentVolumeClaimSpec, PersistentVolumeClaimTemplate, PodSpec, PodTemplateSpec, Probe,
+    ResourceRequirements, SecurityContext, ServiceAccount, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
     core::v1::{
-        ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EnvVar, EnvVarSource,
-        PersistentVolumeClaim, PersistentVolumeClaimSpec, ResourceRequirements, Service,
+        ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EnvVar, EnvVarSource, Service,
         ServicePort, ServiceSpec, Volume,
     },
 };
@@ -28,10 +28,11 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::{
 };
 use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::api::ObjectMeta;
-use stackable_operator::kube::runtime::controller::{Action, Context};
+use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
+use stackable_operator::memory::to_java_heap;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -47,19 +48,16 @@ pub struct Ctx {
     pub product_config: ProductConfigManager,
 }
 
-pub async fn reconcile_hdfs(
-    hdfs: Arc<HdfsCluster>,
-    ctx: Context<Ctx>,
-) -> HdfsOperatorResult<Action> {
+pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
-    let client = &ctx.get_ref().client;
-    let controller_config = &ctx.get_ref().controller_config;
+    let client = &ctx.client;
+    let controller_config = &ctx.controller_config;
 
     let validated_config = validate_all_roles_and_groups_config(
         hdfs.hdfs_version()?,
         &transform_all_roles_to_config(&*hdfs, hdfs.build_role_properties()?)
             .map_err(|source| Error::InvalidRoleConfig { source })?,
-        &ctx.get_ref().product_config,
+        &ctx.product_config,
         false,
         false,
     )
@@ -72,8 +70,6 @@ pub async fn reconcile_hdfs(
         .map(|podref| (&podref.pod_name, podref.clone()))
         .collect::<HashMap<_, _>>();
     let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
-
-    let dfs_replication = hdfs.spec.dfs_replication;
 
     let (datanode_serviceaccount, datanode_rolebinding) =
         datanode_serviceaccount(&hdfs, controller_config)?;
@@ -109,6 +105,7 @@ pub async fn reconcile_hdfs(
                 .unwrap_or_default(),
         })?;
 
+    let dfs_replication = hdfs.spec.dfs_replication;
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = serde_yaml::from_str(role_name).unwrap();
         let role_ports = ROLE_PORTS.get(&role).unwrap().as_slice();
@@ -141,6 +138,7 @@ pub async fn reconcile_hdfs(
                 &namenode_podrefs,
                 &journalnode_podrefs,
             )?;
+
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
                 &role,
@@ -211,7 +209,7 @@ pub async fn reconcile_hdfs(
     )
     .map_err(|e| Error::BuildDiscoveryConfigMap {
         source: e,
-        name: hdfs.name(),
+        name: hdfs.name_any(),
     })?;
 
     client
@@ -225,7 +223,7 @@ pub async fn reconcile_hdfs(
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
@@ -244,7 +242,14 @@ fn datanode_serviceaccount(
                 source,
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
-            .with_recommended_labels(hdfs, APP_NAME, hdfs.hdfs_version()?, &role_name, "global")
+            .with_recommended_labels(
+                hdfs,
+                APP_NAME,
+                hdfs.hdfs_version()?,
+                OPERATOR_NAME,
+                &role_name,
+                "global",
+            )
             .build(),
         ..ServiceAccount::default()
     };
@@ -264,7 +269,14 @@ fn datanode_serviceaccount(
                 source,
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
-            .with_recommended_labels(hdfs, APP_NAME, hdfs.hdfs_version()?, &role_name, "global")
+            .with_recommended_labels(
+                hdfs,
+                APP_NAME,
+                hdfs.hdfs_version()?,
+                OPERATOR_NAME,
+                &role_name,
+                "global",
+            )
             .build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),
@@ -300,6 +312,7 @@ fn rolegroup_service(
                 hdfs,
                 APP_NAME,
                 hdfs.hdfs_version()?,
+                OPERATOR_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -346,6 +359,7 @@ fn namenode_load_balancer_services(
                     hdfs,
                     APP_NAME,
                     hdfs.hdfs_version()?,
+                    OPERATOR_NAME,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
                 )
@@ -388,45 +402,53 @@ fn rolegroup_config_map(
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
+    let hdfs_name = hdfs
+        .metadata
+        .name
+        .as_deref()
+        .ok_or(Error::ObjectHasNoName)?;
+
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
 
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
-                hdfs_site_xml =
-                    HdfsSiteConfigBuilder::new(hdfs.name(), HdfsNodeDataDirectory::default())
-                        // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
-                        // be formatted by the namenode, or used by the other services.
-                        // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-                        .dfs_namenode_name_dir()
-                        .dfs_datanode_data_dir()
-                        .dfs_journalnode_edits_dir()
-                        .dfs_replication(
-                            *hdfs
-                                .spec
-                                .dfs_replication
-                                .as_ref()
-                                .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
-                        )
-                        .dfs_name_services()
-                        .dfs_ha_namenodes(namenode_podrefs)
-                        .dfs_namenode_shared_edits_dir(journalnode_podrefs)
-                        .dfs_namenode_name_dir_ha(namenode_podrefs)
-                        .dfs_namenode_rpc_address_ha(namenode_podrefs)
-                        .dfs_namenode_http_address_ha(namenode_podrefs)
-                        .dfs_client_failover_proxy_provider()
-                        .add("dfs.ha.fencing.methods", "shell(/bin/true)")
-                        .add("dfs.ha.nn.not-become-active-in-safemode", "true")
-                        .add("dfs.ha.automatic-failover.enabled", "true")
-                        .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                        .add("dfs.datanode.hostname", "${env.NODE_ADDR}")
-                        // the extend with config must come last in order to have overrides working!!!
-                        .extend(config)
-                        .build_as_xml();
+                hdfs_site_xml = HdfsSiteConfigBuilder::new(
+                    hdfs_name.to_string(),
+                    HdfsNodeDataDirectory::default(),
+                )
+                // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
+                // be formatted by the namenode, or used by the other services.
+                // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                .dfs_namenode_name_dir()
+                .dfs_datanode_data_dir()
+                .dfs_journalnode_edits_dir()
+                .dfs_replication(
+                    *hdfs
+                        .spec
+                        .dfs_replication
+                        .as_ref()
+                        .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
+                )
+                .dfs_name_services()
+                .dfs_ha_namenodes(namenode_podrefs)
+                .dfs_namenode_shared_edits_dir(journalnode_podrefs)
+                .dfs_namenode_name_dir_ha(namenode_podrefs)
+                .dfs_namenode_rpc_address_ha(namenode_podrefs)
+                .dfs_namenode_http_address_ha(namenode_podrefs)
+                .dfs_client_failover_proxy_provider()
+                .add("dfs.ha.fencing.methods", "shell(/bin/true)")
+                .add("dfs.ha.nn.not-become-active-in-safemode", "true")
+                .add("dfs.ha.automatic-failover.enabled", "true")
+                .add("dfs.ha.namenode.id", "${env.POD_NAME}")
+                .add("dfs.datanode.hostname", "${env.NODE_ADDR}")
+                // the extend with config must come last in order to have overrides working!!!
+                .extend(config)
+                .build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
-                core_site_xml = CoreSiteConfigBuilder::new(hdfs.name())
+                core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
                     // the extend with config must come last in order to have overrides working!!!
@@ -451,6 +473,7 @@ fn rolegroup_config_map(
                     hdfs,
                     APP_NAME,
                     hdfs.hdfs_version()?,
+                    OPERATOR_NAME,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
                 )
@@ -487,25 +510,27 @@ fn rolegroup_statefulset(
     let containers;
     let service_account_name;
 
+    let (pvc, resources) = hdfs.resources(role, rolegroup_ref);
+
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
             init_containers =
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = datanode_containers(rolegroup_ref, hadoop_container);
+            containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
             service_account_name = Some(datanode_service_account_name.to_string());
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             init_containers =
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
-            containers = namenode_containers(rolegroup_ref, hadoop_container);
+            containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
             service_account_name = None;
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = journalnode_init_containers(hadoop_container);
-            containers = journalnode_containers(rolegroup_ref, hadoop_container);
+            containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
             service_account_name = None;
         }
     }
@@ -574,6 +599,7 @@ fn rolegroup_statefulset(
                 hdfs,
                 APP_NAME,
                 hdfs.hdfs_version()?,
+                OPERATOR_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -587,10 +613,7 @@ fn rolegroup_statefulset(
             },
             service_name,
             template,
-            volume_claim_templates: Some(vec![local_disk_claim(
-                "data",
-                Quantity("1Gi".to_string()),
-            )]),
+            volume_claim_templates: Some(pvc),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -600,20 +623,40 @@ fn rolegroup_statefulset(
 fn journalnode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
-) -> Vec<Container> {
+    resources: &ResourceRequirements,
+) -> HdfsOperatorResult<Vec<Container>> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
 
-    env.push(EnvVar {
-                name: "HADOOP_JOURNALNODE_OPTS".to_string(),
-                value: Some(
-                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                    DEFAULT_JOURNAL_NODE_METRICS_PORT,
-                        rolegroup_ref.role,)
-                ),
-                ..EnvVar::default()
-            },);
+    let heap_opts = resources
+        .limits
+        .as_ref()
+        .and_then(|l| l.get("memory"))
+        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
+        .unwrap_or_else(|| Ok("".to_string()))
+        .map_err(|source| Error::JournalnodeJavaHeapConfig { source })?;
 
-    vec![Container {
+    let opts = vec![
+        Some(
+            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+            DEFAULT_JOURNAL_NODE_METRICS_PORT,
+            rolegroup_ref.role,)
+        ),
+        Some(heap_opts),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<String>>()
+    .join(" ")
+    .trim()
+    .to_string();
+
+    env.push(EnvVar {
+        name: "HDFS_JOURNALNODE_OPTS".to_string(),
+        value: Some(opts),
+        ..EnvVar::default()
+    });
+
+    Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
             format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
@@ -623,26 +666,48 @@ fn journalnode_containers(
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
         env: Some(env),
+        resources: Some(resources.clone()),
         ..hadoop_container.clone()
-    }]
+    }])
 }
 
 fn namenode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
-) -> Vec<Container> {
+    resources: &ResourceRequirements,
+) -> HdfsOperatorResult<Vec<Container>> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-    env.push(EnvVar {
-                name: "HADOOP_NAMENODE_OPTS".to_string(),
-                value: Some(
-                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                    DEFAULT_NAME_NODE_METRICS_PORT,
-                        rolegroup_ref.role,)
-                ),
-                ..EnvVar::default()
-            },);
 
-    vec![
+    let heap_opts = resources
+        .limits
+        .as_ref()
+        .and_then(|l| l.get("memory"))
+        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
+        .unwrap_or_else(|| Ok("".to_string()))
+        .map_err(|source| Error::NamenodeJavaHeapConfig { source })?;
+
+    let opts = vec![
+        Some(
+            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                DEFAULT_NAME_NODE_METRICS_PORT,
+                rolegroup_ref.role,)
+        ),
+        Some(heap_opts),
+        ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<String>>()
+    .join(" ")
+    .trim()
+    .to_string();
+
+    env.push(EnvVar {
+        name: "HDFS_NAMENODE_OPTS".to_string(),
+        value: Some(opts),
+        ..EnvVar::default()
+    });
+
+    Ok(vec![
         Container {
             name: rolegroup_ref.role.clone(),
             args: Some(vec![
@@ -655,7 +720,7 @@ fn namenode_containers(
             liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
             ..hadoop_container.clone()
         },
-        // Note that we don't add the HADOOP_OPTS / HADOOP_NAMENODE_OPTS env var to this container (zkfc)
+        // Note that we don't add the HADOOP_OPTS / HDFS_NAMENODE_OPTS env var to this container (zkfc)
         // Here it would cause an "address already in use" error and prevent the namenode container from starting.
         // Because the jmx exporter is not enabled here, also the readiness probes are not enabled.
         Container {
@@ -664,27 +729,46 @@ fn namenode_containers(
                 format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
                 "zkfc".to_string(),
             ]),
+            resources: Some(resources.clone()),
             ..hadoop_container.clone()
         },
-    ]
+    ])
 }
 
 fn datanode_containers(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     hadoop_container: &Container,
-) -> Vec<Container> {
+    resources: &ResourceRequirements,
+) -> HdfsOperatorResult<Vec<Container>> {
     let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-    env.push(EnvVar {
-                name: "HADOOP_DATANODE_OPTS".to_string(),
-                value: Some(
-                    format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                    DEFAULT_DATA_NODE_METRICS_PORT,
-                        rolegroup_ref.role,)
-                ),
-                ..EnvVar::default()
-            });
 
-    vec![Container {
+    let heap_opts = resources
+        .limits
+        .as_ref()
+        .and_then(|l| l.get("memory"))
+        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
+        .unwrap_or_else(|| Ok("".to_string()))
+        .map_err(|source| Error::DatanodeJavaHeapConfig { source })?;
+
+    let opts = vec![
+        Some(
+            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
+                DEFAULT_DATA_NODE_METRICS_PORT,
+                rolegroup_ref.role,)),
+        Some(heap_opts),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<String>>()
+    .join(" ");
+
+    env.push(EnvVar {
+        name: "HDFS_DATANODE_OPTS".to_string(),
+        value: Some(opts),
+        ..EnvVar::default()
+    });
+
+    Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
             "sh".to_string(),
@@ -700,8 +784,9 @@ fn datanode_containers(
         env: Some(env),
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
+        resources: Some(resources.clone()),
         ..hadoop_container.clone()
-    }]
+    }])
 }
 
 fn datanode_init_containers(
@@ -710,14 +795,15 @@ fn datanode_init_containers(
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
-    Container {
-        name: "wait-for-namenodes".to_string(),
-        image: Some(String::from(hdfs_image)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            format!("
+        chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
+        Container {
+            name: "wait-for-namenodes".to_string(),
+            image: Some(String::from(hdfs_image)),
+            args: Some(vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                format!(
+                    "
                 echo \"Waiting for namenodes to get ready:\"
                 n=0
                 while [ ${{n}} -lt 12 ];
@@ -726,18 +812,18 @@ fn datanode_init_containers(
                   for id in {pod_names}
                   do
                     echo -n \"Checking pod $id... \"
-                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
                     if [ \"$SERVICE_STATE\" = \"active\" ] || [ \"$SERVICE_STATE\" = \"standby\" ]
                     then
                       echo \"$SERVICE_STATE\"
-                    else 
+                    else
                       echo \"not ready\"
                       ALL_NODES_READY=false
                     fi
                   done
                   if [ \"$ALL_NODES_READY\" == \"true\" ]
                   then
-                    echo \"All namenodes ready!\" 
+                    echo \"All namenodes ready!\"
                     break
                   fi
                   echo \"\"
@@ -745,12 +831,17 @@ fn datanode_init_containers(
                   sleep 5
                 done
             ",
-            hadoop_home = HADOOP_HOME,
-            pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" ")
-            )
-        ]),
-        ..hadoop_container.clone()
-    },])
+                    hadoop_home = HADOOP_HOME,
+                    pod_names = namenode_podrefs
+                        .iter()
+                        .map(|pod_ref| pod_ref.pod_name.as_ref())
+                        .collect::<Vec<&str>>()
+                        .join(" ")
+                ),
+            ]),
+            ..hadoop_container.clone()
+        },
+    ])
 }
 
 fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
@@ -785,16 +876,16 @@ fn namenode_init_containers(
                  for id in {pod_names}
                  do
                    echo -n \"Checking pod $id... \"
-                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null) 
+                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
                    if [ \"$SERVICE_STATE\" == \"active\" ]
                    then
                      ACTIVE_NAMENODE=$id
                      echo \"active\"
                      break
                    fi
-                   echo \"\" 
+                   echo \"\"
                  done
-                
+
                  set -e
                  if [ ! -f \"{namenode_dir}/current/VERSION\" ]
                  then
@@ -803,8 +894,8 @@ fn namenode_init_containers(
                      echo \"Create pod $POD_NAME as active namenode.\"
                      {hadoop_home}/bin/hdfs namenode -format -noninteractive
                    else
-                     echo \"Create pod $POD_NAME as standby namenode.\" 
-                     {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive 
+                     echo \"Create pod $POD_NAME as standby namenode.\"
+                     {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                    fi
                  else
                    echo \"Pod $POD_NAME already formatted. Skipping...\"
@@ -963,24 +1054,6 @@ fn hdfs_common_container(
         }),
         ..Container::default()
     })
-}
-
-fn local_disk_claim(name: &str, size: Quantity) -> PersistentVolumeClaim {
-    PersistentVolumeClaim {
-        metadata: ObjectMeta {
-            name: Some(name.to_string()),
-            ..ObjectMeta::default()
-        },
-        spec: Some(PersistentVolumeClaimSpec {
-            access_modes: Some(vec!["ReadWriteOnce".to_string()]),
-            resources: Some(ResourceRequirements {
-                requests: Some(BTreeMap::from([("storage".to_string(), size)])),
-                ..ResourceRequirements::default()
-            }),
-            ..PersistentVolumeClaimSpec::default()
-        }),
-        ..PersistentVolumeClaim::default()
-    }
 }
 
 /// Publish a Kubernetes event for the `hdfs` cluster resource.

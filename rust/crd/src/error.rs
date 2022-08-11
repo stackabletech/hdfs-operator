@@ -88,6 +88,8 @@ pub enum Error {
     #[error("cannot find rolegroup {rolegroup}")]
     RoleGroupNotFound { rolegroup: String },
 
+    #[error("object has no name")]
+    ObjectHasNoName,
     #[error("object {obj_ref} has no namespace")]
     ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
 
@@ -126,6 +128,21 @@ pub enum Error {
     #[error("failed to publish event")]
     PublishEvent {
         source: stackable_operator::kube::Error,
+    },
+
+    #[error("Name node Java heap config: {source}")]
+    NamenodeJavaHeapConfig {
+        source: stackable_operator::error::Error,
+    },
+
+    #[error("Data node Java heap config: {source}")]
+    DatanodeJavaHeapConfig {
+        source: stackable_operator::error::Error,
+    },
+
+    #[error("Journal node Java heap config: {source}")]
+    JournalnodeJavaHeapConfig {
+        source: stackable_operator::error::Error,
     },
 }
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;

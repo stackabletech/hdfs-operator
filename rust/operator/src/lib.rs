@@ -3,6 +3,8 @@ mod discovery;
 mod hdfs_controller;
 mod pod_svc_controller;
 
+use std::sync::Arc;
+
 use futures::StreamExt;
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::HdfsCluster;
@@ -11,7 +13,6 @@ use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
 use stackable_operator::kube::api::ListParams;
-use stackable_operator::kube::runtime::controller::Context;
 use stackable_operator::kube::runtime::Controller;
 use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_operator::namespace::WatchNamespace;
@@ -22,6 +23,8 @@ use tracing_futures::Instrument;
 pub struct ControllerConfig {
     pub datanode_clusterrole: String,
 }
+
+const OPERATOR_NAME: &str = "hdfs-operator";
 
 pub async fn create_controller(
     client: Client,
@@ -46,7 +49,7 @@ pub async fn create_controller(
     .run(
         hdfs_controller::reconcile_hdfs,
         hdfs_controller::error_policy,
-        Context::new(hdfs_controller::Ctx {
+        Arc::new(hdfs_controller::Ctx {
             client: client.clone(),
             product_config,
             controller_config,
@@ -64,7 +67,7 @@ pub async fn create_controller(
     .run(
         pod_svc_controller::reconcile_pod,
         pod_svc_controller::error_policy,
-        Context::new(pod_svc_controller::Ctx {
+        Arc::new(pod_svc_controller::Ctx {
             client: client.clone(),
         }),
     )
