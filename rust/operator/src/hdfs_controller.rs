@@ -11,7 +11,7 @@ use stackable_lb_operator::crd::{LoadBalancer, LoadBalancerPort, LoadBalancerSpe
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EphemeralVolumeSource, ObjectFieldSelector,
+    Container, ContainerPort, EphemeralVolumeSource, ObjectFieldSelector, PersistentVolumeClaim,
     PersistentVolumeClaimSpec, PersistentVolumeClaimTemplate, PodSpec, PodTemplateSpec, Probe,
     ResourceRequirements, SecurityContext, ServiceAccount, TCPSocketAction, VolumeMount,
 };
@@ -507,7 +507,37 @@ fn rolegroup_statefulset(
     let containers;
     let service_account_name;
 
-    let (pvc, resources) = hdfs.resources(role, rolegroup_ref);
+    let (mut sts_pvcs, resources) = hdfs.resources(role, rolegroup_ref);
+    let mut pod_volumes = vec![Volume {
+        name: "config".to_string(),
+        config_map: Some(ConfigMapVolumeSource {
+            name: Some(rolegroup_ref.object_name()),
+            ..ConfigMapVolumeSource::default()
+        }),
+        ..Volume::default()
+    }];
+
+    let lb_pvc = PersistentVolumeClaimTemplate {
+        metadata: Some(ObjectMeta {
+            annotations: Some(
+                [(
+                    "lb.stackable.tech/lb-class".to_string(),
+                    "nodeport".to_string(),
+                )]
+                .into(),
+            ),
+            ..Default::default()
+        }),
+        spec: PersistentVolumeClaimSpec {
+            access_modes: Some(vec!["ReadWriteMany".to_string()]),
+            resources: Some(ResourceRequirements {
+                requests: Some([("storage".to_string(), Quantity("1".to_string()))].into()),
+                ..Default::default()
+            }),
+            storage_class_name: Some("lb.stackable.tech".to_string()),
+            ..Default::default()
+        },
+    };
 
     match role {
         HdfsRole::DataNode => {
@@ -516,6 +546,13 @@ fn rolegroup_statefulset(
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
             service_account_name = Some(datanode_service_account_name.to_string());
+            pod_volumes.push(Volume {
+                name: "lb".to_string(),
+                ephemeral: Some(EphemeralVolumeSource {
+                    volume_claim_template: Some(lb_pvc),
+                }),
+                ..Volume::default()
+            });
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
@@ -523,12 +560,26 @@ fn rolegroup_statefulset(
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
             service_account_name = None;
+            let mut lb_pvc_meta = lb_pvc.metadata.unwrap_or_default();
+            lb_pvc_meta.name = Some("lb".to_string());
+            sts_pvcs.push(PersistentVolumeClaim {
+                metadata: lb_pvc_meta,
+                spec: Some(lb_pvc.spec),
+                ..Default::default()
+            });
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = journalnode_init_containers(hadoop_container);
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
             service_account_name = None;
+            pod_volumes.push(Volume {
+                name: "lb".to_string(),
+                ephemeral: Some(EphemeralVolumeSource {
+                    volume_claim_template: Some(lb_pvc),
+                }),
+                ..Volume::default()
+            });
         }
     }
 
@@ -540,45 +591,7 @@ fn rolegroup_statefulset(
         spec: Some(PodSpec {
             containers,
             init_containers,
-            volumes: Some(vec![
-                Volume {
-                    name: "config".to_string(),
-                    config_map: Some(ConfigMapVolumeSource {
-                        name: Some(rolegroup_ref.object_name()),
-                        ..ConfigMapVolumeSource::default()
-                    }),
-                    ..Volume::default()
-                },
-                Volume {
-                    name: "lb".to_string(),
-                    ephemeral: Some(EphemeralVolumeSource {
-                        volume_claim_template: Some(PersistentVolumeClaimTemplate {
-                            metadata: Some(ObjectMeta {
-                                annotations: Some(
-                                    [(
-                                        "lb.stackable.tech/lb-class".to_string(),
-                                        "nodeport".to_string(),
-                                    )]
-                                    .into(),
-                                ),
-                                ..Default::default()
-                            }),
-                            spec: PersistentVolumeClaimSpec {
-                                access_modes: Some(vec!["ReadWriteMany".to_string()]),
-                                resources: Some(ResourceRequirements {
-                                    requests: Some(
-                                        [("storage".to_string(), Quantity("1".to_string()))].into(),
-                                    ),
-                                    ..Default::default()
-                                }),
-                                storage_class_name: Some("lb.stackable.tech".to_string()),
-                                ..Default::default()
-                            },
-                        }),
-                    }),
-                    ..Volume::default()
-                },
-            ]),
+            volumes: Some(pod_volumes),
             service_account_name,
             ..PodSpec::default()
         }),
@@ -610,7 +623,7 @@ fn rolegroup_statefulset(
             },
             service_name,
             template,
-            volume_claim_templates: Some(pvc),
+            volume_claim_templates: Some(sts_pvcs),
             ..StatefulSetSpec::default()
         }),
         status: None,
