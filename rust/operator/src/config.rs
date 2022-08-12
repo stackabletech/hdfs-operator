@@ -3,7 +3,7 @@ use stackable_hdfs_crd::constants::{
     DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
     DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_NAME_DIR,
     DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_NAME_SERVICES, DFS_REPLICATION,
-    FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
+    FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_RPC,
 };
 use stackable_hdfs_crd::HdfsPodRef;
 use std::collections::BTreeMap;
@@ -155,6 +155,7 @@ impl HdfsSiteConfigBuilder {
         self.dfs_namenode_address_ha(
             namenode_podrefs,
             DFS_NAMENODE_RPC_ADDRESS,
+            SERVICE_PORT_NAME_RPC,
             DEFAULT_NAME_NODE_RPC_PORT,
         );
         self
@@ -164,6 +165,7 @@ impl HdfsSiteConfigBuilder {
         self.dfs_namenode_address_ha(
             namenode_podrefs,
             DFS_NAMENODE_HTTP_ADDRESS,
+            SERVICE_PORT_NAME_HTTP,
             DEFAULT_NAME_NODE_HTTP_PORT,
         );
         self
@@ -173,6 +175,7 @@ impl HdfsSiteConfigBuilder {
         &mut self,
         namenode_podrefs: &[HdfsPodRef],
         address: &str,
+        port_name: &str,
         default_port: i32,
     ) -> &mut Self {
         for nn in namenode_podrefs {
@@ -181,7 +184,7 @@ impl HdfsSiteConfigBuilder {
                 format!(
                     "{}:{}",
                     nn.fqdn(),
-                    nn.ports.get(address).map_or(default_port, |p| *p)
+                    nn.ports.get(port_name).map_or(default_port, |p| *p)
                 ),
             );
         }
