@@ -7,6 +7,7 @@ use crate::OPERATOR_NAME;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
+use stackable_lb_operator::crd::{LoadBalancer, LoadBalancerPort, LoadBalancerSpec};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
@@ -188,16 +189,14 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                         name: name.clone(),
                     })?;
                 if let Some(namenode_external_pod_ref) = namenode_external_podrefs.get_mut(&name) {
+                    let lb_addr = applied_svc
+                        .status
+                        .and_then(|status| status.ingress_addresses?.into_iter().next());
                     namenode_external_pod_ref.external_name =
-                        applied_svc.status.and_then(|status| {
-                            status
-                                .load_balancer?
-                                .ingress?
-                                .into_iter()
-                                .flat_map(|ingress| [ingress.hostname, ingress.ip])
-                                .flatten()
-                                .next()
-                        });
+                        lb_addr.as_ref().map(|addr| addr.address.clone());
+                    namenode_external_pod_ref.ports = lb_addr
+                        .map(|addr| addr.ports.into_iter().collect())
+                        .unwrap_or_default();
                 }
             }
         }
@@ -342,11 +341,11 @@ fn rolegroup_service(
 fn namenode_load_balancer_services(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-) -> Result<Vec<Service>, Error> {
+) -> Result<Vec<LoadBalancer>, Error> {
     let mut services = Vec::new();
     for replica in 0..hdfs.rolegroup_namenode_replicas(rolegroup_ref)? {
         let replica_name = format!("{}-{replica}", rolegroup_ref.object_name());
-        services.push(Service {
+        services.push(LoadBalancer {
             metadata: ObjectMetaBuilder::new()
                 .name_and_namespace(hdfs)
                 .name(&replica_name)
@@ -365,9 +364,9 @@ fn namenode_load_balancer_services(
                 )
                 .with_label("prometheus.io/scrape", "true")
                 .build(),
-            spec: Some(ServiceSpec {
-                type_: Some("LoadBalancer".to_string()),
-                selector: Some(
+            spec: LoadBalancerSpec {
+                class_name: Some("nodeport".to_string()),
+                pod_selector: Some(
                     [(
                         "statefulset.kubernetes.io/pod-name".to_string(),
                         replica_name,
@@ -377,16 +376,14 @@ fn namenode_load_balancer_services(
                 ports: Some(
                     ROLE_PORTS[&HdfsRole::NameNode]
                         .iter()
-                        .map(|(name, port)| ServicePort {
-                            name: Some(name.clone()),
+                        .map(|(name, port)| LoadBalancerPort {
+                            name: name.clone(),
                             port: *port,
-                            ..ServicePort::default()
+                            protocol: Some("TCP".to_string()),
                         })
                         .collect(),
                 ),
-                publish_not_ready_addresses: Some(true),
-                ..ServiceSpec::default()
-            }),
+            },
             status: None,
         })
     }
