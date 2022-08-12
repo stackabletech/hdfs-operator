@@ -28,8 +28,8 @@ pub enum Error {
         name: String,
     },
 
-    #[error("cannot create namenode service {name}")]
-    ApplyNameNodeService {
+    #[error("cannot get namenode service {name}")]
+    GetNameNodeService {
         source: stackable_operator::error::Error,
         name: String,
     },
