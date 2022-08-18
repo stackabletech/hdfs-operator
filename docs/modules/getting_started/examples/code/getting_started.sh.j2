@@ -119,13 +119,9 @@ location=$(create_file | jq -r '.Location')
 
 echo "Redirect location: $location"
 
-create_redirected() {
-  # tag::create-file-redirected[]
-  kubectl exec -n default webhdfs-0 -- curl -s -XPUT -T /tmp/testdata.txt "$location"
-  # end::create-file-redirected[]
-}
-
-redirected=$(create_redirected)
+# tag::create-file-redirected[]
+kubectl exec -n default webhdfs-0 -- curl -s -XPUT -T /tmp/testdata.txt "$location"
+# end::create-file-redirected[]
 
 echo "Confirm that HDFS is *not* empty..."
 found_file=$(file_status | jq -r '.FileStatuses.FileStatus[0].pathSuffix')
