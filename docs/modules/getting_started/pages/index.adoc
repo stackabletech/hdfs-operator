@@ -8,7 +8,7 @@ You will need:
 
 * a Kubernetes cluster
 * kubectl
-* Helm
+* optional: Helm
 
 == What's next
 
