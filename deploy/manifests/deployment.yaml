@@ -29,9 +29,6 @@ spec:
           image: "docker.stackable.tech/stackable/hdfs-operator:0.5.0-nightly"
           imagePullPolicy: IfNotPresent
           resources: {}
-          env:
-            - name: HDFS_DATANODE_CLUSTERROLE
-              value: hdfs-operator-hdfs-datanode-clusterrole
           volumeMounts:
             - mountPath: /etc/stackable/hdfs-operator/config-spec
               name: config-spec

@@ -2,7 +2,6 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
-use crate::ControllerConfig;
 use crate::OPERATOR_NAME;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
@@ -13,9 +12,8 @@ use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, EphemeralVolumeSource, ObjectFieldSelector, PersistentVolumeClaim,
     PersistentVolumeClaimSpec, PersistentVolumeClaimTemplate, PodSpec, PodTemplateSpec, Probe,
-    ResourceRequirements, SecurityContext, ServiceAccount, TCPSocketAction, VolumeMount,
+    ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
 };
-use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
     core::v1::{
@@ -27,7 +25,6 @@ use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrStrin
 use stackable_operator::k8s_openapi::apimachinery::pkg::{
     api::resource::Quantity, apis::meta::v1::LabelSelector,
 };
-use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
@@ -45,14 +42,12 @@ use std::time::Duration;
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
-    pub controller_config: ControllerConfig,
     pub product_config: ProductConfigManager,
 }
 
 pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
-    let controller_config = &ctx.controller_config;
 
     let validated_config = validate_all_roles_and_groups_config(
         hdfs.hdfs_version()?,
@@ -71,40 +66,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         .map(|podref| (&podref.pod_name, podref.clone()))
         .collect::<HashMap<_, _>>();
     let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
-
-    let (datanode_serviceaccount, datanode_rolebinding) =
-        datanode_serviceaccount(&hdfs, controller_config)?;
-
-    client
-        .apply_patch(
-            FIELD_MANAGER_SCOPE,
-            &datanode_serviceaccount,
-            &datanode_serviceaccount,
-        )
-        .await
-        .map_err(|e| Error::ApplyRoleServiceAccount {
-            source: e,
-            name: datanode_serviceaccount
-                .metadata
-                .name
-                .clone()
-                .unwrap_or_default(),
-        })?;
-    client
-        .apply_patch(
-            FIELD_MANAGER_SCOPE,
-            &datanode_rolebinding,
-            &datanode_rolebinding,
-        )
-        .await
-        .map_err(|e| Error::ApplyRoleRoleBinding {
-            source: e,
-            name: datanode_rolebinding
-                .metadata
-                .name
-                .clone()
-                .unwrap_or_default(),
-        })?;
 
     let dfs_replication = hdfs.spec.dfs_replication;
     for (role_name, group_config) in validated_config.iter() {
@@ -146,11 +107,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &rolegroup_ref,
                 &namenode_podrefs,
                 &hadoop_container,
-                datanode_serviceaccount
-                    .metadata
-                    .name
-                    .as_deref()
-                    .unwrap_or_default(),
             )?;
             let rg_namenode_services = if role == HdfsRole::NameNode {
                 namenode_load_balancer_services(&hdfs, &rolegroup_ref)?
@@ -230,72 +186,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
 pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
-}
-
-fn datanode_serviceaccount(
-    hdfs: &HdfsCluster,
-    controller_config: &ControllerConfig,
-) -> Result<(ServiceAccount, RoleBinding), Error> {
-    let role_name = HdfsRole::DataNode.to_string();
-    let sa_name = format!("{}-{role_name}", hdfs.metadata.name.as_ref().unwrap());
-    let sa = ServiceAccount {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(&sa_name)
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
-                source,
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(
-                hdfs,
-                APP_NAME,
-                hdfs.hdfs_version()?,
-                OPERATOR_NAME,
-                &role_name,
-                "global",
-            )
-            .build(),
-        ..ServiceAccount::default()
-    };
-    // Use a name that the user doesn't control directly
-    // to avoid letting the user manipulate us into overriding another existing binding
-    let binding_name = format!(
-        "hdfs-{role_name}-{}",
-        hdfs.metadata.uid.as_deref().unwrap_or_default()
-    );
-    // Must be a cluster binding to allow access to global resources (Node)
-    let binding = RoleBinding {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(binding_name)
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
-                source,
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(
-                hdfs,
-                APP_NAME,
-                hdfs.hdfs_version()?,
-                OPERATOR_NAME,
-                &role_name,
-                "global",
-            )
-            .build(),
-        role_ref: RoleRef {
-            api_group: ClusterRole::GROUP.to_string(),
-            kind: ClusterRole::KIND.to_string(),
-            name: controller_config.datanode_clusterrole.clone(),
-        },
-        subjects: Some(vec![Subject {
-            api_group: Some(ServiceAccount::GROUP.to_string()),
-            kind: ServiceAccount::KIND.to_string(),
-            name: sa_name,
-            namespace: sa.metadata.namespace.clone(),
-        }]),
-    };
-    Ok((sa, binding))
 }
 
 fn rolegroup_service(
@@ -467,7 +357,6 @@ fn rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
-    datanode_service_account_name: &str,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
@@ -476,7 +365,6 @@ fn rolegroup_statefulset(
     let replicas;
     let init_containers;
     let containers;
-    let service_account_name;
 
     let (mut sts_pvcs, resources) = hdfs.resources(role, rolegroup_ref);
     let mut pod_volumes = vec![Volume {
@@ -516,7 +404,6 @@ fn rolegroup_statefulset(
             init_containers =
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
-            service_account_name = Some(datanode_service_account_name.to_string());
             pod_volumes.push(Volume {
                 name: "lb".to_string(),
                 ephemeral: Some(EphemeralVolumeSource {
@@ -530,7 +417,6 @@ fn rolegroup_statefulset(
             init_containers =
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
-            service_account_name = None;
             let mut lb_pvc_meta = lb_pvc.metadata.unwrap_or_default();
             lb_pvc_meta.name = Some("lb".to_string());
             sts_pvcs.push(PersistentVolumeClaim {
@@ -543,7 +429,6 @@ fn rolegroup_statefulset(
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = journalnode_init_containers(hadoop_container);
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
-            service_account_name = None;
             pod_volumes.push(Volume {
                 name: "lb".to_string(),
                 ephemeral: Some(EphemeralVolumeSource {
@@ -563,7 +448,6 @@ fn rolegroup_statefulset(
             containers,
             init_containers,
             volumes: Some(pod_volumes),
-            service_account_name,
             ..PodSpec::default()
         }),
     };

@@ -21,15 +21,10 @@ use stackable_operator::product_config::ProductConfigManager;
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-pub struct ControllerConfig {
-    pub datanode_clusterrole: String,
-}
-
 const OPERATOR_NAME: &str = "hdfs-operator";
 
 pub async fn create_controller(
     client: Client,
-    controller_config: ControllerConfig,
     product_config: ProductConfigManager,
     namespace: WatchNamespace,
 ) {
@@ -57,7 +52,6 @@ pub async fn create_controller(
         Arc::new(hdfs_controller::Ctx {
             client: client.clone(),
             product_config,
-            controller_config,
         }),
     )
     .map(|res| report_controller_reconciled(&client, CONTROLLER_NAME, &res))
