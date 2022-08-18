@@ -89,6 +89,14 @@ rules:
       - {{ include "operator.name" . }}clusters/status
     verbs:
       - patch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    verbs:
+      - bind
+    resourceNames:
+      - {{ include "operator.name" . }}-clusterrole
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
 ---
 apiVersion: security.openshift.io/v1
