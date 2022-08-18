@@ -300,7 +300,7 @@ fn rolegroup_config_map(
                 .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                 .add("dfs.ha.automatic-failover.enabled", "true")
                 .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                .add("dfs.datanode.hostname", "${env.NODE_ADDR}")
+                .add("dfs.datanode.hostname", "${env.NODE_IP}")
                 // the extend with config must come last in order to have overrides working!!!
                 .extend(config)
                 .build_as_xml();
@@ -639,7 +639,7 @@ fn datanode_containers(
             "sh".to_string(),
             "-c".to_string(),
             format!(
-                r#"NODE_ADDR=$(cat /stackabel/lb/default-address/address) DATA_PORT=$(cat /stackable/lb/default-address/ports/data) HTTP_PORT=$(cat /stackable/lb/default-address/ports/http) IPC_PORT=$(cat /stackable/lb/default-address/ports/ipc) {HADOOP_HOME}/bin/hdfs --debug datanode"#
+                r#"NODE_IP=$(cat /stackable/lb/default-address/address) DATA_PORT=$(cat /stackable/lb/default-address/ports/data) HTTP_PORT=$(cat /stackable/lb/default-address/ports/http) IPC_PORT=$(cat /stackable/lb/default-address/ports/ipc) {HADOOP_HOME}/bin/hdfs --debug datanode"#
             ),
             // "--debug".to_string(),
             // "datanode".to_string(),
