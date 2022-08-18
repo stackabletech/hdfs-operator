@@ -41,9 +41,6 @@ spec:
             capacity: 1Gi
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 1
   journalNodes:
     config:
