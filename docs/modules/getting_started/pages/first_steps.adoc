@@ -11,7 +11,7 @@ To deploy a Zookeeper cluster create one file called `zk.yaml`:
 [source,yaml]
 include::example$code/zk.yaml[]
 
-We also need to define a `ZNode` that will be used by the HDFS cluster to reference Zookeeper. Create another file called `znode.yaml`:
+We also need to define a ZNode that will be used by the HDFS cluster to reference Zookeeper. Create another file called `znode.yaml`:
 
 [source,yaml]
 include::example$code/znode.yaml[]
