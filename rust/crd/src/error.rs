@@ -126,6 +126,17 @@ pub enum Error {
     JournalnodeJavaHeapConfig {
         source: stackable_operator::error::Error,
     },
+
+    #[error("failed to patch service account: {source}")]
+    ApplyServiceAccount {
+        name: String,
+        source: stackable_operator::error::Error,
+    },
+    #[error("failed to patch role binding: {source}")]
+    ApplyRoleBinding {
+        name: String,
+        source: stackable_operator::error::Error,
+    },
 }
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
 

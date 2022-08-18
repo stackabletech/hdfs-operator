@@ -2,11 +2,11 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
-use crate::OPERATOR_NAME;
+use crate::{rbac, OPERATOR_NAME};
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
-use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
+use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
@@ -25,6 +25,7 @@ use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::memory::to_java_heap;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
@@ -72,6 +73,22 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let dfs_replication = hdfs.spec.dfs_replication;
 
+    let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hdfs.as_ref(), "hdfs");
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_sa, &rbac_sa)
+        .await
+        .map_err(|source| Error::ApplyServiceAccount {
+            source,
+            name: rbac_sa.name_any(),
+        })?;
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_rolebinding, &rbac_rolebinding)
+        .await
+        .map_err(|source| Error::ApplyRoleBinding {
+            source,
+            name: rbac_rolebinding.name_any(),
+        })?;
+
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = serde_yaml::from_str(role_name).unwrap();
         let role_ports = ROLE_PORTS.get(&role).unwrap().as_slice();
@@ -111,6 +128,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &rolegroup_ref,
                 &namenode_podrefs,
                 &hadoop_container,
+                &rbac_sa.name_any(),
             )?;
 
             client
@@ -295,6 +313,7 @@ fn rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
+    rbac_sa: &str,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
@@ -342,6 +361,14 @@ fn rolegroup_statefulset(
                 }),
                 ..Volume::default()
             }]),
+            service_account: Some(rbac_sa.to_string()),
+            security_context: Some(
+                PodSecurityContextBuilder::new()
+                    .run_as_user(rbac::HDFS_UID)
+                    .run_as_group(0)
+                    .fs_group(1000) // Needed for secret-operator
+                    .build(),
+            ),
             ..PodSpec::default()
         }),
     };
