@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 - Added OpenShift compatiblity ([#225])
 
 [#205]: https://github.com/stackabletech/hdfs-operator/pull/205
-[#205]: https://github.com/stackabletech/hdfs-operator/pull/205
+[#225]: https://github.com/stackabletech/hdfs-operator/pull/225
 
 ## [0.4.0] - 2022-06-30
 
