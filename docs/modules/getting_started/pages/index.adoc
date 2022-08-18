@@ -1,0 +1,18 @@
+= Getting started
+
+This guide will get you started with HDFS using the Stackable Operator. It will guide you through the installation of the Operator and its dependencies, setting up your first HDFS cluster and ...
+
+== Prerequisites
+
+You will need:
+
+* a Kubernetes cluster
+* kubectl
+* Helm
+
+== What's next
+
+The Guide is divided into two steps:
+
+* xref:installation.adoc[Installing the Operators].
+* xref:first_steps.adoc[Setting up the HDFS cluster and verifying it works].

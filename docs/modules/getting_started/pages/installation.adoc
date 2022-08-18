@@ -1,0 +1,54 @@
+= Installation
+
+On this page you will install the Stackable HDFS operator and its dependency, the Zookeeper operator, as well as the commons and secret operators which are required by all Stackable operators.
+
+== Stackable Operators
+
+There are 2 ways to run Stackable Operators
+
+1. Using xref:stackablectl::index.adoc[]
+
+1. Using Helm
+
+=== stackablectl
+
+stackablectl is the command line tool to interact with Stackable operators and our recommended way to install operators.
+Follow the xref:stackablectl::installation.adoc[installation steps] for your platform.
+
+After you have installed stackablectl run the following command to install all operators necessary for Zookeeper:
+
+[source,bash]
+----
+include::example$code/getting_started.sh[tag=stackablectl-install-operators]
+----
+
+The tool will show
+
+----
+[INFO ] Installing commons operator
+[INFO ] Installing secret operator
+[INFO ] Installing zookeeper operator
+[INFO ] Installing hdfs operator
+----
+
+TIP: Consult the xref:stackablectl::quickstart.adoc[] to learn more about how to use stackablectl. For example, you can use the `-k` flag to create a Kubernetes cluster with link:https://kind.sigs.k8s.io/[kind].
+
+=== Helm
+
+You can also use Helm to install the operators. Add the Stackable Helm repository:
+[source,bash]
+----
+include::example$code/getting_started.sh[tag=helm-add-repo]
+----
+
+Then install the Stackable Operators:
+[source,bash]
+----
+include::example$code/getting_started.sh[tag=helm-install-operators]
+----
+
+Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the HDFS cluster (as well as the CRDs for the required operators). You are now ready to deploy HDFS in Kubernetes.
+
+== What's next
+
+xref:first_steps.adoc[Set up an HDFS cluster] and its dependencies and xref:first_steps.adoc#_verify_that_it_works[verify that it works].

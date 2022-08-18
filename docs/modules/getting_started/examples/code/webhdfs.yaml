@@ -1,0 +1,23 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: webhdfs
+  labels:
+    app: webhdfs
+spec:
+  replicas: 1
+  serviceName: webhdfs-svc
+  selector:
+    matchLabels:
+      app: webhdfs
+  template:
+    metadata:
+      labels:
+        app: webhdfs
+    spec:
+      containers:
+        - name: webhdfs
+          image: docker.stackable.tech/stackable/testing-tools:0.1.0-stackable0.1.0
+          stdin: true
+          tty: true
