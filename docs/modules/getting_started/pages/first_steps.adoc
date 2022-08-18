@@ -58,14 +58,14 @@ include::example$code/getting_started.sh[tag=watch-hdfs-rollout]
 
 == Verify that it works
 
-To test the cluster you can create a new file, check its status and then delete it. We will execute these actions from within a helper pod. Create file called `webhdfs.yaml`:
+To test the cluster you can create a new file, check its status and then delete it. We will execute these actions from within a helper pod. Create a file called `webhdfs.yaml`:
 
 [source,yaml]
 ----
 include::example$code/webhdfs.yaml[]
 ----
 
-Apply it watch its progress:
+Apply it and monitor its progress:
 
 [source]
 include::example$code/getting_started.sh[tag=install-webhdfs]
@@ -76,7 +76,7 @@ To begin with  the cluster should be empty: this can be verified by listing all 
 [source]
 include::example$code/getting_started.sh[tag=file-status]
 
-Creating a file in HDFS using the https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Create_and_Write_to_a_File[Webhdfs API] requires a two-step `PUT` (the reason of having two-step create/append is for preventing clients to send out data before the redirect). First, create a file with some text in it called `testdata.txt` and copy it to the `tmp` directory on the helper pod:
+Creating a file in HDFS using the https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Create_and_Write_to_a_File[Webhdfs API] requires a two-step `PUT` (the reason for having a two-step create/append is to prevent clients from sending out data before the redirect). First, create a file with some text in it called `testdata.txt` and copy it to the `tmp` directory on the helper pod:
 
 [source]
 include::example$code/getting_started.sh[tag=copy-file]
@@ -91,7 +91,7 @@ This will return a location that will look something like this:
 [source]
 http://simple-hdfs-datanode-default-0.simple-hdfs-datanode-default.default.svc.cluster.local:9864/webhdfs/v1/testdata.txt?op=CREATE&user.name=stackable&namenoderpcaddress=simple-hdfs&createflag=&createparent=true&overwrite=false
 
-Assuming this value is assigned to a local variable (alternatively you can copy-and-paste it into the URL) called `$location`, issue a second `PUT` like this:
+You can assign this to a local variable - e.g. `$location` - or you can copy-and-paste it into the URL, and then issue a second `PUT` like this:
 
 [source]
 include::example$code/getting_started.sh[tag=create-file-redirected]

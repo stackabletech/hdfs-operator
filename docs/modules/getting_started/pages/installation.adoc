@@ -15,7 +15,7 @@ There are 2 ways to run Stackable Operators
 stackablectl is the command line tool to interact with Stackable operators and our recommended way to install operators.
 Follow the xref:stackablectl::installation.adoc[installation steps] for your platform.
 
-After you have installed stackablectl run the following command to install all operators necessary for Zookeeper:
+After you have installed stackablectl run the following command to install all operators necessary for the HDFS cluster:
 
 [source,bash]
 ----
