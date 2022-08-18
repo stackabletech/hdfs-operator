@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
   name: install-hdfs
-timeout: 300
+timeout: 600
 ---
 apiVersion: apps/v1
 kind: StatefulSet

@@ -7,8 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Include chart name when installing with a custom release name ([#205])
+- Added OpenShift compatiblity ([#225])
 
 [#205]: https://github.com/stackabletech/hdfs-operator/pull/205
+[#225]: https://github.com/stackabletech/hdfs-operator/pull/225
 
 ## [0.4.0] - 2022-06-30
 
@@ -29,7 +31,6 @@ All notable changes to this project will be documented in this file.
 - `operator-rs` `0.10.0` -> `0.15.0` ([#130], [#134], [#148]).
 - `HADOOP_OPTS` for jmx exporter specified to `HADOOP_NAMENODE_OPTS`, `HADOOP_DATANODE_OPTS` and `HADOOP_JOURNALNODE_OPTS` to fix cli tool ([#148]).
 - [BREAKING] Specifying the product version has been changed to adhere to [ADR018](https://docs.stackable.tech/home/contributor/adr/ADR018-product_image_versioning.html) instead of just specifying the product version you will now have to add the Stackable image version as well, so `version: 3.5.8` becomes (for example) `version: 3.5.8-stackable0.1.0` ([#180])
-
 
 [#122]: https://github.com/stackabletech/hdfs-operator/pull/122
 [#130]: https://github.com/stackabletech/hdfs-operator/pull/130

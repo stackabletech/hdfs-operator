@@ -17,6 +17,6 @@ spec:
     spec:
       containers:
         - name: webhdfs
-          image: python:3.10-slim
+          image: docker.stackable.tech/stackable/testing-tools:0.1.0-stackable0.1.0
           stdin: true
           tty: true
