@@ -22,34 +22,14 @@ spec:
     log4j.appender.console.layout.ConversionPattern=%d{ISO8601} %p %c{2}: %m%n
     log4j.appender.EventCounter=org.apache.hadoop.log.metrics.EventCounter
   nameNodes:
-    config:
-      resources:
-        storage:
-          data:
-            capacity: 256Mi
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 2
   dataNodes:
-    config:
-      resources:
-        storage:
-          data:
-            capacity: 1Gi
     roleGroups:
       default:
         replicas: 1
   journalNodes:
-    config:
-      resources:
-        storage:
-          data:
-            capacity: 512Mi
-        memory:
-          limit: '1Gi'
     roleGroups:
       default:
         replicas: 1
