@@ -28,7 +28,7 @@ include::example$code/getting_started.sh[tag=watch-zk-rollout]
 
 === HDFS
 
-An HDFS cluster has three components: then `namenode`, the `datanode` and the `journalnode`. Create a file named `hdfs.yaml` defining 2 `namenodes` and one `datanode` and `journalnode` each:
+An HDFS cluster has three components: the `namenode`, the `datanode` and the `journalnode`. Create a file named `hdfs.yaml` defining 2 `namenodes` and one `datanode` and `journalnode` each:
 
 [source,yaml]
 ----
