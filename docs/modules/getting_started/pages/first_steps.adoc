@@ -1,0 +1,136 @@
+= First steps
+
+Once you have followed the steps in the xref:installation.adoc[] section to install the operator and its dependencies, you will now deploy an HDFS cluster and its dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by creating, verifying and deleting a test file in HDFS.
+
+== Setup
+
+=== Zookeeper
+
+To deploy a Zookeeper cluster create one file called `zk.yaml`:
+
+[source,yaml]
+include::example$code/zk.yaml[]
+
+We also need to define a ZNode that will be used by the HDFS cluster to reference Zookeeper. Create another file called `znode.yaml`:
+
+[source,yaml]
+include::example$code/znode.yaml[]
+
+Apply both of these files:
+
+[source]
+include::example$code/getting_started.sh[tag=install-zk]
+
+The state of the Zookeeper cluster can be tracked with `kubectl`:
+
+[source]
+include::example$code/getting_started.sh[tag=watch-zk-rollout]
+
+=== HDFS
+
+An HDFS cluster has three components: the `namenode`, the `datanode` and the `journalnode`. Create a file named `hdfs.yaml` defining 2 `namenodes` and one `datanode` and `journalnode` each:
+
+[source,yaml]
+----
+include::example$code/hdfs.yaml[]
+----
+
+Where:
+
+- `metadata.name` contains the name of the HDFS cluster
+- the label of the Docker image provided by Stackable must be set in `spec.version`
+
+NOTE: Please note that the version you need to specify for `spec.version` is not only the version of Hadoop which you want to roll out, but has to be amended with a Stackable version as shown. This Stackable version is the version of the underlying container image which is used to execute the processes. For a list of available versions please check our
+https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%hadoop%2Ftags[image registry].
+It should generally be safe to simply use the latest image version that is available.
+
+Create the actual HDFS cluster by applying the file:
+
+----
+include::example$code/getting_started.sh[tag=install-hdfs]
+----
+
+Track the progress with `kubectl` as this step may take a few minutes:
+
+[source]
+include::example$code/getting_started.sh[tag=watch-hdfs-rollout]
+
+
+== Verify that it works
+
+To test the cluster you can create a new file, check its status and then delete it. We will execute these actions from within a helper pod. Create a file called `webhdfs.yaml`:
+
+[source,yaml]
+----
+include::example$code/webhdfs.yaml[]
+----
+
+Apply it and monitor its progress:
+
+[source]
+include::example$code/getting_started.sh[tag=install-webhdfs]
+include::example$code/getting_started.sh[tag=watch-helper-rollout]
+
+To begin with  the cluster should be empty: this can be verified by listing all resources at the root directory (which should return an empty array!):
+
+[source]
+include::example$code/getting_started.sh[tag=file-status]
+
+Creating a file in HDFS using the https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Create_and_Write_to_a_File[Webhdfs API] requires a two-step `PUT` (the reason for having a two-step create/append is to prevent clients from sending out data before the redirect). First, create a file with some text in it called `testdata.txt` and copy it to the `tmp` directory on the helper pod:
+
+[source]
+include::example$code/getting_started.sh[tag=copy-file]
+
+Then use `curl` to issue a `PUT` command:
+
+[source]
+include::example$code/getting_started.sh[tag=create-file]
+
+This will return a location that will look something like this:
+
+[source]
+http://simple-hdfs-datanode-default-0.simple-hdfs-datanode-default.default.svc.cluster.local:9864/webhdfs/v1/testdata.txt?op=CREATE&user.name=stackable&namenoderpcaddress=simple-hdfs&createflag=&createparent=true&overwrite=false
+
+You can assign this to a local variable - e.g. `$location` - or you can copy-and-paste it into the URL, and then issue a second `PUT` like this:
+
+[source]
+include::example$code/getting_started.sh[tag=create-file-redirected]
+
+Rechecking the status again with:
+
+[source]
+include::example$code/getting_started.sh[tag=file-status]
+
+will now display some metadata about the file that was created in the HDFS cluster:
+
+[source,json]
+{
+    "FileStatuses": {
+        "FileStatus": [
+            {
+                "accessTime": 1660821734999,
+                "blockSize": 134217728,
+                "childrenNum": 0,
+                "fileId": 16396,
+                "group": "supergroup",
+                "length": 597,
+                "modificationTime": 1660821735602,
+                "owner": "stackable",
+                "pathSuffix": "testdata.txt",
+                "permission": "644",
+                "replication": 3,
+                "storagePolicy": 0,
+                "type": "FILE"
+            }
+        ]
+    }
+}
+
+To clean up, the file can be deleted like this:
+
+[source]
+include::example$code/getting_started.sh[tag=delete-file]
+
+== What's next
+
+Look at the xref:ROOT:usage.adoc[Usage page] to find out more about configuring your HDFS cluster.
