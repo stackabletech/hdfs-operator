@@ -1900,7 +1900,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "stackable-hdfs-crd",
- "stackable-lb-operator",
+ "stackable-listener-operator",
  "stackable-operator",
  "strum",
  "thiserror",
@@ -1924,10 +1924,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "stackable-lb-operator"
-version = "0.1.0"
+name = "stackable-listener-operator"
+version = "0.1.0-nightly"
+source = "git+https://github.com/stackabletech/listener-operator.git?branch=poc#19871510ce5f77e3281801b5390faff9cf3b1172"
 dependencies = [
  "anyhow",
+ "built",
  "clap",
  "futures",
  "h2",

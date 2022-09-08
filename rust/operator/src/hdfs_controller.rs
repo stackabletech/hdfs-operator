@@ -6,7 +6,7 @@ use crate::OPERATOR_NAME;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
-use stackable_lb_operator::crd::LoadBalancer;
+use stackable_listener_operator::crd::Listener;
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
@@ -137,7 +137,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 })?;
             for (name, rg_namenode_svc_ref) in rg_namenode_services {
                 if let Some(rg_namenode_svc) = client
-                    .get_opt::<LoadBalancer>(
+                    .get_opt::<Listener>(
                         &rg_namenode_svc_ref.name,
                         rg_namenode_svc_ref.namespace.as_deref(),
                     )
@@ -150,12 +150,12 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     if let Some(namenode_external_pod_ref) =
                         namenode_external_podrefs.get_mut(&name)
                     {
-                        let lb_addr = rg_namenode_svc
+                        let listener_addr = rg_namenode_svc
                             .status
                             .and_then(|status| status.ingress_addresses?.into_iter().next());
                         namenode_external_pod_ref.external_name =
-                            lb_addr.as_ref().map(|addr| addr.address.clone());
-                        namenode_external_pod_ref.ports = lb_addr
+                            listener_addr.as_ref().map(|addr| addr.address.clone());
+                        namenode_external_pod_ref.ports = listener_addr
                             .map(|addr| addr.ports.into_iter().collect())
                             .unwrap_or_default();
                     }
@@ -237,14 +237,14 @@ fn rolegroup_service(
 fn namenode_load_balancer_services(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-) -> Result<Vec<(String, ObjectRef<LoadBalancer>)>, Error> {
+) -> Result<Vec<(String, ObjectRef<Listener>)>, Error> {
     let mut services = Vec::new();
     for replica in 0..hdfs.rolegroup_namenode_replicas(rolegroup_ref)? {
         let replica_name = format!("{}-{replica}", rolegroup_ref.object_name());
-        let replica_lb_name = format!("lb-{replica_name}");
+        let replica_listener_name = format!("listener-{replica_name}");
         services.push((
             replica_name,
-            ObjectRef::<LoadBalancer>::new(&replica_lb_name)
+            ObjectRef::<Listener>::new(&replica_listener_name)
                 .within(hdfs.metadata.namespace.as_deref().unwrap()),
         ));
     }
@@ -376,11 +376,11 @@ fn rolegroup_statefulset(
         ..Volume::default()
     }];
 
-    let lb_pvc = PersistentVolumeClaimTemplate {
+    let listener_pvc = PersistentVolumeClaimTemplate {
         metadata: Some(ObjectMeta {
             annotations: Some(
                 [(
-                    "lb.stackable.tech/lb-class".to_string(),
+                    "listeners.stackable.tech/listener-class".to_string(),
                     "nodeport".to_string(),
                 )]
                 .into(),
@@ -393,7 +393,7 @@ fn rolegroup_statefulset(
                 requests: Some([("storage".to_string(), Quantity("1".to_string()))].into()),
                 ..Default::default()
             }),
-            storage_class_name: Some("lb.stackable.tech".to_string()),
+            storage_class_name: Some("listeners.stackable.tech".to_string()),
             ..Default::default()
         },
     };
@@ -405,9 +405,9 @@ fn rolegroup_statefulset(
                 datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
             pod_volumes.push(Volume {
-                name: "lb".to_string(),
+                name: "listener".to_string(),
                 ephemeral: Some(EphemeralVolumeSource {
-                    volume_claim_template: Some(lb_pvc),
+                    volume_claim_template: Some(listener_pvc),
                 }),
                 ..Volume::default()
             });
@@ -417,11 +417,11 @@ fn rolegroup_statefulset(
             init_containers =
                 namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
-            let mut lb_pvc_meta = lb_pvc.metadata.unwrap_or_default();
-            lb_pvc_meta.name = Some("lb".to_string());
+            let mut listener_pvc_meta = listener_pvc.metadata.unwrap_or_default();
+            listener_pvc_meta.name = Some("listener".to_string());
             sts_pvcs.push(PersistentVolumeClaim {
-                metadata: lb_pvc_meta,
-                spec: Some(lb_pvc.spec),
+                metadata: listener_pvc_meta,
+                spec: Some(listener_pvc.spec),
                 ..Default::default()
             });
         }
@@ -430,9 +430,9 @@ fn rolegroup_statefulset(
             init_containers = journalnode_init_containers(hadoop_container);
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
             pod_volumes.push(Volume {
-                name: "lb".to_string(),
+                name: "listener".to_string(),
                 ephemeral: Some(EphemeralVolumeSource {
-                    volume_claim_template: Some(lb_pvc),
+                    volume_claim_template: Some(listener_pvc),
                 }),
                 ..Volume::default()
             });
@@ -633,13 +633,20 @@ fn datanode_containers(
         ..EnvVar::default()
     });
 
+    let port_envs = ["data", "http", "ipc"].map(|port_name| {
+        format!(
+            "{port_name_upper}_PORT=$(cat /stackable/listener/default-address/ports/{port_name})",
+            port_name_upper = port_name.to_uppercase(),
+        )
+    });
     Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
             format!(
-                r#"NODE_IP=$(cat /stackable/lb/default-address/address) DATA_PORT=$(cat /stackable/lb/default-address/ports/data) HTTP_PORT=$(cat /stackable/lb/default-address/ports/http) IPC_PORT=$(cat /stackable/lb/default-address/ports/ipc) {HADOOP_HOME}/bin/hdfs --debug datanode"#
+                r"NODE_IP=$(cat /stackable/listener/default-address/address) {ports} {HADOOP_HOME}/bin/hdfs --debug datanode",
+                ports = port_envs.join(" "),
             ),
             // "--debug".to_string(),
             // "datanode".to_string(),
@@ -897,8 +904,8 @@ fn hdfs_common_container(
                 ..VolumeMount::default()
             },
             VolumeMount {
-                mount_path: "/stackable/lb".to_string(),
-                name: "lb".to_string(),
+                mount_path: "/stackable/listener".to_string(),
+                name: "listener".to_string(),
                 ..VolumeMount::default()
             },
         ]),

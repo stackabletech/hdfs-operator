@@ -8,7 +8,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::HdfsCluster;
-use stackable_lb_operator::crd::LoadBalancer;
+use stackable_listener_operator::crd::Listener;
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
@@ -38,7 +38,7 @@ pub async fn create_controller(
     )
     .owns(namespace.get_api::<Service>(&client), ListParams::default())
     .owns(
-        namespace.get_api::<LoadBalancer>(&client),
+        namespace.get_api::<Listener>(&client),
         ListParams::default(),
     )
     .owns(
