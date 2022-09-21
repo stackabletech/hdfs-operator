@@ -9,10 +9,12 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Include chart name when installing with a custom release name ([#205])
-- Added OpenShift compatiblity ([#225])
+- Added OpenShift compatibility ([#225])
+- Add recommended labels to NodePort services ([#240])
 
 [#205]: https://github.com/stackabletech/hdfs-operator/pull/205
 [#225]: https://github.com/stackabletech/hdfs-operator/pull/225
+[#240]: https://github.com/stackabletech/hdfs-operator/pull/240
 
 ## [0.4.0] - 2022-06-30
 

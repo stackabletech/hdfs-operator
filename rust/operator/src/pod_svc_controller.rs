@@ -3,12 +3,10 @@
 //! For pods with the label `hdfs.stackable.tech/pod-service=true` a NodePort is created that exposes the local node pod.
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
+use stackable_operator::builder::ObjectMetaBuilder;
 use stackable_operator::{
-    k8s_openapi::{
-        api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
-        apimachinery::pkg::apis::meta::v1::OwnerReference,
-    },
-    kube::{core::ObjectMeta, runtime::controller::Action},
+    k8s_openapi::api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
+    kube::runtime::controller::Action,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,18 +15,28 @@ pub struct Ctx {
     pub client: stackable_operator::client::Client,
 }
 
+const APP_KUBERNETES_LABEL_BASE: &str = "app.kubernetes.io/";
+
 pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
 
     let name = pod.metadata.name.clone().ok_or(Error::PodHasNoName)?;
 
-    let role = pod
+    let pod_labels = pod
         .metadata
         .labels
         .as_ref()
-        .ok_or(Error::PodHasNoLabels { name: name.clone() })?
-        .get(&"role".to_string())
+        .ok_or(Error::PodHasNoLabels { name: name.clone() })?;
+
+    let role = pod_labels
+        .get("role")
         .ok_or(Error::PodHasNoRoleLabel { name: name.clone() })?;
+
+    let recommended_labels_from_pod = pod_labels
+        .iter()
+        .filter(|(key, _)| key.starts_with(APP_KUBERNETES_LABEL_BASE))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
 
     let ports: Vec<(String, i32)> = pod
         .spec
@@ -43,22 +51,15 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<A
         .collect();
 
     let svc = Service {
-        metadata: ObjectMeta {
-            namespace: pod.metadata.namespace.clone(),
-            name: pod.metadata.name.clone(),
-            owner_references: Some(vec![OwnerReference {
-                api_version: "v1".to_string(),
-                kind: "Pod".to_string(),
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(pod.as_ref())
+            .labels(recommended_labels_from_pod)
+            .ownerreference_from_resource(pod.as_ref(), None, None)
+            .map_err(|source| Error::PodOwnerReference {
+                source,
                 name: name.clone(),
-                uid: pod
-                    .metadata
-                    .uid
-                    .clone()
-                    .ok_or(Error::PodHasNoUid { name: name.clone() })?,
-                ..OwnerReference::default()
-            }]),
-            ..ObjectMeta::default()
-        },
+            })?
+            .build(),
         spec: Some(ServiceSpec {
             type_: Some("NodePort".to_string()),
             external_traffic_policy: Some("Local".to_string()),
