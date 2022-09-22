@@ -100,6 +100,11 @@ pub enum Error {
     PodHasNoSpec { name: String },
     #[error("Pod [{name}] has no container named [{role}]")]
     PodHasNoContainer { name: String, role: String },
+    #[error("Failed to build ownerreference of pod [{name}]")]
+    PodOwnerReference {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
 
     #[error("Object has no associated namespace.")]
     NoNamespaceContext,
