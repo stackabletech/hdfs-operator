@@ -195,7 +195,7 @@ By default, in case nothing is configured in the custom resource for a certain r
 // TODO: remove the "nightly" version after the next platform release (current: 22.09)
 include::nightly@home:concepts:stackable_resource_requests.adoc[]
 
-If no resource requests are configured explicitely, the operator uses the following defaults:
+If no resource requests are configured explicitly, the HDFS operator uses the following defaults:
 
 [source,yaml]
 ----
