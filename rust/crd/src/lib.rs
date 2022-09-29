@@ -335,16 +335,16 @@ impl HdfsCluster {
     fn default_resources(&self) -> Resources<Storage, NoRuntimeLimits> {
         Resources {
             cpu: CpuLimits {
-                min: None,
-                max: None,
+                min: Some(Quantity("500m".to_owned())),
+                max: Some(Quantity("4".to_owned())),
             },
             memory: MemoryLimits {
-                limit: None,
+                limit: Some(Quantity("1Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
             storage: Storage {
                 data: PvcConfig {
-                    capacity: Some(Quantity("1Gi".to_owned())),
+                    capacity: Some(Quantity("2Gi".to_owned())),
                     storage_class: None,
                     selectors: None,
                 },
@@ -820,7 +820,7 @@ spec:
         let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
 
         assert_eq!(
-            &Quantity("1Gi".to_owned()),
+            &Quantity("2Gi".to_owned()),
             pvc[0]
                 .clone()
                 .spec
