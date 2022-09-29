@@ -820,7 +820,7 @@ spec:
         let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
 
         assert_eq!(
-            &Quantity("1Gi".to_owned()),
+            &Quantity("2Gi".to_owned()),
             pvc[0]
                 .clone()
                 .spec
