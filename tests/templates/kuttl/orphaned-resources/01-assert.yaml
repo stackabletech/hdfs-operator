@@ -10,8 +10,8 @@ kind: StatefulSet
 metadata:
   name: test-hdfs-namenode-default
 status:
-  readyReplicas: 2
-  replicas: 2
+  readyReplicas: 1
+  replicas: 1
 ---
 apiVersion: apps/v1
 kind: StatefulSet
