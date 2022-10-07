@@ -2,12 +2,13 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
-use crate::{rbac, OPERATOR_NAME};
+use crate::rbac;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
 use stackable_operator::client::Client;
+use stackable_operator::cluster_resources::ClusterResources;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
     ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
@@ -25,7 +26,7 @@ use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::ResourceExt;
+use stackable_operator::kube::{Resource, ResourceExt};
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::memory::to_java_heap;
 use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
@@ -60,11 +61,18 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let namenode_podrefs = hdfs.pod_refs(&HdfsRole::NameNode)?;
     let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
 
+    let mut cluster_resources = ClusterResources::new(
+        APP_NAME,
+        RESOURCE_MANAGER_HDFS_CONTROLLER,
+        &hdfs.object_ref(&()),
+    )
+    .map_err(|e| Error::CreateClusterResources { source: e })?;
+
     let discovery_cm = build_discovery_configmap(&hdfs, &namenode_podrefs)
         .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
 
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+    cluster_resources
+        .add(client, &discovery_cm)
         .await
         .map_err(|e| Error::ApplyDiscoveryConfigMap {
             source: e,
@@ -74,15 +82,17 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let dfs_replication = hdfs.spec.dfs_replication;
 
     let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hdfs.as_ref(), "hdfs");
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_sa, &rbac_sa)
+
+    cluster_resources
+        .add(client, &rbac_sa)
         .await
         .map_err(|source| Error::ApplyServiceAccount {
             source,
             name: rbac_sa.name_any(),
         })?;
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_rolebinding, &rbac_rolebinding)
+
+    cluster_resources
+        .add(client, &rbac_rolebinding)
         .await
         .map_err(|source| Error::ApplyRoleBinding {
             source,
@@ -131,22 +141,22 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &rbac_sa.name_any(),
             )?;
 
-            client
-                .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
+            cluster_resources
+                .add(client, &rg_service)
                 .await
                 .map_err(|e| Error::ApplyRoleGroupService {
                     source: e,
                     name: rg_service.metadata.name.clone().unwrap_or_default(),
                 })?;
-            client
-                .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
+            cluster_resources
+                .add(client, &rg_configmap)
                 .await
                 .map_err(|e| Error::ApplyRoleGroupConfigMap {
                     source: e,
                     name: rg_configmap.metadata.name.clone().unwrap_or_default(),
                 })?;
-            client
-                .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
+            cluster_resources
+                .add(client, &rg_statefulset)
                 .await
                 .map_err(|e| Error::ApplyRoleGroupStatefulSet {
                     source: e,
@@ -154,6 +164,11 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 })?;
         }
     }
+
+    cluster_resources
+        .delete_orphaned_resources(client)
+        .await
+        .map_err(|e| Error::DeleteOrphanedResources { source: e })?;
 
     Ok(Action::await_change())
 }
@@ -181,7 +196,7 @@ fn rolegroup_service(
                 hdfs,
                 APP_NAME,
                 hdfs.hdfs_version()?,
-                OPERATOR_NAME,
+                RESOURCE_MANAGER_HDFS_CONTROLLER,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -287,7 +302,7 @@ fn rolegroup_config_map(
                     hdfs,
                     APP_NAME,
                     hdfs.hdfs_version()?,
-                    OPERATOR_NAME,
+                    RESOURCE_MANAGER_HDFS_CONTROLLER,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
                 )
@@ -385,7 +400,7 @@ fn rolegroup_statefulset(
                 hdfs,
                 APP_NAME,
                 hdfs.hdfs_version()?,
-                OPERATOR_NAME,
+                RESOURCE_MANAGER_HDFS_CONTROLLER,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )

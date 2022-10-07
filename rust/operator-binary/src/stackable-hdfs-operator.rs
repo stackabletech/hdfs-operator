@@ -1,8 +1,10 @@
 use clap::Parser;
 use stackable_hdfs_crd::HdfsCluster;
-use stackable_operator::cli::{Command, ProductOperatorRun};
-use stackable_operator::kube::CustomResourceExt;
-use stackable_operator::{client, error};
+use stackable_operator::{
+    cli::{Command, ProductOperatorRun},
+    client,
+    kube::CustomResourceExt,
+};
 
 mod built_info {
     // The file has been placed there by the build script.
@@ -17,7 +19,7 @@ struct Opts {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), error::Error> {
+async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&HdfsCluster::crd())?),

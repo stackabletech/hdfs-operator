@@ -1,5 +1,8 @@
 pub const DEFAULT_DFS_REPLICATION_FACTOR: u8 = 3;
 
+pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
+pub const RESOURCE_MANAGER_POD_SVC_CONTROLLER: &str = "hdfs-operator-pod-svc-controller";
+
 pub const CONTROLLER_NAME: &str = "hdfsclusters.hdfs.stackable.tech";
 
 pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";

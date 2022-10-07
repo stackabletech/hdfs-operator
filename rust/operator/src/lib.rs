@@ -21,8 +21,6 @@ use stackable_operator::product_config::ProductConfigManager;
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-const OPERATOR_NAME: &str = "hdfs-operator";
-
 pub async fn create_controller(
     client: Client,
     product_config: ProductConfigManager,

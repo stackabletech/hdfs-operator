@@ -142,6 +142,14 @@ pub enum Error {
         name: String,
         source: stackable_operator::error::Error,
     },
+    #[error("failed to create cluster resources")]
+    CreateClusterResources {
+        source: stackable_operator::error::Error,
+    },
+    #[error("failed to delete orphaned resources")]
+    DeleteOrphanedResources {
+        source: stackable_operator::error::Error,
+    },
 }
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
 
