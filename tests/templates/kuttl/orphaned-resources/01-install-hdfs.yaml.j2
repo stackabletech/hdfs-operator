@@ -1,0 +1,21 @@
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: test-hdfs
+spec:
+  version: {{ test_scenario['values']['hdfs-latest'] }}
+  zookeeperConfigMapName: test-znode
+  log4j: ""
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1

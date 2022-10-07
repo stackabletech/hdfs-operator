@@ -1,0 +1,19 @@
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: test-zk
+spec:
+  servers:
+    roleGroups:
+      default:
+        replicas: 1
+  version: {{ test_scenario['values']['zookeeper-latest'] }}
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: test-znode
+spec:
+  clusterRef:
+    name: test-zk
