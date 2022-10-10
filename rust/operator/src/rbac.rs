@@ -9,7 +9,7 @@ pub const HDFS_UID: i64 = 1000;
 
 /// Build RBAC objects for the product workloads.
 /// The `rbac_prefix` is meant to be the product name, for example: zookeeper, airflow, etc.
-/// and it is a assumed that a ClusterRole named `{cluster_role_name}` exists.
+/// and it is a assumed that a ClusterRole named `hdfs-clusterrole` exists.
 pub fn build_rbac_resources<T: Resource<DynamicType = ()>>(
     resource: &T,
     cluster_role_name: &str,
