@@ -84,8 +84,11 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     // The service account and rolebinding will be created per cluster and
     // deleted if the cluster is removed.
     // Therefore no cluster / orphaned resources have to be handled here.
-    let (rbac_sa, rbac_rolebinding) =
-        rbac::build_rbac_resources(hdfs.as_ref(), "hdfs-clusterrole").unwrap();
+    let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hdfs.as_ref(), "hdfs-clusterrole")
+        .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
+            source,
+            obj_ref: ObjectRef::from_obj(&hdfs),
+        })?;
 
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &rbac_sa, &rbac_sa)
