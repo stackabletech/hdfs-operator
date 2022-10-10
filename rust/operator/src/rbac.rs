@@ -14,7 +14,7 @@ pub fn build_rbac_resources<T: Resource<DynamicType = ()>>(
     resource: &T,
     cluster_role_name: &str,
 ) -> OperatorResult<(ServiceAccount, RoleBinding)> {
-    let sa_name = format!("{}-sa", resource.name_any());
+    let sa_name = format!("{}-serviceaccount", resource.name_any());
     let service_account = ServiceAccount {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(resource)
