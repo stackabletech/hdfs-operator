@@ -10,8 +10,8 @@ kind: StatefulSet
 metadata:
   name: test-hdfs-namenode-default
 status:
-  readyReplicas: 1
-  replicas: 1
+  readyReplicas: 2
+  replicas: 2
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -25,6 +25,14 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: test-hdfs-datanode-default
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-hdfs-datanode-remove
 status:
   readyReplicas: 1
   replicas: 1

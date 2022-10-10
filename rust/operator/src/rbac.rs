@@ -1,4 +1,5 @@
 use stackable_operator::builder::ObjectMetaBuilder;
+use stackable_operator::error::OperatorResult;
 use stackable_operator::k8s_openapi::api::core::v1::ServiceAccount;
 use stackable_operator::k8s_openapi::api::rbac::v1::{RoleBinding, RoleRef, Subject};
 use stackable_operator::kube::{Resource, ResourceExt};
@@ -8,16 +9,17 @@ pub const HDFS_UID: i64 = 1000;
 
 /// Build RBAC objects for the product workloads.
 /// The `rbac_prefix` is meant to be the product name, for example: zookeeper, airflow, etc.
-/// and it is a assumed that a ClusterRole named `{rbac_prefix}-clusterrole` exists.
-pub fn build_rbac_resources<T: Resource>(
+/// and it is a assumed that a ClusterRole named `{cluster_role_name}` exists.
+pub fn build_rbac_resources<T: Resource<DynamicType = ()>>(
     resource: &T,
-    rbac_prefix: &str,
-) -> (ServiceAccount, RoleBinding) {
-    let sa_name = format!("{rbac_prefix}-sa");
+    cluster_role_name: &str,
+) -> OperatorResult<(ServiceAccount, RoleBinding)> {
+    let sa_name = format!("{}-sa", resource.name_any());
     let service_account = ServiceAccount {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(resource)
             .name(sa_name.clone())
+            .ownerreference_from_resource(resource, None, None)?
             .build(),
         ..ServiceAccount::default()
     };
@@ -25,11 +27,12 @@ pub fn build_rbac_resources<T: Resource>(
     let role_binding = RoleBinding {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(resource)
-            .name(format!("{rbac_prefix}-rolebinding"))
+            .name(format!("{}-rolebinding", resource.name_any()))
+            .ownerreference_from_resource(resource, None, None)?
             .build(),
         role_ref: RoleRef {
             kind: "ClusterRole".to_string(),
-            name: format!("{rbac_prefix}-clusterrole"),
+            name: cluster_role_name.to_string(),
             api_group: "rbac.authorization.k8s.io".to_string(),
         },
         subjects: Some(vec![Subject {
@@ -40,5 +43,5 @@ pub fn build_rbac_resources<T: Resource>(
         }]),
     };
 
-    (service_account, role_binding)
+    Ok((service_account, role_binding))
 }

@@ -4,8 +4,6 @@
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_operator::builder::ObjectMetaBuilder;
-use stackable_operator::cluster_resources::ClusterResources;
-use stackable_operator::kube::Resource;
 use stackable_operator::{
     k8s_openapi::api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
     kube::runtime::controller::Action,
@@ -82,22 +80,12 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<A
         ..Service::default()
     };
 
-    let mut cluster_resources = ClusterResources::new(
-        APP_NAME,
-        RESOURCE_MANAGER_POD_SVC_CONTROLLER,
-        &pod.object_ref(&()),
-    )
-    .map_err(|e| Error::CreateClusterResources { source: e })?;
-
-    cluster_resources
-        .add(&ctx.client, &svc)
+    // The pod service is deleted when the corresponding pod is deleted.
+    // Therefore no cluster / orphaned resources have to be handled here.
+    ctx.client
+        .apply_patch(FIELD_MANAGER_SCOPE_POD, &svc, &svc)
         .await
         .map_err(|source| Error::ApplyPodServiceFailed { source, name })?;
-
-    cluster_resources
-        .delete_orphaned_resources(&ctx.client)
-        .await
-        .map_err(|e| Error::DeleteOrphanedResources { source: e })?;
 
     Ok(Action::await_change())
 }

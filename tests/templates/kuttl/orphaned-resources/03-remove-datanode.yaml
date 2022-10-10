@@ -1,7 +1,0 @@
----
-apiVersion: hbase.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: test-hdfs
-spec:
-  dataNodes: null

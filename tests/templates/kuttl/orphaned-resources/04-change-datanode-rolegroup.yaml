@@ -1,5 +1,5 @@
 ---
-apiVersion: hbase.stackable.tech/v1alpha1
+apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: test-hdfs

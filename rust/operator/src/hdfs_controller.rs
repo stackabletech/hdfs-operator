@@ -81,18 +81,21 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let dfs_replication = hdfs.spec.dfs_replication;
 
-    let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hdfs.as_ref(), "hdfs");
+    // The service account and rolebinding will be created per cluster and
+    // deleted if the cluster is removed.
+    // Therefore no cluster / orphaned resources have to be handled here.
+    let (rbac_sa, rbac_rolebinding) =
+        rbac::build_rbac_resources(hdfs.as_ref(), "hdfs-clusterrole").unwrap();
 
-    cluster_resources
-        .add(client, &rbac_sa)
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_sa, &rbac_sa)
         .await
         .map_err(|source| Error::ApplyServiceAccount {
             source,
             name: rbac_sa.name_any(),
         })?;
-
-    cluster_resources
-        .add(client, &rbac_rolebinding)
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_rolebinding, &rbac_rolebinding)
         .await
         .map_err(|source| Error::ApplyRoleBinding {
             source,
