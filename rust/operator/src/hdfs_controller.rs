@@ -71,8 +71,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let discovery_cm = build_discovery_configmap(&hdfs, &namenode_podrefs)
         .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
 
-    cluster_resources
-        .add(client, &discovery_cm)
+    // The discovery CM is linked to the cluster lifecycle via ownerreference.
+    // Therefore, must not be added to the "orphaned" cluster resources
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
         .await
         .map_err(|e| Error::ApplyDiscoveryConfigMap {
             source: e,
