@@ -19,7 +19,7 @@ use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::{BTreeMap, HashMap};
-use strum::{Display, EnumIter};
+use strum::{Display, EnumIter, EnumString};
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
@@ -48,7 +48,17 @@ pub struct HdfsClusterSpec {
 }
 
 #[derive(
-    Clone, Debug, Deserialize, Display, EnumIter, Eq, Hash, JsonSchema, PartialEq, Serialize,
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    EnumIter,
+    EnumString,
+    Eq,
+    Hash,
+    JsonSchema,
+    PartialEq,
+    Serialize,
 )]
 pub enum HdfsRole {
     #[serde(rename = "journalnode")]

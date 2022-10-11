@@ -34,9 +34,15 @@ use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
 };
 use stackable_operator::role_utils::RoleGroupRef;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
+
+const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
+const HDFS_CONTROLLER: &str = "hdfs-controller";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -68,7 +74,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     )
     .map_err(|e| Error::CreateClusterResources { source: e })?;
 
-    let discovery_cm = build_discovery_configmap(&hdfs, &namenode_podrefs)
+    let discovery_cm = build_discovery_configmap(&hdfs, HDFS_CONTROLLER, &namenode_podrefs)
         .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
 
     // The discovery CM is linked to the cluster lifecycle via ownerreference.
@@ -108,7 +114,9 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         })?;
 
     for (role_name, group_config) in validated_config.iter() {
-        let role: HdfsRole = serde_yaml::from_str(role_name).unwrap();
+        let role: HdfsRole = HdfsRole::from_str(role_name).map_err(|_| Error::RoleNotFound {
+            role: role_name.to_string(),
+        })?;
         let role_ports = ROLE_PORTS.get(&role).unwrap().as_slice();
 
         if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {

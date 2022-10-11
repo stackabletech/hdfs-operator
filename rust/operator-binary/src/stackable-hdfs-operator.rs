@@ -1,9 +1,9 @@
 use clap::Parser;
+use stackable_hdfs_crd::constants::APP_NAME;
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
-    client,
-    kube::CustomResourceExt,
+    client, CustomResourceExt,
 };
 
 mod built_info {
@@ -22,7 +22,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => println!("{}", serde_yaml::to_string(&HdfsCluster::crd())?),
+        Command::Crd => HdfsCluster::print_yaml_schema()?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
         }) => {
             stackable_operator::logging::initialize_logging(
                 "HDFS_OPERATOR_LOG",
-                "hdfs",
+                APP_NAME,
                 tracing_target,
             );
 

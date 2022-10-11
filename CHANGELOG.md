@@ -7,12 +7,14 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Orphaned resources are deleted ([#249])
+- Support Hadoop 3.3.4 ([#xxx])
 
 ### Changed
 
 - `operator-rs` `0.24.0` -> `0.25.2` ([#249])
 
 [#249]: https://github.com/stackabletech/hdfs-operator/pull/249
+[#xxx]: https://github.com/stackabletech/hdfs-operator/pull/xxx
 
 ## [0.5.0] - 2022-09-06
 
