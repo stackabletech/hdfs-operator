@@ -1,0 +1,11 @@
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: test-hdfs
+spec:
+  dataNodes:
+    roleGroups:
+      default: null
+      newrolegroup:
+        replicas: 1

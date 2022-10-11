@@ -1,7 +1,5 @@
-use crate::{
-    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder},
-    OPERATOR_NAME,
-};
+use crate::config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder};
+use stackable_hdfs_crd::constants::RESOURCE_MANAGER_HDFS_CONTROLLER;
 use stackable_hdfs_crd::{
     constants::{APP_NAME, CORE_SITE_XML, HDFS_SITE_XML},
     HdfsCluster, HdfsPodRef, HdfsRole,
@@ -29,7 +27,7 @@ pub fn build_discovery_configmap(
                     APP_NAME,
                     hdfs.hdfs_version()
                         .map_err(|_| Error::MissingObjectKey { key: "version" })?,
-                    OPERATOR_NAME,
+                    RESOURCE_MANAGER_HDFS_CONTROLLER,
                     &HdfsRole::NameNode.to_string(),
                     "discovery",
                 )

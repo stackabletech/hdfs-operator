@@ -79,10 +79,14 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<A
         }),
         ..Service::default()
     };
+
+    // The pod service is deleted when the corresponding pod is deleted.
+    // Therefore no cluster / orphaned resources have to be handled here.
     ctx.client
         .apply_patch(FIELD_MANAGER_SCOPE_POD, &svc, &svc)
         .await
         .map_err(|source| Error::ApplyPodServiceFailed { source, name })?;
+
     Ok(Action::await_change())
 }
 
