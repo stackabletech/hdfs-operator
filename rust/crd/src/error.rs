@@ -66,6 +66,9 @@ pub enum Error {
     #[error("Cannot parse port [{address}]")]
     HdfsAddressParseError { address: String },
 
+    #[error("Cannot find role [{role}]")]
+    RoleNotFound { role: String },
+
     #[error("Cannot find rolegroup [{rolegroup}]")]
     RoleGroupNotFound { rolegroup: String },
 

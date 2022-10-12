@@ -4,16 +4,15 @@ kind: ZookeeperCluster
 metadata:
   name: hdfs-zk
 spec:
+  version: {{ test_scenario['values']['zookeeper'] }}
   servers:
     config:
       resources:
-        storage:
-          data:
-            capacity: '2Gi'
+        cpu:
+          min: '300m'
+          max: '600m'
+        memory:
+          limit: '512Mi'
     roleGroups:
       default:
         replicas: 1
-        config:
-          myidOffset: 10
-  version: {{ test_scenario['values']['zookeeper'] }}
-  stopped: false
