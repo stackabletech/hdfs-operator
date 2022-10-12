@@ -4,11 +4,18 @@ kind: ZookeeperCluster
 metadata:
   name: test-zk
 spec:
+  version: {{ test_scenario['values']['zookeeper-latest'] }}
   servers:
+    config:
+      resources:
+        cpu:
+          min: '300m'
+          max: '600m'
+        memory:
+          limit: '512Mi'
     roleGroups:
       default:
         replicas: 1
-  version: {{ test_scenario['values']['zookeeper-latest'] }}
 ---
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperZnode
