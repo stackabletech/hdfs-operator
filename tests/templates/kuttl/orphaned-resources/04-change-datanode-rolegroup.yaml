@@ -5,6 +5,11 @@ metadata:
   name: test-hdfs
 spec:
   dataNodes:
+    config:
+      resources:
+        cpu:
+          max: '1'
+          min: '300m'
     roleGroups:
       default: null
       newrolegroup:

@@ -6,16 +6,7 @@ metadata:
 spec:
   version: {{ test_scenario['values']['hdfs-latest'] }}
   zookeeperConfigMapName: test-znode
-  nameNodes:
-    roleGroups:
-      default:
-        replicas: 2
+  dfsReplication: 1
   dataNodes:
     roleGroups:
-      default:
-        replicas: 1
       remove: null
-  journalNodes:
-    roleGroups:
-      default:
-        replicas: 1
