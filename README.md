@@ -3,6 +3,7 @@
 </p>
 
 <h1 align="center">Stackable Operator for Apache Hadoop</h1>
+
 [![Build Actions Status](https://ci.stackable.tech/job/hdfs%2doperator%2dit%2dnightly/badge/icon?subject=Integration%20Tests)](https://ci.stackable.tech/job/hdfs%2doperator%2dit%2dnightly)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/stackabletech/hdfs-operator/graphs/commit-activity)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
