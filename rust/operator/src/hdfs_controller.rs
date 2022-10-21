@@ -540,6 +540,7 @@ fn namenode_containers(
             env: Some(env),
             readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
             liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
+            resources: Some(resources.clone()),
             ..hadoop_container.clone()
         },
         // Note that we don't add the HADOOP_OPTS / HDFS_NAMENODE_OPTS env var to this container (zkfc)
