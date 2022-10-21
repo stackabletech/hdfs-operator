@@ -10,8 +10,8 @@ use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecuri
 use stackable_operator::client::Client;
 use stackable_operator::cluster_resources::ClusterResources;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
-    ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
+    Container, ContainerPort, EmptyDirVolumeSource, ObjectFieldSelector, PodSpec, PodTemplateSpec,
+    Probe, ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -20,6 +20,7 @@ use stackable_operator::k8s_openapi::api::{
         ServicePort, ServiceSpec, Volume,
     },
 };
+use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::api::ObjectMeta;
@@ -384,14 +385,24 @@ fn rolegroup_statefulset(
         spec: Some(PodSpec {
             containers,
             init_containers,
-            volumes: Some(vec![Volume {
-                name: "config".to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: Some(rolegroup_ref.object_name()),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            }]),
+            volumes: Some(vec![
+                Volume {
+                    name: "config".to_string(),
+                    config_map: Some(ConfigMapVolumeSource {
+                        name: Some(rolegroup_ref.object_name()),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                },
+                Volume {
+                    name: "speed-of-light".to_string(),
+                    empty_dir: Some(EmptyDirVolumeSource {
+                        medium: Some("Memory".to_string()),
+                        size_limit: Some(Quantity("8Gi".to_string())),
+                    }),
+                    ..Volume::default()
+                },
+            ]),
             service_account: Some(rbac_sa.to_string()),
             security_context: Some(
                 PodSecurityContextBuilder::new()
@@ -840,7 +851,7 @@ fn hdfs_common_container(
         volume_mounts: Some(vec![
             VolumeMount {
                 mount_path: String::from(ROOT_DATA_DIR),
-                name: "data".to_string(),
+                name: "speed-of-light".to_string(),
                 ..VolumeMount::default()
             },
             VolumeMount {
