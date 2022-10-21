@@ -16,6 +16,12 @@ All notable changes to this project will be documented in this file.
 [#249]: https://github.com/stackabletech/hdfs-operator/pull/249
 [#250]: https://github.com/stackabletech/hdfs-operator/pull/250
 
+### Fixed
+
+- Set specified resource request and limit on namenode main container ([#259])
+
+[#259]: https://github.com/stackabletech/hdfs-operator/pull/259
+
 ## [0.5.0] - 2022-09-06
 
 ### Changed
