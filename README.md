@@ -9,7 +9,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
 [![License OSL3.0](https://img.shields.io/badge/license-OSL3.0-green)](./LICENSE)
 
-[Documentation](https://docs.stackable.tech//stable/index.html) | [Stackable Data Platform](https://stackable.tech/) | [Platform Docs](https://docs.stackable.tech/) | [Discussions](https://github.com/orgs/stackabletech/discussions)
+[Documentation](https://docs.stackable.tech/hdfs/stable/index.html) | [Stackable Data Platform](https://stackable.tech/) | [Platform Docs](https://docs.stackable.tech/) | [Discussions](https://github.com/orgs/stackabletech/discussions)
 
 This is a Kubernetes operator to manage [Apache Hadoop](https://hadoop.apache.org/).
 
@@ -27,8 +27,8 @@ You can follow this [tutorial](https://docs.stackable.tech/hdfs/stable/getting_s
 
 ## Documentation
 
-The stable documentation for this operator can be found [here](https://docs.stackable.tech//stable/index.html).
-If you are interested in the most recent state of this repository, check out the [nightly docs](https://docs.stackable.tech//nightly/index.html) instead.
+The stable documentation for this operator can be found [here](https://docs.stackable.tech/hdfs/stable/index.html).
+If you are interested in the most recent state of this repository, check out the [nightly docs](https://docs.stackable.tech/hdfs/nightly/index.html) instead.
 
 The documentation for all Stackable products can be found at [docs.stackable.tech](https://docs.stackable.tech).
 
