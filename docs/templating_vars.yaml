@@ -3,7 +3,7 @@ helm:
   repo_name: stackable-dev
   repo_url: https://repo.stackable.tech/repository/helm-dev/
 versions:
-  commons: 0.4.0-nightly
-  secret: 0.6.0-nightly
-  zookeeper: 0.12.0-nightly
-  hdfs: 0.6.0-nightly
+  commons: 0.5.0-nightly
+  secret: 0.7.0-nightly
+  zookeeper: 0.13.0-nightly
+  hdfs: 0.7.0-nightly
