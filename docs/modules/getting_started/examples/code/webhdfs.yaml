@@ -18,6 +18,6 @@ spec:
     spec:
       containers:
         - name: webhdfs
-          image: docker.stackable.tech/stackable/testing-tools:0.1.0-stackable0.1.0
+          image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.4.0
           stdin: true
           tty: true
