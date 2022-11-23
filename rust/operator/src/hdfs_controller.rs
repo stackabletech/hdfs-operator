@@ -2,7 +2,7 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
-use crate::rbac;
+use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
@@ -69,6 +69,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
+        OPERATOR_NAME,
         RESOURCE_MANAGER_HDFS_CONTROLLER,
         &hdfs.object_ref(&()),
     )
@@ -189,7 +190,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<HdfsCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
@@ -208,14 +209,13 @@ fn rolegroup_service(
                 source,
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 hdfs,
-                APP_NAME,
-                hdfs.hdfs_version()?,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
+                hdfs.hdfs_version()?,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
-            )
+            ))
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
@@ -314,14 +314,13 @@ fn rolegroup_config_map(
                     source: e,
                     obj_ref: ObjectRef::from_obj(hdfs),
                 })?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     hdfs,
-                    APP_NAME,
-                    hdfs.hdfs_version()?,
                     RESOURCE_MANAGER_HDFS_CONTROLLER,
+                    hdfs.hdfs_version()?,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
-                )
+                ))
                 .build(),
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
@@ -354,7 +353,7 @@ fn rolegroup_statefulset(
     let init_containers;
     let containers;
 
-    let (pvc, resources) = hdfs.resources(role, rolegroup_ref);
+    let (pvc, resources) = hdfs.resources(role, rolegroup_ref).unwrap_or_default();
 
     match role {
         HdfsRole::DataNode => {
@@ -412,14 +411,13 @@ fn rolegroup_statefulset(
                 source,
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 hdfs,
-                APP_NAME,
-                hdfs.hdfs_version()?,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
+                hdfs.hdfs_version()?,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
-            )
+            ))
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("OrderedReady".to_string()),
