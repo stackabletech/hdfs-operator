@@ -1739,7 +1739,6 @@ dependencies = [
  "anyhow",
  "built",
  "clap",
- "serde_yaml 0.8.26",
  "stackable-hdfs-crd",
  "stackable-hdfs-operator",
  "stackable-operator",

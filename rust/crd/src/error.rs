@@ -1,4 +1,5 @@
 use crate::HdfsCluster;
+use stackable_operator::config::fragment::ValidationError;
 use stackable_operator::{
     kube::runtime::reflector::ObjectRef, logging::controller::ReconcilerError,
 };
@@ -153,6 +154,8 @@ pub enum Error {
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
+    #[error("fragment validation failure")]
+    FragmentValidationFailure { source: ValidationError },
 }
 pub type HdfsOperatorResult<T> = std::result::Result<T, Error>;
 

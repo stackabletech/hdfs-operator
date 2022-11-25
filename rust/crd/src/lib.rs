@@ -272,8 +272,8 @@ impl HdfsCluster {
         role_resources.merge(&default_resources);
         rg_resources.merge(&role_resources);
 
-        let resources: Resources<Storage, NoRuntimeLimits> =
-            fragment::validate(rg_resources).expect("Validation error");
+        let resources: Resources<Storage, NoRuntimeLimits> = fragment::validate(rg_resources)
+            .map_err(|source| Error::FragmentValidationFailure { source })?;
 
         let data_pvc = resources
             .storage
