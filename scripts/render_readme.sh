@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # Check if jinja2 is there
-if ! command -v jinja2 &> /dev/null
+if ! command -v j2 &> /dev/null
 then
   echo "jinja2 could not be found. Use 'pip install jinja2-cli' to install it."
-  exit
+  exit 1
 fi
 
 SCRIPT_DIR=$(dirname "$0")
