@@ -1,6 +1,9 @@
-use crate::config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder};
+use crate::{
+    build_recommended_labels,
+    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder},
+};
 use stackable_hdfs_crd::{
-    constants::{APP_NAME, CORE_SITE_XML, HDFS_SITE_XML},
+    constants::{CORE_SITE_XML, HDFS_SITE_XML},
     HdfsCluster, HdfsPodRef, HdfsRole,
 };
 use stackable_operator::error::{Error, OperatorResult};
@@ -22,15 +25,14 @@ pub fn build_discovery_configmap(
             ObjectMetaBuilder::new()
                 .name_and_namespace(hdfs)
                 .ownerreference_from_resource(hdfs, None, Some(true))?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     hdfs,
-                    APP_NAME,
+                    controller,
                     hdfs.hdfs_version()
                         .map_err(|_| Error::MissingObjectKey { key: "version" })?,
-                    controller,
                     &HdfsRole::NameNode.to_string(),
                     "discovery",
-                )
+                ))
                 .build(),
         )
         .add_data(
