@@ -680,7 +680,7 @@ fn namenode_init_containers(
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    chown_init_container(&hdfs_image,&HdfsNodeDataDirectory::default().namenode, hadoop_container),
+    chown_init_container(hdfs_image,&HdfsNodeDataDirectory::default().namenode, hadoop_container),
     Container {
         name: "format-namenode".to_string(),
         image: Some(String::from(hdfs_image)),
