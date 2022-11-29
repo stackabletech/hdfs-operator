@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Updated stackable image versions ([#271])
 - `operator-rs` `0.25.2` -> `0.27.1` ([#276])
+- Removed tools image from init container and switched to hadoop image ([#280])
 
 [#271]: https://github.com/stackabletech/hdfs-operator/pull/271
 [#276]: https://github.com/stackabletech/hdfs-operator/pull/276
+[#280]: https://github.com/stackabletech/hdfs-operator/pull/280
 
 ## [0.6.0] - 2022-11-07
 
