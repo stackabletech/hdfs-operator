@@ -370,7 +370,7 @@ fn rolegroup_statefulset(
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
-            init_containers = journalnode_init_containers(hadoop_container);
+            init_containers = journalnode_init_containers(&hdfs_image, hadoop_container);
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
     }
@@ -610,7 +610,11 @@ fn datanode_init_containers(
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-        chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
+        chown_init_container(
+            hdfs_image,
+            &HdfsNodeDataDirectory::default().datanode,
+            hadoop_container,
+        ),
         Container {
             name: "wait-for-namenodes".to_string(),
             image: Some(String::from(hdfs_image)),
@@ -659,8 +663,12 @@ fn datanode_init_containers(
     ])
 }
 
-fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
+fn journalnode_init_containers(
+    hdfs_image: &str,
+    hadoop_container: &Container,
+) -> Option<Vec<Container>> {
     Some(vec![chown_init_container(
+        hdfs_image,
         &HdfsNodeDataDirectory::default().journalnode,
         hadoop_container,
     )])
@@ -672,7 +680,7 @@ fn namenode_init_containers(
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    chown_init_container(&HdfsNodeDataDirectory::default().namenode, hadoop_container),
+    chown_init_container(&hdfs_image,&HdfsNodeDataDirectory::default().namenode, hadoop_container),
     Container {
         name: "format-namenode".to_string(),
         image: Some(String::from(hdfs_image)),
@@ -741,10 +749,14 @@ fn namenode_init_containers(
 }
 
 /// Creates a container that chowns and chmods the provided `node_dir`.
-fn chown_init_container(node_dir: &str, hadoop_container: &Container) -> Container {
+fn chown_init_container(
+    container_image: &str,
+    node_dir: &str,
+    hadoop_container: &Container,
+) -> Container {
     Container {
         name: "chown-data".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
+        image: Some(String::from(container_image)),
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
