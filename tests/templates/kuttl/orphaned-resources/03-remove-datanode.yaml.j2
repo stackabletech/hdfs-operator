@@ -4,7 +4,9 @@ kind: HdfsCluster
 metadata:
   name: test-hdfs
 spec:
-  version: {{ test_scenario['values']['hdfs-latest'] }}
+  image:
+    productVersion: "{{ test_scenario['values']['hdfs-latest'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['hdfs-latest'].split('-stackable')[1] }}"
   zookeeperConfigMapName: test-znode
   dfsReplication: 1
   dataNodes:
