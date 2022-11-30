@@ -5,6 +5,7 @@ use constants::*;
 use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use stackable_operator::commons::product_image_selection::ProductImage;
 use stackable_operator::commons::resources::{NoRuntimeLimits, PvcConfig, Resources};
 use stackable_operator::commons::resources::{
     NoRuntimeLimitsFragment, PvcConfigFragment, ResourcesFragment,
@@ -43,7 +44,7 @@ use stackable_operator::config::fragment;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
-    pub version: Option<String>,
+    pub image: ProductImage,
     pub auto_format_fs: Option<bool>,
     pub zookeeper_config_map_name: String,
     pub data_nodes: Option<Role<DataNodeConfig>>,
@@ -171,22 +172,6 @@ lazy_static! {
 }
 
 impl HdfsCluster {
-    pub fn hdfs_version(&self) -> HdfsOperatorResult<&str> {
-        self.spec
-            .version
-            .as_deref()
-            .ok_or(Error::ObjectHasNoVersion {
-                obj_ref: ObjectRef::from_obj(self),
-            })
-    }
-
-    pub fn hdfs_image(&self) -> HdfsOperatorResult<String> {
-        Ok(format!(
-            "docker.stackable.tech/stackable/hadoop:{}",
-            self.hdfs_version()?
-        ))
-    }
-
     /// Kubernetes labels to attach to Pods within a role group.
     ///
     /// The same labels are also used as selectors for Services and StatefulSets.
@@ -697,7 +682,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -759,7 +746,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -823,7 +812,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -882,7 +873,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -951,7 +944,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
