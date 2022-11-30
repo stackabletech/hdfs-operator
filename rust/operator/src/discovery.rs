@@ -6,9 +6,10 @@ use stackable_hdfs_crd::{
     constants::{CORE_SITE_XML, HDFS_SITE_XML},
     HdfsCluster, HdfsPodRef, HdfsRole,
 };
-use stackable_operator::{error::{OperatorResult}, commons::product_image_selection::ResolvedProductImage};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
+    commons::product_image_selection::ResolvedProductImage,
+    error::OperatorResult,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::ResourceExt,
 };
