@@ -79,8 +79,13 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     )
     .map_err(|e| Error::CreateClusterResources { source: e })?;
 
-    let discovery_cm = build_discovery_configmap(&hdfs, HDFS_CONTROLLER, &namenode_podrefs, &resolved_product_image)
-        .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
+    let discovery_cm = build_discovery_configmap(
+        &hdfs,
+        HDFS_CONTROLLER,
+        &namenode_podrefs,
+        &resolved_product_image,
+    )
+    .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
 
     // The discovery CM is linked to the cluster lifecycle via ownerreference.
     // Therefore, must not be added to the "orphaned" cluster resources
@@ -145,7 +150,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, role_ports, &resolved_product_image)?;
+            let rg_service =
+                rolegroup_service(&hdfs, &rolegroup_ref, role_ports, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
@@ -367,14 +373,12 @@ fn rolegroup_statefulset(
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
-            init_containers =
-                datanode_init_containers(namenode_podrefs, hadoop_container);
+            init_containers = datanode_init_containers(namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
-            init_containers =
-                namenode_init_containers(namenode_podrefs, hadoop_container);
+            init_containers = namenode_init_containers(namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::JournalNode => {
