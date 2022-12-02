@@ -383,7 +383,7 @@ fn rolegroup_statefulset(
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
-            init_containers = journalnode_init_containers(hadoop_container);
+            init_containers = None;
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
     }
@@ -408,8 +408,8 @@ fn rolegroup_statefulset(
             service_account: Some(rbac_sa.to_string()),
             security_context: Some(
                 PodSecurityContextBuilder::new()
-                    .run_as_user(rbac::HDFS_UID)
-                    .run_as_group(0)
+                    .run_as_user(1000)
+                    .run_as_group(1000)
                     .fs_group(1000) // Needed for secret-operator
                     .build(),
             ),
@@ -622,15 +622,13 @@ fn datanode_init_containers(
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
-    Some(vec![
-        chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
-        Container {
-            name: "wait-for-namenodes".to_string(),
-            args: Some(vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                format!(
-                    "
+    Some(vec![Container {
+        name: "wait-for-namenodes".to_string(),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            format!(
+                "
                 echo \"Waiting for namenodes to get ready:\"
                 n=0
                 while [ ${{n}} -lt 12 ];
@@ -658,24 +656,16 @@ fn datanode_init_containers(
                   sleep 5
                 done
             ",
-                    hadoop_home = HADOOP_HOME,
-                    pod_names = namenode_podrefs
-                        .iter()
-                        .map(|pod_ref| pod_ref.pod_name.as_ref())
-                        .collect::<Vec<&str>>()
-                        .join(" ")
-                ),
-            ]),
-            ..hadoop_container.clone()
-        },
-    ])
-}
-
-fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
-    Some(vec![chown_init_container(
-        &HdfsNodeDataDirectory::default().journalnode,
-        hadoop_container,
-    )])
+                hadoop_home = HADOOP_HOME,
+                pod_names = namenode_podrefs
+                    .iter()
+                    .map(|pod_ref| pod_ref.pod_name.as_ref())
+                    .collect::<Vec<&str>>()
+                    .join(" ")
+            ),
+        ]),
+        ..hadoop_container.clone()
+    }])
 }
 
 fn namenode_init_containers(
@@ -683,7 +673,6 @@ fn namenode_init_containers(
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    chown_init_container(&HdfsNodeDataDirectory::default().namenode, hadoop_container),
     Container {
         name: "format-namenode".to_string(),
         args: Some(vec![
@@ -733,6 +722,7 @@ fn namenode_init_containers(
         ]),
         security_context: Some(SecurityContext {
             run_as_user: Some(1000),
+            run_as_group: Some(1000),
             ..SecurityContext::default()
         }),
         ..hadoop_container.clone()
@@ -747,27 +737,6 @@ fn namenode_init_containers(
         ..hadoop_container.clone()
     },
     ])
-}
-
-/// Creates a container that chowns and chmods the provided `node_dir`.
-fn chown_init_container(node_dir: &str, hadoop_container: &Container) -> Container {
-    Container {
-        name: "chown-data".to_string(),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            format!(
-                "mkdir -p {node_dir} && chown -R stackable:stackable {data_dir} && chmod -R a=,u=rwX {data_dir}",
-                node_dir = node_dir,
-                data_dir = ROOT_DATA_DIR
-            ),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..hadoop_container.clone()
-    }
 }
 
 /// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
