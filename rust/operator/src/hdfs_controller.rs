@@ -365,7 +365,7 @@ fn rolegroup_statefulset(
     let service_name = rolegroup_ref.object_name();
 
     let replicas;
-    let mut init_containers = None;
+    let init_containers;
     let containers;
 
     let (pvc, resources) = hdfs.resources(role, rolegroup_ref).unwrap_or_default();
@@ -383,6 +383,7 @@ fn rolegroup_statefulset(
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
+            init_containers = None;
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
     }
