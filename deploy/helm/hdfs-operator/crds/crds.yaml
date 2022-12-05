@@ -233,6 +233,11 @@ spec:
                                       nullable: true
                                       type: string
                                   type: object
+                                numberOfDataPvcs:
+                                  format: uint16
+                                  minimum: 0.0
+                                  nullable: true
+                                  type: integer
                               type: object
                           type: object
                       type: object
@@ -454,6 +459,11 @@ spec:
                                             nullable: true
                                             type: string
                                         type: object
+                                      numberOfDataPvcs:
+                                        format: uint16
+                                        minimum: 0.0
+                                        nullable: true
+                                        type: integer
                                     type: object
                                 type: object
                             type: object
