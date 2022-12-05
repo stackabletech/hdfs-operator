@@ -9,15 +9,15 @@ use stackable_hdfs_crd::HdfsPodRef;
 use std::collections::BTreeMap;
 
 // dirs
-pub const NAMENODE_DIR: &str = "/data/name";
-pub const DATANODE_DIR: &str = "/data/data";
-pub const JOURNALNODE_DIR: &str = "/data/journal";
-pub const ROOT_DATA_DIR: &str = "/data";
+pub const ROOT_DATA_DIR: &str = "/stackable/data";
+pub const NAMENODE_DIR: &str = "/stackable/data/name";
+pub const DATANODE_DIR_PREFIX: &str = "/stackable/data-";
+pub const DATANODE_DIR_SUFFIX: &str = "/data";
+pub const JOURNALNODE_DIR: &str = "/stackable/data/journal";
 
 #[derive(Clone)]
 pub struct HdfsNodeDataDirectory {
     pub namenode: String,
-    pub datanode: String,
     pub journalnode: String,
 }
 
@@ -25,7 +25,6 @@ impl Default for HdfsNodeDataDirectory {
     fn default() -> Self {
         HdfsNodeDataDirectory {
             namenode: NAMENODE_DIR.to_string(),
-            datanode: DATANODE_DIR.to_string(),
             journalnode: JOURNALNODE_DIR.to_string(),
         }
     }
@@ -65,11 +64,14 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn dfs_datanode_data_dir(&mut self) -> &mut Self {
-        self.config.insert(
-            DFS_DATANODE_DATA_DIR.to_string(),
-            self.data_directory.datanode.clone(),
-        );
+    pub fn dfs_datanode_data_dir(&mut self, number_of_datanode_pvcs: usize) -> &mut Self {
+        let datanode_dirs = (0..number_of_datanode_pvcs)
+            .map(|pvc_index| format!("{DATANODE_DIR_PREFIX}{pvc_index}{DATANODE_DIR_SUFFIX}"))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        self.config
+            .insert(DFS_DATANODE_DATA_DIR.to_string(), datanode_dirs);
         self
     }
 

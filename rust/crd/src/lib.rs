@@ -338,21 +338,13 @@ impl HdfsCluster {
                 role_resources.merge(&default_resources);
                 rg_resources.merge(&role_resources);
 
-                let resources: Resources<StorageWithMultiplePvcs, NoRuntimeLimits> =
+                let resources: Resources<DataNodeStorage, NoRuntimeLimits> =
                     fragment::validate(rg_resources)
                         .map_err(|source| Error::FragmentValidationFailure { source })?;
 
-                let pvc_template = resources
+                let pvcs = resources
                     .storage
-                    .data
-                    .build_pvc("data", Some(vec!["ReadWriteOnce"]));
-
-                let mut pvcs = Vec::new();
-                for pvc_index in 0..resources.storage.number_of_data_pvcs {
-                    let mut pvc = pvc_template.clone();
-                    pvc.metadata.name = Some(format!("data-pvc-{pvc_index}"));
-                    pvcs.push(pvc);
-                }
+                    .build_pvcs("data", Some(vec!["ReadWriteOnce"]));
 
                 Ok((pvcs, resources.into()))
             }
@@ -381,13 +373,13 @@ impl HdfsCluster {
 
     fn default_resources_for_data_nodes(
         &self,
-    ) -> ResourcesFragment<StorageWithMultiplePvcs, NoRuntimeLimits> {
+    ) -> ResourcesFragment<DataNodeStorage, NoRuntimeLimits> {
         ResourcesFragment {
             cpu: self.default_resources().cpu,
             memory: self.default_resources().memory,
-            storage: StorageWithMultiplePvcsFragment {
+            storage: DataNodeStorageFragment {
                 data: self.default_resources().storage.data,
-                number_of_data_pvcs: Some(default_number_of_data_pvcs()),
+                number_of_data_pvcs: Some(default_number_of_datanode_pvcs()),
             },
         }
     }
@@ -599,14 +591,33 @@ struct Storage {
     ),
     serde(rename_all = "camelCase")
 )]
-struct StorageWithMultiplePvcs {
+struct DataNodeStorage {
     #[fragment_attrs(serde(default))]
     data: PvcConfig,
-    #[serde(default = "default_number_of_data_pvcs")]
+    #[serde(default = "default_number_of_datanode_pvcs")]
     number_of_data_pvcs: u16,
 }
 
-fn default_number_of_data_pvcs() -> u16 {
+impl DataNodeStorage {
+    pub fn build_pvcs(
+        &self,
+        pvc_name_prefix: &str,
+        access_modes: Option<Vec<&str>>,
+    ) -> Vec<PersistentVolumeClaim> {
+        let pvc_template = self.data.build_pvc(pvc_name_prefix, access_modes);
+
+        let mut pvcs = Vec::with_capacity(self.number_of_data_pvcs as usize);
+        for pvc_index in 0..self.number_of_data_pvcs {
+            let mut pvc = pvc_template.clone();
+            pvc.metadata.name = Some(format!("{pvc_name_prefix}-{pvc_index}"));
+            pvcs.push(pvc);
+        }
+
+        pvcs
+    }
+}
+
+fn default_number_of_datanode_pvcs() -> u16 {
     1
 }
 
@@ -619,7 +630,7 @@ pub struct NameNodeConfig {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataNodeConfig {
-    resources: Option<ResourcesFragment<StorageWithMultiplePvcs, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<DataNodeStorage, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -769,13 +780,13 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs
+        let (pvcs, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
         assert_eq!(
             &Quantity("5Gi".to_owned()),
-            pvc[0]
+            pvcs[0]
                 .clone()
                 .spec
                 .unwrap()
@@ -821,13 +832,13 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs
+        let (pvcs, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
         assert_eq!(
             &Quantity("5Gi".to_owned()),
-            pvc[0]
+            pvcs[0]
                 .clone()
                 .spec
                 .unwrap()
@@ -868,13 +879,13 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs
+        let (pvcs, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
         assert_eq!(
             &Quantity("2Gi".to_owned()),
-            pvc[0]
+            pvcs[0]
                 .clone()
                 .spec
                 .unwrap()
@@ -921,12 +932,12 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs
+        let (pvcs, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
-        assert_eq!(pvc.len(), 5);
-        for (pvc_index, pvc) in pvc.iter().enumerate() {
+        assert_eq!(pvcs.len(), 5);
+        for (pvc_index, pvc) in pvcs.iter().enumerate() {
             assert_eq!(
                 &Quantity("100Gi".to_owned()),
                 pvc.spec
@@ -941,7 +952,7 @@ spec:
                     .get("storage")
                     .unwrap()
             );
-            assert_eq!(Some(format!("data-pvc-{pvc_index}")), pvc.metadata.name);
+            assert_eq!(Some(format!("data-{pvc_index}")), pvc.metadata.name);
         }
     }
 

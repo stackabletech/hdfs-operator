@@ -1,8 +1,6 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: install-hdfs
 timeout: 600
 ---
 apiVersion: apps/v1
@@ -26,8 +24,8 @@ kind: StatefulSet
 metadata:
   name: hdfs-datanode-default
 status:
-  readyReplicas: 1
-  replicas: 1
+  readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
+  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
 ---
 apiVersion: v1
 kind: ConfigMap

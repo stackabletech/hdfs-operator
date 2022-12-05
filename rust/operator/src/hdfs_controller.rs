@@ -1,5 +1,6 @@
 use crate::config::{
-    CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
+    CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, DATANODE_DIR_PREFIX,
+    ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
@@ -11,8 +12,8 @@ use stackable_operator::client::Client;
 use stackable_operator::cluster_resources::ClusterResources;
 use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
-    ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
+    Container, ContainerPort, ObjectFieldSelector, PersistentVolumeClaim, PodSpec, PodTemplateSpec,
+    Probe, ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -141,14 +142,18 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         }
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
+            let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
+
+            let (pvcs, resources) = hdfs.resources(&role, &rolegroup_ref).unwrap_or_default();
+
             let hadoop_container = hdfs_common_container(
                 &hdfs,
+                &role,
                 role_ports,
                 rolegroup_config.get(&PropertyNameKind::Env),
+                pvcs.len(),
                 &resolved_product_image,
             )?;
-
-            let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
             let rg_service =
                 rolegroup_service(&hdfs, &rolegroup_ref, role_ports, &resolved_product_image)?;
@@ -156,6 +161,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hdfs,
                 &rolegroup_ref,
                 rolegroup_config,
+                &pvcs,
                 &namenode_podrefs,
                 &journalnode_podrefs,
                 &resolved_product_image,
@@ -165,6 +171,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hdfs,
                 &role,
                 &rolegroup_ref,
+                &resources,
+                pvcs,
                 &namenode_podrefs,
                 &hadoop_container,
                 &rbac_sa.name_any(),
@@ -257,6 +265,7 @@ fn rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    pvcs: &Vec<PersistentVolumeClaim>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
@@ -283,7 +292,7 @@ fn rolegroup_config_map(
                 // be formatted by the namenode, or used by the other services.
                 // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
                 .dfs_namenode_name_dir()
-                .dfs_datanode_data_dir()
+                .dfs_datanode_data_dir(pvcs.len())
                 .dfs_journalnode_edits_dir()
                 .dfs_replication(
                     *hdfs
@@ -352,10 +361,13 @@ fn rolegroup_config_map(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
     role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    resources: &ResourceRequirements,
+    pvcs: Vec<PersistentVolumeClaim>,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
     rbac_sa: &str,
@@ -368,23 +380,21 @@ fn rolegroup_statefulset(
     let init_containers;
     let containers;
 
-    let (pvc, resources) = hdfs.resources(role, rolegroup_ref).unwrap_or_default();
-
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
             init_containers = datanode_init_containers(namenode_podrefs, hadoop_container);
-            containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
+            containers = datanode_containers(rolegroup_ref, hadoop_container, resources)?;
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
             init_containers = namenode_init_containers(namenode_podrefs, hadoop_container);
-            containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
+            containers = namenode_containers(rolegroup_ref, hadoop_container, resources)?;
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
             init_containers = None;
-            containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
+            containers = journalnode_containers(rolegroup_ref, hadoop_container, resources)?;
         }
     }
 
@@ -447,7 +457,7 @@ fn rolegroup_statefulset(
             },
             service_name,
             template,
-            volume_claim_templates: Some(pvc),
+            volume_claim_templates: Some(pvcs),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -760,8 +770,10 @@ fn tcp_socket_action_probe(
 /// Build a Container with common HDFS environment variables, ports and volume mounts set.
 fn hdfs_common_container(
     hdfs: &HdfsCluster,
+    role: &HdfsRole,
     rolegroup_ports: &[(String, i32)],
     env_overrides: Option<&BTreeMap<String, String>>,
+    number_of_datanode_pvcs: usize,
     resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Container> {
     let mut env: Vec<EnvVar> = env_overrides
@@ -810,22 +822,34 @@ fn hdfs_common_container(
             ..EnvVar::default()
         },
     ]);
+    let mut volume_mounts = vec![VolumeMount {
+        mount_path: String::from(CONFIG_DIR_NAME),
+        name: "config".to_string(),
+        ..VolumeMount::default()
+    }];
+    match role {
+        HdfsRole::DataNode => {
+            // We need to add a volume mount for every datanode pvc individually
+            volume_mounts.extend((0..number_of_datanode_pvcs).map(|pvc_index| VolumeMount {
+                mount_path: format!("{DATANODE_DIR_PREFIX}{pvc_index}"),
+                name: format!("data-{pvc_index}"),
+                ..VolumeMount::default()
+            }));
+        }
+        HdfsRole::NameNode | HdfsRole::JournalNode => {
+            volume_mounts.push(VolumeMount {
+                mount_path: String::from(ROOT_DATA_DIR),
+                name: "data".to_string(),
+                ..VolumeMount::default()
+            });
+        }
+    }
+
     Ok(Container {
         image: Some(resolved_product_image.image.clone()),
         image_pull_policy: Some(resolved_product_image.image_pull_policy.clone()),
         env: Some(env),
-        volume_mounts: Some(vec![
-            VolumeMount {
-                mount_path: String::from(ROOT_DATA_DIR),
-                name: "data".to_string(),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                mount_path: String::from(CONFIG_DIR_NAME),
-                name: "config".to_string(),
-                ..VolumeMount::default()
-            },
-        ]),
+        volume_mounts: Some(volume_mounts),
         ports: Some(
             rolegroup_ports
                 .iter()

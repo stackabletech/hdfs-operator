@@ -34,9 +34,15 @@ spec:
           min: '300m'
         memory:
           limit: '512Mi'
+        storage:
+{% if test_scenario['values']['datanode-pvcs'] != 'default' %}
+          numberOfDataPvcs: {{ test_scenario['values']['datanode-pvcs'] }}
+{% endif %}
+          data:
+            capacity: 2Gi
     roleGroups:
       default:
-        replicas: 1
+        replicas: {{ test_scenario['values']['number-of-datanodes'] }}
   journalNodes:
     config:
       resources:
