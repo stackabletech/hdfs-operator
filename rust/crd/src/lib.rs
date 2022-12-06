@@ -11,7 +11,7 @@ use stackable_operator::commons::resources::{
     NoRuntimeLimitsFragment, PvcConfigFragment, ResourcesFragment,
 };
 use stackable_operator::config::fragment::Fragment;
-use stackable_operator::config::merge::Merge;
+use stackable_operator::config::merge::{Atomic, Merge};
 use stackable_operator::k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements};
 use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
@@ -342,9 +342,7 @@ impl HdfsCluster {
                     fragment::validate(rg_resources)
                         .map_err(|source| Error::FragmentValidationFailure { source })?;
 
-                let pvcs = resources
-                    .storage
-                    .build_pvcs();
+                let pvcs = resources.storage.build_pvcs();
 
                 Ok((pvcs, resources.into()))
             }
@@ -376,10 +374,18 @@ impl HdfsCluster {
             cpu: self.default_resources().cpu,
             memory: self.default_resources().memory,
             storage: DataNodeStorageFragment {
-                disk: DataNodeDiskStorageFragment {
-                    number_of_pvcs: Some(default_number_of_pvcs()),
-                    pvc: self.default_resources().storage.data,
-                },
+                pvcs: BTreeMap::from([(
+                    "data".to_string(),
+                    DataNodePvcFragment {
+                        pvc: PvcConfigFragment {
+                            capacity: Some(Quantity("5Gi".to_owned())),
+                            storage_class: None,
+                            selectors: None,
+                        },
+                        count: Some(1),
+                        hdfs_storage_type: Some(HdfsStorageType::default()),
+                    },
+                )]),
             },
         }
     }
@@ -592,8 +598,8 @@ struct Storage {
     serde(rename_all = "camelCase")
 )]
 pub struct DataNodeStorage {
-    #[fragment_attrs(serde(default))]
-    disk: DataNodeDiskStorage,
+    #[fragment_attrs(serde(default, flatten))]
+    pvcs: BTreeMap<String, DataNodePvc>,
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -612,34 +618,60 @@ pub struct DataNodeStorage {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct DataNodeDiskStorage {
-    #[serde(default = "default_number_of_pvcs")]
-    number_of_pvcs: u16,
-    #[fragment_attrs(serde(default))]
+pub struct DataNodePvc {
+    #[fragment_attrs(serde(default, flatten))]
     pvc: PvcConfig,
+
+    #[serde(default = "default_number_of_datanode_pvcs")]
+    count: u16,
+
+    #[fragment_attrs(serde(default))]
+    hdfs_storage_type: HdfsStorageType,
 }
 
-fn default_number_of_pvcs() -> u16 {
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub enum HdfsStorageType {
+    Archive,
+    Disk,
+    Ssd,
+    RamDisk,
+}
+
+impl Atomic for HdfsStorageType {}
+
+impl Default for HdfsStorageType {
+    fn default() -> Self {
+        Self::Disk
+    }
+}
+
+fn default_number_of_datanode_pvcs() -> u16 {
     1
 }
 
 impl DataNodeStorage {
     /// Builds a list of pvcs with the length being `self.number_of_data_pvcs`.
     /// The spec - such as size, storageClass or selector - is used from the regular `PvcConfig` struct used for the `data` attribute.
-    pub fn build_pvcs(
-        &self,
-    ) -> Vec<PersistentVolumeClaim> {
-        let pvc_name_prefix = "data";
-        let disk_pvc_template = self.disk.pvc.build_pvc(pvc_name_prefix, Some(vec!["ReadWriteOnce"]));
+    pub fn build_pvcs(&self) -> Vec<PersistentVolumeClaim> {
+        let mut pvcs = vec![];
 
-        Self::pvc_names(pvc_name_prefix, self.disk.number_of_pvcs)
-            .into_iter()
-            .map(|pvc_name| {
-                let mut pvc = disk_pvc_template.clone();
-                pvc.metadata.name = Some(pvc_name);
-                pvc
-            })
-            .collect()
+        for (pvc_name_prefix, pvc) in &self.pvcs {
+            let disk_pvc_template = pvc
+                .pvc
+                .build_pvc(pvc_name_prefix, Some(vec!["ReadWriteOnce"]));
+
+            pvcs.extend(
+                Self::pvc_names(pvc_name_prefix, pvc.count)
+                    .into_iter()
+                    .map(|pvc_name| {
+                        let mut pvc = disk_pvc_template.clone();
+                        pvc.metadata.name = Some(pvc_name);
+                        pvc
+                    }),
+            )
+        }
+        pvcs
     }
 
     /// Returns a list with the names of the pvcs to be used for nodes.
@@ -789,9 +821,12 @@ impl Configuration for JournalNodeConfig {
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use super::{HdfsCluster, HdfsRole};
     use stackable_operator::k8s_openapi::{
-        api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
+        api::core::v1::{PersistentVolumeClaimSpec, ResourceRequirements},
+        apimachinery::pkg::api::resource::Quantity,
     };
 
     #[test]
@@ -818,9 +853,8 @@ spec:
         config:
           resources:
             storage:
-              disk:
-                pvc:
-                  capacity: 5Gi
+              data:
+                capacity: 5Gi
   journalNodes:
     roleGroups:
       default:
@@ -868,9 +902,8 @@ spec:
     config:
       resources:
         storage:
-          disk:
-            pvc:
-              capacity: 5Gi
+          data:
+            capacity: 5Gi
     roleGroups:
       default:
         replicas: 1
@@ -971,15 +1004,17 @@ spec:
         config:
           resources:
             storage:
-              disk:
-                numberOfPvcs: 5
-                pvc:
-                  capacity: 100Gi
-              ssd: # supported later on
-                numberOfPvcs: 3
-                pvc:
-                  capacity: 10Gi
-                  storageClass: premium
+              data: # We need to overwrite the data pvcs coming from the default value
+                count: 0
+              my-disks:
+                capacity: 100Gi
+                count: 5
+                hdfsStorageType: Disk
+              my-ssds:
+                capacity: 10Gi
+                storageClass: premium
+                count: 3
+                hdfsStorageType: Ssd
   journalNodes:
     roleGroups:
       default:
@@ -994,34 +1029,66 @@ spec:
 
         assert_eq!(pvcs.len(), 1);
         assert_eq!(pvcs[0].metadata.name, Some("data".to_string()));
+        assert_eq!(
+            pvcs[0].spec,
+            Some(PersistentVolumeClaimSpec {
+                resources: Some(ResourceRequirements {
+                    requests: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity("2Gi".to_string())
+                    )])),
+                    ..ResourceRequirements::default()
+                }),
+                access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                storage_class_name: None,
+                ..PersistentVolumeClaimSpec::default()
+            })
+        );
 
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
         let (pvcs, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
-        assert_eq!(pvcs.len(), 5);
-        for (pvc_index, pvc) in pvcs.iter().enumerate() {
-            assert_eq!(
-                &Quantity("100Gi".to_owned()),
-                pvc.spec
-                    .as_ref()
-                    .unwrap()
-                    .resources
-                    .as_ref()
-                    .unwrap()
-                    .requests
-                    .as_ref()
-                    .unwrap()
-                    .get("storage")
-                    .unwrap()
-            );
-            if pvc_index == 0 {
-                assert_eq!(pvc.metadata.name, Some("data".to_string()));
-            } else {
-                assert_eq!(pvc.metadata.name, Some(format!("data-{pvc_index}")));
-            }
-        }
+        assert_eq!(pvcs.len(), 8);
+        assert_eq!(pvcs[0].metadata.name, Some("my-disks".to_string()));
+        assert_eq!(
+            pvcs[0].spec,
+            Some(PersistentVolumeClaimSpec {
+                resources: Some(ResourceRequirements {
+                    requests: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity("100Gi".to_string())
+                    )])),
+                    ..ResourceRequirements::default()
+                }),
+                access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                storage_class_name: None,
+                ..PersistentVolumeClaimSpec::default()
+            })
+        );
+        assert_eq!(pvcs[1].metadata.name, Some("my-disks-1".to_string()));
+        assert_eq!(pvcs[2].metadata.name, Some("my-disks-2".to_string()));
+        assert_eq!(pvcs[3].metadata.name, Some("my-disks-3".to_string()));
+        assert_eq!(pvcs[4].metadata.name, Some("my-disks-4".to_string()));
+        assert_eq!(pvcs[5].metadata.name, Some("my-ssds".to_string()));
+        assert_eq!(
+            pvcs[5].spec,
+            Some(PersistentVolumeClaimSpec {
+                resources: Some(ResourceRequirements {
+                    requests: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity("10Gi".to_string())
+                    )])),
+                    ..ResourceRequirements::default()
+                }),
+                access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                storage_class_name: Some("premium".to_string()),
+                ..PersistentVolumeClaimSpec::default()
+            })
+        );
+        assert_eq!(pvcs[6].metadata.name, Some("my-ssds-1".to_string()));
+        assert_eq!(pvcs[7].metadata.name, Some("my-ssds-2".to_string()));
     }
 
     #[test]

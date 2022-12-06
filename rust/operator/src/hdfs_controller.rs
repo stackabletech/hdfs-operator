@@ -5,7 +5,7 @@ use crate::config::{
 use crate::discovery::build_discovery_configmap;
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
-use stackable_hdfs_crd::{constants::*, ROLE_PORTS, DataNodeStorage};
+use stackable_hdfs_crd::{constants::*, DataNodeStorage, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
 use stackable_operator::client::Client;
@@ -830,10 +830,9 @@ fn hdfs_common_container(
     match role {
         HdfsRole::DataNode => {
             // We need to add a volume mount for every datanode pvc individually
-            for (pvc_index, pvc_name) in
-                DataNodeStorage::pvc_names("data", number_of_datanode_pvcs)
-                    .into_iter()
-                    .enumerate()
+            for (pvc_index, pvc_name) in DataNodeStorage::pvc_names("data", number_of_datanode_pvcs)
+                .into_iter()
+                .enumerate()
             {
                 volume_mounts.push(VolumeMount {
                     mount_path: format!("{DATANODE_DIR_PREFIX}{pvc_index}"),
