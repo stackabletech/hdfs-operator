@@ -313,7 +313,7 @@ impl HdfsCluster {
             }
             HdfsRole::DataNode => {
                 // DataNodes need some special handling as they can have multiple pvcs
-                let default_resources = self.default_resources_for_storage_with_multiple_pvcs();
+                let default_resources = self.default_data_node_resources();
 
                 let mut role_resources = self
                     .spec
@@ -338,13 +338,13 @@ impl HdfsCluster {
                 role_resources.merge(&default_resources);
                 rg_resources.merge(&role_resources);
 
-                let resources: Resources<StorageWithMultipleDataPvcs, NoRuntimeLimits> =
+                let resources: Resources<DataNodeStorage, NoRuntimeLimits> =
                     fragment::validate(rg_resources)
                         .map_err(|source| Error::FragmentValidationFailure { source })?;
 
                 let pvcs = resources
                     .storage
-                    .build_pvcs("data", Some(vec!["ReadWriteOnce"]));
+                    .build_pvcs();
 
                 Ok((pvcs, resources.into()))
             }
@@ -371,15 +371,15 @@ impl HdfsCluster {
         }
     }
 
-    fn default_resources_for_storage_with_multiple_pvcs(
-        &self,
-    ) -> ResourcesFragment<StorageWithMultipleDataPvcs, NoRuntimeLimits> {
+    fn default_data_node_resources(&self) -> ResourcesFragment<DataNodeStorage, NoRuntimeLimits> {
         ResourcesFragment {
             cpu: self.default_resources().cpu,
             memory: self.default_resources().memory,
-            storage: StorageWithMultipleDataPvcsFragment {
-                data: self.default_resources().storage.data,
-                number_of_data_pvcs: Some(default_number_of_data_pvcs()),
+            storage: DataNodeStorageFragment {
+                disk: DataNodeDiskStorageFragment {
+                    number_of_pvcs: Some(default_number_of_pvcs()),
+                    pvc: self.default_resources().storage.data,
+                },
             },
         }
     }
@@ -591,31 +591,51 @@ struct Storage {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct StorageWithMultipleDataPvcs {
+pub struct DataNodeStorage {
     #[fragment_attrs(serde(default))]
-    data: PvcConfig,
-    #[serde(default = "default_number_of_data_pvcs")]
-    number_of_data_pvcs: u16,
+    disk: DataNodeDiskStorage,
 }
 
-fn default_number_of_data_pvcs() -> u16 {
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+#[fragment_attrs(
+    allow(clippy::derive_partial_eq_without_eq),
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
+pub struct DataNodeDiskStorage {
+    #[serde(default = "default_number_of_pvcs")]
+    number_of_pvcs: u16,
+    #[fragment_attrs(serde(default))]
+    pvc: PvcConfig,
+}
+
+fn default_number_of_pvcs() -> u16 {
     1
 }
 
-impl StorageWithMultipleDataPvcs {
+impl DataNodeStorage {
     /// Builds a list of pvcs with the length being `self.number_of_data_pvcs`.
     /// The spec - such as size, storageClass or selector - is used from the regular `PvcConfig` struct used for the `data` attribute.
     pub fn build_pvcs(
         &self,
-        pvc_name_prefix: &str,
-        access_modes: Option<Vec<&str>>,
     ) -> Vec<PersistentVolumeClaim> {
-        let pvc_template = self.data.build_pvc(pvc_name_prefix, access_modes);
+        let pvc_name_prefix = "data";
+        let disk_pvc_template = self.disk.pvc.build_pvc(pvc_name_prefix, Some(vec!["ReadWriteOnce"]));
 
-        Self::pvc_names(pvc_name_prefix, self.number_of_data_pvcs)
+        Self::pvc_names(pvc_name_prefix, self.disk.number_of_pvcs)
             .into_iter()
             .map(|pvc_name| {
-                let mut pvc = pvc_template.clone();
+                let mut pvc = disk_pvc_template.clone();
                 pvc.metadata.name = Some(pvc_name);
                 pvc
             })
@@ -657,7 +677,7 @@ pub struct NameNodeConfig {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataNodeConfig {
-    resources: Option<ResourcesFragment<StorageWithMultipleDataPvcs, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<DataNodeStorage, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -794,12 +814,13 @@ spec:
   dataNodes:
     roleGroups:
       default:
+        replicas: 1
         config:
           resources:
             storage:
-              data:
-                capacity: 5Gi
-        replicas: 1
+              disk:
+                pvc:
+                  capacity: 5Gi
   journalNodes:
     roleGroups:
       default:
@@ -847,8 +868,9 @@ spec:
     config:
       resources:
         storage:
-          data:
-            capacity: 5Gi
+          disk:
+            pvc:
+              capacity: 5Gi
     roleGroups:
       default:
         replicas: 1
@@ -949,9 +971,15 @@ spec:
         config:
           resources:
             storage:
-              numberOfDataPvcs: 5
-              data:
-                capacity: 100Gi
+              disk:
+                numberOfPvcs: 5
+                pvc:
+                  capacity: 100Gi
+              ssd: # supported later on
+                numberOfPvcs: 3
+                pvc:
+                  capacity: 10Gi
+                  storageClass: premium
   journalNodes:
     roleGroups:
       default:
