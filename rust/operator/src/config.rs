@@ -11,6 +11,9 @@ use std::collections::BTreeMap;
 // dirs
 pub const ROOT_DATA_DIR: &str = "/stackable/data";
 pub const NAMENODE_DIR: &str = "/stackable/data/name";
+// Will end up with something like `/stackable/data-0/data` and `/stackable/data-1/data` etc.
+// We are choosing consistent naming for the volumes and volume mounts.
+// Please keep in mind that the actual pvc names might differ.
 pub const DATANODE_DIR_PREFIX: &str = "/stackable/data-";
 pub const DATANODE_DIR_SUFFIX: &str = "/data";
 pub const JOURNALNODE_DIR: &str = "/stackable/data/journal";

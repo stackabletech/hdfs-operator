@@ -5,7 +5,7 @@ use crate::config::{
 use crate::discovery::build_discovery_configmap;
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
-use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
+use stackable_hdfs_crd::{constants::*, StorageWithMultipleDataPvcs, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
 use stackable_operator::client::Client;
@@ -151,7 +151,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &role,
                 role_ports,
                 rolegroup_config.get(&PropertyNameKind::Env),
-                pvcs.len(),
+                pvcs.len() as u16,
                 &resolved_product_image,
             )?;
 
@@ -773,7 +773,7 @@ fn hdfs_common_container(
     role: &HdfsRole,
     rolegroup_ports: &[(String, i32)],
     env_overrides: Option<&BTreeMap<String, String>>,
-    number_of_datanode_pvcs: usize,
+    number_of_datanode_pvcs: u16,
     resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Container> {
     let mut env: Vec<EnvVar> = env_overrides
@@ -830,11 +830,17 @@ fn hdfs_common_container(
     match role {
         HdfsRole::DataNode => {
             // We need to add a volume mount for every datanode pvc individually
-            volume_mounts.extend((0..number_of_datanode_pvcs).map(|pvc_index| VolumeMount {
-                mount_path: format!("{DATANODE_DIR_PREFIX}{pvc_index}"),
-                name: format!("data-{pvc_index}"),
-                ..VolumeMount::default()
-            }));
+            for (pvc_index, pvc_name) in
+                StorageWithMultipleDataPvcs::pvc_names("data", number_of_datanode_pvcs)
+                    .into_iter()
+                    .enumerate()
+            {
+                volume_mounts.push(VolumeMount {
+                    mount_path: format!("{DATANODE_DIR_PREFIX}{pvc_index}"),
+                    name: pvc_name,
+                    ..VolumeMount::default()
+                });
+            }
         }
         HdfsRole::NameNode | HdfsRole::JournalNode => {
             volume_mounts.push(VolumeMount {

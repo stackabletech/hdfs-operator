@@ -313,7 +313,7 @@ impl HdfsCluster {
             }
             HdfsRole::DataNode => {
                 // DataNodes need some special handling as they can have multiple pvcs
-                let default_resources = self.default_resources_for_data_nodes();
+                let default_resources = self.default_resources_for_storage_with_multiple_pvcs();
 
                 let mut role_resources = self
                     .spec
@@ -338,7 +338,7 @@ impl HdfsCluster {
                 role_resources.merge(&default_resources);
                 rg_resources.merge(&role_resources);
 
-                let resources: Resources<DataNodeStorage, NoRuntimeLimits> =
+                let resources: Resources<StorageWithMultipleDataPvcs, NoRuntimeLimits> =
                     fragment::validate(rg_resources)
                         .map_err(|source| Error::FragmentValidationFailure { source })?;
 
@@ -371,15 +371,15 @@ impl HdfsCluster {
         }
     }
 
-    fn default_resources_for_data_nodes(
+    fn default_resources_for_storage_with_multiple_pvcs(
         &self,
-    ) -> ResourcesFragment<DataNodeStorage, NoRuntimeLimits> {
+    ) -> ResourcesFragment<StorageWithMultipleDataPvcs, NoRuntimeLimits> {
         ResourcesFragment {
             cpu: self.default_resources().cpu,
             memory: self.default_resources().memory,
-            storage: DataNodeStorageFragment {
+            storage: StorageWithMultipleDataPvcsFragment {
                 data: self.default_resources().storage.data,
-                number_of_data_pvcs: Some(default_number_of_datanode_pvcs()),
+                number_of_data_pvcs: Some(default_number_of_data_pvcs()),
             },
         }
     }
@@ -591,14 +591,20 @@ struct Storage {
     ),
     serde(rename_all = "camelCase")
 )]
-struct DataNodeStorage {
+pub struct StorageWithMultipleDataPvcs {
     #[fragment_attrs(serde(default))]
     data: PvcConfig,
-    #[serde(default = "default_number_of_datanode_pvcs")]
+    #[serde(default = "default_number_of_data_pvcs")]
     number_of_data_pvcs: u16,
 }
 
-impl DataNodeStorage {
+fn default_number_of_data_pvcs() -> u16 {
+    1
+}
+
+impl StorageWithMultipleDataPvcs {
+    /// Builds a list of pvcs with the length being `self.number_of_data_pvcs`.
+    /// The spec - such as size, storageClass or selector - is used from the regular `PvcConfig` struct used for the `data` attribute.
     pub fn build_pvcs(
         &self,
         pvc_name_prefix: &str,
@@ -606,19 +612,40 @@ impl DataNodeStorage {
     ) -> Vec<PersistentVolumeClaim> {
         let pvc_template = self.data.build_pvc(pvc_name_prefix, access_modes);
 
-        let mut pvcs = Vec::with_capacity(self.number_of_data_pvcs as usize);
-        for pvc_index in 0..self.number_of_data_pvcs {
-            let mut pvc = pvc_template.clone();
-            pvc.metadata.name = Some(format!("{pvc_name_prefix}-{pvc_index}"));
-            pvcs.push(pvc);
-        }
-
-        pvcs
+        Self::pvc_names(pvc_name_prefix, self.number_of_data_pvcs)
+            .into_iter()
+            .map(|pvc_name| {
+                let mut pvc = pvc_template.clone();
+                pvc.metadata.name = Some(pvc_name);
+                pvc
+            })
+            .collect()
     }
-}
 
-fn default_number_of_datanode_pvcs() -> u16 {
-    1
+    /// Returns a list with the names of the pvcs to be used for nodes.
+    /// The pvc names will be prefixed with the name given in the `pvc_name_prefix` argument.
+    ///
+    /// There are two options when it comes to naming:
+    /// 1. Name the pvcs `data-0, data-1, data-2, ... , data-{n-1}`
+    /// ** Good, because consistent naming
+    /// ** Bad, because existing deployments (using release 22.11 or earlier) will need to migrate their data by renaming their pvcs
+    ///
+    /// 2. Name the pvcs `data, data-1, data-2, ... , data-{n-1}`
+    /// ** Good, if nodes only have a single pvc (which probably most of the deployments will have) they name of the pvc will be consistent with the name of all the other pvcs out there
+    /// ** It is important that the first pvc will be called `data` (without suffix), regardless of the number of pvcs to be used. This is needed as nodes should be able to alter the number of pvcs attached and the use-case number of pvcs 1 -> 2 should be supported without renaming pvcs.
+    ///
+    /// This function uses the 2. option.
+    pub fn pvc_names(pvc_name_prefix: &str, number_of_pvcs: u16) -> Vec<String> {
+        (0..number_of_pvcs)
+            .map(|pvc_index| {
+                if pvc_index == 0 {
+                    pvc_name_prefix.to_string()
+                } else {
+                    format!("{pvc_name_prefix}-{pvc_index}")
+                }
+            })
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -630,7 +657,7 @@ pub struct NameNodeConfig {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataNodeConfig {
-    resources: Option<ResourcesFragment<DataNodeStorage, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<StorageWithMultipleDataPvcs, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -918,19 +945,28 @@ spec:
   dataNodes:
     roleGroups:
       default:
+        replicas: 1
         config:
           resources:
             storage:
               numberOfDataPvcs: 5
               data:
                 capacity: 100Gi
-        replicas: 1
   journalNodes:
     roleGroups:
       default:
         replicas: 1";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+
+        let name_node_rg_ref = hdfs.rolegroup_ref("name_nodes", "default");
+        let (pvcs, _) = hdfs
+            .resources(&HdfsRole::NameNode, &name_node_rg_ref)
+            .unwrap();
+
+        assert_eq!(pvcs.len(), 1);
+        assert_eq!(pvcs[0].metadata.name, Some("data".to_string()));
+
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
         let (pvcs, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
@@ -952,7 +988,11 @@ spec:
                     .get("storage")
                     .unwrap()
             );
-            assert_eq!(Some(format!("data-{pvc_index}")), pvc.metadata.name);
+            if pvc_index == 0 {
+                assert_eq!(pvc.metadata.name, Some("data".to_string()));
+            } else {
+                assert_eq!(pvc.metadata.name, Some(format!("data-{pvc_index}")));
+            }
         }
     }
 
