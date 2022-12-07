@@ -34,12 +34,23 @@ spec:
           min: '300m'
         memory:
           limit: '512Mi'
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
         storage:
-{% if test_scenario['values']['datanode-pvcs'] != 'default' %}
-          numberOfDataPvcs: {{ test_scenario['values']['datanode-pvcs'] }}
-{% endif %}
+          data: # We need to overwrite the data pvcs coming from the default value
+            count: 0
+          hdd:
+            capacity: 5Gi
+            count: 2
+            hdfsStorageType: Disk
+          ssd:
+            capacity: 3Gi
+            storageClass: premium
+            count: 1
+            hdfsStorageType: Ssd
+        storage:
           data:
-            capacity: 2Gi
+            count: 2Gi
+{% endif %}
     roleGroups:
       default:
         replicas: {{ test_scenario['values']['number-of-datanodes'] }}

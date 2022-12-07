@@ -34,3 +34,44 @@ metadata:
 status:
   readyReplicas: 1
   replicas: 1
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hdd-hdfs-datanode-default-0
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 2Gi
+status:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  phase: Bound
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hdd-1-hdfs-datanode-default-0
+status:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  phase: Bound
+  ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ssd-hdfs-datanode-default-0
+status:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  phase: Bound
+{% endif %}
