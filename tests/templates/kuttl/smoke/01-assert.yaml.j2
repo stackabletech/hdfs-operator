@@ -41,3 +41,38 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: hdfs-journalnode-default
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hdd-hdfs-datanode-default-0
+status:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  phase: Bound
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hdd-1-hdfs-datanode-default-0
+status:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  phase: Bound
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ssd-hdfs-datanode-default-0
+status:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 3Gi
+  phase: Bound
+{% endif %}

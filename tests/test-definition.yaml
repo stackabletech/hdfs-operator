@@ -21,7 +21,7 @@ dimensions:
   - name: datanode-pvcs
     values:
       - "default"
-      - "3"
+      - "2hdd-1ssd"
 tests:
   - name: smoke
     dimensions:

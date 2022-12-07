@@ -354,12 +354,14 @@ impl HdfsCluster {
                 role_resources.merge(&default_resources);
                 rg_resources.merge(&role_resources);
 
-                let resources: Resources<DataNodeStorage, NoRuntimeLimits> =
+                let resources: Resources<BTreeMap<String, DataNodePvc>, NoRuntimeLimits> =
                     fragment::validate(rg_resources)
                         .map_err(|source| Error::FragmentValidationFailure { source })?;
 
-                let datanode_storage = resources.storage.clone();
-                let pvcs = resources.storage.build_pvcs();
+                let datanode_storage = DataNodeStorage {
+                    pvcs: resources.storage.clone(),
+                };
+                let pvcs = datanode_storage.build_pvcs();
 
                 Ok((pvcs, resources.into(), Some(datanode_storage)))
             }
@@ -386,24 +388,24 @@ impl HdfsCluster {
         }
     }
 
-    fn default_data_node_resources(&self) -> ResourcesFragment<DataNodeStorage, NoRuntimeLimits> {
+    fn default_data_node_resources(
+        &self,
+    ) -> ResourcesFragment<BTreeMap<String, DataNodePvc>, NoRuntimeLimits> {
         ResourcesFragment {
             cpu: self.default_resources().cpu,
             memory: self.default_resources().memory,
-            storage: DataNodeStorageFragment {
-                pvcs: BTreeMap::from([(
-                    "data".to_string(),
-                    DataNodePvcFragment {
-                        pvc: PvcConfigFragment {
-                            capacity: Some(Quantity("5Gi".to_owned())),
-                            storage_class: None,
-                            selectors: None,
-                        },
-                        count: Some(1),
-                        hdfs_storage_type: Some(HdfsStorageType::default()),
+            storage: BTreeMap::from([(
+                "data".to_string(),
+                DataNodePvcFragment {
+                    pvc: PvcConfigFragment {
+                        capacity: Some(Quantity("5Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
                     },
-                )]),
-            },
+                    count: Some(1),
+                    hdfs_storage_type: Some(HdfsStorageType::default()),
+                },
+            )]),
         }
     }
 
@@ -614,27 +616,6 @@ struct Storage {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct DataNodeStorage {
-    #[fragment_attrs(serde(default, flatten))]
-    pvcs: BTreeMap<String, DataNodePvc>,
-}
-
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
-#[fragment_attrs(
-    allow(clippy::derive_partial_eq_without_eq),
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
 pub struct DataNodePvc {
     #[fragment_attrs(serde(default, flatten))]
     pvc: PvcConfig,
@@ -676,6 +657,14 @@ impl HdfsStorageType {
 
 fn default_number_of_datanode_pvcs() -> u16 {
     1
+}
+
+// We can't use a struct with a BTreeMap attribute that is serde(flatten),
+// as the whole struct will be missing in the generated CRD.
+// pub type DataNodeStorageInner = BTreeMap<String, DataNodePvc>;
+
+pub struct DataNodeStorage {
+    pub pvcs: BTreeMap<String, DataNodePvc>,
 }
 
 impl DataNodeStorage {
@@ -756,7 +745,7 @@ pub struct NameNodeConfig {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataNodeConfig {
-    resources: Option<ResourcesFragment<DataNodeStorage, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<BTreeMap<String, DataNodePvc>, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
