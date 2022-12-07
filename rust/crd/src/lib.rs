@@ -354,7 +354,7 @@ impl HdfsCluster {
                 role_resources.merge(&default_resources);
                 rg_resources.merge(&role_resources);
 
-                let resources: Resources<BTreeMap<String, DataNodePvc>, NoRuntimeLimits> =
+                let resources: Resources<DataNodeStorageInnerType, NoRuntimeLimits> =
                     fragment::validate(rg_resources)
                         .map_err(|source| Error::FragmentValidationFailure { source })?;
 
@@ -390,7 +390,7 @@ impl HdfsCluster {
 
     fn default_data_node_resources(
         &self,
-    ) -> ResourcesFragment<BTreeMap<String, DataNodePvc>, NoRuntimeLimits> {
+    ) -> ResourcesFragment<DataNodeStorageInnerType, NoRuntimeLimits> {
         ResourcesFragment {
             cpu: self.default_resources().cpu,
             memory: self.default_resources().memory,
@@ -659,12 +659,14 @@ fn default_number_of_datanode_pvcs() -> u16 {
     1
 }
 
-// We can't use a struct with a BTreeMap attribute that is serde(flatten),
-// as the whole struct will be missing in the generated CRD.
-// pub type DataNodeStorageInner = BTreeMap<String, DataNodePvc>;
+/// We can't use a struct with a BTreeMap attribute that is serde(flatten),
+/// as the whole struct will be missing in the generated CRD for some reasons.
+/// So we define a type for the inner BTreeMap and a struct with some helper functions.
+pub type DataNodeStorageInnerType = BTreeMap<String, DataNodePvc>;
 
+/// Use this struct to call functions on the `DataNodeStorageInnerType` type.
 pub struct DataNodeStorage {
-    pub pvcs: BTreeMap<String, DataNodePvc>,
+    pub pvcs: DataNodeStorageInnerType,
 }
 
 impl DataNodeStorage {
@@ -745,7 +747,7 @@ pub struct NameNodeConfig {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataNodeConfig {
-    resources: Option<ResourcesFragment<BTreeMap<String, DataNodePvc>, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<DataNodeStorageInnerType, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
