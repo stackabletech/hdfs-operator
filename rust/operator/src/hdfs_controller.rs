@@ -1,11 +1,10 @@
-use crate::config::{
-    CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, DATANODE_DIR_PREFIX,
-    ROOT_DATA_DIR,
-};
+use crate::config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder};
 use crate::discovery::build_discovery_configmap;
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
-use stackable_hdfs_crd::{constants::*, DataNodeStorage, ROLE_PORTS};
+use stackable_hdfs_crd::{
+    constants::*, DataNodeStorage, DATANODE_DIR_PREFIX, ROLE_PORTS, ROOT_DATA_DIR,
+};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
 use stackable_operator::client::Client;
@@ -144,14 +143,15 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let (pvcs, resources) = hdfs.resources(&role, &rolegroup_ref).unwrap_or_default();
+            let (pvcs, resources, datanode_storage) =
+                hdfs.resources(&role, &rolegroup_ref).unwrap_or_default();
 
             let hadoop_container = hdfs_common_container(
                 &hdfs,
                 &role,
                 role_ports,
                 rolegroup_config.get(&PropertyNameKind::Env),
-                pvcs.len() as u16,
+                &pvcs,
                 &resolved_product_image,
             )?;
 
@@ -161,9 +161,9 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hdfs,
                 &rolegroup_ref,
                 rolegroup_config,
-                &pvcs,
                 &namenode_podrefs,
                 &journalnode_podrefs,
+                datanode_storage.as_ref(),
                 &resolved_product_image,
             )?;
 
@@ -265,9 +265,9 @@ fn rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    pvcs: &Vec<PersistentVolumeClaim>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
+    datanode_storage: Option<&DataNodeStorage>,
     resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
@@ -292,7 +292,7 @@ fn rolegroup_config_map(
                 // be formatted by the namenode, or used by the other services.
                 // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
                 .dfs_namenode_name_dir()
-                .dfs_datanode_data_dir(pvcs.len())
+                .dfs_datanode_data_dir(datanode_storage)
                 .dfs_journalnode_edits_dir()
                 .dfs_replication(
                     *hdfs
@@ -773,7 +773,7 @@ fn hdfs_common_container(
     role: &HdfsRole,
     rolegroup_ports: &[(String, i32)],
     env_overrides: Option<&BTreeMap<String, String>>,
-    number_of_datanode_pvcs: u16,
+    pvcs: &[PersistentVolumeClaim],
     resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Container> {
     let mut env: Vec<EnvVar> = env_overrides
@@ -829,13 +829,10 @@ fn hdfs_common_container(
     }];
     match role {
         HdfsRole::DataNode => {
-            // We need to add a volume mount for every datanode pvc individually
-            for (pvc_index, pvc_name) in DataNodeStorage::pvc_names("data", number_of_datanode_pvcs)
-                .into_iter()
-                .enumerate()
-            {
+            for pvc in pvcs {
+                let pvc_name = pvc.name_unchecked();
                 volume_mounts.push(VolumeMount {
-                    mount_path: format!("{DATANODE_DIR_PREFIX}{pvc_index}"),
+                    mount_path: format!("{DATANODE_DIR_PREFIX}{pvc_name}"),
                     name: pvc_name,
                     ..VolumeMount::default()
                 });

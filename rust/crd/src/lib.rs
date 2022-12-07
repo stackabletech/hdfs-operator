@@ -28,6 +28,15 @@ use stackable_operator::commons::resources::CpuLimitsFragment;
 use stackable_operator::commons::resources::MemoryLimitsFragment;
 use stackable_operator::config::fragment;
 
+// Dirs
+pub const ROOT_DATA_DIR: &str = "/stackable/data";
+pub const JOURNALNODE_DIR: &str = "/stackable/data/journal";
+pub const NAMENODE_DIR: &str = "/stackable/data/name";
+
+// Will end up with something like `/stackable/data/data` and `/stackable/data-1/data` etc.
+pub const DATANODE_DIR_PREFIX: &str = "/stackable/";
+pub const DATANODE_DIR_SUFFIX: &str = "/data";
+
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "hdfs.stackable.tech",
@@ -247,7 +256,14 @@ impl HdfsCluster {
         &self,
         role: &HdfsRole,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> Result<(Vec<PersistentVolumeClaim>, ResourceRequirements), Error> {
+    ) -> Result<
+        (
+            Vec<PersistentVolumeClaim>,
+            ResourceRequirements,
+            Option<DataNodeStorage>,
+        ),
+        Error,
+    > {
         match role {
             HdfsRole::NameNode | HdfsRole::JournalNode => {
                 // Normal flow as in other operators
@@ -309,7 +325,7 @@ impl HdfsCluster {
                     .data
                     .build_pvc("data", Some(vec!["ReadWriteOnce"]));
 
-                Ok((vec![data_pvc], resources.into()))
+                Ok((vec![data_pvc], resources.into(), None))
             }
             HdfsRole::DataNode => {
                 // DataNodes need some special handling as they can have multiple pvcs
@@ -342,9 +358,10 @@ impl HdfsCluster {
                     fragment::validate(rg_resources)
                         .map_err(|source| Error::FragmentValidationFailure { source })?;
 
+                let datanode_storage = resources.storage.clone();
                 let pvcs = resources.storage.build_pvcs();
 
-                Ok((pvcs, resources.into()))
+                Ok((pvcs, resources.into(), Some(datanode_storage)))
             }
         }
     }
@@ -646,6 +663,17 @@ impl Default for HdfsStorageType {
     }
 }
 
+impl HdfsStorageType {
+    pub fn as_hdfs_config_literal(&self) -> &str {
+        match self {
+            HdfsStorageType::Archive => "ARCHIVE",
+            HdfsStorageType::Disk => "DISK",
+            HdfsStorageType::Ssd => "SSD",
+            HdfsStorageType::RamDisk => "RAM_DISK",
+        }
+    }
+}
+
 fn default_number_of_datanode_pvcs() -> u16 {
     1
 }
@@ -672,6 +700,25 @@ impl DataNodeStorage {
             )
         }
         pvcs
+    }
+
+    /// Returns the a String to be put into `dfs.datanode.data.dir`.
+    /// The config will include the HDFS storage type.
+    pub fn get_datanode_data_dir(&self) -> String {
+        self.pvcs
+            .iter()
+            .flat_map(|(pvc_name_prefix, pvc)| {
+                Self::pvc_names(pvc_name_prefix, pvc.count)
+                    .into_iter()
+                    .map(|pvc_name| {
+                        let storage_type = pvc.hdfs_storage_type.as_hdfs_config_literal();
+                        format!(
+                            "[{storage_type}]{DATANODE_DIR_PREFIX}{pvc_name}{DATANODE_DIR_SUFFIX}"
+                        )
+                    })
+            })
+            .collect::<Vec<_>>()
+            .join(",")
     }
 
     /// Returns a list with the names of the pvcs to be used for nodes.
@@ -823,10 +870,15 @@ impl Configuration for JournalNodeConfig {
 mod test {
     use std::collections::BTreeMap;
 
+    use crate::{DataNodePvc, DataNodeStorage, HdfsStorageType};
+
     use super::{HdfsCluster, HdfsRole};
-    use stackable_operator::k8s_openapi::{
-        api::core::v1::{PersistentVolumeClaimSpec, ResourceRequirements},
-        apimachinery::pkg::api::resource::Quantity,
+    use stackable_operator::{
+        commons::resources::PvcConfig,
+        k8s_openapi::{
+            api::core::v1::{PersistentVolumeClaimSpec, ResourceRequirements},
+            apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        },
     };
 
     #[test]
@@ -854,7 +906,7 @@ spec:
           resources:
             storage:
               data:
-                capacity: 5Gi
+                capacity: 10Gi
   journalNodes:
     roleGroups:
       default:
@@ -862,12 +914,12 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvcs, _) = hdfs
+        let (pvcs, _, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
         assert_eq!(
-            &Quantity("5Gi".to_owned()),
+            &Quantity("10Gi".to_owned()),
             pvcs[0]
                 .clone()
                 .spec
@@ -903,7 +955,7 @@ spec:
       resources:
         storage:
           data:
-            capacity: 5Gi
+            capacity: 10Gi
     roleGroups:
       default:
         replicas: 1
@@ -914,12 +966,12 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvcs, _) = hdfs
+        let (pvcs, _, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
         assert_eq!(
-            &Quantity("5Gi".to_owned()),
+            &Quantity("10Gi".to_owned()),
             pvcs[0]
                 .clone()
                 .spec
@@ -961,12 +1013,12 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvcs, _) = hdfs
+        let (pvcs, _, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
         assert_eq!(
-            &Quantity("2Gi".to_owned()),
+            &Quantity("5Gi".to_owned()),
             pvcs[0]
                 .clone()
                 .spec
@@ -1023,7 +1075,7 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
         let name_node_rg_ref = hdfs.rolegroup_ref("name_nodes", "default");
-        let (pvcs, _) = hdfs
+        let (pvcs, _, _) = hdfs
             .resources(&HdfsRole::NameNode, &name_node_rg_ref)
             .unwrap();
 
@@ -1046,7 +1098,7 @@ spec:
         );
 
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvcs, _) = hdfs
+        let (pvcs, _, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
@@ -1126,7 +1178,7 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (_, rr) = hdfs
+        let (_, rr, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
@@ -1183,7 +1235,7 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (_, rr) = hdfs
+        let (_, rr, _) = hdfs
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
@@ -1204,5 +1256,107 @@ spec:
             ),
         };
         assert_eq!(expected, rr);
+    }
+
+    #[test]
+    pub fn test_datanode_storage_defaults() {
+        let datanode_storage = DataNodeStorage {
+            pvcs: BTreeMap::from([(
+                "data".to_string(),
+                DataNodePvc {
+                    pvc: PvcConfig {
+                        capacity: Some(Quantity("5Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                    count: 1,
+                    hdfs_storage_type: HdfsStorageType::default(),
+                },
+            )]),
+        };
+        let pvcs = datanode_storage.build_pvcs();
+        let datanode_data_dir = datanode_storage.get_datanode_data_dir();
+
+        assert_eq!(pvcs.len(), 1);
+        assert_eq!(pvcs[0].metadata.name, Some("data".to_string()));
+        assert_eq!(
+            pvcs[0].spec,
+            Some(PersistentVolumeClaimSpec {
+                resources: Some(ResourceRequirements {
+                    requests: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity("5Gi".to_string())
+                    )])),
+                    ..ResourceRequirements::default()
+                }),
+                access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                storage_class_name: None,
+                ..PersistentVolumeClaimSpec::default()
+            })
+        );
+        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/data")
+    }
+
+    #[test]
+    pub fn test_datanode_storage_multiple_storage_types() {
+        let datanode_storage = DataNodeStorage {
+            pvcs: BTreeMap::from([
+                (
+                    "hdd".to_string(),
+                    DataNodePvc {
+                        pvc: PvcConfig {
+                            capacity: Some(Quantity("12Ti".to_owned())),
+                            storage_class: Some("hdd-storage-class".to_string()),
+                            selectors: Some(LabelSelector {
+                                match_expressions: None,
+                                match_labels: Some(BTreeMap::from([(
+                                    "foo".to_string(),
+                                    "bar".to_string(),
+                                )])),
+                            }),
+                        },
+                        count: 8,
+                        hdfs_storage_type: HdfsStorageType::Disk,
+                    },
+                ),
+                (
+                    "ssd".to_string(),
+                    DataNodePvc {
+                        pvc: PvcConfig {
+                            capacity: Some(Quantity("2Ti".to_owned())),
+                            storage_class: Some("premium-ssd".to_string()),
+                            selectors: None,
+                        },
+                        count: 4,
+                        hdfs_storage_type: HdfsStorageType::Ssd,
+                    },
+                ),
+            ]),
+        };
+        let pvcs = datanode_storage.build_pvcs();
+        let datanode_data_dir = datanode_storage.get_datanode_data_dir();
+
+        assert_eq!(pvcs.len(), 8 + 4);
+        assert_eq!(pvcs[0].metadata.name, Some("hdd".to_string()));
+        assert_eq!(
+            pvcs[0].spec,
+            Some(PersistentVolumeClaimSpec {
+                resources: Some(ResourceRequirements {
+                    requests: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity("12Ti".to_string())
+                    )])),
+                    ..ResourceRequirements::default()
+                }),
+                access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                storage_class_name: Some("hdd-storage-class".to_string()),
+                selector: Some(LabelSelector {
+                    match_expressions: None,
+                    match_labels: Some(BTreeMap::from([("foo".to_string(), "bar".to_string())]))
+                }),
+                ..PersistentVolumeClaimSpec::default()
+            })
+        );
+        assert_eq!(datanode_data_dir, "[DISK]/stackable/hdd/data,[DISK]/stackable/hdd-1/data,[DISK]/stackable/hdd-2/data,[DISK]/stackable/hdd-3/data,[DISK]/stackable/hdd-4/data,[DISK]/stackable/hdd-5/data,[DISK]/stackable/hdd-6/data,[DISK]/stackable/hdd-7/data,[SSD]/stackable/ssd/data,[SSD]/stackable/ssd-1/data,[SSD]/stackable/ssd-2/data,[SSD]/stackable/ssd-3/data")
     }
 }
