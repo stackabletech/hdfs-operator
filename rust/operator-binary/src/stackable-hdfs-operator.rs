@@ -1,6 +1,7 @@
 use clap::{crate_description, crate_version, Parser};
 use stackable_hdfs_crd::constants::APP_NAME;
 use stackable_hdfs_crd::HdfsCluster;
+use stackable_hdfs_operator::OPERATOR_NAME;
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     client, CustomResourceExt,
@@ -47,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
                 "deploy/config-spec/properties.yaml",
                 "/etc/stackable/hdfs-operator/config-spec/properties.yaml",
             ])?;
-            let client = client::create_client(Some("hdfs.stackable.tech".to_string())).await?;
+            let client = client::create_client(Some(OPERATOR_NAME.to_string())).await?;
             stackable_hdfs_operator::create_controller(client, product_config, watch_namespace)
                 .await;
         }

@@ -5,10 +5,13 @@ use constants::*;
 use error::{Error, HdfsOperatorResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use stackable_operator::commons::product_image_selection::ProductImage;
+use stackable_operator::commons::resources::{NoRuntimeLimits, PvcConfig, Resources};
 use stackable_operator::commons::resources::{
-    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
+    NoRuntimeLimitsFragment, PvcConfigFragment, ResourcesFragment,
 };
-use stackable_operator::config::merge::{chainable_merge, Merge};
+use stackable_operator::config::fragment::Fragment;
+use stackable_operator::config::merge::Merge;
 use stackable_operator::k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements};
 use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
@@ -20,6 +23,10 @@ use stackable_operator::role_utils::{Role, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter, EnumString};
+
+use stackable_operator::commons::resources::CpuLimitsFragment;
+use stackable_operator::commons::resources::MemoryLimitsFragment;
+use stackable_operator::config::fragment;
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
@@ -37,7 +44,7 @@ use strum::{Display, EnumIter, EnumString};
 )]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
-    pub version: Option<String>,
+    pub image: ProductImage,
     pub auto_format_fs: Option<bool>,
     pub zookeeper_config_map_name: String,
     pub data_nodes: Option<Role<DataNodeConfig>>,
@@ -165,22 +172,6 @@ lazy_static! {
 }
 
 impl HdfsCluster {
-    pub fn hdfs_version(&self) -> HdfsOperatorResult<&str> {
-        self.spec
-            .version
-            .as_deref()
-            .ok_or(Error::ObjectHasNoVersion {
-                obj_ref: ObjectRef::from_obj(self),
-            })
-    }
-
-    pub fn hdfs_image(&self) -> HdfsOperatorResult<String> {
-        Ok(format!(
-            "docker.stackable.tech/stackable/hadoop:{}",
-            self.hdfs_version()?
-        ))
-    }
-
     /// Kubernetes labels to attach to Pods within a role group.
     ///
     /// The same labels are also used as selectors for Services and StatefulSets.
@@ -256,35 +247,32 @@ impl HdfsCluster {
         &self,
         role: &HdfsRole,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> (Vec<PersistentVolumeClaim>, ResourceRequirements) {
-        let mut rg_resources = self.rolegroup_resources(role, rolegroup_ref);
+    ) -> Result<(Vec<PersistentVolumeClaim>, ResourceRequirements), Error> {
+        // Initialize the result with all default values as baseline
+        let default_resources = self.default_resources();
+
         let mut role_resources = self.role_resources(role);
-        let mut default_resources = Some(self.default_resources());
+        let mut rg_resources = self.rolegroup_resources(role, rolegroup_ref);
 
-        let r = [
-            default_resources.as_mut(),
-            role_resources.as_mut(),
-            rg_resources.as_mut(),
-        ]
-        .into_iter()
-        .flatten()
-        .reduce(|old, new| chainable_merge(new, old))
-        .unwrap(); // always succeeds because default_resources is Some()
+        role_resources.merge(&default_resources);
+        rg_resources.merge(&role_resources);
 
-        let result_1 = r
+        let resources: Resources<Storage, NoRuntimeLimits> = fragment::validate(rg_resources)
+            .map_err(|source| Error::FragmentValidationFailure { source })?;
+
+        let data_pvc = resources
             .storage
             .data
             .build_pvc("data", Some(vec!["ReadWriteOnce"]));
-        let result_2 = r.clone().into();
 
-        (vec![result_1], result_2)
+        Ok((vec![data_pvc], resources.into()))
     }
 
     fn rolegroup_resources(
         &self,
         role: &HdfsRole,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> Option<Resources<Storage, NoRuntimeLimits>> {
+    ) -> ResourcesFragment<Storage, NoRuntimeLimits> {
         match role {
             HdfsRole::DataNode => self
                 .spec
@@ -295,7 +283,8 @@ impl HdfsCluster {
                         .get(&rolegroup_ref.role_group)
                         .map(|rg| &rg.config.config)
                 })
-                .and_then(|node_config| node_config.resources.clone()),
+                .and_then(|node_config| node_config.resources.clone())
+                .unwrap_or_default(),
             HdfsRole::JournalNode => self
                 .spec
                 .journal_nodes
@@ -305,7 +294,8 @@ impl HdfsCluster {
                         .get(&rolegroup_ref.role_group)
                         .map(|rg| &rg.config.config)
                 })
-                .and_then(|node_config| node_config.resources.clone()),
+                .and_then(|node_config| node_config.resources.clone())
+                .unwrap_or_default(),
             HdfsRole::NameNode => self
                 .spec
                 .name_nodes
@@ -315,45 +305,49 @@ impl HdfsCluster {
                         .get(&rolegroup_ref.role_group)
                         .map(|rg| &rg.config.config)
                 })
-                .and_then(|node_config| node_config.resources.clone()),
+                .and_then(|node_config| node_config.resources.clone())
+                .unwrap_or_default(),
         }
     }
 
-    fn role_resources(&self, role: &HdfsRole) -> Option<Resources<Storage, NoRuntimeLimits>> {
+    fn role_resources(&self, role: &HdfsRole) -> ResourcesFragment<Storage, NoRuntimeLimits> {
         match role {
             HdfsRole::DataNode => self
                 .spec
                 .data_nodes
                 .as_ref()
                 .map(|role| &role.config.config)
-                .and_then(|node_config| node_config.resources.clone()),
+                .and_then(|node_config| node_config.resources.clone())
+                .unwrap_or_default(),
             HdfsRole::JournalNode => self
                 .spec
                 .journal_nodes
                 .as_ref()
                 .map(|role| &role.config.config)
-                .and_then(|node_config| node_config.resources.clone()),
+                .and_then(|node_config| node_config.resources.clone())
+                .unwrap_or_default(),
             HdfsRole::NameNode => self
                 .spec
                 .name_nodes
                 .as_ref()
                 .map(|role| &role.config.config)
-                .and_then(|node_config| node_config.resources.clone()),
+                .and_then(|node_config| node_config.resources.clone())
+                .unwrap_or_default(),
         }
     }
 
-    fn default_resources(&self) -> Resources<Storage, NoRuntimeLimits> {
-        Resources {
-            cpu: CpuLimits {
+    fn default_resources(&self) -> ResourcesFragment<Storage, NoRuntimeLimits> {
+        ResourcesFragment {
+            cpu: CpuLimitsFragment {
                 min: Some(Quantity("500m".to_owned())),
                 max: Some(Quantity("4".to_owned())),
             },
-            memory: MemoryLimits {
+            memory: MemoryLimitsFragment {
                 limit: Some(Quantity("1Gi".to_owned())),
-                runtime_limits: NoRuntimeLimits {},
+                runtime_limits: NoRuntimeLimitsFragment {},
             },
-            storage: Storage {
-                data: PvcConfig {
+            storage: StorageFragment {
+                data: PvcConfigFragment {
                     capacity: Some(Quantity("2Gi".to_owned())),
                     storage_class: None,
                     selectors: None,
@@ -532,29 +526,43 @@ impl HdfsPodRef {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+#[fragment_attrs(
+    allow(clippy::derive_partial_eq_without_eq),
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
 struct Storage {
-    #[serde(default)]
+    #[fragment_attrs(serde(default))]
     data: PvcConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NameNodeConfig {
-    resources: Option<Resources<Storage, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<Storage, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataNodeConfig {
-    resources: Option<Resources<Storage, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<Storage, NoRuntimeLimits>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JournalNodeConfig {
-    resources: Option<Resources<Storage, NoRuntimeLimits>>,
+    resources: Option<ResourcesFragment<Storage, NoRuntimeLimits>>,
 }
 
 impl Configuration for NameNodeConfig {
@@ -674,7 +682,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -708,7 +718,9 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+        let (pvc, _) = hdfs
+            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
+            .unwrap();
 
         assert_eq!(
             &Quantity("5Gi".to_owned()),
@@ -734,7 +746,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -770,7 +784,9 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+        let (pvc, _) = hdfs
+            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
+            .unwrap();
 
         assert_eq!(
             &Quantity("5Gi".to_owned()),
@@ -796,7 +812,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -827,7 +845,9 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+        let (pvc, _) = hdfs
+            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
+            .unwrap();
 
         assert_eq!(
             &Quantity("2Gi".to_owned()),
@@ -853,7 +873,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -891,7 +913,9 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (_, rr) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+        let (_, rr) = hdfs
+            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
+            .unwrap();
 
         let expected = ResourceRequirements {
             requests: Some(
@@ -920,7 +944,9 @@ kind: HdfsCluster
 metadata:
   name: hdfs
 spec:
-  version: 3.2.2
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
   dfsReplication: 1
   log4j: |-
@@ -958,7 +984,9 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (_, rr) = hdfs.resources(&HdfsRole::DataNode, &data_node_rg_ref);
+        let (_, rr) = hdfs
+            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
+            .unwrap();
 
         let expected = ResourceRequirements {
             requests: Some(

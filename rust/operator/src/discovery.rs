@@ -1,11 +1,15 @@
-use crate::config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder};
+use crate::{
+    build_recommended_labels,
+    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder},
+};
 use stackable_hdfs_crd::{
-    constants::{APP_NAME, CORE_SITE_XML, HDFS_SITE_XML},
+    constants::{CORE_SITE_XML, HDFS_SITE_XML},
     HdfsCluster, HdfsPodRef, HdfsRole,
 };
-use stackable_operator::error::{Error, OperatorResult};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
+    commons::product_image_selection::ResolvedProductImage,
+    error::OperatorResult,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::ResourceExt,
 };
@@ -16,21 +20,20 @@ pub fn build_discovery_configmap(
     hdfs: &HdfsCluster,
     controller: &str,
     namenode_podrefs: &[HdfsPodRef],
+    resolved_product_image: &ResolvedProductImage,
 ) -> OperatorResult<ConfigMap> {
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(hdfs)
                 .ownerreference_from_resource(hdfs, None, Some(true))?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     hdfs,
-                    APP_NAME,
-                    hdfs.hdfs_version()
-                        .map_err(|_| Error::MissingObjectKey { key: "version" })?,
                     controller,
+                    &resolved_product_image.app_version_label,
                     &HdfsRole::NameNode.to_string(),
                     "discovery",
-                )
+                ))
                 .build(),
         )
         .add_data(

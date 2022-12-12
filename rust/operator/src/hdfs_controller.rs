@@ -2,13 +2,14 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
-use crate::rbac;
+use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
 use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::cluster_resources::ClusterResources;
+use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
     ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
@@ -43,6 +44,7 @@ use std::{
 
 const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
+const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -53,8 +55,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
 
+    let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+
     let validated_config = validate_all_roles_and_groups_config(
-        hdfs.hdfs_version()?,
+        &resolved_product_image.product_version,
         &transform_all_roles_to_config(&*hdfs, hdfs.build_role_properties()?)
             .map_err(|source| Error::InvalidRoleConfig { source })?,
         &ctx.product_config,
@@ -69,13 +73,19 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
+        OPERATOR_NAME,
         RESOURCE_MANAGER_HDFS_CONTROLLER,
         &hdfs.object_ref(&()),
     )
     .map_err(|e| Error::CreateClusterResources { source: e })?;
 
-    let discovery_cm = build_discovery_configmap(&hdfs, HDFS_CONTROLLER, &namenode_podrefs)
-        .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
+    let discovery_cm = build_discovery_configmap(
+        &hdfs,
+        HDFS_CONTROLLER,
+        &namenode_podrefs,
+        &resolved_product_image,
+    )
+    .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
 
     // The discovery CM is linked to the cluster lifecycle via ownerreference.
     // Therefore, must not be added to the "orphaned" cluster resources
@@ -135,17 +145,20 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hdfs,
                 role_ports,
                 rolegroup_config.get(&PropertyNameKind::Env),
+                &resolved_product_image,
             )?;
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service = rolegroup_service(&hdfs, &rolegroup_ref, role_ports)?;
+            let rg_service =
+                rolegroup_service(&hdfs, &rolegroup_ref, role_ports, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
                 &journalnode_podrefs,
+                &resolved_product_image,
             )?;
 
             let rg_statefulset = rolegroup_statefulset(
@@ -155,6 +168,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
                 &hadoop_container,
                 &rbac_sa.name_any(),
+                &resolved_product_image,
             )?;
 
             cluster_resources
@@ -189,7 +203,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<HdfsCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
@@ -197,6 +211,7 @@ fn rolegroup_service(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_ports: &[(String, i32)],
+    resolved_product_image: &ResolvedProductImage,
 ) -> Result<Service, Error> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
     Ok(Service {
@@ -208,14 +223,13 @@ fn rolegroup_service(
                 source,
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 hdfs,
-                APP_NAME,
-                hdfs.hdfs_version()?,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
+                &resolved_product_image.app_version_label,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
-            )
+            ))
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
@@ -245,6 +259,7 @@ fn rolegroup_config_map(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
+    resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
@@ -314,14 +329,13 @@ fn rolegroup_config_map(
                     source: e,
                     obj_ref: ObjectRef::from_obj(hdfs),
                 })?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     hdfs,
-                    APP_NAME,
-                    hdfs.hdfs_version()?,
                     RESOURCE_MANAGER_HDFS_CONTROLLER,
+                    &resolved_product_image.app_version_label,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
-                )
+                ))
                 .build(),
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
@@ -345,33 +359,31 @@ fn rolegroup_statefulset(
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
     rbac_sa: &str,
+    resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
-    let hdfs_image = hdfs.hdfs_image()?;
 
     let replicas;
     let init_containers;
     let containers;
 
-    let (pvc, resources) = hdfs.resources(role, rolegroup_ref);
+    let (pvc, resources) = hdfs.resources(role, rolegroup_ref).unwrap_or_default();
 
     match role {
         HdfsRole::DataNode => {
             replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
-            init_containers =
-                datanode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
+            init_containers = datanode_init_containers(namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::NameNode => {
             replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
-            init_containers =
-                namenode_init_containers(&hdfs_image, namenode_podrefs, hadoop_container);
+            init_containers = namenode_init_containers(namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::JournalNode => {
             replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
-            init_containers = journalnode_init_containers(hadoop_container);
+            init_containers = None;
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
     }
@@ -384,6 +396,7 @@ fn rolegroup_statefulset(
         spec: Some(PodSpec {
             containers,
             init_containers,
+            image_pull_secrets: resolved_product_image.pull_secrets.clone(),
             volumes: Some(vec![Volume {
                 name: "config".to_string(),
                 config_map: Some(ConfigMapVolumeSource {
@@ -395,8 +408,8 @@ fn rolegroup_statefulset(
             service_account: Some(rbac_sa.to_string()),
             security_context: Some(
                 PodSecurityContextBuilder::new()
-                    .run_as_user(rbac::HDFS_UID)
-                    .run_as_group(0)
+                    .run_as_user(1000)
+                    .run_as_group(1000)
                     .fs_group(1000) // Needed for secret-operator
                     .build(),
             ),
@@ -412,14 +425,13 @@ fn rolegroup_statefulset(
                 source,
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 hdfs,
-                APP_NAME,
-                hdfs.hdfs_version()?,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
+                &resolved_product_image.app_version_label,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
-            )
+            ))
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("OrderedReady".to_string()),
@@ -607,20 +619,16 @@ fn datanode_containers(
 }
 
 fn datanode_init_containers(
-    hdfs_image: &str,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
-    Some(vec![
-        chown_init_container(&HdfsNodeDataDirectory::default().datanode, hadoop_container),
-        Container {
-            name: "wait-for-namenodes".to_string(),
-            image: Some(String::from(hdfs_image)),
-            args: Some(vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                format!(
-                    "
+    Some(vec![Container {
+        name: "wait-for-namenodes".to_string(),
+        args: Some(vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            format!(
+                "
                 echo \"Waiting for namenodes to get ready:\"
                 n=0
                 while [ ${{n}} -lt 12 ];
@@ -648,36 +656,25 @@ fn datanode_init_containers(
                   sleep 5
                 done
             ",
-                    hadoop_home = HADOOP_HOME,
-                    pod_names = namenode_podrefs
-                        .iter()
-                        .map(|pod_ref| pod_ref.pod_name.as_ref())
-                        .collect::<Vec<&str>>()
-                        .join(" ")
-                ),
-            ]),
-            ..hadoop_container.clone()
-        },
-    ])
-}
-
-fn journalnode_init_containers(hadoop_container: &Container) -> Option<Vec<Container>> {
-    Some(vec![chown_init_container(
-        &HdfsNodeDataDirectory::default().journalnode,
-        hadoop_container,
-    )])
+                hadoop_home = HADOOP_HOME,
+                pod_names = namenode_podrefs
+                    .iter()
+                    .map(|pod_ref| pod_ref.pod_name.as_ref())
+                    .collect::<Vec<&str>>()
+                    .join(" ")
+            ),
+        ]),
+        ..hadoop_container.clone()
+    }])
 }
 
 fn namenode_init_containers(
-    hdfs_image: &str,
     namenode_podrefs: &[HdfsPodRef],
     hadoop_container: &Container,
 ) -> Option<Vec<Container>> {
     Some(vec![
-    chown_init_container(&HdfsNodeDataDirectory::default().namenode, hadoop_container),
     Container {
         name: "format-namenode".to_string(),
-        image: Some(String::from(hdfs_image)),
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
@@ -725,13 +722,13 @@ fn namenode_init_containers(
         ]),
         security_context: Some(SecurityContext {
             run_as_user: Some(1000),
+            run_as_group: Some(1000),
             ..SecurityContext::default()
         }),
         ..hadoop_container.clone()
     },
     Container {
         name: "format-zk".to_string(),
-        image: Some(String::from(hdfs_image)),
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
@@ -740,28 +737,6 @@ fn namenode_init_containers(
         ..hadoop_container.clone()
     },
     ])
-}
-
-/// Creates a container that chowns and chmods the provided `node_dir`.
-fn chown_init_container(node_dir: &str, hadoop_container: &Container) -> Container {
-    Container {
-        name: "chown-data".to_string(),
-        image: Some(String::from(TOOLS_IMAGE)),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            format!(
-                "mkdir -p {node_dir} && chown -R stackable:stackable {data_dir} && chmod -R a=,u=rwX {data_dir}",
-                node_dir = node_dir,
-                data_dir = ROOT_DATA_DIR
-            ),
-        ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        }),
-        ..hadoop_container.clone()
-    }
 }
 
 /// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
@@ -787,6 +762,7 @@ fn hdfs_common_container(
     hdfs: &HdfsCluster,
     rolegroup_ports: &[(String, i32)],
     env_overrides: Option<&BTreeMap<String, String>>,
+    resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Container> {
     let mut env: Vec<EnvVar> = env_overrides
         .cloned()
@@ -835,7 +811,8 @@ fn hdfs_common_container(
         },
     ]);
     Ok(Container {
-        image: Some(hdfs.hdfs_image()?),
+        image: Some(resolved_product_image.image.clone()),
+        image_pull_policy: Some(resolved_product_image.image_pull_policy.clone()),
         env: Some(env),
         volume_mounts: Some(vec![
             VolumeMount {

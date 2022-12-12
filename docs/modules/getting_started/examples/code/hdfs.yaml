@@ -4,7 +4,9 @@ kind: HdfsCluster
 metadata:
   name: simple-hdfs
 spec:
-  version: 3.3.4-stackable0.2.0
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: simple-hdfs-znode
   dfsReplication: 3
   nameNodes:
