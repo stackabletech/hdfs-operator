@@ -1,10 +1,19 @@
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_operator::crd::CustomResourceExt;
+use std::path::PathBuf;
 
 fn main() -> Result<(), stackable_operator::error::Error> {
-    built::write_built_file().expect("Failed to acquire build-time information");
+    //built::write_built_file().expect("Failed to acquire build-time information");
 
-    HdfsCluster::write_yaml_schema("../../deploy/crd/hdfscluster.crd.yaml")?;
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is required"));
+    built::write_built_file_with_opts(
+        // built's env module depends on a whole bunch of variables that crate2nix doesn't provide
+        // so we grab the specific env variables that we care about out ourselves instead.
+        built::Options::default().set_env(false),
+        "Cargo.toml".as_ref(),
+        &out_dir.join("built.rs"),
+    )
+    .unwrap();
 
     Ok(())
 }

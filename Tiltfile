@@ -1,11 +1,12 @@
 default_registry("docker.stackable.tech/sandbox")
+allow_k8s_contexts('gke_engineering-329019_europe-west1-d_sliebau-hdfs')
 
 meta = read_json('nix/meta.json')
 operator_name = meta['operator']['name']
 
 custom_build(
     'docker.stackable.tech/sandbox/' + operator_name,
-    'nix shell -f . -c crate2nix generate && nix-build . -A docker --argstr dockerName "${EXPECTED_REGISTRY}/' + operator_name + '" && ./result/load-image | docker load',
+    'nix shell -f . crate2nix -c crate2nix generate && nix-build . -A docker --argstr dockerName "${EXPECTED_REGISTRY}/' + operator_name + '" && ./result/load-image | docker load',
     deps=['rust', 'Cargo.toml', 'Cargo.lock', 'default.nix', "nix", 'build.rs', 'vendor'],
     # ignore=['result*', 'Cargo.nix', 'target', *.yaml],
     outputs_image_ref_to='result/ref',
@@ -29,3 +30,7 @@ helm_crds, helm_non_crds = filter_yaml(
    kind = "^CustomResourceDefinition$",
 )
 k8s_yaml(helm_non_crds)
+
+k8s_yaml('docs/modules/getting_started/examples/code/zk.yaml')
+k8s_yaml('docs/modules/getting_started/examples/code/znode.yaml')
+k8s_yaml('docs/modules/getting_started/examples/code/hdfs.yaml')

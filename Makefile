@@ -72,3 +72,6 @@ generate-manifests: clean-manifests compile-chart
 	./scripts/generate-manifests.sh
 
 regenerate-charts: chart-clean clean-manifests compile-chart generate-manifests
+
+run-dev:
+	nix run -f. tilt -- up --port 10351
