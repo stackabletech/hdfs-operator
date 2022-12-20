@@ -14,8 +14,6 @@ use stackable_operator::config::fragment::Fragment;
 use stackable_operator::config::merge::Merge;
 use stackable_operator::k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements};
 use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
-use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
-use stackable_operator::kube::core::ObjectMeta;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
@@ -196,16 +194,37 @@ impl HdfsCluster {
         group_labels
     }
 
-    pub fn datanode_rolegroup(&self, rg_ref: &RoleGroupRef<Self>) -> Option<&RoleGroup<DataNodeConfig>> {
-        self.spec.data_nodes.as_ref()?.role_groups.get(&rg_ref.role_group)
+    pub fn datanode_rolegroup(
+        &self,
+        rg_ref: &RoleGroupRef<Self>,
+    ) -> Option<&RoleGroup<DataNodeConfig>> {
+        self.spec
+            .data_nodes
+            .as_ref()?
+            .role_groups
+            .get(&rg_ref.role_group)
     }
 
-    pub fn namenode_rolegroup(&self, rg_ref: &RoleGroupRef<Self>) -> Option<&RoleGroup<DataNodeConfig>> {
-        self.spec.data_nodes.as_ref()?.role_groups.get(&rg_ref.role_group)
+    pub fn namenode_rolegroup(
+        &self,
+        rg_ref: &RoleGroupRef<Self>,
+    ) -> Option<&RoleGroup<DataNodeConfig>> {
+        self.spec
+            .data_nodes
+            .as_ref()?
+            .role_groups
+            .get(&rg_ref.role_group)
     }
 
-    pub fn journalnode_rolegroup(&self, rg_ref: &RoleGroupRef<Self>) -> Option<&RoleGroup<DataNodeConfig>> {
-        self.spec.data_nodes.as_ref()?.role_groups.get(&rg_ref.role_group)
+    pub fn journalnode_rolegroup(
+        &self,
+        rg_ref: &RoleGroupRef<Self>,
+    ) -> Option<&RoleGroup<DataNodeConfig>> {
+        self.spec
+            .data_nodes
+            .as_ref()?
+            .role_groups
+            .get(&rg_ref.role_group)
     }
 
     /// Build the [`PersistentVolumeClaim`]s and [`ResourceRequirements`] for the given `rolegroup_ref`.
