@@ -8,11 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#281]).
 - Updated stackable image versions ([#271])
-- `operator-rs` `0.25.2` -> `0.27.1` ([#276])
+- Fix the previously ignored node selector on role groups ([#286])
+- `operator-rs` `0.25.2` -> `0.30.1` ([#276], [#286])
 
 [#271]: https://github.com/stackabletech/hdfs-operator/pull/271
 [#276]: https://github.com/stackabletech/hdfs-operator/pull/276
 [#281]: https://github.com/stackabletech/hdfs-operator/pull/281
+[#286]: https://github.com/stackabletech/hdfs-operator/pull/286
 
 ## [0.6.0] - 2022-11-07
 
