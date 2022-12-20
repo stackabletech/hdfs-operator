@@ -366,7 +366,9 @@ fn rolegroup_statefulset(
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
 
+    // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
+    // common pod settings
     pb.metadata(ObjectMeta {
         labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
         ..ObjectMeta::default()
@@ -393,6 +395,7 @@ fn rolegroup_statefulset(
 
     let (pvc, resources) = hdfs.resources(role, rolegroup_ref).unwrap_or_default();
 
+    // role specific pod settings configured here
     match role {
         HdfsRole::DataNode => {
             let rg = hdfs.datanode_rolegroup(rolegroup_ref);

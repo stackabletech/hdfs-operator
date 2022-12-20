@@ -194,6 +194,7 @@ impl HdfsCluster {
         group_labels
     }
 
+    /// Get a reference to the datanode [`RoleGroup`] struct if it exists.
     pub fn datanode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
@@ -205,6 +206,7 @@ impl HdfsCluster {
             .get(&rg_ref.role_group)
     }
 
+    /// Get a reference to the namenode [`RoleGroup`] struct if it exists.
     pub fn namenode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
@@ -216,6 +218,7 @@ impl HdfsCluster {
             .get(&rg_ref.role_group)
     }
 
+    /// Get a reference to the journalnode [`RoleGroup`] struct if it exists.
     pub fn journalnode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
