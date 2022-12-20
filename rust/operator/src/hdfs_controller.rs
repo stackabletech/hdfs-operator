@@ -365,6 +365,7 @@ fn rolegroup_statefulset(
     let service_name = rolegroup_ref.object_name();
 
     let replicas;
+    let node_selector;
     let init_containers;
     let containers;
 
@@ -372,17 +373,23 @@ fn rolegroup_statefulset(
 
     match role {
         HdfsRole::DataNode => {
-            replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
+            let rg = hdfs.datanode_rolegroup(rolegroup_ref);
+            node_selector = rg.and_then(|rg| rg.selector.clone());
+            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             init_containers = datanode_init_containers(namenode_podrefs, hadoop_container);
             containers = datanode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::NameNode => {
-            replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
+            let rg = hdfs.namenode_rolegroup(rolegroup_ref);
+            node_selector = rg.and_then(|rg| rg.selector.clone());
+            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             init_containers = namenode_init_containers(namenode_podrefs, hadoop_container);
             containers = namenode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
         HdfsRole::JournalNode => {
-            replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
+            let rg = hdfs.datanode_rolegroup(rolegroup_ref);
+            node_selector = rg.and_then(|rg| rg.selector.clone());
+            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             init_containers = None;
             containers = journalnode_containers(rolegroup_ref, hadoop_container, &resources)?;
         }
