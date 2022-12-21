@@ -427,7 +427,7 @@ fn rolegroup_statefulset(
             }
         }
         HdfsRole::JournalNode => {
-            let rg = hdfs.datanode_rolegroup(rolegroup_ref);
+            let rg = hdfs.journalnode_rolegroup(rolegroup_ref);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             for c in journalnode_containers(rolegroup_ref, hadoop_container, &resources)? {
