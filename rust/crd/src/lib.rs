@@ -19,7 +19,7 @@ use stackable_operator::kube::CustomResource;
 use stackable_operator::labels::role_group_selector_labels;
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
-use stackable_operator::role_utils::{Role, RoleGroupRef};
+use stackable_operator::role_utils::{Role, RoleGroup, RoleGroupRef};
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter, EnumString};
@@ -194,47 +194,40 @@ impl HdfsCluster {
         group_labels
     }
 
-    /// Number of journal node replicas configured for the given `rolegroup_ref`
-    pub fn rolegroup_journalnode_replicas(
+    /// Get a reference to the datanode [`RoleGroup`] struct if it exists.
+    pub fn datanode_rolegroup(
         &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> HdfsOperatorResult<u16> {
-        HdfsCluster::extract_replicas(self.spec.journal_nodes.as_ref(), rolegroup_ref)
-    }
-
-    /// Number of name node replicas configured for the given `rolegroup_ref`
-    pub fn rolegroup_namenode_replicas(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> HdfsOperatorResult<u16> {
-        HdfsCluster::extract_replicas(self.spec.name_nodes.as_ref(), rolegroup_ref)
-    }
-
-    /// Number of data node replicas configured for the given `rolegroup_ref`.
-    pub fn rolegroup_datanode_replicas(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> HdfsOperatorResult<u16> {
-        HdfsCluster::extract_replicas(self.spec.data_nodes.as_ref(), rolegroup_ref)
-    }
-
-    /// Number of replicas for a given `role` and `rolegroup_ref`.
-    fn extract_replicas<T>(
-        role: Option<&Role<T>>,
-        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> HdfsOperatorResult<u16> {
-        Ok(role
-            .as_ref()
-            .ok_or(Error::MissingNodeRole {
-                role: rolegroup_ref.role.clone(),
-            })?
+        rg_ref: &RoleGroupRef<Self>,
+    ) -> Option<&RoleGroup<DataNodeConfig>> {
+        self.spec
+            .data_nodes
+            .as_ref()?
             .role_groups
-            .get(&rolegroup_ref.role_group)
-            .ok_or(Error::RoleGroupNotFound {
-                rolegroup: rolegroup_ref.role_group.clone(),
-            })?
-            .replicas
-            .unwrap_or_default())
+            .get(&rg_ref.role_group)
+    }
+
+    /// Get a reference to the namenode [`RoleGroup`] struct if it exists.
+    pub fn namenode_rolegroup(
+        &self,
+        rg_ref: &RoleGroupRef<Self>,
+    ) -> Option<&RoleGroup<DataNodeConfig>> {
+        self.spec
+            .data_nodes
+            .as_ref()?
+            .role_groups
+            .get(&rg_ref.role_group)
+    }
+
+    /// Get a reference to the journalnode [`RoleGroup`] struct if it exists.
+    pub fn journalnode_rolegroup(
+        &self,
+        rg_ref: &RoleGroupRef<Self>,
+    ) -> Option<&RoleGroup<DataNodeConfig>> {
+        self.spec
+            .data_nodes
+            .as_ref()?
+            .role_groups
+            .get(&rg_ref.role_group)
     }
 
     /// Build the [`PersistentVolumeClaim`]s and [`ResourceRequirements`] for the given `rolegroup_ref`.
