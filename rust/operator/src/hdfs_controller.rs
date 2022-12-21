@@ -401,12 +401,11 @@ fn rolegroup_statefulset(
             let rg = hdfs.datanode_rolegroup(rolegroup_ref);
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
-            if let Some(init_containers) =
-                datanode_init_containers(namenode_podrefs, hadoop_container)
+            for c in datanode_init_containers(namenode_podrefs, hadoop_container)
+                .into_iter()
+                .flatten()
             {
-                for c in init_containers {
-                    pb.add_init_container(c);
-                }
+                pb.add_init_container(c);
             }
             for c in datanode_containers(rolegroup_ref, hadoop_container, &resources)? {
                 pb.add_container(c);
