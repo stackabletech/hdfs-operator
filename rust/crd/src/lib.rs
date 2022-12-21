@@ -210,9 +210,9 @@ impl HdfsCluster {
     pub fn namenode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
-    ) -> Option<&RoleGroup<DataNodeConfig>> {
+    ) -> Option<&RoleGroup<NameNodeConfig>> {
         self.spec
-            .data_nodes
+            .name_nodes
             .as_ref()?
             .role_groups
             .get(&rg_ref.role_group)
@@ -222,9 +222,9 @@ impl HdfsCluster {
     pub fn journalnode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
-    ) -> Option<&RoleGroup<DataNodeConfig>> {
+    ) -> Option<&RoleGroup<JournalNodeConfig>> {
         self.spec
-            .data_nodes
+            .journal_nodes
             .as_ref()?
             .role_groups
             .get(&rg_ref.role_group)
