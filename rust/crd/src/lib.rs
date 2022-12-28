@@ -3,30 +3,35 @@ pub mod error;
 
 use constants::*;
 use error::{Error, HdfsOperatorResult};
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use stackable_operator::commons::product_image_selection::ProductImage;
-use stackable_operator::commons::resources::{NoRuntimeLimits, PvcConfig, Resources};
-use stackable_operator::commons::resources::{
-    NoRuntimeLimitsFragment, PvcConfigFragment, ResourcesFragment,
+use stackable_operator::{
+    commons::{
+        product_image_selection::ProductImage,
+        resources::{
+            CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
+            PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
+        },
+    },
+    config::{
+        fragment,
+        fragment::{Fragment, ValidationError},
+        merge::Merge,
+    },
+    k8s_openapi::{
+        api::core::v1::{PersistentVolumeClaim, ResourceRequirements},
+        apimachinery::pkg::api::resource::Quantity,
+    },
+    kube::{runtime::reflector::ObjectRef, CustomResource},
+    labels::role_group_selector_labels,
+    product_config::types::PropertyNameKind,
+    product_config_utils::{ConfigError, Configuration},
+    product_logging,
+    product_logging::spec::{Logging, LoggingFragment},
+    role_utils::{Role, RoleGroup, RoleGroupRef},
+    schemars::{self, JsonSchema},
 };
-use stackable_operator::config::fragment::Fragment;
-use stackable_operator::config::merge::Merge;
-use stackable_operator::k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements};
-use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
-use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::CustomResource;
-use stackable_operator::labels::role_group_selector_labels;
-use stackable_operator::product_config::types::PropertyNameKind;
-use stackable_operator::product_config_utils::{ConfigError, Configuration};
-use stackable_operator::role_utils::{Role, RoleGroup, RoleGroupRef};
-use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter, EnumString};
-
-use stackable_operator::commons::resources::CpuLimitsFragment;
-use stackable_operator::commons::resources::MemoryLimitsFragment;
-use stackable_operator::config::fragment;
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
@@ -46,12 +51,26 @@ use stackable_operator::config::fragment;
 pub struct HdfsClusterSpec {
     pub image: ProductImage,
     pub auto_format_fs: Option<bool>,
-    pub zookeeper_config_map_name: String,
-    pub data_nodes: Option<Role<DataNodeConfig>>,
-    pub name_nodes: Option<Role<NameNodeConfig>>,
-    pub journal_nodes: Option<Role<JournalNodeConfig>>,
     pub dfs_replication: Option<u8>,
-    pub log4j: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_nodes: Option<Role<NameNodeConfigFragment>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_nodes: Option<Role<DataNodeConfigFragment>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
+    /// Name of the Vector aggregator discovery ConfigMap.
+    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_aggregator_config_map_name: Option<String>,
+    /// Name of the ZooKeeper discovery config map.
+    pub zookeeper_config_map_name: String,
+}
+
+/// This is a shared trait for all role/role-group config structs to avoid duplication
+/// when extracting role specific configuration structs.
+pub trait MergedConfig {
+    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits>;
+    fn logging(&self) -> Logging<Container>;
 }
 
 #[derive(
@@ -68,48 +87,46 @@ pub struct HdfsClusterSpec {
     Serialize,
 )]
 pub enum HdfsRole {
-    #[serde(rename = "journalnode")]
-    #[strum(serialize = "journalnode")]
-    JournalNode,
     #[serde(rename = "namenode")]
     #[strum(serialize = "namenode")]
     NameNode,
     #[serde(rename = "datanode")]
     #[strum(serialize = "datanode")]
     DataNode,
+    #[serde(rename = "journalnode")]
+    #[strum(serialize = "journalnode")]
+    JournalNode,
 }
 
 impl HdfsRole {
     pub fn min_replicas(&self) -> u16 {
         match self {
-            HdfsRole::JournalNode => 3,
-            HdfsRole::DataNode => 1,
             HdfsRole::NameNode => 2,
+            HdfsRole::DataNode => 1,
+            HdfsRole::JournalNode => 3,
         }
     }
 
     pub fn replicas_can_be_even(&self) -> bool {
         match self {
-            HdfsRole::JournalNode => false,
-            HdfsRole::DataNode => true,
             HdfsRole::NameNode => true,
+            HdfsRole::DataNode => true,
+            HdfsRole::JournalNode => false,
         }
     }
 
     pub fn check_valid_dfs_replication(&self) -> bool {
         match self {
-            HdfsRole::JournalNode => false,
             HdfsRole::NameNode => false,
             HdfsRole::DataNode => true,
+            HdfsRole::JournalNode => false,
         }
     }
-}
 
-lazy_static! {
-    pub static ref ROLE_PORTS: HashMap<HdfsRole, Vec<(String, i32)>> = [
-        (
-            HdfsRole::NameNode,
-            vec![
+    /// Returns required port name and port number tuples depending on the role.
+    pub fn ports(&self) -> Vec<(String, i32)> {
+        match self {
+            HdfsRole::NameNode => vec![
                 (
                     String::from(SERVICE_PORT_NAME_METRICS),
                     DEFAULT_NAME_NODE_METRICS_PORT,
@@ -122,11 +139,8 @@ lazy_static! {
                     String::from(SERVICE_PORT_NAME_RPC),
                     DEFAULT_NAME_NODE_RPC_PORT,
                 ),
-            ]
-        ),
-        (
-            HdfsRole::DataNode,
-            vec![
+            ],
+            HdfsRole::DataNode => vec![
                 (
                     String::from(SERVICE_PORT_NAME_METRICS),
                     DEFAULT_DATA_NODE_METRICS_PORT,
@@ -143,11 +157,8 @@ lazy_static! {
                     String::from(SERVICE_PORT_NAME_IPC),
                     DEFAULT_DATA_NODE_IPC_PORT,
                 ),
-            ]
-        ),
-        (
-            HdfsRole::JournalNode,
-            vec![
+            ],
+            HdfsRole::JournalNode => vec![
                 (
                     String::from(SERVICE_PORT_NAME_METRICS),
                     DEFAULT_JOURNAL_NODE_METRICS_PORT,
@@ -164,11 +175,82 @@ lazy_static! {
                     String::from(SERVICE_PORT_NAME_RPC),
                     DEFAULT_JOURNAL_NODE_RPC_PORT,
                 ),
-            ]
-        ),
-    ]
-    .into_iter()
-    .collect();
+            ],
+        }
+    }
+
+    pub fn merged_config(
+        &self,
+        hdfs: &HdfsCluster,
+        role_group: &str,
+    ) -> Box<dyn MergedConfig + 'static> {
+        // TODO: error handling
+        match self {
+            HdfsRole::NameNode => {
+                let default_config = NameNodeConfigFragment::default();
+                let mut role_config = hdfs.spec.name_nodes.as_ref().unwrap().config.config.clone();
+                let mut role_group_config = hdfs
+                    .spec
+                    .name_nodes
+                    .as_ref()
+                    .unwrap()
+                    .role_groups
+                    .get(role_group)
+                    .unwrap()
+                    .config
+                    .config
+                    .clone();
+                role_config.merge(&default_config);
+                role_group_config.merge(&role_config);
+                Box::new(fragment::validate::<NameNodeConfig>(role_group_config.clone()).unwrap())
+            }
+            HdfsRole::DataNode => {
+                let default_config = DataNodeConfigFragment::default();
+                let mut role_config = hdfs.spec.data_nodes.as_ref().unwrap().config.config.clone();
+                let mut role_group_config = hdfs
+                    .spec
+                    .data_nodes
+                    .as_ref()
+                    .unwrap()
+                    .role_groups
+                    .get(role_group)
+                    .unwrap()
+                    .config
+                    .config
+                    .clone();
+                role_config.merge(&default_config);
+                role_group_config.merge(&role_config);
+                Box::new(fragment::validate::<DataNodeConfig>(role_group_config.clone()).unwrap())
+            }
+            HdfsRole::JournalNode => {
+                let default_config = JournalNodeConfigFragment::default();
+                let mut role_config = hdfs
+                    .spec
+                    .journal_nodes
+                    .as_ref()
+                    .unwrap()
+                    .config
+                    .config
+                    .clone();
+                let mut role_group_config = hdfs
+                    .spec
+                    .journal_nodes
+                    .as_ref()
+                    .unwrap()
+                    .role_groups
+                    .get(role_group)
+                    .unwrap()
+                    .config
+                    .config
+                    .clone();
+                role_config.merge(&default_config);
+                role_group_config.merge(&role_config);
+                Box::new(
+                    fragment::validate::<JournalNodeConfig>(role_group_config.clone()).unwrap(),
+                )
+            }
+        }
+    }
 }
 
 impl HdfsCluster {
@@ -198,7 +280,7 @@ impl HdfsCluster {
     pub fn datanode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
-    ) -> Option<&RoleGroup<DataNodeConfig>> {
+    ) -> Option<&RoleGroup<DataNodeConfigFragment>> {
         self.spec
             .data_nodes
             .as_ref()?
@@ -210,7 +292,7 @@ impl HdfsCluster {
     pub fn namenode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
-    ) -> Option<&RoleGroup<NameNodeConfig>> {
+    ) -> Option<&RoleGroup<NameNodeConfigFragment>> {
         self.spec
             .name_nodes
             .as_ref()?
@@ -222,131 +304,12 @@ impl HdfsCluster {
     pub fn journalnode_rolegroup(
         &self,
         rg_ref: &RoleGroupRef<Self>,
-    ) -> Option<&RoleGroup<JournalNodeConfig>> {
+    ) -> Option<&RoleGroup<JournalNodeConfigFragment>> {
         self.spec
             .journal_nodes
             .as_ref()?
             .role_groups
             .get(&rg_ref.role_group)
-    }
-
-    /// Build the [`PersistentVolumeClaim`]s and [`ResourceRequirements`] for the given `rolegroup_ref`.
-    /// These can be defined at the role or rolegroup level and as usual, the
-    /// following precedence rules are implemented:
-    /// 1. group pvc
-    /// 2. role pvc
-    /// 3. a default PVC with 1Gi capacity
-    pub fn resources(
-        &self,
-        role: &HdfsRole,
-        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> Result<(Vec<PersistentVolumeClaim>, ResourceRequirements), Error> {
-        // Initialize the result with all default values as baseline
-        let default_resources = self.default_resources();
-
-        let mut role_resources = self.role_resources(role);
-        let mut rg_resources = self.rolegroup_resources(role, rolegroup_ref);
-
-        role_resources.merge(&default_resources);
-        rg_resources.merge(&role_resources);
-
-        let resources: Resources<Storage, NoRuntimeLimits> = fragment::validate(rg_resources)
-            .map_err(|source| Error::FragmentValidationFailure { source })?;
-
-        let data_pvc = resources
-            .storage
-            .data
-            .build_pvc("data", Some(vec!["ReadWriteOnce"]));
-
-        Ok((vec![data_pvc], resources.into()))
-    }
-
-    fn rolegroup_resources(
-        &self,
-        role: &HdfsRole,
-        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> ResourcesFragment<Storage, NoRuntimeLimits> {
-        match role {
-            HdfsRole::DataNode => self
-                .spec
-                .data_nodes
-                .as_ref()
-                .and_then(|role| {
-                    role.role_groups
-                        .get(&rolegroup_ref.role_group)
-                        .map(|rg| &rg.config.config)
-                })
-                .and_then(|node_config| node_config.resources.clone())
-                .unwrap_or_default(),
-            HdfsRole::JournalNode => self
-                .spec
-                .journal_nodes
-                .as_ref()
-                .and_then(|role| {
-                    role.role_groups
-                        .get(&rolegroup_ref.role_group)
-                        .map(|rg| &rg.config.config)
-                })
-                .and_then(|node_config| node_config.resources.clone())
-                .unwrap_or_default(),
-            HdfsRole::NameNode => self
-                .spec
-                .name_nodes
-                .as_ref()
-                .and_then(|role| {
-                    role.role_groups
-                        .get(&rolegroup_ref.role_group)
-                        .map(|rg| &rg.config.config)
-                })
-                .and_then(|node_config| node_config.resources.clone())
-                .unwrap_or_default(),
-        }
-    }
-
-    fn role_resources(&self, role: &HdfsRole) -> ResourcesFragment<Storage, NoRuntimeLimits> {
-        match role {
-            HdfsRole::DataNode => self
-                .spec
-                .data_nodes
-                .as_ref()
-                .map(|role| &role.config.config)
-                .and_then(|node_config| node_config.resources.clone())
-                .unwrap_or_default(),
-            HdfsRole::JournalNode => self
-                .spec
-                .journal_nodes
-                .as_ref()
-                .map(|role| &role.config.config)
-                .and_then(|node_config| node_config.resources.clone())
-                .unwrap_or_default(),
-            HdfsRole::NameNode => self
-                .spec
-                .name_nodes
-                .as_ref()
-                .map(|role| &role.config.config)
-                .and_then(|node_config| node_config.resources.clone())
-                .unwrap_or_default(),
-        }
-    }
-
-    fn default_resources(&self) -> ResourcesFragment<Storage, NoRuntimeLimits> {
-        ResourcesFragment {
-            cpu: CpuLimitsFragment {
-                min: Some(Quantity("500m".to_owned())),
-                max: Some(Quantity("4".to_owned())),
-            },
-            memory: MemoryLimitsFragment {
-                limit: Some(Quantity("1Gi".to_owned())),
-                runtime_limits: NoRuntimeLimitsFragment {},
-            },
-            storage: StorageFragment {
-                data: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
-        }
     }
 
     pub fn rolegroup_ref(
@@ -381,12 +344,7 @@ impl HdfsCluster {
                     namespace: ns.clone(),
                     role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                    ports: ROLE_PORTS
-                        .get(role)
-                        .unwrap_or(&Vec::new())
-                        .iter()
-                        .map(|(n, p)| (n.clone(), *p))
-                        .collect(),
+                    ports: role.ports().iter().map(|(n, p)| (n.clone(), *p)).collect(),
                 })
             })
             .collect())
@@ -535,102 +493,213 @@ impl HdfsPodRef {
     ),
     serde(rename_all = "camelCase")
 )]
-struct Storage {
+pub struct HdfsStorageConfig {
     #[fragment_attrs(serde(default))]
     data: PvcConfig,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
 #[serde(rename_all = "camelCase")]
+pub enum Container {
+    Hdfs,
+    Vector,
+}
+
+fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntimeLimits> {
+    ResourcesFragment {
+        cpu: CpuLimitsFragment {
+            min: Some(Quantity("500m".to_owned())),
+            max: Some(Quantity("4".to_owned())),
+        },
+        memory: MemoryLimitsFragment {
+            limit: Some(Quantity("1Gi".to_owned())),
+            runtime_limits: NoRuntimeLimitsFragment {},
+        },
+        storage: HdfsStorageConfigFragment {
+            data: PvcConfigFragment {
+                capacity: Some(Quantity("2Gi".to_owned())),
+                storage_class: None,
+                selectors: None,
+            },
+        },
+    }
+}
+
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(Clone, Debug, Deserialize, Merge, JsonSchema, PartialEq, Serialize),
+    serde(rename_all = "camelCase")
+)]
 pub struct NameNodeConfig {
-    resources: Option<ResourcesFragment<Storage, NoRuntimeLimits>>,
+    #[fragment_attrs(serde(default))]
+    pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub logging: Logging<Container>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+impl MergedConfig for NameNodeConfig {
+    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
+        self.resources.clone()
+    }
+    fn logging(&self) -> Logging<Container> {
+        self.logging.clone()
+    }
+}
+
+impl Default for NameNodeConfigFragment {
+    fn default() -> Self {
+        Self {
+            resources: default_resources_fragment(),
+            logging: product_logging::spec::default_logging(),
+        }
+    }
+}
+
+impl Configuration for NameNodeConfigFragment {
+    type Configurable = HdfsCluster;
+
+    fn compute_env(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_cli(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_files(
+        &self,
+        resource: &Self::Configurable,
+        _role_name: &str,
+        file: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        let mut config = BTreeMap::new();
+        if file == HDFS_SITE_XML {
+            if let Some(replication) = &resource.spec.dfs_replication {
+                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
+            }
+        }
+
+        Ok(config)
+    }
+}
+
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(Clone, Debug, Deserialize, Merge, JsonSchema, PartialEq, Serialize),
+    serde(rename_all = "camelCase")
+)]
 pub struct DataNodeConfig {
-    resources: Option<ResourcesFragment<Storage, NoRuntimeLimits>>,
+    #[fragment_attrs(serde(default))]
+    pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub logging: Logging<Container>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+impl MergedConfig for DataNodeConfig {
+    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
+        self.resources.clone()
+    }
+    fn logging(&self) -> Logging<Container> {
+        self.logging.clone()
+    }
+}
+
+impl Default for DataNodeConfigFragment {
+    fn default() -> Self {
+        Self {
+            resources: default_resources_fragment(),
+            logging: product_logging::spec::default_logging(),
+        }
+    }
+}
+
+impl Configuration for DataNodeConfigFragment {
+    type Configurable = HdfsCluster;
+
+    fn compute_env(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_cli(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_files(
+        &self,
+        resource: &Self::Configurable,
+        _role_name: &str,
+        file: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        let mut config = BTreeMap::new();
+        if file == HDFS_SITE_XML {
+            if let Some(replication) = &resource.spec.dfs_replication {
+                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
+            }
+        }
+
+        Ok(config)
+    }
+}
+
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(Clone, Debug, Deserialize, Merge, JsonSchema, PartialEq, Serialize),
+    serde(rename_all = "camelCase")
+)]
 pub struct JournalNodeConfig {
-    resources: Option<ResourcesFragment<Storage, NoRuntimeLimits>>,
+    #[fragment_attrs(serde(default))]
+    pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub logging: Logging<Container>,
 }
 
-impl Configuration for NameNodeConfig {
-    type Configurable = HdfsCluster;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+impl MergedConfig for JournalNodeConfig {
+    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
+        self.resources.clone()
     }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+    fn logging(&self) -> Logging<Container> {
+        self.logging.clone()
     }
+}
 
-    fn compute_files(
-        &self,
-        resource: &Self::Configurable,
-        _role_name: &str,
-        file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut config = BTreeMap::new();
-        if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.dfs_replication {
-                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
-            }
+impl Default for JournalNodeConfigFragment {
+    fn default() -> Self {
+        Self {
+            resources: default_resources_fragment(),
+            logging: product_logging::spec::default_logging(),
         }
-
-        Ok(config)
     }
 }
 
-impl Configuration for DataNodeConfig {
-    type Configurable = HdfsCluster;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        resource: &Self::Configurable,
-        _role_name: &str,
-        file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut config = BTreeMap::new();
-        if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.dfs_replication {
-                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
-            }
-        }
-
-        Ok(config)
-    }
-}
-
-impl Configuration for JournalNodeConfig {
+impl Configuration for JournalNodeConfigFragment {
     type Configurable = HdfsCluster;
 
     fn compute_env(

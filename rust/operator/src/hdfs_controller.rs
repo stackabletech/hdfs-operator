@@ -3,40 +3,44 @@ use crate::config::{
 };
 use crate::discovery::build_discovery_configmap;
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
-use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
-use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
-use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
-use stackable_operator::builder::{
-    ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
+
+use stackable_hdfs_crd::{
+    constants::*,
+    error::{Error, HdfsOperatorResult},
+    HdfsCluster, HdfsPodRef, HdfsRole,
 };
-use stackable_operator::client::Client;
-use stackable_operator::cluster_resources::ClusterResources;
-use stackable_operator::commons::product_image_selection::ResolvedProductImage;
-use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, Probe, ResourceRequirements, SecurityContext,
-    TCPSocketAction, VolumeMount,
-};
-use stackable_operator::k8s_openapi::api::{
-    apps::v1::{StatefulSet, StatefulSetSpec},
-    core::v1::{
-        ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EnvVar, EnvVarSource, Service,
-        ServicePort, ServiceSpec, Volume,
+use stackable_operator::{
+    builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
+    client::Client,
+    cluster_resources::ClusterResources,
+    commons::product_image_selection::ResolvedProductImage,
+    k8s_openapi::{
+        api::{
+            apps::v1::{StatefulSet, StatefulSetSpec},
+            core::v1::{
+                ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
+                EnvVar, EnvVarSource, ObjectFieldSelector, Probe, ResourceRequirements,
+                SecurityContext, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                VolumeMount,
+            },
+        },
+        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
+    kube::{
+        api::ObjectMeta,
+        runtime::{
+            controller::Action,
+            events::{Event, EventType, Recorder, Reporter},
+            reflector::ObjectRef,
+        },
+        Resource, ResourceExt,
+    },
+    labels::role_group_selector_labels,
+    memory::to_java_heap,
+    product_config::{types::PropertyNameKind, ProductConfigManager},
+    product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
+    role_utils::RoleGroupRef,
 };
-use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
-use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use stackable_operator::kube::api::ObjectMeta;
-use stackable_operator::kube::runtime::controller::Action;
-use stackable_operator::kube::runtime::events::{Event, EventType, Recorder, Reporter};
-use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::{Resource, ResourceExt};
-use stackable_operator::labels::role_group_selector_labels;
-use stackable_operator::memory::to_java_heap;
-use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
-use stackable_operator::product_config_utils::{
-    transform_all_roles_to_config, validate_all_roles_and_groups_config,
-};
-use stackable_operator::role_utils::RoleGroupRef;
 use std::{
     collections::{BTreeMap, HashMap},
     str::FromStr,
@@ -49,7 +53,7 @@ const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
 pub struct Ctx {
-    pub client: stackable_operator::client::Client,
+    pub client: Client,
     pub product_config: ProductConfigManager,
 }
 
@@ -129,7 +133,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         let role: HdfsRole = HdfsRole::from_str(role_name).map_err(|_| Error::RoleNotFound {
             role: role_name.to_string(),
         })?;
-        let role_ports = ROLE_PORTS.get(&role).unwrap().as_slice();
+        let role_ports = role.ports();
 
         if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {
             publish_event(
@@ -145,15 +149,19 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let hadoop_container = hdfs_common_container(
                 &hdfs,
-                role_ports,
+                role_ports.as_slice(),
                 rolegroup_config.get(&PropertyNameKind::Env),
                 &resolved_product_image,
             )?;
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service =
-                rolegroup_service(&hdfs, &rolegroup_ref, role_ports, &resolved_product_image)?;
+            let rg_service = rolegroup_service(
+                &hdfs,
+                &rolegroup_ref,
+                role_ports.as_slice(),
+                &resolved_product_image,
+            )?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
@@ -342,10 +350,11 @@ fn rolegroup_config_map(
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
-        .add_data(
-            LOG4J_PROPERTIES.to_string(),
-            hdfs.spec.log4j.as_ref().unwrap_or(&"".to_string()),
-        )
+        // TODO: remove?
+        // .add_data(
+        //     LOG4J_PROPERTIES.to_string(),
+        //     hdfs.spec.log4j.as_ref().unwrap_or(&"".to_string()),
+        // )
         .build()
         .map_err(|source| Error::BuildRoleGroupConfig {
             source,
@@ -393,7 +402,7 @@ fn rolegroup_statefulset(
 
     let replicas;
 
-    let (pvc, resources) = hdfs.resources(role, rolegroup_ref).unwrap_or_default();
+    let merged_config = role.merged_config(hdfs, &rolegroup_ref.role_group);
 
     // role specific pod settings configured here
     match role {
@@ -407,7 +416,11 @@ fn rolegroup_statefulset(
             {
                 pb.add_init_container(c);
             }
-            for c in datanode_containers(rolegroup_ref, hadoop_container, &resources)? {
+            for c in datanode_containers(
+                rolegroup_ref,
+                hadoop_container,
+                &merged_config.resources().into(),
+            )? {
                 pb.add_container(c);
             }
         }
@@ -422,7 +435,11 @@ fn rolegroup_statefulset(
                     pb.add_init_container(c);
                 }
             }
-            for c in namenode_containers(rolegroup_ref, hadoop_container, &resources)? {
+            for c in namenode_containers(
+                rolegroup_ref,
+                hadoop_container,
+                &merged_config.resources().into(),
+            )? {
                 pb.add_container(c);
             }
         }
@@ -430,7 +447,11 @@ fn rolegroup_statefulset(
             let rg = hdfs.journalnode_rolegroup(rolegroup_ref);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-            for c in journalnode_containers(rolegroup_ref, hadoop_container, &resources)? {
+            for c in journalnode_containers(
+                rolegroup_ref,
+                hadoop_container,
+                &merged_config.resources().into(),
+            )? {
                 pb.add_container(c);
             }
         }
@@ -467,7 +488,7 @@ fn rolegroup_statefulset(
             },
             service_name,
             template: pb.build_template(),
-            volume_claim_templates: Some(pvc),
+            //volume_claim_templates: Some(pvc),
             ..StatefulSetSpec::default()
         }),
         status: None,
