@@ -4,11 +4,8 @@ use crate::config::{
 use crate::discovery::build_discovery_configmap;
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 
-use stackable_hdfs_crd::{
-    constants::*,
-    error::{Error, HdfsOperatorResult},
-    HdfsCluster, HdfsPodRef, HdfsRole,
-};
+use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
@@ -36,6 +33,7 @@ use stackable_operator::{
         Resource, ResourceExt,
     },
     labels::role_group_selector_labels,
+    logging::controller::ReconcilerError,
     memory::to_java_heap,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
@@ -47,10 +45,117 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use strum::{EnumDiscriminants, IntoStaticStr};
 
 const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
+
+pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const MAX_HBASE_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+
+const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
+const LOG_VOLUME_SIZE_IN_MIB: u32 =
+    MAX_HBASE_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
+const HBASE_LOG_CONFIG_TMP_DIR: &str = "/stackable/tmp/log_config";
+
+#[derive(Snafu, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(IntoStaticStr))]
+pub enum Error {
+    #[snafu(display("Invalid role configuration"))]
+    InvalidRoleConfig {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
+    #[snafu(display("Invalid product configuration"))]
+    InvalidProductConfig {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("Cannot create rolegroup service [{name}]"))]
+    ApplyRoleGroupService {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("Cannot create role group config map [{name}]"))]
+    ApplyRoleGroupConfigMap {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("Cannot create role group stateful set [{name}]"))]
+    ApplyRoleGroupStatefulSet {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("Cannot create discovery config map [{name}]"))]
+    ApplyDiscoveryConfigMap {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("No metadata for [{obj_ref}]"))]
+    ObjectMissingMetadataForOwnerRef {
+        source: stackable_operator::error::Error,
+        obj_ref: ObjectRef<HdfsCluster>,
+    },
+    #[snafu(display("Invalid role [{role}]"))]
+    InvalidRole {
+        source: strum::ParseError,
+        role: String,
+    },
+    #[snafu(display("Object has no name"))]
+    ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
+    #[snafu(display("Object has no namespace [{obj_ref}]"))]
+    ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
+    #[snafu(display("Cannot build config for role [{role}] and rolegroup [{role_group}]"))]
+    BuildRoleGroupConfig {
+        source: stackable_operator::error::Error,
+        role: String,
+        role_group: String,
+    },
+    #[snafu(display("Cannot build config discovery config map"))]
+    BuildDiscoveryConfigMap {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("Object has no associated namespace"))]
+    NoNamespace,
+    #[snafu(display("Failed to publish event"))]
+    PublishEvent {
+        source: stackable_operator::kube::Error,
+    },
+    #[snafu(display("Invalid java heap config for [{role}]"))]
+    InvalidJavaHeapConfig {
+        source: stackable_operator::error::Error,
+        role: String,
+    },
+    #[snafu(display("Failed to patch service account"))]
+    ApplyServiceAccount {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("Failed to patch role binding"))]
+    ApplyRoleBinding {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("Failed to create cluster resources"))]
+    CreateClusterResources {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("Failed to delete orphaned resources"))]
+    DeleteOrphanedResources {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("Failed to create pod references"))]
+    CreatePodReferences { source: stackable_hdfs_crd::Error },
+    #[snafu(display("Failed to build role properties"))]
+    BuildRoleProperties { source: stackable_hdfs_crd::Error },
+}
+
+impl ReconcilerError for Error {
+    fn category(&self) -> &'static str {
+        ErrorDiscriminants::from(self).into()
+    }
+}
+
+pub type HdfsOperatorResult<T> = Result<T, Error>;
 
 pub struct Ctx {
     pub client: Client,
@@ -65,17 +170,25 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
-        &transform_all_roles_to_config(&*hdfs, hdfs.build_role_properties()?)
-            .map_err(|source| Error::InvalidRoleConfig { source })?,
+        &transform_all_roles_to_config(
+            &*hdfs,
+            hdfs.build_role_properties()
+                .context(BuildRolePropertiesSnafu)?,
+        )
+        .context(InvalidRoleConfigSnafu)?,
         &ctx.product_config,
         false,
         false,
     )
-    .map_err(|source| Error::InvalidProductConfig { source })?;
+    .context(InvalidProductConfigSnafu)?;
 
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
-    let namenode_podrefs = hdfs.pod_refs(&HdfsRole::NameNode)?;
-    let journalnode_podrefs = hdfs.pod_refs(&HdfsRole::JournalNode)?;
+    let namenode_podrefs = hdfs
+        .pod_refs(&HdfsRole::NameNode)
+        .context(CreatePodReferencesSnafu)?;
+    let journalnode_podrefs = hdfs
+        .pod_refs(&HdfsRole::JournalNode)
+        .context(CreatePodReferencesSnafu)?;
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
@@ -83,7 +196,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         RESOURCE_MANAGER_HDFS_CONTROLLER,
         &hdfs.object_ref(&()),
     )
-    .map_err(|e| Error::CreateClusterResources { source: e })?;
+    .context(CreateClusterResourcesSnafu)?;
 
     let discovery_cm = build_discovery_configmap(
         &hdfs,
@@ -91,15 +204,14 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         &namenode_podrefs,
         &resolved_product_image,
     )
-    .map_err(|e| Error::BuildDiscoveryConfigMap { source: e })?;
+    .context(BuildDiscoveryConfigMapSnafu)?;
 
     // The discovery CM is linked to the cluster lifecycle via ownerreference.
     // Therefore, must not be added to the "orphaned" cluster resources
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
         .await
-        .map_err(|e| Error::ApplyDiscoveryConfigMap {
-            source: e,
+        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
             name: discovery_cm.metadata.name.clone().unwrap_or_default(),
         })?;
 
@@ -109,28 +221,25 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     // deleted if the cluster is removed.
     // Therefore no cluster / orphaned resources have to be handled here.
     let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hdfs.as_ref(), "hdfs-clusterrole")
-        .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
-            source,
-            obj_ref: ObjectRef::from_obj(&hdfs),
+        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+            obj_ref: ObjectRef::from_obj(&*hdfs),
         })?;
 
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &rbac_sa, &rbac_sa)
         .await
-        .map_err(|source| Error::ApplyServiceAccount {
-            source,
+        .with_context(|_| ApplyServiceAccountSnafu {
             name: rbac_sa.name_any(),
         })?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &rbac_rolebinding, &rbac_rolebinding)
         .await
-        .map_err(|source| Error::ApplyRoleBinding {
-            source,
+        .with_context(|_| ApplyRoleBindingSnafu {
             name: rbac_rolebinding.name_any(),
         })?;
 
     for (role_name, group_config) in validated_config.iter() {
-        let role: HdfsRole = HdfsRole::from_str(role_name).map_err(|_| Error::RoleNotFound {
+        let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {
             role: role_name.to_string(),
         })?;
         let role_ports = role.ports();
@@ -184,22 +293,19 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             cluster_resources
                 .add(client, &rg_service)
                 .await
-                .map_err(|e| Error::ApplyRoleGroupService {
-                    source: e,
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
                     name: rg_service.metadata.name.clone().unwrap_or_default(),
                 })?;
             cluster_resources
                 .add(client, &rg_configmap)
                 .await
-                .map_err(|e| Error::ApplyRoleGroupConfigMap {
-                    source: e,
+                .with_context(|_| ApplyRoleGroupConfigMapSnafu {
                     name: rg_configmap.metadata.name.clone().unwrap_or_default(),
                 })?;
             cluster_resources
                 .add(client, &rg_statefulset)
                 .await
-                .map_err(|e| Error::ApplyRoleGroupStatefulSet {
-                    source: e,
+                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
                     name: rg_statefulset.metadata.name.clone().unwrap_or_default(),
                 })?;
         }
@@ -208,7 +314,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     cluster_resources
         .delete_orphaned_resources(client)
         .await
-        .map_err(|e| Error::DeleteOrphanedResources { source: e })?;
+        .context(DeleteOrphanedResourcesSnafu)?;
 
     Ok(Action::await_change())
 }
@@ -222,15 +328,14 @@ fn rolegroup_service(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_ports: &[(String, i32)],
     resolved_product_image: &ResolvedProductImage,
-) -> Result<Service, Error> {
+) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hdfs)
             .name(&rolegroup_ref.object_name())
             .ownerreference_from_resource(hdfs, None, Some(true))
-            .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
-                source,
+            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
             .with_recommended_labels(build_recommended_labels(
@@ -277,7 +382,9 @@ fn rolegroup_config_map(
         .metadata
         .name
         .as_deref()
-        .ok_or(Error::ObjectHasNoName)?;
+        .with_context(|| ObjectHasNoNameSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?;
 
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
@@ -335,8 +442,7 @@ fn rolegroup_config_map(
                 .name_and_namespace(hdfs)
                 .name(&rolegroup_ref.object_name())
                 .ownerreference_from_resource(hdfs, None, Some(true))
-                .map_err(|e| Error::ObjectMissingMetadataForOwnerRef {
-                    source: e,
+                .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                     obj_ref: ObjectRef::from_obj(hdfs),
                 })?
                 .with_recommended_labels(build_recommended_labels(
@@ -356,8 +462,7 @@ fn rolegroup_config_map(
         //     hdfs.spec.log4j.as_ref().unwrap_or(&"".to_string()),
         // )
         .build()
-        .map_err(|source| Error::BuildRoleGroupConfig {
-            source,
+        .with_context(|_| BuildRoleGroupConfigSnafu {
             role: rolegroup_ref.role.clone(),
             role_group: rolegroup_ref.role_group.clone(),
         })
@@ -462,8 +567,7 @@ fn rolegroup_statefulset(
             .name_and_namespace(hdfs)
             .name(&rolegroup_ref.object_name())
             .ownerreference_from_resource(hdfs, None, Some(true))
-            .map_err(|source| Error::ObjectMissingMetadataForOwnerRef {
-                source,
+            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
             .with_recommended_labels(build_recommended_labels(
@@ -508,7 +612,9 @@ fn journalnode_containers(
         .and_then(|l| l.get("memory"))
         .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
         .unwrap_or_else(|| Ok("".to_string()))
-        .map_err(|source| Error::JournalnodeJavaHeapConfig { source })?;
+        .with_context(|_| InvalidJavaHeapConfigSnafu {
+            role: HdfsRole::JournalNode.to_string(),
+        })?;
 
     let opts = vec![
         Some(
@@ -559,7 +665,9 @@ fn namenode_containers(
         .and_then(|l| l.get("memory"))
         .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
         .unwrap_or_else(|| Ok("".to_string()))
-        .map_err(|source| Error::NamenodeJavaHeapConfig { source })?;
+        .with_context(|_| InvalidJavaHeapConfigSnafu {
+            role: HdfsRole::NameNode.to_string(),
+        })?;
 
     let opts = vec![
         Some(
@@ -624,7 +732,9 @@ fn datanode_containers(
         .and_then(|l| l.get("memory"))
         .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
         .unwrap_or_else(|| Ok("".to_string()))
-        .map_err(|source| Error::DatanodeJavaHeapConfig { source })?;
+        .with_context(|_| InvalidJavaHeapConfigSnafu {
+            role: HdfsRole::DataNode.to_string(),
+        })?;
 
     let opts = vec![
         Some(
@@ -893,7 +1003,7 @@ async fn publish_event(
     action: &str,
     reason: &str,
     message: &str,
-) -> Result<(), Error> {
+) -> HdfsOperatorResult<()> {
     let reporter = Reporter {
         controller: CONTROLLER_NAME.into(),
         instance: None,
@@ -911,7 +1021,7 @@ async fn publish_event(
             secondary: None,
         })
         .await
-        .map_err(|source| Error::PublishEvent { source })
+        .context(PublishEventSnafu)
 }
 
 fn build_invalid_replica_message(

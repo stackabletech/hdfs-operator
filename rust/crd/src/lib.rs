@@ -1,9 +1,8 @@
 pub mod constants;
-pub mod error;
 
 use constants::*;
-use error::{Error, HdfsOperatorResult};
 use serde::{Deserialize, Serialize};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         product_image_selection::ProductImage,
@@ -17,21 +16,28 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::{
-        api::core::v1::{PersistentVolumeClaim, ResourceRequirements},
-        apimachinery::pkg::api::resource::Quantity,
-    },
+    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource},
     labels::role_group_selector_labels,
     product_config::types::PropertyNameKind,
     product_config_utils::{ConfigError, Configuration},
     product_logging,
-    product_logging::spec::{Logging, LoggingFragment},
+    product_logging::spec::Logging,
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
 use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter, EnumString};
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("Object has no associated namespace"))]
+    NoNamespace,
+    #[snafu(display("Missing node role {role}"))]
+    MissingRole { role: String },
+    #[snafu(display("fragment validation failure"))]
+    FragmentValidationFailure { source: ValidationError },
+}
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
@@ -327,12 +333,8 @@ impl HdfsCluster {
     /// List all [HdfsPodRef]s expected for the given `role`
     ///
     /// The `validated_config` is used to extract the ports exposed by the pods.
-    pub fn pod_refs(&self, role: &HdfsRole) -> HdfsOperatorResult<Vec<HdfsPodRef>> {
-        let ns = self
-            .metadata
-            .namespace
-            .clone()
-            .ok_or(Error::NoNamespaceContext)?;
+    pub fn pod_refs(&self, role: &HdfsRole) -> Result<Vec<HdfsPodRef>, Error> {
+        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
 
         let rolegroup_ref_and_replicas = self.rolegroup_ref_and_replicas(role);
 
@@ -405,7 +407,7 @@ impl HdfsCluster {
 
     pub fn build_role_properties(
         &self,
-    ) -> HdfsOperatorResult<
+    ) -> Result<
         HashMap<
             String,
             (
@@ -413,6 +415,7 @@ impl HdfsCluster {
                 Role<impl Configuration<Configurable = HdfsCluster>>,
             ),
         >,
+        Error,
     > {
         let mut result = HashMap::new();
         let pnk = vec![
@@ -428,7 +431,7 @@ impl HdfsCluster {
                 (pnk.clone(), name_nodes.clone().erase()),
             );
         } else {
-            return Err(Error::MissingNodeRole {
+            return Err(Error::MissingRole {
                 role: HdfsRole::NameNode.to_string(),
             });
         }
@@ -439,7 +442,7 @@ impl HdfsCluster {
                 (pnk.clone(), data_nodes.clone().erase()),
             );
         } else {
-            return Err(Error::MissingNodeRole {
+            return Err(Error::MissingRole {
                 role: HdfsRole::DataNode.to_string(),
             });
         }
@@ -450,7 +453,7 @@ impl HdfsCluster {
                 (pnk, journal_nodes.clone().erase()),
             );
         } else {
-            return Err(Error::MissingNodeRole {
+            return Err(Error::MissingRole {
                 role: HdfsRole::JournalNode.to_string(),
             });
         }
