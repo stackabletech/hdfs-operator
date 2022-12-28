@@ -208,7 +208,7 @@ impl HdfsRole {
                     .clone();
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
-                Box::new(fragment::validate::<NameNodeConfig>(role_group_config.clone()).unwrap())
+                Box::new(fragment::validate::<NameNodeConfig>(role_group_config).unwrap())
             }
             HdfsRole::DataNode => {
                 let default_config = DataNodeConfigFragment::default();
@@ -224,9 +224,16 @@ impl HdfsRole {
                     .config
                     .config
                     .clone();
+
+                println!("Default {:?}\n", default_config);
+                println!("Role {:?}\n", role_config);
+                println!("RoleGroup {:?}\n", role_group_config);
+
                 role_config.merge(&default_config);
+                println!("Merge default-> role {:?}\n", role_config);
                 role_group_config.merge(&role_config);
-                Box::new(fragment::validate::<DataNodeConfig>(role_group_config.clone()).unwrap())
+                println!("Merge role-> rolegroup {:?}\n", role_group_config);
+                Box::new(fragment::validate::<DataNodeConfig>(role_group_config).unwrap())
             }
             HdfsRole::JournalNode => {
                 let default_config = JournalNodeConfigFragment::default();
@@ -251,9 +258,7 @@ impl HdfsRole {
                     .clone();
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
-                Box::new(
-                    fragment::validate::<JournalNodeConfig>(role_group_config.clone()).unwrap(),
-                )
+                Box::new(fragment::validate::<JournalNodeConfig>(role_group_config).unwrap())
             }
         }
     }
@@ -498,7 +503,7 @@ impl HdfsPodRef {
 )]
 pub struct HdfsStorageConfig {
     #[fragment_attrs(serde(default))]
-    data: PvcConfig,
+    pub data: PvcConfig,
 }
 
 #[derive(
@@ -751,16 +756,6 @@ spec:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
-  dfsReplication: 1
-  log4j: |-
-    hadoop.root.logger=INFO,console
-  nameNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 2
   dataNodes:
     roleGroups:
       default:
@@ -769,37 +764,19 @@ spec:
             storage:
               data:
                 capacity: 5Gi
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1";
+";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs
-            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
-            .unwrap();
+        let role = HdfsRole::DataNode;
+        let capacity = role
+            .merged_config(&hdfs, "default")
+            .resources()
+            .storage
+            .data
+            .capacity;
 
-        assert_eq!(
-            &Quantity("5Gi".to_owned()),
-            pvc[0]
-                .clone()
-                .spec
-                .unwrap()
-                .resources
-                .unwrap()
-                .requests
-                .unwrap()
-                .get("storage")
-                .unwrap()
-        );
+        assert_eq!(Some(Quantity("5Gi".to_string())), capacity);
     }
 
     #[test]
@@ -815,16 +792,6 @@ spec:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
-  dfsReplication: 1
-  log4j: |-
-    hadoop.root.logger=INFO,console
-  nameNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 2
   dataNodes:
     config:
       resources:
@@ -833,39 +800,19 @@ spec:
             capacity: 5Gi
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-
-        ";
+";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs
-            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
-            .unwrap();
+        let role = HdfsRole::DataNode;
+        let capacity = role
+            .merged_config(&hdfs, "default")
+            .resources()
+            .storage
+            .data
+            .capacity;
 
-        assert_eq!(
-            &Quantity("5Gi".to_owned()),
-            pvc[0]
-                .clone()
-                .spec
-                .unwrap()
-                .resources
-                .unwrap()
-                .requests
-                .unwrap()
-                .get("storage")
-                .unwrap()
-        );
+        assert_eq!(Some(Quantity("5Gi".to_string())), capacity);
     }
 
     #[test]
@@ -881,52 +828,22 @@ spec:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
-  dfsReplication: 1
-  log4j: |-
-    hadoop.root.logger=INFO,console
-  nameNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 2
   dataNodes:
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-
-        ";
+";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (pvc, _) = hdfs
-            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
-            .unwrap();
+        let role = HdfsRole::DataNode;
+        let capacity = role
+            .merged_config(&hdfs, "default")
+            .resources()
+            .storage
+            .data
+            .capacity;
 
-        assert_eq!(
-            &Quantity("2Gi".to_owned()),
-            pvc[0]
-                .clone()
-                .spec
-                .unwrap()
-                .resources
-                .unwrap()
-                .requests
-                .unwrap()
-                .get("storage")
-                .unwrap()
-        );
+        assert_eq!(Some(Quantity("2Gi".to_string())), capacity);
     }
 
     #[test]
@@ -942,16 +859,6 @@ spec:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
-  dfsReplication: 1
-  log4j: |-
-    hadoop.root.logger=INFO,console
-  nameNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 2
   dataNodes:
     config:
       resources:
@@ -962,25 +869,12 @@ spec:
           min: '250m'
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-
-        ";
+";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (_, rr) = hdfs
-            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
-            .unwrap();
+        let role = HdfsRole::DataNode;
+        let rr: ResourceRequirements = role.merged_config(&hdfs, "default").resources().into();
 
         let expected = ResourceRequirements {
             requests: Some(
@@ -1013,16 +907,6 @@ spec:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
   zookeeperConfigMapName: hdfs-zk
-  dfsReplication: 1
-  log4j: |-
-    hadoop.root.logger=INFO,console
-  nameNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 2
   dataNodes:
     roleGroups:
       default:
@@ -1033,25 +917,11 @@ spec:
             cpu:
               max: '500m'
               min: '250m'
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        replicas: 1
-
-        ";
+";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let data_node_rg_ref = hdfs.rolegroup_ref("data_nodes", "default");
-        let (_, rr) = hdfs
-            .resources(&HdfsRole::DataNode, &data_node_rg_ref)
-            .unwrap();
+        let role = HdfsRole::DataNode;
+        let rr: ResourceRequirements = role.merged_config(&hdfs, "default").resources().into();
 
         let expected = ResourceRequirements {
             requests: Some(

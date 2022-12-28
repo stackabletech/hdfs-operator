@@ -72,7 +72,7 @@ pub const MAX_HBASE_LOG_FILES_SIZE_IN_MIB: u32 = 10;
 const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
 const LOG_VOLUME_SIZE_IN_MIB: u32 =
     MAX_HBASE_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
-const HBASE_LOG_CONFIG_TMP_DIR: &str = "/stackable/tmp/log_config";
+const HDFS_LOG_CONFIG_TMP_DIR: &str = "/stackable/tmp/log_config";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -588,7 +588,7 @@ fn rolegroup_statefulset(
     if logging.enable_vector_agent {
         pb.add_container(product_logging::framework::vector_container(
             resolved_product_image,
-            "hdfs-config",
+            "config",
             "log",
             merged_config
                 .logging()
@@ -682,7 +682,11 @@ fn rolegroup_statefulset(
             },
             service_name,
             template: pb.build_template(),
-            //volume_claim_templates: Some(pvc),
+            volume_claim_templates: Some(vec![merged_config
+                .resources()
+                .storage
+                .data
+                .build_pvc("data", Some(vec!["ReadWriteOnce"]))]),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -729,11 +733,14 @@ fn journalnode_containers(
 
     Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
-        args: Some(vec![
-            format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
-            "--debug".to_string(),
-            "journalnode".to_string(),
-        ]),
+        args: Some(vec![[
+            format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
+            format!(
+                "{hadoop_home}/bin/hdfs --debug journalnode",
+                hadoop_home = HADOOP_HOME
+            ),
+        ]
+        .join(" && ")]),
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
         env: Some(env),
@@ -784,7 +791,7 @@ fn namenode_containers(
         Container {
             name: rolegroup_ref.role.clone(),
             args: Some(vec![[
-                format!("cp {HBASE_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}",),
+                format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
                 format!(
                     "{hadoop_home}/bin/hdfs --debug namenode",
                     hadoop_home = HADOOP_HOME
@@ -849,11 +856,14 @@ fn datanode_containers(
 
     Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
-        args: Some(vec![
-            format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
-            "--debug".to_string(),
-            "datanode".to_string(),
-        ]),
+        args: Some(vec![[
+            format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
+            format!(
+                "{hadoop_home}/bin/hdfs --debug datanode",
+                hadoop_home = HADOOP_HOME
+            ),
+        ]
+        .join(" && ")]),
         env: Some(env),
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
         liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
@@ -1061,7 +1071,7 @@ fn hdfs_common_container(
         .add_env_vars(env)
         .add_volume_mount("data", ROOT_DATA_DIR)
         .add_volume_mount("config", CONFIG_DIR_NAME)
-        .add_volume_mount("log-config", HBASE_LOG_CONFIG_TMP_DIR)
+        .add_volume_mount("log-config", HDFS_LOG_CONFIG_TMP_DIR)
         .add_volume_mount("log", STACKABLE_LOG_DIR)
         .add_container_ports(
             rolegroup_ports
