@@ -2,12 +2,18 @@ use crate::config::{
     CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
 };
 use crate::discovery::build_discovery_configmap;
+use crate::product_logging::{
+    extend_role_group_config_map, resolve_vector_aggregator_address, LOG4J_CONFIG_FILE,
+};
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole};
+use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
+    builder::{
+        ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
+        PodSecurityContextBuilder,
+    },
     client::Client,
     cluster_resources::ClusterResources,
     commons::product_image_selection::ResolvedProductImage,
@@ -16,12 +22,14 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
-                EnvVar, EnvVarSource, ObjectFieldSelector, Probe, ResourceRequirements,
-                SecurityContext, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
-                VolumeMount,
+                EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, Probe,
+                ResourceRequirements, SecurityContext, Service, ServicePort, ServiceSpec,
+                TCPSocketAction, Volume,
             },
         },
-        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
+        apimachinery::pkg::{
+            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
+        },
     },
     kube::{
         api::ObjectMeta,
@@ -37,6 +45,13 @@ use stackable_operator::{
     memory::to_java_heap,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
+    product_logging::{
+        self,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig,
+        },
+    },
     role_utils::RoleGroupRef,
 };
 use std::{
@@ -147,6 +162,15 @@ pub enum Error {
     CreatePodReferences { source: stackable_hdfs_crd::Error },
     #[snafu(display("Failed to build role properties"))]
     BuildRoleProperties { source: stackable_hdfs_crd::Error },
+    #[snafu(display("failed to resolve the Vector aggregator address"))]
+    ResolveVectorAggregatorAddress {
+        source: crate::product_logging::Error,
+    },
+    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
+    InvalidLoggingConfig {
+        source: crate::product_logging::Error,
+        cm_name: String,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -168,10 +192,14 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
 
+    let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
+        .await
+        .context(ResolveVectorAggregatorAddressSnafu)?;
+
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
         &transform_all_roles_to_config(
-            &*hdfs,
+            hdfs.as_ref(),
             hdfs.build_role_properties()
                 .context(BuildRolePropertiesSnafu)?,
         )
@@ -242,6 +270,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {
             role: role_name.to_string(),
         })?;
+
         let role_ports = role.ports();
 
         if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {
@@ -256,6 +285,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         }
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
+            let merged_config = role.merged_config(&hdfs, rolegroup_name);
+
             let hadoop_container = hdfs_common_container(
                 &hdfs,
                 role_ports.as_slice(),
@@ -278,6 +309,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
                 &journalnode_podrefs,
                 &resolved_product_image,
+                &merged_config,
+                vector_aggregator_address.as_deref(),
             )?;
 
             let rg_statefulset = rolegroup_statefulset(
@@ -288,6 +321,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hadoop_container,
                 &rbac_sa.name_any(),
                 &resolved_product_image,
+                &merged_config,
             )?;
 
             cluster_resources
@@ -375,6 +409,8 @@ fn rolegroup_config_map(
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
+    merged_config: &Box<dyn MergedConfig + Send + 'static>,
+    vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
@@ -436,7 +472,9 @@ fn rolegroup_config_map(
         }
     }
 
-    ConfigMapBuilder::new()
+    let mut builder = ConfigMapBuilder::new();
+
+    builder
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(hdfs)
@@ -455,17 +493,22 @@ fn rolegroup_config_map(
                 .build(),
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
-        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
-        // TODO: remove?
-        // .add_data(
-        //     LOG4J_PROPERTIES.to_string(),
-        //     hdfs.spec.log4j.as_ref().unwrap_or(&"".to_string()),
-        // )
-        .build()
-        .with_context(|_| BuildRoleGroupConfigSnafu {
-            role: rolegroup_ref.role.clone(),
-            role_group: rolegroup_ref.role_group.clone(),
-        })
+        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml);
+
+    extend_role_group_config_map(
+        rolegroup_ref,
+        vector_aggregator_address,
+        &merged_config.logging(),
+        &mut builder,
+    )
+    .context(InvalidLoggingConfigSnafu {
+        cm_name: rolegroup_ref.object_name(),
+    })?;
+
+    builder.build().with_context(|_| BuildRoleGroupConfigSnafu {
+        role: rolegroup_ref.role.clone(),
+        role_group: rolegroup_ref.role_group.clone(),
+    })
 }
 
 fn rolegroup_statefulset(
@@ -476,6 +519,7 @@ fn rolegroup_statefulset(
     hadoop_container: &Container,
     rbac_sa: &str,
     resolved_product_image: &ResolvedProductImage,
+    merged_config: &Box<dyn MergedConfig + Send + 'static>,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
@@ -488,14 +532,22 @@ fn rolegroup_statefulset(
         ..ObjectMeta::default()
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
-    .add_volumes(vec![Volume {
+    .add_volume(Volume {
         name: "config".to_string(),
         config_map: Some(ConfigMapVolumeSource {
             name: Some(rolegroup_ref.object_name()),
             ..ConfigMapVolumeSource::default()
         }),
         ..Volume::default()
-    }])
+    })
+    .add_volume(Volume {
+        name: "log".to_string(),
+        empty_dir: Some(EmptyDirVolumeSource {
+            medium: None,
+            size_limit: Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
+        }),
+        ..Volume::default()
+    })
     .service_account_name(rbac_sa)
     .security_context(
         PodSecurityContextBuilder::new()
@@ -505,9 +557,47 @@ fn rolegroup_statefulset(
             .build(),
     );
 
-    let replicas;
+    let logging = merged_config.logging();
 
-    let merged_config = role.merged_config(hdfs, &rolegroup_ref.role_group);
+    if let Some(ContainerLogConfig {
+        choice:
+            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                custom: ConfigMapLogConfig { config_map },
+            })),
+    }) = logging.containers.get(&stackable_hdfs_crd::Container::Hdfs)
+    {
+        pb.add_volume(Volume {
+            name: "log-config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(config_map.into()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
+    } else {
+        pb.add_volume(Volume {
+            name: "log-config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
+    }
+
+    if logging.enable_vector_agent {
+        pb.add_container(product_logging::framework::vector_container(
+            resolved_product_image,
+            "hdfs-config",
+            "log",
+            merged_config
+                .logging()
+                .containers
+                .get(&stackable_hdfs_crd::Container::Vector),
+        ));
+    }
+
+    let replicas;
 
     // role specific pod settings configured here
     match role {
@@ -693,11 +783,14 @@ fn namenode_containers(
     Ok(vec![
         Container {
             name: rolegroup_ref.role.clone(),
-            args: Some(vec![
-                format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
-                "--debug".to_string(),
-                "namenode".to_string(),
-            ]),
+            args: Some(vec![[
+                format!("cp {HBASE_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}",),
+                format!(
+                    "{hadoop_home}/bin/hdfs --debug namenode",
+                    hadoop_home = HADOOP_HOME
+                ),
+            ]
+            .join(" && ")]),
             env: Some(env),
             readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
             liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
@@ -961,23 +1054,16 @@ fn hdfs_common_container(
             ..EnvVar::default()
         },
     ]);
-    Ok(Container {
-        image: Some(resolved_product_image.image.clone()),
-        image_pull_policy: Some(resolved_product_image.image_pull_policy.clone()),
-        env: Some(env),
-        volume_mounts: Some(vec![
-            VolumeMount {
-                mount_path: String::from(ROOT_DATA_DIR),
-                name: "data".to_string(),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                mount_path: String::from(CONFIG_DIR_NAME),
-                name: "config".to_string(),
-                ..VolumeMount::default()
-            },
-        ]),
-        ports: Some(
+
+    Ok(ContainerBuilder::new("hdfs")
+        .expect("ContainerBuilder not created")
+        .image_from_product_image(resolved_product_image)
+        .add_env_vars(env)
+        .add_volume_mount("data", ROOT_DATA_DIR)
+        .add_volume_mount("config", CONFIG_DIR_NAME)
+        .add_volume_mount("log-config", HBASE_LOG_CONFIG_TMP_DIR)
+        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_container_ports(
             rolegroup_ports
                 .iter()
                 .map(|(name, value)| ContainerPort {
@@ -987,13 +1073,8 @@ fn hdfs_common_container(
                     ..ContainerPort::default()
                 })
                 .collect(),
-        ),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(1000),
-            ..SecurityContext::default()
-        }),
-        ..Container::default()
-    })
+        )
+        .build())
 }
 
 /// Publish a Kubernetes event for the `hdfs` cluster resource.

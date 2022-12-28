@@ -2,7 +2,7 @@ pub mod constants;
 
 use constants::*;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, Snafu};
 use stackable_operator::{
     commons::{
         product_image_selection::ProductImage,
@@ -189,7 +189,7 @@ impl HdfsRole {
         &self,
         hdfs: &HdfsCluster,
         role_group: &str,
-    ) -> Box<dyn MergedConfig + 'static> {
+    ) -> Box<dyn MergedConfig + Send + 'static> {
         // TODO: error handling
         match self {
             HdfsRole::NameNode => {
