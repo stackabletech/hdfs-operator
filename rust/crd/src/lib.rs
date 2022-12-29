@@ -2,7 +2,7 @@ pub mod constants;
 
 use constants::*;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         product_image_selection::ProductImage,
@@ -33,8 +33,10 @@ use strum::{Display, EnumIter, EnumString};
 pub enum Error {
     #[snafu(display("Object has no associated namespace"))]
     NoNamespace,
-    #[snafu(display("Missing node role {role}"))]
+    #[snafu(display("Missing node role [{role}]"))]
     MissingRole { role: String },
+    #[snafu(display("Missing role group [{role_group}] for role [{role}]"))]
+    MissingRoleGroup { role: String, role_group: String },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 }
@@ -185,80 +187,100 @@ impl HdfsRole {
         }
     }
 
+    /// Merge the [Name|Data|Journal]NodeConfigFragment defaults, role and role group settings.
+    /// The priority is: default < role config < role_group config
     pub fn merged_config(
         &self,
         hdfs: &HdfsCluster,
         role_group: &str,
-    ) -> Box<dyn MergedConfig + Send + 'static> {
-        // TODO: error handling
+    ) -> Result<Box<dyn MergedConfig + Send + 'static>, Error> {
         match self {
             HdfsRole::NameNode => {
-                let default_config = NameNodeConfigFragment::default();
-                let mut role_config = hdfs.spec.name_nodes.as_ref().unwrap().config.config.clone();
-                let mut role_group_config = hdfs
+                let default_config = NameNodeConfigFragment::default_config();
+                let role = hdfs
                     .spec
                     .name_nodes
                     .as_ref()
-                    .unwrap()
+                    .with_context(|| MissingRoleSnafu {
+                        role: HdfsRole::NameNode.to_string(),
+                    })?;
+
+                let mut role_config = role.config.config.clone();
+                let mut role_group_config = role
                     .role_groups
                     .get(role_group)
-                    .unwrap()
+                    .with_context(|| MissingRoleGroupSnafu {
+                        role: HdfsRole::NameNode.to_string(),
+                        role_group: role_group.to_string(),
+                    })?
                     .config
                     .config
                     .clone();
+
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
-                Box::new(fragment::validate::<NameNodeConfig>(role_group_config).unwrap())
+                Ok(Box::new(
+                    fragment::validate::<NameNodeConfig>(role_group_config)
+                        .context(FragmentValidationFailureSnafu)?,
+                ))
             }
             HdfsRole::DataNode => {
-                let default_config = DataNodeConfigFragment::default();
-                let mut role_config = hdfs.spec.data_nodes.as_ref().unwrap().config.config.clone();
-                let mut role_group_config = hdfs
+                let default_config = DataNodeConfigFragment::default_config();
+                let role = hdfs
                     .spec
                     .data_nodes
                     .as_ref()
-                    .unwrap()
+                    .with_context(|| MissingRoleSnafu {
+                        role: HdfsRole::DataNode.to_string(),
+                    })?;
+
+                let mut role_config = role.config.config.clone();
+                let mut role_group_config = role
                     .role_groups
                     .get(role_group)
-                    .unwrap()
+                    .with_context(|| MissingRoleGroupSnafu {
+                        role: HdfsRole::DataNode.to_string(),
+                        role_group: role_group.to_string(),
+                    })?
                     .config
                     .config
                     .clone();
 
-                println!("Default {:?}\n", default_config);
-                println!("Role {:?}\n", role_config);
-                println!("RoleGroup {:?}\n", role_group_config);
-
                 role_config.merge(&default_config);
-                println!("Merge default-> role {:?}\n", role_config);
                 role_group_config.merge(&role_config);
-                println!("Merge role-> rolegroup {:?}\n", role_group_config);
-                Box::new(fragment::validate::<DataNodeConfig>(role_group_config).unwrap())
+                Ok(Box::new(
+                    fragment::validate::<DataNodeConfig>(role_group_config)
+                        .context(FragmentValidationFailureSnafu)?,
+                ))
             }
             HdfsRole::JournalNode => {
-                let default_config = JournalNodeConfigFragment::default();
-                let mut role_config = hdfs
+                let default_config = JournalNodeConfigFragment::default_config();
+                let role = hdfs
                     .spec
                     .journal_nodes
                     .as_ref()
-                    .unwrap()
-                    .config
-                    .config
-                    .clone();
-                let mut role_group_config = hdfs
-                    .spec
-                    .journal_nodes
-                    .as_ref()
-                    .unwrap()
+                    .with_context(|| MissingRoleSnafu {
+                        role: HdfsRole::JournalNode.to_string(),
+                    })?;
+
+                let mut role_config = role.config.config.clone();
+                let mut role_group_config = role
                     .role_groups
                     .get(role_group)
-                    .unwrap()
+                    .with_context(|| MissingRoleGroupSnafu {
+                        role: HdfsRole::JournalNode.to_string(),
+                        role_group: role_group.to_string(),
+                    })?
                     .config
                     .config
                     .clone();
+
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
-                Box::new(fragment::validate::<JournalNodeConfig>(role_group_config).unwrap())
+                Ok(Box::new(
+                    fragment::validate::<JournalNodeConfig>(role_group_config)
+                        .context(FragmentValidationFailureSnafu)?,
+                ))
             }
         }
     }
@@ -547,7 +569,16 @@ fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntim
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
-    derive(Clone, Debug, Deserialize, Merge, JsonSchema, PartialEq, Serialize),
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
     serde(rename_all = "camelCase")
 )]
 pub struct NameNodeConfig {
@@ -566,8 +597,8 @@ impl MergedConfig for NameNodeConfig {
     }
 }
 
-impl Default for NameNodeConfigFragment {
-    fn default() -> Self {
+impl NameNodeConfigFragment {
+    pub fn default_config() -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
@@ -613,7 +644,16 @@ impl Configuration for NameNodeConfigFragment {
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
-    derive(Clone, Debug, Deserialize, Merge, JsonSchema, PartialEq, Serialize),
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
     serde(rename_all = "camelCase")
 )]
 pub struct DataNodeConfig {
@@ -632,8 +672,8 @@ impl MergedConfig for DataNodeConfig {
     }
 }
 
-impl Default for DataNodeConfigFragment {
-    fn default() -> Self {
+impl DataNodeConfigFragment {
+    pub fn default_config() -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
@@ -679,7 +719,16 @@ impl Configuration for DataNodeConfigFragment {
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
-    derive(Clone, Debug, Deserialize, Merge, JsonSchema, PartialEq, Serialize),
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
     serde(rename_all = "camelCase")
 )]
 pub struct JournalNodeConfig {
@@ -698,8 +747,8 @@ impl MergedConfig for JournalNodeConfig {
     }
 }
 
-impl Default for JournalNodeConfigFragment {
-    fn default() -> Self {
+impl JournalNodeConfigFragment {
+    pub fn default_config() -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
@@ -771,6 +820,7 @@ spec:
         let role = HdfsRole::DataNode;
         let capacity = role
             .merged_config(&hdfs, "default")
+            .unwrap()
             .resources()
             .storage
             .data
@@ -807,6 +857,7 @@ spec:
         let role = HdfsRole::DataNode;
         let capacity = role
             .merged_config(&hdfs, "default")
+            .unwrap()
             .resources()
             .storage
             .data
@@ -838,6 +889,7 @@ spec:
         let role = HdfsRole::DataNode;
         let capacity = role
             .merged_config(&hdfs, "default")
+            .unwrap()
             .resources()
             .storage
             .data
@@ -874,7 +926,11 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let rr: ResourceRequirements = role.merged_config(&hdfs, "default").resources().into();
+        let rr: ResourceRequirements = role
+            .merged_config(&hdfs, "default")
+            .unwrap()
+            .resources()
+            .into();
 
         let expected = ResourceRequirements {
             requests: Some(
@@ -921,7 +977,11 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let rr: ResourceRequirements = role.merged_config(&hdfs, "default").resources().into();
+        let rr: ResourceRequirements = role
+            .merged_config(&hdfs, "default")
+            .unwrap()
+            .resources()
+            .into();
 
         let expected = ResourceRequirements {
             requests: Some(

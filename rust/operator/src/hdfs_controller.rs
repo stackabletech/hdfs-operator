@@ -171,6 +171,8 @@ pub enum Error {
         source: crate::product_logging::Error,
         cm_name: String,
     },
+    #[snafu(display("failed to merge config"))]
+    ConfigMerge { source: stackable_hdfs_crd::Error },
 }
 
 impl ReconcilerError for Error {
@@ -285,7 +287,9 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         }
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
-            let merged_config = role.merged_config(&hdfs, rolegroup_name);
+            let merged_config = role
+                .merged_config(&hdfs, rolegroup_name)
+                .context(ConfigMergeSnafu)?;
 
             let hadoop_container = hdfs_common_container(
                 &hdfs,
