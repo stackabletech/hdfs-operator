@@ -23,8 +23,7 @@ use stackable_operator::{
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, Probe,
-                ResourceRequirements, SecurityContext, Service, ServicePort, ServiceSpec,
-                TCPSocketAction, Volume,
+                ResourceRequirements, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -67,11 +66,11 @@ const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
-pub const MAX_HBASE_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+pub const MAX_HDFS_LOG_FILES_SIZE_IN_MIB: u32 = 10;
 
 const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
 const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    MAX_HBASE_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
+    MAX_HDFS_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
 const HDFS_LOG_CONFIG_TMP_DIR: &str = "/stackable/tmp/log_config";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -119,8 +118,8 @@ pub enum Error {
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
     #[snafu(display("Object has no namespace [{obj_ref}]"))]
     ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
-    #[snafu(display("Cannot build config for role [{role}] and rolegroup [{role_group}]"))]
-    BuildRoleGroupConfig {
+    #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
+    BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         role: String,
         role_group: String,
@@ -510,10 +509,12 @@ fn rolegroup_config_map(
         cm_name: rolegroup_ref.object_name(),
     })?;
 
-    builder.build().with_context(|_| BuildRoleGroupConfigSnafu {
-        role: rolegroup_ref.role.clone(),
-        role_group: rolegroup_ref.role_group.clone(),
-    })
+    builder
+        .build()
+        .with_context(|_| BuildRoleGroupConfigMapSnafu {
+            role: rolegroup_ref.role.clone(),
+            role_group: rolegroup_ref.role_group.clone(),
+        })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -539,7 +540,7 @@ fn rolegroup_statefulset(
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
     .add_volume(Volume {
-        name: "config".to_string(),
+        name: "hdfs-config".to_string(),
         config_map: Some(ConfigMapVolumeSource {
             name: Some(rolegroup_ref.object_name()),
             ..ConfigMapVolumeSource::default()
@@ -594,7 +595,7 @@ fn rolegroup_statefulset(
     if logging.enable_vector_agent {
         pb.add_container(product_logging::framework::vector_container(
             resolved_product_image,
-            "config",
+            "hdfs-config",
             "log",
             merged_config
                 .logging()
@@ -739,7 +740,16 @@ fn journalnode_containers(
 
     Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
+        command: Some(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+        ]),
         args: Some(vec![[
+            format!("mkdir -p {}", CONFIG_DIR_NAME),
+            format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
             format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
             format!(
                 "{hadoop_home}/bin/hdfs --debug journalnode",
@@ -796,7 +806,16 @@ fn namenode_containers(
     Ok(vec![
         Container {
             name: rolegroup_ref.role.clone(),
+            command: Some(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-euo".to_string(),
+                "pipefail".to_string(),
+                "-c".to_string(),
+            ]),
             args: Some(vec![[
+                format!("mkdir -p {}", CONFIG_DIR_NAME),
+                format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
                 format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
                 format!(
                     "{hadoop_home}/bin/hdfs --debug namenode",
@@ -815,9 +834,17 @@ fn namenode_containers(
         // Because the jmx exporter is not enabled here, also the readiness probes are not enabled.
         Container {
             name: String::from("zkfc"),
+            command: Some(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-euo".to_string(),
+                "pipefail".to_string(),
+                "-c".to_string(),
+            ]),
             args: Some(vec![
-                format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
-                "zkfc".to_string(),
+                format!("mkdir -p {CONFIG_DIR_NAME} && cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME} && cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME} && {HADOOP_HOME}/bin/hdfs zkfc"),
+                //format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
+                //"zkfc".to_string(),
             ]),
             resources: Some(resources.clone()),
             ..hadoop_container.clone()
@@ -862,7 +889,16 @@ fn datanode_containers(
 
     Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
+        command: Some(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+        ]),
         args: Some(vec![[
+            format!("mkdir -p {}", CONFIG_DIR_NAME),
+            format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
             format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
             format!(
                 "{hadoop_home}/bin/hdfs --debug datanode",
@@ -946,6 +982,9 @@ fn namenode_init_containers(
             // If there is no active namenode, the current pod is not formatted we format as
             // active namenode. Otherwise as standby node.
             format!("
+                 mkdir -p {CONFIG_DIR_NAME}
+                 cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}
+                 cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}
                  echo \"Start formatting namenode $POD_NAME. Checking for active namenodes:\"
                  for id in {pod_names}
                  do
@@ -980,11 +1019,6 @@ fn namenode_init_containers(
                 namenode_dir = HdfsNodeDataDirectory::default().namenode,
             ),
         ]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(1000),
-            run_as_group: Some(1000),
-            ..SecurityContext::default()
-        }),
         ..hadoop_container.clone()
     },
     Container {
@@ -992,7 +1026,10 @@ fn namenode_init_containers(
         args: Some(vec![
             "sh".to_string(),
             "-c".to_string(),
-            format!("test  \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", hadoop_home = HADOOP_HOME)
+            format!("
+                mkdir -p {CONFIG_DIR_NAME} && cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME} && cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME} &&
+                test \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", hadoop_home = HADOOP_HOME
+            )
         ]),
         ..hadoop_container.clone()
     },
@@ -1076,7 +1113,7 @@ fn hdfs_common_container(
         .image_from_product_image(resolved_product_image)
         .add_env_vars(env)
         .add_volume_mount("data", ROOT_DATA_DIR)
-        .add_volume_mount("config", CONFIG_DIR_NAME)
+        .add_volume_mount("hdfs-config", TMP_CONFIG_DIR_NAME)
         .add_volume_mount("log-config", HDFS_LOG_CONFIG_TMP_DIR)
         .add_volume_mount("log", STACKABLE_LOG_DIR)
         .add_container_ports(

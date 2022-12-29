@@ -9,10 +9,10 @@ use stackable_hdfs_crd::HdfsPodRef;
 use std::collections::BTreeMap;
 
 // dirs
-pub const NAMENODE_DIR: &str = "/data/name";
-pub const DATANODE_DIR: &str = "/data/data";
-pub const JOURNALNODE_DIR: &str = "/data/journal";
-pub const ROOT_DATA_DIR: &str = "/data";
+pub const ROOT_DATA_DIR: &str = "/stackable/data";
+const NAMENODE_DIR: &str = "/stackable/data/name";
+const DATANODE_DIR: &str = "/stackable/data/data";
+const JOURNALNODE_DIR: &str = "/stackable/data/journal";
 
 #[derive(Clone)]
 pub struct HdfsNodeDataDirectory {

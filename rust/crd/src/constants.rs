@@ -10,7 +10,8 @@ pub const APP_NAME: &str = "hdfs";
 pub const LABEL_ENABLE: &str = "hdfs.stackable.tech/pod-service";
 pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";
 
-pub const CONFIG_DIR_NAME: &str = "/stackable/hadoop/etc/hadoop";
+pub const CONFIG_DIR_NAME: &str = "/stackable/config";
+pub const TMP_CONFIG_DIR_NAME: &str = "/stackable/tmp/config";
 pub const HADOOP_HOME: &str = "/stackable/hadoop";
 
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
