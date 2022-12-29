@@ -313,7 +313,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
                 &journalnode_podrefs,
                 &resolved_product_image,
-                &merged_config,
+                merged_config.as_ref(),
                 vector_aggregator_address.as_deref(),
             )?;
 
@@ -325,7 +325,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hadoop_container,
                 &rbac_sa.name_any(),
                 &resolved_product_image,
-                &merged_config,
+                merged_config.as_ref(),
             )?;
 
             cluster_resources
@@ -406,6 +406,7 @@ fn rolegroup_service(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
@@ -413,7 +414,7 @@ fn rolegroup_config_map(
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
-    merged_config: &Box<dyn MergedConfig + Send + 'static>,
+    merged_config: &(dyn MergedConfig + Send + 'static),
     vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
@@ -515,6 +516,7 @@ fn rolegroup_config_map(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
     role: &HdfsRole,
@@ -523,7 +525,7 @@ fn rolegroup_statefulset(
     hadoop_container: &Container,
     rbac_sa: &str,
     resolved_product_image: &ResolvedProductImage,
-    merged_config: &Box<dyn MergedConfig + Send + 'static>,
+    merged_config: &(dyn MergedConfig + Send + 'static),
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
