@@ -23,3 +23,7 @@ tests:
     dimensions:
       - hdfs-latest
       - zookeeper-latest
+  - name: logging
+    dimensions:
+      - hdfs-latest
+      - zookeeper-latest

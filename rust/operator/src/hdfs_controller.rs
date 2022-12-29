@@ -841,12 +841,13 @@ fn namenode_containers(
                 "pipefail".to_string(),
                 "-c".to_string(),
             ]),
-            args: Some(vec![
-                format!("mkdir -p {CONFIG_DIR_NAME} && cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME} && cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME} && {HADOOP_HOME}/bin/hdfs zkfc"),
-                //format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
-                //"zkfc".to_string(),
-            ]),
-            resources: Some(resources.clone()),
+            args: Some(vec![[
+                format!("mkdir -p {CONFIG_DIR_NAME}"),
+                format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
+                format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
+                format!("{HADOOP_HOME}/bin/hdfs zkfc"),
+            ]
+            .join(" && ")]),
             ..hadoop_container.clone()
         },
     ])
