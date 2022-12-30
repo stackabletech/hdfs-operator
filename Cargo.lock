@@ -1770,7 +1770,6 @@ dependencies = [
  "snafu",
  "stackable-operator",
  "strum",
- "thiserror",
  "tracing",
 ]
 
@@ -1785,7 +1784,6 @@ dependencies = [
  "stackable-hdfs-crd",
  "stackable-operator",
  "strum",
- "thiserror",
  "tokio",
  "tracing",
  "tracing-futures",
