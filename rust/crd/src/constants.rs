@@ -6,6 +6,7 @@ pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";
 pub const FIELD_MANAGER_SCOPE_POD: &str = "pod-service";
 
 pub const APP_NAME: &str = "hdfs";
+pub const HDFS_CONTAINER_NAME: &str = "hdfs";
 
 pub const LABEL_ENABLE: &str = "hdfs.stackable.tech/pod-service";
 pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";

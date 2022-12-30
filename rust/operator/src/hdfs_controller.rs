@@ -739,7 +739,6 @@ fn journalnode_containers(
     });
 
     Ok(vec![Container {
-        name: rolegroup_ref.role.clone(),
         command: Some(vec![
             "/bin/bash".to_string(),
             "-x".to_string(),
@@ -805,7 +804,6 @@ fn namenode_containers(
 
     Ok(vec![
         Container {
-            name: rolegroup_ref.role.clone(),
             command: Some(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
@@ -814,6 +812,7 @@ fn namenode_containers(
                 "-c".to_string(),
             ]),
             args: Some(vec![[
+                // We need to collect the tmp config dir and vector configs
                 format!("mkdir -p {}", CONFIG_DIR_NAME),
                 format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
                 format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
@@ -842,6 +841,7 @@ fn namenode_containers(
                 "-c".to_string(),
             ]),
             args: Some(vec![[
+                // We need to collect the tmp config dir and vector configs
                 format!("mkdir -p {CONFIG_DIR_NAME}"),
                 format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
                 format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
@@ -889,7 +889,6 @@ fn datanode_containers(
     });
 
     Ok(vec![Container {
-        name: rolegroup_ref.role.clone(),
         command: Some(vec![
             "/bin/bash".to_string(),
             "-x".to_string(),
@@ -898,6 +897,7 @@ fn datanode_containers(
             "-c".to_string(),
         ]),
         args: Some(vec![[
+            // We need to collect the tmp config dir and vector configs
             format!("mkdir -p {}", CONFIG_DIR_NAME),
             format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
             format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
@@ -1109,7 +1109,7 @@ fn hdfs_common_container(
         },
     ]);
 
-    Ok(ContainerBuilder::new("hdfs")
+    Ok(ContainerBuilder::new(HDFS_CONTAINER_NAME)
         .expect("ContainerBuilder not created")
         .image_from_product_image(resolved_product_image)
         .add_env_vars(env)

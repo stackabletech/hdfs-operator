@@ -58,10 +58,6 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error
         .as_ref()
         .with_context(|| PodHasNoLabelsSnafu { name: name.clone() })?;
 
-    let role = pod_labels
-        .get("role")
-        .with_context(|| PodHasNoRoleLabelSnafu { name: name.clone() })?;
-
     let recommended_labels_from_pod = pod_labels
         .iter()
         .filter(|(key, _)| key.starts_with(APP_KUBERNETES_LABEL_BASE))
@@ -74,7 +70,7 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error
         .with_context(|| PodHasNoSpecSnafu { name: name.clone() })?
         .containers
         .iter()
-        .filter(|container| container.name == role.clone())
+        .filter(|container| container.name == HDFS_CONTAINER_NAME)
         .flat_map(|c| c.ports.as_ref())
         .flat_map(|cp| cp.iter())
         .map(|cp| (cp.name.clone().unwrap_or_default(), cp.container_port))
