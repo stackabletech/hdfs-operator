@@ -6,13 +6,15 @@ use stackable_hdfs_crd::{
     constants::*, DataNodeStorage, DATANODE_DIR_PREFIX, ROLE_PORTS, ROOT_DATA_DIR,
 };
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
-use stackable_operator::builder::{ConfigMapBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
+use stackable_operator::builder::{
+    ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
+};
 use stackable_operator::client::Client;
 use stackable_operator::cluster_resources::ClusterResources;
 use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PersistentVolumeClaim, PodSpec, PodTemplateSpec,
-    Probe, ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
+    Container, ContainerPort, ObjectFieldSelector, PersistentVolumeClaim, Probe,
+    ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
     apps::v1::{StatefulSet, StatefulSetSpec},
@@ -376,56 +378,73 @@ fn rolegroup_statefulset(
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
     let service_name = rolegroup_ref.object_name();
 
+    // PodBuilder for StatefulSet Pod template.
+    let mut pb = PodBuilder::new();
+    // common pod settings
+    pb.metadata(ObjectMeta {
+        labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
+        ..ObjectMeta::default()
+    })
+    .image_pull_secrets_from_product_image(resolved_product_image)
+    .add_volumes(vec![Volume {
+        name: "config".to_string(),
+        config_map: Some(ConfigMapVolumeSource {
+            name: Some(rolegroup_ref.object_name()),
+            ..ConfigMapVolumeSource::default()
+        }),
+        ..Volume::default()
+    }])
+    .service_account_name(rbac_sa)
+    .security_context(
+        PodSecurityContextBuilder::new()
+            .run_as_user(1000)
+            .run_as_group(1000)
+            .fs_group(1000)
+            .build(),
+    );
+
     let replicas;
-    let init_containers;
-    let containers;
 
     match role {
         HdfsRole::DataNode => {
-            replicas = hdfs.rolegroup_datanode_replicas(rolegroup_ref)?;
-            init_containers = datanode_init_containers(namenode_podrefs, hadoop_container);
-            containers = datanode_containers(rolegroup_ref, hadoop_container, resources)?;
+            let rg = hdfs.datanode_rolegroup(rolegroup_ref);
+            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
+            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
+            for c in datanode_init_containers(namenode_podrefs, hadoop_container)
+                .into_iter()
+                .flatten()
+            {
+                pb.add_init_container(c);
+            }
+            for c in datanode_containers(rolegroup_ref, hadoop_container, resources)? {
+                pb.add_container(c);
+            }
         }
         HdfsRole::NameNode => {
-            replicas = hdfs.rolegroup_namenode_replicas(rolegroup_ref)?;
-            init_containers = namenode_init_containers(namenode_podrefs, hadoop_container);
-            containers = namenode_containers(rolegroup_ref, hadoop_container, resources)?;
+            let rg = hdfs.namenode_rolegroup(rolegroup_ref);
+            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
+            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
+            if let Some(init_containers) =
+                namenode_init_containers(namenode_podrefs, hadoop_container)
+            {
+                for c in init_containers {
+                    pb.add_init_container(c);
+                }
+            }
+            for c in namenode_containers(rolegroup_ref, hadoop_container, resources)? {
+                pb.add_container(c);
+            }
         }
         HdfsRole::JournalNode => {
-            replicas = hdfs.rolegroup_journalnode_replicas(rolegroup_ref)?;
-            init_containers = None;
-            containers = journalnode_containers(rolegroup_ref, hadoop_container, resources)?;
+            let rg = hdfs.journalnode_rolegroup(rolegroup_ref);
+            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
+            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
+            for c in journalnode_containers(rolegroup_ref, hadoop_container, resources)? {
+                pb.add_container(c);
+            }
         }
     }
 
-    let template = PodTemplateSpec {
-        metadata: Some(ObjectMeta {
-            labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
-            ..ObjectMeta::default()
-        }),
-        spec: Some(PodSpec {
-            containers,
-            init_containers,
-            image_pull_secrets: resolved_product_image.pull_secrets.clone(),
-            volumes: Some(vec![Volume {
-                name: "config".to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: Some(rolegroup_ref.object_name()),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            }]),
-            service_account: Some(rbac_sa.to_string()),
-            security_context: Some(
-                PodSecurityContextBuilder::new()
-                    .run_as_user(1000)
-                    .run_as_group(1000)
-                    .fs_group(1000)
-                    .build(),
-            ),
-            ..PodSpec::default()
-        }),
-    };
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hdfs)
@@ -456,7 +475,7 @@ fn rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name,
-            template,
+            template: pb.build_template(),
             volume_claim_templates: Some(pvcs),
             ..StatefulSetSpec::default()
         }),
