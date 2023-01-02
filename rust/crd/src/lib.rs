@@ -902,6 +902,7 @@ spec:
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
+        assert_eq!(1, pvcs.len());
         assert_eq!(
             &Quantity("10Gi".to_owned()),
             pvcs[0]
@@ -954,6 +955,7 @@ spec:
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
+        assert_eq!(pvcs.len(), 1);
         assert_eq!(
             &Quantity("10Gi".to_owned()),
             pvcs[0]
@@ -1001,6 +1003,7 @@ spec:
             .resources(&HdfsRole::DataNode, &data_node_rg_ref)
             .unwrap();
 
+        assert_eq!(pvcs.len(), 1);
         assert_eq!(
             &Quantity("5Gi".to_owned()),
             pvcs[0]
