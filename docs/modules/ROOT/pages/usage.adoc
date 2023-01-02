@@ -203,6 +203,13 @@ This will create 3 pvcs:
 
 By configuring and using a dedicated `storageClass` you can configure your HDFS to use local disks attached to Kubernetes nodes.
 
+[NOTE]
+====
+You might need to re-create the StatefulSet to apply the new pvc configurations because of https://github.com/kubernetes/kubernetes/issues/68737[this Kubernetes issue].
+You can delete the StatefulSet using `kubectl delete sts --cascade=false <statefulset>`.
+The hdfs-operator will re-create the StatefulSet automatically.
+====
+
 === Resource Requests
 
 // The "nightly" version is needed because the "include" directive searches for
