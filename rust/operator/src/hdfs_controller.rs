@@ -2,9 +2,8 @@ use crate::config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfig
 use crate::discovery::build_discovery_configmap;
 use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
-use stackable_hdfs_crd::{
-    constants::*, DataNodeStorage, DATANODE_DIR_PREFIX, ROLE_PORTS, ROOT_DATA_DIR,
-};
+use stackable_hdfs_crd::storage::DataNodeStorage;
+use stackable_hdfs_crd::{constants::*, ROLE_PORTS};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef, HdfsRole};
 use stackable_operator::builder::{
     ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,

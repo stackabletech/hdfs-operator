@@ -17,6 +17,14 @@ pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const LOG4J_PROPERTIES: &str = "log4j.properties";
 
+pub const ROOT_DATA_DIR: &str = "/stackable/data";
+pub const JOURNALNODE_DIR: &str = "/stackable/data/journal";
+pub const NAMENODE_DIR: &str = "/stackable/data/name";
+
+// Will end up with something like `/stackable/data/data` and `/stackable/data-1/data` etc.
+pub const DATANODE_DIR_PREFIX: &str = "/stackable/";
+pub const DATANODE_DIR_SUFFIX: &str = "/data";
+
 pub const SERVICE_PORT_NAME_RPC: &str = "rpc";
 pub const SERVICE_PORT_NAME_IPC: &str = "ipc";
 pub const SERVICE_PORT_NAME_HTTP: &str = "http";

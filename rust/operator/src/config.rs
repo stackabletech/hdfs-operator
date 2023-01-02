@@ -1,11 +1,6 @@
-use stackable_hdfs_crd::constants::{
-    DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_RPC_PORT,
-    DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
-    DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_NAME_DIR,
-    DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_NAME_SERVICES, DFS_REPLICATION,
-    FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
-};
-use stackable_hdfs_crd::{DataNodeStorage, HdfsPodRef, JOURNALNODE_DIR, NAMENODE_DIR};
+use stackable_hdfs_crd::constants::*;
+use stackable_hdfs_crd::storage::DataNodeStorage;
+use stackable_hdfs_crd::HdfsPodRef;
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
