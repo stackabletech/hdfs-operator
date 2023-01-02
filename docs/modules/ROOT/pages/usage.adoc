@@ -169,6 +169,40 @@ In the above example, all data nodes in the default group will store data (the l
 
 By default, in case nothing is configured in the custom resource for a certain role group, each Pod will have a `1Gi` large local volume mount for the data location.
 
+==== Multiple storage volumes
+
+Datanodes can have multiple disks attached to increase the storage size as well as speed.
+They can be of different type, e.g. HDDs or SSDs.
+
+You can configure multiple PersistentVolumeClaims (pvcs) for the datanodes as follows:
+
+[source,yaml]
+----
+dataNodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          storage:
+            data:
+              capacity: 5Ti
+              count: 2
+              hdfsStorageType: Disk
+            ssd:
+              capacity: 500Gi
+              storageClass: premium
+              count: 1
+              hdfsStorageType: Ssd
+----
+
+This will create 3 pvcs:
+
+1. `data-hdfs-datanode-default-0` (5Ti)
+2. `data-1-hdfs-datanode-default-0` (5Ti)
+3. `ssd-hdfs-datanode-default-0` (500Gi)
+
+By configuring and using a dedicated `storageClass` you can configure your HDFS to use local disks attached to Kubernetes nodes.
+
 === Resource Requests
 
 // The "nightly" version is needed because the "include" directive searches for
