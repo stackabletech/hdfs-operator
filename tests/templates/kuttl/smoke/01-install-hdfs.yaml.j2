@@ -39,11 +39,11 @@ spec:
           data: # We need to overwrite the data pvcs coming from the default value
             count: 0
           hdd:
-            capacity: 5Gi
+            capacity: 2Gi
             count: 2
             hdfsStorageType: Disk
           ssd:
-            capacity: 3Gi
+            capacity: 1Gi
             # storageClass: premium # We can't set the storage class in itegration tests, as we don't know which ones are available
             count: 1
             hdfsStorageType: Ssd
