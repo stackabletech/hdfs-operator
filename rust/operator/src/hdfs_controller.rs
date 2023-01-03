@@ -1,12 +1,15 @@
-use crate::config::{
-    CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR,
+use crate::{
+    build_recommended_labels,
+    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR},
+    discovery::build_discovery_configmap,
+    event::build_invalid_replica_message,
+    product_logging::{
+        extend_role_group_config_map, resolve_vector_aggregator_address, LOG4J_CONFIG_FILE,
+    },
+    rbac, OPERATOR_NAME,
 };
-use crate::discovery::build_discovery_configmap;
-use crate::product_logging::{
-    extend_role_group_config_map, resolve_vector_aggregator_address, LOG4J_CONFIG_FILE,
-};
-use crate::{build_recommended_labels, rbac, OPERATOR_NAME};
 
+use crate::event::publish_event;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
 use stackable_operator::{
@@ -32,11 +35,7 @@ use stackable_operator::{
     },
     kube::{
         api::ObjectMeta,
-        runtime::{
-            controller::Action,
-            events::{Event, EventType, Recorder, Reporter},
-            reflector::ObjectRef,
-        },
+        runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
     labels::role_group_selector_labels,
@@ -130,10 +129,6 @@ pub enum Error {
     },
     #[snafu(display("Object has no associated namespace"))]
     NoNamespace,
-    #[snafu(display("Failed to publish event"))]
-    PublishEvent {
-        source: stackable_operator::kube::Error,
-    },
     #[snafu(display("Invalid java heap config for [{role}]"))]
     InvalidJavaHeapConfig {
         source: stackable_operator::error::Error,
@@ -172,6 +167,8 @@ pub enum Error {
     },
     #[snafu(display("failed to merge config"))]
     ConfigMerge { source: stackable_hdfs_crd::Error },
+    #[snafu(display("failed to create cluster event"))]
+    FailedToCreateClusterEvent { source: crate::event::Error },
 }
 
 impl ReconcilerError for Error {
@@ -282,7 +279,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 "Invalid replicas",
                 content.as_ref(),
             )
-            .await?;
+            .await
+            .context(FailedToCreateClusterEventSnafu)?;
         }
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
@@ -1129,74 +1127,4 @@ fn hdfs_common_container(
                 .collect(),
         )
         .build())
-}
-
-/// Publish a Kubernetes event for the `hdfs` cluster resource.
-async fn publish_event(
-    hdfs: &HdfsCluster,
-    client: &Client,
-    action: &str,
-    reason: &str,
-    message: &str,
-) -> HdfsOperatorResult<()> {
-    let reporter = Reporter {
-        controller: CONTROLLER_NAME.into(),
-        instance: None,
-    };
-
-    let object_ref = ObjectRef::from_obj(hdfs);
-
-    let recorder = Recorder::new(client.as_kube_client(), reporter, object_ref.into());
-    recorder
-        .publish(Event {
-            action: action.into(),
-            reason: reason.into(),
-            note: Some(message.into()),
-            type_: EventType::Warning,
-            secondary: None,
-        })
-        .await
-        .context(PublishEventSnafu)
-}
-
-fn build_invalid_replica_message(
-    hdfs: &HdfsCluster,
-    role: &HdfsRole,
-    dfs_replication: Option<u8>,
-) -> Option<String> {
-    let replicas: u16 = hdfs
-        .rolegroup_ref_and_replicas(role)
-        .iter()
-        .map(|tuple| tuple.1)
-        .sum();
-
-    let rn = role.to_string();
-    let min_replicas = role.min_replicas();
-
-    if replicas < min_replicas {
-        Some(format!("{rn}: only has {replicas} replicas configured, it is strongly recommended to use at least [{min_replicas}]"))
-    } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
-        Some(format!("{rn}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"))
-    } else if role.check_valid_dfs_replication() {
-        match dfs_replication {
-            None => {
-                if replicas < u16::from(DEFAULT_DFS_REPLICATION_FACTOR) {
-                    Some(format!(
-                        "{rn}: HDFS replication factor not set. Using default value of [{DEFAULT_DFS_REPLICATION_FACTOR}] which is greater than data node replicas [{replicas}]"
-                    ))
-                } else {
-                    None
-                }
-            }
-            Some(dfsr) => {
-                if replicas < u16::from(dfsr) {
-                    Some(format!("{rn}: HDFS replication factor [{dfsr}] is configured greater than data node replicas [{replicas}]"))
-                } else {
-                    None
-                }
-            }
-        }
-    } else {
-        None
-    }
 }
