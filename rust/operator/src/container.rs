@@ -80,8 +80,6 @@ struct ContainerConfig {
     pub container_name: String,
     /// Name of the Hadoop process OPTS e.g. HADOOP_NAMENODE_OPTS.
     pub hdfs_opts_name: &'static str,
-    /// The data directory
-    pub data_dir: String,
     /// The config dir where to store core-site.xml, hdfs-size.xml and logging configs.
     pub config_dir: &'static str,
     /// The mount dir for the config files to be mounted via config map.
@@ -101,7 +99,6 @@ impl Default for ContainerConfig {
         Self {
             container_name: HdfsRole::NameNode.to_string(),
             hdfs_opts_name: HDFS_NAME_NODE_OPTS,
-            data_dir: HdfsNodeDataDirectory::default().namenode,
             config_dir: NAME_NODE_CONFIG_DIR,
             config_dir_mount: NAME_NODE_CONFIG_DIR_MOUNT,
             log_dir: STACKABLE_LOG_DIR,
@@ -119,7 +116,6 @@ impl From<&HdfsRole> for ContainerConfig {
             HdfsRole::DataNode => Self {
                 container_name: role.to_string(),
                 hdfs_opts_name: HDFS_DATA_NODE_OPTS,
-                data_dir: HdfsNodeDataDirectory::default().datanode,
                 config_dir: DATA_NODE_CONFIG_DIR,
                 config_dir_mount: DATA_NODE_CONFIG_DIR_MOUNT,
                 log_dir_mount: DATA_NODE_LOG_DIR_MOUNT,
@@ -130,7 +126,6 @@ impl From<&HdfsRole> for ContainerConfig {
             HdfsRole::JournalNode => Self {
                 container_name: role.to_string(),
                 hdfs_opts_name: HDFS_JOURNAL_NODE_OPTS,
-                data_dir: HdfsNodeDataDirectory::default().journalnode,
                 config_dir: JOURNAL_NODE_CONFIG_DIR,
                 config_dir_mount: JOURNAL_NODE_CONFIG_DIR_MOUNT,
                 log_dir_mount: JOURNAL_NODE_LOG_DIR_MOUNT,
@@ -160,11 +155,7 @@ pub fn hdfs_main_container(
 
     env.push(EnvVar {
         name: container_config.hdfs_opts_name.to_string(),
-        value: Some(get_opts(
-            role,
-            container_config.metrics_port.into(),
-            resources,
-        )?),
+        value: Some(get_opts(role, container_config.metrics_port, resources)?),
         ..EnvVar::default()
     });
 
@@ -457,14 +448,13 @@ fn main_container_args(
         copy_hdfs_and_core_site_xml_cmd(container_config),
         copy_log4j_properties_cmd(
             container_config,
-            &logging,
+            logging,
             LOG4J_CONFIG_FILE,
             stackable_hdfs_crd::Container::Hdfs,
         ),
         format!(
             "{hadoop_home}/bin/hdfs --debug {role}",
             hadoop_home = HADOOP_HOME,
-            role = role.to_string()
         ),
     ]
     .join(" && ")]
@@ -498,7 +488,7 @@ fn get_opts(
     resources: &ResourceRequirements,
 ) -> Result<String, Error> {
     Ok(vec![
-        Some(jmx_metrics_opts(&role.to_string(), metrics_port.into())),
+        Some(jmx_metrics_opts(&role.to_string(), metrics_port)),
         Some(java_heap_opts(role, resources)?),
     ]
     .into_iter()
@@ -517,7 +507,7 @@ fn jmx_metrics_opts(role: &str, metrics_port: u16) -> String {
 }
 
 fn java_heap_opts(role: &HdfsRole, resources: &ResourceRequirements) -> Result<String, Error> {
-    Ok(resources
+    resources
         .limits
         .as_ref()
         .and_then(|l| l.get("memory"))
@@ -525,7 +515,7 @@ fn java_heap_opts(role: &HdfsRole, resources: &ResourceRequirements) -> Result<S
         .unwrap_or_else(|| Ok("".to_string()))
         .with_context(|_| InvalidJavaHeapConfigSnafu {
             role: role.to_string(),
-        })?)
+        })
 }
 
 fn transform_env_overrides_to_env_vars(

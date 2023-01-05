@@ -523,7 +523,7 @@ fn rolegroup_statefulset(
         empty_dir: Some(EmptyDirVolumeSource {
             medium: None,
             // TODO: determine size
-            size_limit: Some(Quantity(format!("11Mi"))),
+            size_limit: Some(Quantity("11Mi".to_string())),
         }),
         ..Volume::default()
     })
