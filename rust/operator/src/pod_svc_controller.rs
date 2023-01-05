@@ -70,7 +70,11 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error
         .with_context(|| PodHasNoSpecSnafu { name: name.clone() })?
         .containers
         .iter()
-        .filter(|container| container.name == HDFS_CONTAINER_NAME)
+        .filter(|container| {
+            container.name == "namenode"
+                || container.name == "datanode"
+                || container.name == "journalnode"
+        })
         .flat_map(|c| c.ports.as_ref())
         .flat_map(|cp| cp.iter())
         .map(|cp| (cp.name.clone().unwrap_or_default(), cp.container_port))

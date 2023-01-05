@@ -20,31 +20,43 @@ customConfig:
       type: vector
       version: "2"
   transforms:
-    automaticLogConfigNameNodeHdfs:
+    automaticLogConfigNameNode:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-hdfs-namenode-automatic-log-config-0" &&
         .container == "hdfs"
+    automaticLogConfigNameNodeZkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-namenode-automatic-log-config-0" &&
+        .container == "zkfc"
     automaticLogConfigNameNodeVector:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-hdfs-namenode-automatic-log-config-0" &&
         .container == "vector"
-    customLogConfigNameNodeHdfs:
+    customLogConfigNameNode:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-hdfs-namenode-custom-log-config-0" &&
         .container == "hdfs"
+    customLogConfigNameNodeZkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-namenode-custom-log-config-0" &&
+        .container == "zkfc"
     customLogConfigNameNodeVector:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-hdfs-namenode-custom-log-config-0" &&
         .container == "vector"
-    automaticLogConfigDataNodeHdfs:
+    automaticLogConfigDataNode:
       type: filter
       inputs: [vector]
       condition: >-
@@ -56,7 +68,7 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-datanode-automatic-log-config-0" &&
         .container == "vector"
-    customLogConfigDataNodeHdfs:
+    customLogConfigDataNode:
       type: filter
       inputs: [vector]
       condition: >-
@@ -68,7 +80,7 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-datanode-custom-log-config-0" &&
         .container == "vector"
-    automaticLogConfigJournalNodeHdfs:
+    automaticLogConfigJournalNode:
       type: filter
       inputs: [vector]
       condition: >-
@@ -80,7 +92,7 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-journalnode-automatic-log-config-0" &&
         .container == "vector"
-    customLogConfigJournalNodeHdfs:
+    customLogConfigJournalNode:
       type: filter
       inputs: [vector]
       condition: >-

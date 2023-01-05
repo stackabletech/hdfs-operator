@@ -132,7 +132,7 @@ impl HdfsRole {
     }
 
     /// Returns required port name and port number tuples depending on the role.
-    pub fn ports(&self) -> Vec<(String, i32)> {
+    pub fn ports(&self) -> Vec<(String, u16)> {
         match self {
             HdfsRole::NameNode => vec![
                 (
@@ -495,7 +495,7 @@ pub struct HdfsPodRef {
     pub namespace: String,
     pub role_group_service_name: String,
     pub pod_name: String,
-    pub ports: HashMap<String, i32>,
+    pub ports: HashMap<String, u16>,
 }
 
 impl HdfsPodRef {
@@ -545,6 +545,7 @@ pub struct HdfsStorageConfig {
 pub enum Container {
     Hdfs,
     Vector,
+    Zkfc,
 }
 
 fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntimeLimits> {

@@ -1,4 +1,4 @@
-use crate::hdfs_controller::{MAX_HDFS_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR};
+use crate::hdfs_controller::MAX_HDFS_LOG_FILES_SIZE_IN_MIB;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{Container, HdfsCluster};
@@ -36,10 +36,14 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const LOG4J_CONFIG_FILE: &str = "hdfs.log4j.properties";
+pub const ZKFC_LOG4J_CONFIG_FILE: &str = "zkfc.log4j.properties";
+
 const VECTOR_AGGREGATOR_CM_ENTRY: &str = "ADDRESS";
 const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %-5p [%t] %c{2}: %.1000m%n";
 const HDFS_LOG_FILE: &str = "hdfs.log4j.xml";
-pub const LOG4J_CONFIG_FILE: &str = "log4j.properties";
+const ZKFC_LOG_FILE: &str = "zkfc.log4j.xml";
 
 /// Return the address of the Vector aggregator if the corresponding ConfigMap name is given in the
 /// cluster spec
@@ -91,6 +95,22 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!("{STACKABLE_LOG_DIR}/hdfs"),
                 HDFS_LOG_FILE,
+                MAX_HDFS_LOG_FILES_SIZE_IN_MIB,
+                CONSOLE_CONVERSION_PATTERN,
+                log_config,
+            ),
+        );
+    }
+
+    if let Some(ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    }) = logging.containers.get(&Container::Zkfc)
+    {
+        cm_builder.add_data(
+            ZKFC_LOG4J_CONFIG_FILE,
+            product_logging::framework::create_log4j_config(
+                &format!("{STACKABLE_LOG_DIR}/zkfc"),
+                ZKFC_LOG_FILE,
                 MAX_HDFS_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
                 log_config,

@@ -1,22 +1,18 @@
 use crate::{
     build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder, ROOT_DATA_DIR},
+    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder},
+    container::{datanode_init_containers, hdfs_main_container, namenode_init_containers},
     discovery::build_discovery_configmap,
-    event::build_invalid_replica_message,
-    product_logging::{
-        extend_role_group_config_map, resolve_vector_aggregator_address, LOG4J_CONFIG_FILE,
-    },
+    event::{build_invalid_replica_message, publish_event},
+    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     rbac, OPERATOR_NAME,
 };
 
-use crate::event::publish_event;
+use crate::container::namenode_zkfc_container;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
 use stackable_operator::{
-    builder::{
-        ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder,
-    },
+    builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
     cluster_resources::ClusterResources,
     commons::product_image_selection::ResolvedProductImage,
@@ -24,14 +20,11 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
-                EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, Probe,
-                ResourceRequirements, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Service, ServicePort,
+                ServiceSpec, Volume,
             },
         },
-        apimachinery::pkg::{
-            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
-        },
+        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
     },
     kube::{
         api::ObjectMeta,
@@ -40,7 +33,6 @@ use stackable_operator::{
     },
     labels::role_group_selector_labels,
     logging::controller::ReconcilerError,
-    memory::to_java_heap,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     product_logging::{
@@ -64,13 +56,11 @@ const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
-pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const MAX_HDFS_LOG_FILES_SIZE_IN_MIB: u32 = 10;
 
 const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
 const LOG_VOLUME_SIZE_IN_MIB: u32 =
     MAX_HDFS_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
-const HDFS_LOG_CONFIG_TMP_DIR: &str = "/stackable/tmp/log_config";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -129,11 +119,6 @@ pub enum Error {
     },
     #[snafu(display("Object has no associated namespace"))]
     NoNamespace,
-    #[snafu(display("Invalid java heap config for [{role}]"))]
-    InvalidJavaHeapConfig {
-        source: stackable_operator::error::Error,
-        role: String,
-    },
     #[snafu(display("Failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
@@ -169,6 +154,8 @@ pub enum Error {
     ConfigMerge { source: stackable_hdfs_crd::Error },
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
+    #[snafu(display("failed to create (init) container"))]
+    FailedToCreateContainer { source: crate::container::Error },
 }
 
 impl ReconcilerError for Error {
@@ -269,8 +256,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             role: role_name.to_string(),
         })?;
 
-        let role_ports = role.ports();
-
         if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {
             publish_event(
                 &hdfs,
@@ -288,21 +273,12 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 .merged_config(&hdfs, rolegroup_name)
                 .context(ConfigMergeSnafu)?;
 
-            let hadoop_container = hdfs_common_container(
-                &hdfs,
-                role_ports.as_slice(),
-                rolegroup_config.get(&PropertyNameKind::Env),
-                &resolved_product_image,
-            )?;
+            let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service = rolegroup_service(
-                &hdfs,
-                &rolegroup_ref,
-                role_ports.as_slice(),
-                &resolved_product_image,
-            )?;
+            let rg_service =
+                rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
@@ -318,11 +294,11 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hdfs,
                 &role,
                 &rolegroup_ref,
-                &namenode_podrefs,
-                &hadoop_container,
-                &rbac_sa.name_any(),
                 &resolved_product_image,
+                env_overrides,
                 merged_config.as_ref(),
+                &rbac_sa.name_any(),
+                &namenode_podrefs,
             )?;
 
             cluster_resources
@@ -354,14 +330,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_obj: Arc<HdfsCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(Duration::from_secs(5))
-}
-
 fn rolegroup_service(
     hdfs: &HdfsCluster,
+    role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    rolegroup_ports: &[(String, i32)],
     resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
@@ -385,11 +357,11 @@ fn rolegroup_service(
         spec: Some(ServiceSpec {
             cluster_ip: Some("None".to_string()),
             ports: Some(
-                rolegroup_ports
-                    .iter()
+                role.ports()
+                    .into_iter()
                     .map(|(name, value)| ServicePort {
-                        name: Some(name.clone()),
-                        port: *value,
+                        name: Some(name),
+                        port: i32::from(value),
                         protocol: Some("TCP".to_string()),
                         ..ServicePort::default()
                     })
@@ -520,15 +492,16 @@ fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
     role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    namenode_podrefs: &[HdfsPodRef],
-    hadoop_container: &Container,
-    rbac_sa: &str,
     resolved_product_image: &ResolvedProductImage,
+    env_overrides: Option<&BTreeMap<String, String>>,
     merged_config: &(dyn MergedConfig + Send + 'static),
+    rbac_sa: &str,
+    namenode_podrefs: &[HdfsPodRef],
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
-    let service_name = rolegroup_ref.object_name();
 
+    let logging = merged_config.logging();
+    let service_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
     // common pod settings
@@ -542,6 +515,15 @@ fn rolegroup_statefulset(
         config_map: Some(ConfigMapVolumeSource {
             name: Some(rolegroup_ref.object_name()),
             ..ConfigMapVolumeSource::default()
+        }),
+        ..Volume::default()
+    })
+    .add_volume(Volume {
+        name: "config".to_string(),
+        empty_dir: Some(EmptyDirVolumeSource {
+            medium: None,
+            // TODO: determine size
+            size_limit: Some(Quantity(format!("11Mi"))),
         }),
         ..Volume::default()
     })
@@ -562,8 +544,6 @@ fn rolegroup_statefulset(
             .build(),
     );
 
-    let logging = merged_config.logging();
-
     if let Some(ContainerLogConfig {
         choice:
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
@@ -572,7 +552,7 @@ fn rolegroup_statefulset(
     }) = logging.containers.get(&stackable_hdfs_crd::Container::Hdfs)
     {
         pb.add_volume(Volume {
-            name: "log-config".to_string(),
+            name: "hdfs-log-config".to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: Some(config_map.into()),
                 ..ConfigMapVolumeSource::default()
@@ -581,13 +561,50 @@ fn rolegroup_statefulset(
         });
     } else {
         pb.add_volume(Volume {
-            name: "log-config".to_string(),
+            name: "hdfs-log-config".to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: Some(rolegroup_ref.object_name()),
                 ..ConfigMapVolumeSource::default()
             }),
             ..Volume::default()
         });
+    }
+
+    if role == &HdfsRole::NameNode {
+        pb.add_volume(Volume {
+            name: "zkfc-config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
+
+        if let Some(ContainerLogConfig {
+            choice:
+                Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                    custom: ConfigMapLogConfig { config_map },
+                })),
+        }) = logging.containers.get(&stackable_hdfs_crd::Container::Zkfc)
+        {
+            pb.add_volume(Volume {
+                name: "zkfc-log-config".to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: Some(config_map.into()),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            });
+        } else {
+            pb.add_volume(Volume {
+                name: "zkfc-log-config".to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: Some(rolegroup_ref.object_name()),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            });
+        }
     }
 
     if logging.enable_vector_agent {
@@ -606,54 +623,80 @@ fn rolegroup_statefulset(
 
     // role specific pod settings configured here
     match role {
-        HdfsRole::DataNode => {
-            let rg = hdfs.datanode_rolegroup(rolegroup_ref);
-            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
-            for c in datanode_init_containers(namenode_podrefs, hadoop_container)
-                .into_iter()
-                .flatten()
-            {
-                pb.add_init_container(c);
-            }
-            for c in datanode_containers(
-                rolegroup_ref,
-                hadoop_container,
-                &merged_config.resources().into(),
-            )? {
-                pb.add_container(c);
-            }
-        }
         HdfsRole::NameNode => {
             let rg = hdfs.namenode_rolegroup(rolegroup_ref);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-            if let Some(init_containers) =
-                namenode_init_containers(namenode_podrefs, hadoop_container)
+            for init_container in namenode_init_containers(
+                hdfs,
+                resolved_product_image,
+                env_overrides,
+                namenode_podrefs,
+            )
+            .context(FailedToCreateContainerSnafu)?
             {
-                for c in init_containers {
-                    pb.add_init_container(c);
-                }
+                pb.add_init_container(init_container);
             }
-            for c in namenode_containers(
-                rolegroup_ref,
-                hadoop_container,
-                &merged_config.resources().into(),
-            )? {
-                pb.add_container(c);
+            // main container
+            pb.add_container(
+                hdfs_main_container(
+                    hdfs,
+                    role,
+                    resolved_product_image,
+                    env_overrides,
+                    &merged_config.resources().into(),
+                    &logging,
+                )
+                .context(FailedToCreateContainerSnafu)?,
+            );
+            // zk fail over container
+            pb.add_container(
+                namenode_zkfc_container(hdfs, resolved_product_image, env_overrides, &logging)
+                    .context(FailedToCreateContainerSnafu)?,
+            );
+        }
+        HdfsRole::DataNode => {
+            let rg = hdfs.datanode_rolegroup(rolegroup_ref);
+            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
+            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
+            for init_container in datanode_init_containers(
+                hdfs,
+                resolved_product_image,
+                env_overrides,
+                namenode_podrefs,
+            )
+            .context(FailedToCreateContainerSnafu)?
+            {
+                pb.add_init_container(init_container);
             }
+            // main container
+            pb.add_container(
+                hdfs_main_container(
+                    hdfs,
+                    role,
+                    resolved_product_image,
+                    env_overrides,
+                    &merged_config.resources().into(),
+                    &logging,
+                )
+                .context(FailedToCreateContainerSnafu)?,
+            );
         }
         HdfsRole::JournalNode => {
             let rg = hdfs.journalnode_rolegroup(rolegroup_ref);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-            for c in journalnode_containers(
-                rolegroup_ref,
-                hadoop_container,
-                &merged_config.resources().into(),
-            )? {
-                pb.add_container(c);
-            }
+            pb.add_container(
+                hdfs_main_container(
+                    hdfs,
+                    role,
+                    resolved_product_image,
+                    env_overrides,
+                    &merged_config.resources().into(),
+                    &logging,
+                )
+                .context(FailedToCreateContainerSnafu)?,
+            );
         }
     }
 
@@ -698,433 +741,6 @@ fn rolegroup_statefulset(
     })
 }
 
-fn journalnode_containers(
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    hadoop_container: &Container,
-    resources: &ResourceRequirements,
-) -> HdfsOperatorResult<Vec<Container>> {
-    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-
-    let heap_opts = resources
-        .limits
-        .as_ref()
-        .and_then(|l| l.get("memory"))
-        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
-        .unwrap_or_else(|| Ok("".to_string()))
-        .with_context(|_| InvalidJavaHeapConfigSnafu {
-            role: HdfsRole::JournalNode.to_string(),
-        })?;
-
-    let opts = vec![
-        Some(
-            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-            DEFAULT_JOURNAL_NODE_METRICS_PORT,
-            rolegroup_ref.role,)
-        ),
-        Some(heap_opts),
-    ]
-    .into_iter()
-    .flatten()
-    .collect::<Vec<String>>()
-    .join(" ")
-    .trim()
-    .to_string();
-
-    env.push(EnvVar {
-        name: "HDFS_JOURNALNODE_OPTS".to_string(),
-        value: Some(opts),
-        ..EnvVar::default()
-    });
-
-    Ok(vec![Container {
-        command: Some(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-euo".to_string(),
-            "pipefail".to_string(),
-            "-c".to_string(),
-        ]),
-        args: Some(vec![[
-            format!("mkdir -p {}", CONFIG_DIR_NAME),
-            format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
-            format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
-            format!(
-                "{hadoop_home}/bin/hdfs --debug journalnode",
-                hadoop_home = HADOOP_HOME
-            ),
-        ]
-        .join(" && ")]),
-        readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
-        liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
-        env: Some(env),
-        resources: Some(resources.clone()),
-        ..hadoop_container.clone()
-    }])
-}
-
-fn namenode_containers(
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    hadoop_container: &Container,
-    resources: &ResourceRequirements,
-) -> HdfsOperatorResult<Vec<Container>> {
-    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-
-    let heap_opts = resources
-        .limits
-        .as_ref()
-        .and_then(|l| l.get("memory"))
-        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
-        .unwrap_or_else(|| Ok("".to_string()))
-        .with_context(|_| InvalidJavaHeapConfigSnafu {
-            role: HdfsRole::NameNode.to_string(),
-        })?;
-
-    let opts = vec![
-        Some(
-            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                DEFAULT_NAME_NODE_METRICS_PORT,
-                rolegroup_ref.role,)
-        ),
-        Some(heap_opts),
-        ]
-    .into_iter()
-    .flatten()
-    .collect::<Vec<String>>()
-    .join(" ")
-    .trim()
-    .to_string();
-
-    env.push(EnvVar {
-        name: "HDFS_NAMENODE_OPTS".to_string(),
-        value: Some(opts),
-        ..EnvVar::default()
-    });
-
-    Ok(vec![
-        Container {
-            command: Some(vec![
-                "/bin/bash".to_string(),
-                "-x".to_string(),
-                "-euo".to_string(),
-                "pipefail".to_string(),
-                "-c".to_string(),
-            ]),
-            args: Some(vec![[
-                // We need to collect the tmp config dir and vector configs
-                format!("mkdir -p {}", CONFIG_DIR_NAME),
-                format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
-                format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
-                format!(
-                    "{hadoop_home}/bin/hdfs --debug namenode",
-                    hadoop_home = HADOOP_HOME
-                ),
-            ]
-            .join(" && ")]),
-            env: Some(env),
-            readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
-            liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_RPC, 10, 10)),
-            resources: Some(resources.clone()),
-            ..hadoop_container.clone()
-        },
-        // Note that we don't add the HADOOP_OPTS / HDFS_NAMENODE_OPTS env var to this container (zkfc)
-        // Here it would cause an "address already in use" error and prevent the namenode container from starting.
-        // Because the jmx exporter is not enabled here, also the readiness probes are not enabled.
-        Container {
-            name: String::from("zkfc"),
-            command: Some(vec![
-                "/bin/bash".to_string(),
-                "-x".to_string(),
-                "-euo".to_string(),
-                "pipefail".to_string(),
-                "-c".to_string(),
-            ]),
-            args: Some(vec![[
-                // We need to collect the tmp config dir and vector configs
-                format!("mkdir -p {CONFIG_DIR_NAME}"),
-                format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
-                format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
-                format!("{HADOOP_HOME}/bin/hdfs zkfc"),
-            ]
-            .join(" && ")]),
-            ..hadoop_container.clone()
-        },
-    ])
-}
-
-fn datanode_containers(
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    hadoop_container: &Container,
-    resources: &ResourceRequirements,
-) -> HdfsOperatorResult<Vec<Container>> {
-    let mut env: Vec<EnvVar> = hadoop_container.clone().env.unwrap();
-
-    let heap_opts = resources
-        .limits
-        .as_ref()
-        .and_then(|l| l.get("memory"))
-        .map(|m| to_java_heap(m, JVM_HEAP_FACTOR))
-        .unwrap_or_else(|| Ok("".to_string()))
-        .with_context(|_| InvalidJavaHeapConfigSnafu {
-            role: HdfsRole::DataNode.to_string(),
-        })?;
-
-    let opts = vec![
-        Some(
-            format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={}:/stackable/jmx/{}.yaml",
-                DEFAULT_DATA_NODE_METRICS_PORT,
-                rolegroup_ref.role,)),
-        Some(heap_opts),
-    ]
-    .into_iter()
-    .flatten()
-    .collect::<Vec<String>>()
-    .join(" ");
-
-    env.push(EnvVar {
-        name: "HDFS_DATANODE_OPTS".to_string(),
-        value: Some(opts),
-        ..EnvVar::default()
-    });
-
-    Ok(vec![Container {
-        command: Some(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-euo".to_string(),
-            "pipefail".to_string(),
-            "-c".to_string(),
-        ]),
-        args: Some(vec![[
-            // We need to collect the tmp config dir and vector configs
-            format!("mkdir -p {}", CONFIG_DIR_NAME),
-            format!("cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}"),
-            format!("cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}"),
-            format!(
-                "{hadoop_home}/bin/hdfs --debug datanode",
-                hadoop_home = HADOOP_HOME
-            ),
-        ]
-        .join(" && ")]),
-        env: Some(env),
-        readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
-        liveness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
-        resources: Some(resources.clone()),
-        ..hadoop_container.clone()
-    }])
-}
-
-fn datanode_init_containers(
-    namenode_podrefs: &[HdfsPodRef],
-    hadoop_container: &Container,
-) -> Option<Vec<Container>> {
-    Some(vec![Container {
-        name: "wait-for-namenodes".to_string(),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            format!(
-                "
-                echo \"Waiting for namenodes to get ready:\"
-                n=0
-                while [ ${{n}} -lt 12 ];
-                do
-                  ALL_NODES_READY=true
-                  for id in {pod_names}
-                  do
-                    echo -n \"Checking pod $id... \"
-                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
-                    if [ \"$SERVICE_STATE\" = \"active\" ] || [ \"$SERVICE_STATE\" = \"standby\" ]
-                    then
-                      echo \"$SERVICE_STATE\"
-                    else
-                      echo \"not ready\"
-                      ALL_NODES_READY=false
-                    fi
-                  done
-                  if [ \"$ALL_NODES_READY\" == \"true\" ]
-                  then
-                    echo \"All namenodes ready!\"
-                    break
-                  fi
-                  echo \"\"
-                  n=$(( n  + 1))
-                  sleep 5
-                done
-            ",
-                hadoop_home = HADOOP_HOME,
-                pod_names = namenode_podrefs
-                    .iter()
-                    .map(|pod_ref| pod_ref.pod_name.as_ref())
-                    .collect::<Vec<&str>>()
-                    .join(" ")
-            ),
-        ]),
-        ..hadoop_container.clone()
-    }])
-}
-
-fn namenode_init_containers(
-    namenode_podrefs: &[HdfsPodRef],
-    hadoop_container: &Container,
-) -> Option<Vec<Container>> {
-    Some(vec![
-    Container {
-        name: "format-namenode".to_string(),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            // First step we check for active namenodes. This step should return an active namenode
-            // for e.g. scaling. It may fail if the active namenode is restarted and the standby
-            // namenode takes over.
-            // This is why in the second part we check if the node is formatted already via
-            // $NAMENODE_DIR/current/VERSION. Then we dont do anything.
-            // If there is no active namenode, the current pod is not formatted we format as
-            // active namenode. Otherwise as standby node.
-            format!("
-                 mkdir -p {CONFIG_DIR_NAME}
-                 cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME}
-                 cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME}
-                 echo \"Start formatting namenode $POD_NAME. Checking for active namenodes:\"
-                 for id in {pod_names}
-                 do
-                   echo -n \"Checking pod $id... \"
-                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
-                   if [ \"$SERVICE_STATE\" == \"active\" ]
-                   then
-                     ACTIVE_NAMENODE=$id
-                     echo \"active\"
-                     break
-                   fi
-                   echo \"\"
-                 done
-
-                 set -e
-                 if [ ! -f \"{namenode_dir}/current/VERSION\" ]
-                 then
-                   if [ -z ${{ACTIVE_NAMENODE+x}} ]
-                   then
-                     echo \"Create pod $POD_NAME as active namenode.\"
-                     {hadoop_home}/bin/hdfs namenode -format -noninteractive
-                   else
-                     echo \"Create pod $POD_NAME as standby namenode.\"
-                     {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
-                   fi
-                 else
-                   echo \"Pod $POD_NAME already formatted. Skipping...\"
-                 fi",
-                hadoop_home = HADOOP_HOME,
-                pod_names = namenode_podrefs.iter().map(|pod_ref| pod_ref.pod_name.as_ref()).collect::<Vec<&str>>().join(" "),
-                // TODO: What if overridden? We should not default here then!
-                namenode_dir = HdfsNodeDataDirectory::default().namenode,
-            ),
-        ]),
-        ..hadoop_container.clone()
-    },
-    Container {
-        name: "format-zk".to_string(),
-        args: Some(vec![
-            "sh".to_string(),
-            "-c".to_string(),
-            format!("
-                mkdir -p {CONFIG_DIR_NAME} && cp {TMP_CONFIG_DIR_NAME}/* {CONFIG_DIR_NAME} && cp {HDFS_LOG_CONFIG_TMP_DIR}/{LOG4J_CONFIG_FILE} {CONFIG_DIR_NAME} &&
-                test \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", hadoop_home = HADOOP_HOME
-            )
-        ]),
-        ..hadoop_container.clone()
-    },
-    ])
-}
-
-/// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
-/// for liveness or readiness probes
-fn tcp_socket_action_probe(
-    port_name: &str,
-    period_seconds: i32,
-    initial_delay_seconds: i32,
-) -> Probe {
-    Probe {
-        tcp_socket: Some(TCPSocketAction {
-            port: IntOrString::String(String::from(port_name)),
-            ..TCPSocketAction::default()
-        }),
-        period_seconds: Some(period_seconds),
-        initial_delay_seconds: Some(initial_delay_seconds),
-        ..Probe::default()
-    }
-}
-
-/// Build a Container with common HDFS environment variables, ports and volume mounts set.
-fn hdfs_common_container(
-    hdfs: &HdfsCluster,
-    rolegroup_ports: &[(String, i32)],
-    env_overrides: Option<&BTreeMap<String, String>>,
-    resolved_product_image: &ResolvedProductImage,
-) -> HdfsOperatorResult<Container> {
-    let mut env: Vec<EnvVar> = env_overrides
-        .cloned()
-        .unwrap_or_default()
-        .iter()
-        .map(|(k, v)| EnvVar {
-            name: k.clone(),
-            value: Some(v.clone()),
-            ..EnvVar::default()
-        })
-        .collect();
-
-    env.extend(vec![
-        EnvVar {
-            name: "HADOOP_HOME".to_string(),
-            value: Some(String::from(HADOOP_HOME)),
-            ..EnvVar::default()
-        },
-        EnvVar {
-            name: "HADOOP_CONF_DIR".to_string(),
-            value: Some(String::from(CONFIG_DIR_NAME)),
-            ..EnvVar::default()
-        },
-        EnvVar {
-            name: "POD_NAME".to_string(),
-            value_from: Some(EnvVarSource {
-                field_ref: Some(ObjectFieldSelector {
-                    field_path: String::from("metadata.name"),
-                    ..ObjectFieldSelector::default()
-                }),
-                ..EnvVarSource::default()
-            }),
-            ..EnvVar::default()
-        },
-        EnvVar {
-            name: "ZOOKEEPER".to_string(),
-            value_from: Some(EnvVarSource {
-                config_map_key_ref: Some(ConfigMapKeySelector {
-                    name: Some(hdfs.spec.zookeeper_config_map_name.clone()),
-                    key: "ZOOKEEPER".to_string(),
-                    ..ConfigMapKeySelector::default()
-                }),
-                ..EnvVarSource::default()
-            }),
-            ..EnvVar::default()
-        },
-    ]);
-
-    Ok(ContainerBuilder::new(HDFS_CONTAINER_NAME)
-        .expect("ContainerBuilder not created")
-        .image_from_product_image(resolved_product_image)
-        .add_env_vars(env)
-        .add_volume_mount("data", ROOT_DATA_DIR)
-        .add_volume_mount("hdfs-config", TMP_CONFIG_DIR_NAME)
-        .add_volume_mount("log-config", HDFS_LOG_CONFIG_TMP_DIR)
-        .add_volume_mount("log", STACKABLE_LOG_DIR)
-        .add_container_ports(
-            rolegroup_ports
-                .iter()
-                .map(|(name, value)| ContainerPort {
-                    name: Some(name.clone()),
-                    container_port: *value,
-                    protocol: Some("TCP".to_string()),
-                    ..ContainerPort::default()
-                })
-                .collect(),
-        )
-        .build())
+pub fn error_policy(_obj: Arc<HdfsCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
+    Action::requeue(Duration::from_secs(5))
 }

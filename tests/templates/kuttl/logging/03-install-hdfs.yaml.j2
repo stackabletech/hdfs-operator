@@ -4,10 +4,21 @@ kind: ConfigMap
 metadata:
   name: hdfs-log-config
 data:
-  log4j.properties: |
+  hdfs.log4j.properties: |
     log4j.rootLogger=INFO, FILE
     log4j.appender.FILE=org.apache.log4j.FileAppender
     log4j.appender.FILE.File=/stackable/log/hdfs/hdfs.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-zkfc-log-config
+data:
+  zkfc.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/zkfc/zkfc.log4j.xml
     log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
 ---
 apiVersion: hdfs.stackable.tech/v1alpha1
@@ -36,6 +47,14 @@ spec:
                 loggers:
                   ROOT:
                     level: INFO
+              zkfc:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
               vector:
                 console:
                   level: INFO
@@ -53,6 +72,9 @@ spec:
               hdfs:
                 custom:
                   configMap: hdfs-log-config
+              zkfc:
+                custom:
+                  configMap: hdfs-zkfc-log-config
   dataNodes:
     roleGroups:
       automatic-log-config:

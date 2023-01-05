@@ -9,10 +9,9 @@ use stackable_hdfs_crd::HdfsPodRef;
 use std::collections::BTreeMap;
 
 // dirs
-pub const ROOT_DATA_DIR: &str = "/stackable/data";
-const NAMENODE_DIR: &str = "/stackable/data/name";
-const DATANODE_DIR: &str = "/stackable/data/data";
-const JOURNALNODE_DIR: &str = "/stackable/data/journal";
+const NAME_NODE_DATA_DIR: &str = "/stackable/data/namenode";
+const DATA_NODE_DATA_DIR: &str = "/stackable/data/datanode";
+const JOURNAL_NODE_DATA_DIR: &str = "/stackable/data/journalnode";
 
 #[derive(Clone)]
 pub struct HdfsNodeDataDirectory {
@@ -24,9 +23,9 @@ pub struct HdfsNodeDataDirectory {
 impl Default for HdfsNodeDataDirectory {
     fn default() -> Self {
         HdfsNodeDataDirectory {
-            namenode: NAMENODE_DIR.to_string(),
-            datanode: DATANODE_DIR.to_string(),
-            journalnode: JOURNALNODE_DIR.to_string(),
+            namenode: NAME_NODE_DATA_DIR.to_string(),
+            datanode: DATA_NODE_DATA_DIR.to_string(),
+            journalnode: JOURNAL_NODE_DATA_DIR.to_string(),
         }
     }
 }
@@ -173,7 +172,7 @@ impl HdfsSiteConfigBuilder {
         &mut self,
         namenode_podrefs: &[HdfsPodRef],
         address: &str,
-        default_port: i32,
+        default_port: u16,
     ) -> &mut Self {
         for nn in namenode_podrefs {
             self.config.insert(
