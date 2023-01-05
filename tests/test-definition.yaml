@@ -2,8 +2,8 @@
 dimensions:
   - name: hadoop
     values:
-      #- 3.2.2-stackable0.7.0
-      #- 3.3.3-stackable0.3.0
+      - 3.2.2-stackable0.7.0
+      - 3.3.3-stackable0.3.0
       - 3.3.4-stackable0.3.0
   - name: hdfs-latest
     values:
@@ -15,14 +15,14 @@ dimensions:
     values:
       - 3.8.0-stackable0.9.0
 tests:
-#  - name: fs-ops
-#    dimensions:
-#      - hadoop
-#      - zookeeper
-#  - name: orphaned-resources
-#    dimensions:
-#      - hdfs-latest
-#      - zookeeper-latest
+  - name: fs-ops
+    dimensions:
+      - hadoop
+      - zookeeper
+  - name: orphaned-resources
+    dimensions:
+      - hdfs-latest
+      - zookeeper-latest
   - name: logging
     dimensions:
       - hdfs-latest

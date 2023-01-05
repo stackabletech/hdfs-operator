@@ -215,7 +215,7 @@ pub fn namenode_zkfc_container(
         .command(container_command())
         .args(vec![[
             create_config_directory_cmd(&container_config),
-            copy_vector_toml_cmd(&container_config),
+            copy_vector_toml_cmd(&container_config, logging),
             copy_hdfs_and_core_site_xml_cmd(&container_config),
             copy_log4j_properties_cmd(
                 &container_config,
@@ -390,6 +390,21 @@ fn create_config_directory_cmd(container_config: &ContainerConfig) -> String {
     )
 }
 
+fn copy_vector_toml_cmd(
+    container_config: &ContainerConfig,
+    logging: &Logging<stackable_hdfs_crd::Container>,
+) -> String {
+    if logging.enable_vector_agent {
+        format!(
+            "cp {vector_toml_location}/{vector_file} {STACKABLE_CONFIG_DIR}/{vector_file}",
+            vector_toml_location = container_config.config_dir_mount,
+            vector_file = VECTOR_TOML
+        )
+    } else {
+        "echo test".to_string()
+    }
+}
+
 fn copy_hdfs_and_core_site_xml_cmd(container_config: &ContainerConfig) -> String {
     vec![
         format!(
@@ -429,14 +444,6 @@ fn copy_log4j_properties_cmd(
     )
 }
 
-fn copy_vector_toml_cmd(container_config: &ContainerConfig) -> String {
-    format!(
-        "cp {vector_toml_location}/{vector_file} {STACKABLE_CONFIG_DIR}/{vector_file}",
-        vector_toml_location = container_config.config_dir_mount,
-        vector_file = VECTOR_TOML
-    )
-}
-
 fn main_container_args(
     role: &HdfsRole,
     container_config: &ContainerConfig,
@@ -444,7 +451,7 @@ fn main_container_args(
 ) -> Vec<String> {
     vec![[
         create_config_directory_cmd(container_config),
-        copy_vector_toml_cmd(container_config),
+        copy_vector_toml_cmd(container_config, &logging),
         copy_hdfs_and_core_site_xml_cmd(container_config),
         copy_log4j_properties_cmd(
             container_config,
