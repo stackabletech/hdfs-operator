@@ -3,7 +3,7 @@ use crate::{
     product_logging::{LOG4J_CONFIG_FILE, STACKABLE_LOG_DIR, ZKFC_LOG4J_CONFIG_FILE},
 };
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{
         CORE_SITE_XML, DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
@@ -25,8 +25,8 @@ use stackable_operator::{
     memory::to_java_heap,
     product_logging::spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
 };
-use std::collections::BTreeMap;
-use strum::{EnumDiscriminants, IntoStaticStr};
+use std::{collections::BTreeMap, str::FromStr};
+use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 const JVM_HEAP_FACTOR: f32 = 0.8;
 
@@ -34,30 +34,10 @@ const ZKFC_CONTAINER_NAME: &str = "zkfc";
 
 const VECTOR_TOML: &str = "vector.toml";
 
-const HDFS_NAME_NODE_OPTS: &str = "HDFS_NAMENODE_OPTS";
-const HDFS_DATA_NODE_OPTS: &str = "HDFS_DATANODE_OPTS";
-const HDFS_JOURNAL_NODE_OPTS: &str = "HDFS_JOURNALNODE_OPTS";
-
 pub const HADOOP_HOME: &str = "/stackable/hadoop";
 
 pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
 pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
-
-pub const NAME_NODE_CONFIG_DIR: &str = "/stackable/config/namenode";
-pub const NAME_NODE_CONFIG_DIR_MOUNT: &str = "/stackable/mount/config/namenode";
-pub const NAME_NODE_LOG_DIR_MOUNT: &str = "/stackable/mount/log/namenode";
-
-pub const NAME_NODE_ZKFC_CONFIG_DIR: &str = "/stackable/config/zkfc";
-pub const NAME_NODE_ZKFC_CONFIG_DIR_MOUNT: &str = "/stackable/mount/config/zkfc";
-pub const NAME_NODE_ZKFC_LOG_CONFIG_DIR: &str = "/stackable/mount/log/zkfc";
-
-pub const DATA_NODE_CONFIG_DIR: &str = "/stackable/config/datanode";
-pub const DATA_NODE_CONFIG_DIR_MOUNT: &str = "/stackable/mount/config/datanode";
-pub const DATA_NODE_LOG_DIR_MOUNT: &str = "/stackable/mount/log/datanode";
-
-pub const JOURNAL_NODE_CONFIG_DIR: &str = "/stackable/config/journalnode";
-pub const JOURNAL_NODE_CONFIG_DIR_MOUNT: &str = "/stackable/mount/config/journalnode";
-pub const JOURNAL_NODE_LOG_DIR_MOUNT: &str = "/stackable/mount/log/journalnode";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -67,72 +47,184 @@ pub enum Error {
         source: stackable_operator::error::Error,
         role: String,
     },
+    #[snafu(display("Invalid container configuration for [{container_name}]"))]
+    InvalidContainerConfig { container_name: String },
     #[snafu(display("Invalid container name [{name}]"))]
     InvalidContainerName {
         source: stackable_operator::error::Error,
         name: String,
     },
+    #[snafu(display("Could not create ready or liveness probe for [{role}]"))]
+    MissingProbe { role: String },
+    #[snafu(display("Could not determine a metrics port for [{role}]"))]
+    MissingMetricsPort { role: String },
 }
 
-#[derive(Clone, Debug)]
-struct ContainerConfig {
-    /// Name of the container.
-    pub container_name: String,
-    /// Name of the Hadoop process OPTS e.g. HADOOP_NAMENODE_OPTS.
-    pub hdfs_opts_name: &'static str,
-    /// The config dir where to store core-site.xml, hdfs-size.xml and logging configs.
-    pub config_dir: &'static str,
-    /// The mount dir for the config files to be mounted via config map.
-    pub config_dir_mount: &'static str,
-    /// The log dir where to store the hdfs / zkfc container log files.
-    pub log_dir: &'static str,
-    /// The mount dir for the logging config files to be mounted via config map.
-    pub log_dir_mount: &'static str,
-    /// Metrics port used for different Hadoop processes.
-    pub metrics_port: u16,
-    /// Readiness and liveliness probe service port names
-    pub probe_port_name: &'static str,
+#[derive(Display)]
+enum ContainerConfig {
+    Hdfs {
+        /// HDFS rol (name-, data-, journal-node) which will be the container_name.
+        //role: HdfsRole,
+        /// The container_name from the provide role
+        container_name: String,
+        /// Volume mounts for config and logging.
+        volume_mounts: ContainerVolumeDirs,
+        /// Readiness and liveliness probe service port names
+        tcp_socket_action_port_name: &'static str,
+        /// The JMX Exporter metrics port
+        metrics_port: u16,
+    },
+    Zkfc {
+        container_name: String,
+        /// Volume mounts for config and logging.
+        volume_mounts: ContainerVolumeDirs,
+    },
 }
 
-impl Default for ContainerConfig {
-    fn default() -> Self {
-        Self {
-            container_name: HdfsRole::NameNode.to_string(),
-            hdfs_opts_name: HDFS_NAME_NODE_OPTS,
-            config_dir: NAME_NODE_CONFIG_DIR,
-            config_dir_mount: NAME_NODE_CONFIG_DIR_MOUNT,
-            log_dir: STACKABLE_LOG_DIR,
-            log_dir_mount: NAME_NODE_LOG_DIR_MOUNT,
-            metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
-            probe_port_name: SERVICE_PORT_NAME_RPC,
+impl ContainerConfig {
+    pub fn name(&self) -> &str {
+        match &self {
+            ContainerConfig::Hdfs { container_name, .. } => container_name.as_str(),
+            ContainerConfig::Zkfc { container_name, .. } => container_name.as_str(),
+        }
+    }
+
+    pub fn volume_mounts(&self) -> &ContainerVolumeDirs {
+        match &self {
+            ContainerConfig::Hdfs { volume_mounts, .. } => volume_mounts,
+            ContainerConfig::Zkfc { volume_mounts, .. } => volume_mounts,
+        }
+    }
+
+    /// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
+    /// for liveness or readiness probes
+    pub fn tcp_socket_action_probe(
+        &self,
+        period_seconds: i32,
+        initial_delay_seconds: i32,
+    ) -> Option<Probe> {
+        match self {
+            ContainerConfig::Hdfs {
+                tcp_socket_action_port_name,
+                ..
+            } => Some(Probe {
+                tcp_socket: Some(TCPSocketAction {
+                    port: IntOrString::String(String::from(*tcp_socket_action_port_name)),
+                    ..TCPSocketAction::default()
+                }),
+                period_seconds: Some(period_seconds),
+                initial_delay_seconds: Some(initial_delay_seconds),
+                ..Probe::default()
+            }),
+            _ => None,
+        }
+    }
+
+    pub fn metrics_port(&self) -> Option<u16> {
+        match self {
+            ContainerConfig::Hdfs { metrics_port, .. } => Some(*metrics_port),
+            _ => None,
         }
     }
 }
 
-impl From<&HdfsRole> for ContainerConfig {
-    fn from(role: &HdfsRole) -> Self {
+impl From<HdfsRole> for ContainerConfig {
+    fn from(role: HdfsRole) -> Self {
         match role {
-            HdfsRole::NameNode => Self::default(),
-            HdfsRole::DataNode => Self {
+            HdfsRole::NameNode => Self::Hdfs {
+                //role: role.clone(),
                 container_name: role.to_string(),
-                hdfs_opts_name: HDFS_DATA_NODE_OPTS,
-                config_dir: DATA_NODE_CONFIG_DIR,
-                config_dir_mount: DATA_NODE_CONFIG_DIR_MOUNT,
-                log_dir_mount: DATA_NODE_LOG_DIR_MOUNT,
+                volume_mounts: ContainerVolumeDirs::from(role),
+                tcp_socket_action_port_name: SERVICE_PORT_NAME_RPC,
+                metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
+            },
+            HdfsRole::DataNode => Self::Hdfs {
+                //role: role.clone(),
+                container_name: role.to_string(),
+                volume_mounts: ContainerVolumeDirs::from(role),
+                tcp_socket_action_port_name: SERVICE_PORT_NAME_IPC,
                 metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
-                probe_port_name: SERVICE_PORT_NAME_IPC,
-                ..ContainerConfig::default()
             },
-            HdfsRole::JournalNode => Self {
+            HdfsRole::JournalNode => Self::Hdfs {
+                //role: role.clone(),
                 container_name: role.to_string(),
-                hdfs_opts_name: HDFS_JOURNAL_NODE_OPTS,
-                config_dir: JOURNAL_NODE_CONFIG_DIR,
-                config_dir_mount: JOURNAL_NODE_CONFIG_DIR_MOUNT,
-                log_dir_mount: JOURNAL_NODE_LOG_DIR_MOUNT,
+                volume_mounts: ContainerVolumeDirs::from(role),
+                tcp_socket_action_port_name: SERVICE_PORT_NAME_RPC,
                 metrics_port: DEFAULT_JOURNAL_NODE_METRICS_PORT,
-                probe_port_name: SERVICE_PORT_NAME_RPC,
-                ..ContainerConfig::default()
             },
+        }
+    }
+}
+
+impl TryFrom<&str> for ContainerConfig {
+    type Error = Error;
+
+    fn try_from(container_name: &str) -> Result<Self, Self::Error> {
+        match HdfsRole::from_str(container_name) {
+            Ok(role) => Ok(ContainerConfig::from(role)),
+            // No hadoop main process container
+            Err(_) => match container_name {
+                ZKFC_CONTAINER_NAME => Ok(Self::Zkfc {
+                    container_name: container_name.to_string(),
+                    volume_mounts: ContainerVolumeDirs::from(ZKFC_CONTAINER_NAME),
+                }),
+                _ => Err(Error::InvalidContainerConfig {
+                    container_name: container_name.to_string(),
+                }),
+            },
+        }
+    }
+}
+
+struct ContainerVolumeDirs {
+    /// The final config dir where to store core-site.xml, hdfs-size.xml and logging configs.
+    final_config: String,
+    /// The mount dir for the config files to be mounted via config map.
+    config_mount: String,
+    /// The mount dir for the logging config files to be mounted via config map.
+    log_mount: String,
+}
+
+impl ContainerVolumeDirs {
+    const NODE_BASE_CONFIG_DIR: &'static str = "/stackable/config";
+    const NODE_BASE_CONFIG_DIR_MOUNT: &'static str = "/stackable/mount/config";
+    const NODE_BASE_LOG_DIR_MOUNT: &'static str = "/stackable/mount/log";
+
+    pub fn final_config(&self) -> &str {
+        self.final_config.as_str()
+    }
+
+    pub fn config_mount(&self) -> &str {
+        self.config_mount.as_str()
+    }
+
+    pub fn log_mount(&self) -> &str {
+        self.log_mount.as_str()
+    }
+}
+
+impl From<HdfsRole> for ContainerVolumeDirs {
+    fn from(role: HdfsRole) -> Self {
+        ContainerVolumeDirs {
+            final_config: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR),
+            config_mount: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR_MOUNT),
+            log_mount: format!("{base}/{role}", base = Self::NODE_BASE_LOG_DIR_MOUNT),
+        }
+    }
+}
+
+impl From<&str> for ContainerVolumeDirs {
+    fn from(container_name: &str) -> Self {
+        ContainerVolumeDirs {
+            final_config: format!("{base}/{container_name}", base = Self::NODE_BASE_CONFIG_DIR),
+            config_mount: format!(
+                "{base}/{container_name}",
+                base = Self::NODE_BASE_CONFIG_DIR_MOUNT
+            ),
+            log_mount: format!(
+                "{base}/{container_name}",
+                base = Self::NODE_BASE_LOG_DIR_MOUNT
+            ),
         }
     }
 }
@@ -145,23 +237,31 @@ pub fn hdfs_main_container(
     resources: &ResourceRequirements,
     logging: &Logging<stackable_hdfs_crd::Container>,
 ) -> Result<Container, Error> {
-    let container_config: ContainerConfig = ContainerConfig::from(role);
+    let container_config: ContainerConfig = ContainerConfig::from(role.clone());
 
     let mut env = transform_env_overrides_to_env_vars(env_overrides);
     env.extend(shared_env_vars(
-        container_config.config_dir,
+        container_config.volume_mounts().final_config(),
         &hdfs.spec.zookeeper_config_map_name,
     ));
 
     env.push(EnvVar {
-        name: container_config.hdfs_opts_name.to_string(),
-        value: Some(get_opts(role, container_config.metrics_port, resources)?),
+        name: role.hadoop_opts().to_string(),
+        value: Some(get_opts(
+            role,
+            container_config
+                .metrics_port()
+                .context(MissingMetricsPortSnafu {
+                    role: role.to_string(),
+                })?,
+            resources,
+        )?),
         ..EnvVar::default()
     });
 
-    Ok(ContainerBuilder::new(&container_config.container_name)
+    Ok(ContainerBuilder::new(container_config.name())
         .with_context(|_| InvalidContainerNameSnafu {
-            name: container_config.container_name.to_string(),
+            name: container_config.name().to_string(),
         })?
         .image_from_product_image(resolved_product_image)
         .command(container_command())
@@ -170,19 +270,25 @@ pub fn hdfs_main_container(
         .add_container_ports(container_ports(role))
         .add_volume_mount("data", STACKABLE_ROOT_DATA_DIR)
         .add_volume_mount("config", STACKABLE_CONFIG_DIR)
-        .add_volume_mount("log", container_config.log_dir)
-        .add_volume_mount("hdfs-config", container_config.config_dir_mount)
-        .add_volume_mount("hdfs-log-config", container_config.log_dir_mount)
-        .readiness_probe(tcp_socket_action_probe(
-            container_config.probe_port_name,
-            10,
-            10,
-        ))
-        .liveness_probe(tcp_socket_action_probe(
-            container_config.probe_port_name,
-            10,
-            10,
-        ))
+        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(
+            "hdfs-config",
+            container_config.volume_mounts().config_mount(),
+        )
+        .add_volume_mount(
+            "hdfs-log-config",
+            container_config.volume_mounts().log_mount(),
+        )
+        .readiness_probe(container_config.tcp_socket_action_probe(10, 10).context(
+            MissingProbeSnafu {
+                role: role.to_string(),
+            },
+        )?)
+        .liveness_probe(container_config.tcp_socket_action_probe(10, 10).context(
+            MissingProbeSnafu {
+                role: role.to_string(),
+            },
+        )?)
         .resources(resources.clone())
         .build())
 }
@@ -193,23 +299,17 @@ pub fn namenode_zkfc_container(
     env_overrides: Option<&BTreeMap<String, String>>,
     logging: &Logging<stackable_hdfs_crd::Container>,
 ) -> Result<Container, Error> {
-    let container_config = ContainerConfig {
-        container_name: ZKFC_CONTAINER_NAME.to_string(),
-        config_dir: NAME_NODE_ZKFC_CONFIG_DIR,
-        config_dir_mount: NAME_NODE_ZKFC_CONFIG_DIR_MOUNT,
-        log_dir_mount: NAME_NODE_ZKFC_LOG_CONFIG_DIR,
-        ..ContainerConfig::default()
-    };
+    let container_config = ContainerConfig::try_from(ZKFC_CONTAINER_NAME)?;
 
     let mut env = transform_env_overrides_to_env_vars(env_overrides);
     env.extend(shared_env_vars(
-        container_config.config_dir,
+        container_config.volume_mounts().final_config(),
         &hdfs.spec.zookeeper_config_map_name,
     ));
 
-    Ok(ContainerBuilder::new(&container_config.container_name)
+    Ok(ContainerBuilder::new(container_config.name())
         .with_context(|_| InvalidContainerNameSnafu {
-            name: container_config.container_name.as_str(),
+            name: container_config.name().to_string(),
         })?
         .image_from_product_image(resolved_product_image)
         .command(container_command())
@@ -228,9 +328,15 @@ pub fn namenode_zkfc_container(
         .join(" && ")])
         .add_env_vars(env)
         .add_volume_mount("config", STACKABLE_CONFIG_DIR)
-        .add_volume_mount("log", container_config.log_dir)
-        .add_volume_mount("zkfc-config", container_config.config_dir_mount)
-        .add_volume_mount("zkfc-log-config", container_config.log_dir_mount)
+        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(
+            "zkfc-config",
+            container_config.volume_mounts().config_mount(),
+        )
+        .add_volume_mount(
+            "zkfc-log-config",
+            container_config.volume_mounts().log_mount(),
+        )
         .build())
 }
 
@@ -240,10 +346,11 @@ pub fn namenode_init_containers(
     env_overrides: Option<&BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
 ) -> Result<Vec<Container>, Error> {
+    let container_config = ContainerConfig::from(HdfsRole::NameNode);
     let mut env = transform_env_overrides_to_env_vars(env_overrides);
     env.extend(shared_env_vars(
         // We use the config mount dir directly here to not have to copy
-        NAME_NODE_CONFIG_DIR_MOUNT,
+        container_config.volume_mounts().config_mount(),
         &hdfs.spec.zookeeper_config_map_name,
     ));
 
@@ -298,7 +405,7 @@ pub fn namenode_init_containers(
              ])
              .add_env_vars(env.clone())
              .add_volume_mount("data", STACKABLE_ROOT_DATA_DIR)
-             .add_volume_mount("hdfs-config", NAME_NODE_CONFIG_DIR_MOUNT)
+             .add_volume_mount("hdfs-config", container_config.volume_mounts().config_mount())
              .build(),
         ContainerBuilder::new("format-zk")
              .with_context(|_| InvalidContainerNameSnafu {
@@ -314,7 +421,7 @@ pub fn namenode_init_containers(
             ])
             .add_env_vars(env)
             .add_volume_mount("data", STACKABLE_ROOT_DATA_DIR)
-            .add_volume_mount("hdfs-config", NAME_NODE_CONFIG_DIR_MOUNT)
+            .add_volume_mount("hdfs-config", container_config.volume_mounts().config_mount())
             .build(),
     ])
 }
@@ -325,10 +432,12 @@ pub fn datanode_init_containers(
     env_overrides: Option<&BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
 ) -> Result<Vec<Container>, Error> {
+    let container_config = ContainerConfig::from(HdfsRole::DataNode);
+
     let mut env = transform_env_overrides_to_env_vars(env_overrides);
     env.extend(shared_env_vars(
         // We use the config mount dir directly here to not have to copy
-        DATA_NODE_CONFIG_DIR_MOUNT,
+        container_config.volume_mounts().config_mount(),
         &hdfs.spec.zookeeper_config_map_name,
     ));
 
@@ -379,14 +488,17 @@ pub fn datanode_init_containers(
         ])
         .add_env_vars(env)
         .add_volume_mount("data", STACKABLE_ROOT_DATA_DIR)
-        .add_volume_mount("hdfs-config", DATA_NODE_CONFIG_DIR_MOUNT)
+        .add_volume_mount(
+            "hdfs-config",
+            container_config.volume_mounts().config_mount(),
+        )
         .build()])
 }
 
 fn create_config_directory_cmd(container_config: &ContainerConfig) -> String {
     format!(
         "mkdir -p {config_dir_name}",
-        config_dir_name = container_config.config_dir
+        config_dir_name = container_config.volume_mounts().final_config()
     )
 }
 
@@ -397,7 +509,7 @@ fn copy_vector_toml_cmd(
     if logging.enable_vector_agent {
         format!(
             "cp {vector_toml_location}/{vector_file} {STACKABLE_CONFIG_DIR}/{vector_file}",
-            vector_toml_location = container_config.config_dir_mount,
+            vector_toml_location = container_config.volume_mounts().config_mount(),
             vector_file = VECTOR_TOML
         )
     } else {
@@ -409,13 +521,13 @@ fn copy_hdfs_and_core_site_xml_cmd(container_config: &ContainerConfig) -> String
     vec![
         format!(
             "cp {config_dir_mount}/{HDFS_SITE_XML} {config_dir_name}/{HDFS_SITE_XML}",
-            config_dir_mount = container_config.config_dir_mount,
-            config_dir_name = container_config.config_dir
+            config_dir_mount = container_config.volume_mounts().config_mount(),
+            config_dir_name = container_config.volume_mounts().final_config()
         ),
         format!(
             "cp {config_dir_mount}/{CORE_SITE_XML} {config_dir_name}/{CORE_SITE_XML}",
-            config_dir_mount = container_config.config_dir_mount,
-            config_dir_name = container_config.config_dir
+            config_dir_mount = container_config.volume_mounts().config_mount(),
+            config_dir_name = container_config.volume_mounts().final_config()
         ),
     ]
     .join(" && ")
@@ -431,16 +543,16 @@ fn copy_log4j_properties_cmd(
         choice: Some(ContainerLogConfigChoice::Custom(_)),
     }) = logging.containers.get(&container)
     {
-        container_config.log_dir_mount
+        container_config.volume_mounts().log_mount()
     } else {
-        container_config.config_dir_mount
+        container_config.volume_mounts().config_mount()
     };
 
     format!(
         "cp {log4j_properties_dir}/{file_name} {config_dir}/{LOG4J_PROPERTIES}",
         log4j_properties_dir = source_log4j_properties_dir,
         file_name = log4j_config_file,
-        config_dir = container_config.config_dir
+        config_dir = container_config.volume_mounts().final_config()
     )
 }
 
@@ -451,7 +563,7 @@ fn main_container_args(
 ) -> Vec<String> {
     vec![[
         create_config_directory_cmd(container_config),
-        copy_vector_toml_cmd(container_config, &logging),
+        copy_vector_toml_cmd(container_config, logging),
         copy_hdfs_and_core_site_xml_cmd(container_config),
         copy_log4j_properties_cmd(
             container_config,
@@ -576,22 +688,4 @@ fn shared_env_vars(hadoop_conf_dir: &str, zk_config_map_name: &str) -> Vec<EnvVa
             ..EnvVar::default()
         },
     ]
-}
-
-/// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
-/// for liveness or readiness probes
-fn tcp_socket_action_probe(
-    port_name: &str,
-    period_seconds: i32,
-    initial_delay_seconds: i32,
-) -> Probe {
-    Probe {
-        tcp_socket: Some(TCPSocketAction {
-            port: IntOrString::String(String::from(port_name)),
-            ..TCPSocketAction::default()
-        }),
-        period_seconds: Some(period_seconds),
-        initial_delay_seconds: Some(initial_delay_seconds),
-        ..Probe::default()
-    }
 }
