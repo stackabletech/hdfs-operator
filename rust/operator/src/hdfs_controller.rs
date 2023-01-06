@@ -231,8 +231,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             name: discovery_cm.metadata.name.clone().unwrap_or_default(),
         })?;
 
-    let dfs_replication = hdfs.spec.dfs_replication;
-
     // The service account and rolebinding will be created per cluster and
     // deleted if the cluster is removed.
     // Therefore no cluster / orphaned resources have to be handled here.
@@ -253,6 +251,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         .with_context(|_| ApplyRoleBindingSnafu {
             name: rbac_rolebinding.name_any(),
         })?;
+
+    let dfs_replication = hdfs.spec.dfs_replication;
 
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {

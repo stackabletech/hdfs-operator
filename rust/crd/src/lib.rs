@@ -457,7 +457,6 @@ impl HdfsCluster {
         let pnk = vec![
             PropertyNameKind::File(HDFS_SITE_XML.to_string()),
             PropertyNameKind::File(CORE_SITE_XML.to_string()),
-            PropertyNameKind::File(LOG4J_PROPERTIES.to_string()),
             PropertyNameKind::Env,
         ];
 
