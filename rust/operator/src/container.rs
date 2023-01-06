@@ -42,8 +42,8 @@ pub enum Error {
         source: stackable_operator::error::Error,
         role: String,
     },
-    #[snafu(display("Invalid container configuration for [{container_name}]"))]
-    InvalidContainerConfig { container_name: String },
+    #[snafu(display("Could not determine any ContainerConfig actions for [{container_name}]. Container not recognized."))]
+    UnrecognizedContainerName { container_name: String },
     #[snafu(display("Invalid container name [{name}]"))]
     InvalidContainerName {
         source: stackable_operator::error::Error,
@@ -141,8 +141,8 @@ impl ContainerConfig {
             zk_config_map_name,
         ));
 
-        match self {
-            ContainerConfig::Hdfs { role, .. } => match role {
+        if let ContainerConfig::Hdfs { role, .. } = self {
+            match role {
                 HdfsRole::NameNode => {
                     init_containers.push(self.namenode_init_container_format_namenode(
                         resolved_product_image,
@@ -165,8 +165,7 @@ impl ContainerConfig {
                     )?);
                 }
                 HdfsRole::JournalNode => {}
-            },
-            _ => {}
+            }
         }
 
         Ok(init_containers)
@@ -722,7 +721,7 @@ impl TryFrom<&str> for ContainerConfig {
                     container_name: container_name.to_string(),
                     volume_mounts: ContainerVolumeDirs::from(Self::ZKFC_CONTAINER_NAME),
                 }),
-                _ => Err(Error::InvalidContainerConfig {
+                _ => Err(Error::UnrecognizedContainerName {
                     container_name: container_name.to_string(),
                 }),
             },
