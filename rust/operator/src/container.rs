@@ -37,8 +37,6 @@ pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
-    #[snafu(display("Invalid role [{name}] for HDFS main container configuration."))]
-    InvalidContainerRole { name: String },
     #[snafu(display("Invalid java heap config for [{role}]"))]
     InvalidJavaHeapConfig {
         source: stackable_operator::error::Error,
@@ -51,27 +49,26 @@ pub enum Error {
         source: stackable_operator::error::Error,
         name: String,
     },
-    #[snafu(display("Could not create ready or liveness probe for [{role}]"))]
-    MissingProbe { role: String },
-    #[snafu(display("Could not determine a metrics port for [{role}]"))]
-    MissingMetricsPort { role: String },
 }
 
+/// ContainerConfig contains information to create all main, side and init containers for
+/// the HDFS cluster.
 #[derive(Display)]
 pub enum ContainerConfig {
     Hdfs {
-        /// HDFS rol (name-, data-, journal-node) which will be the container_name.
+        /// HDFS role (name-, data-, journal-node) which will be the container_name.
         role: HdfsRole,
-        /// The container_name from the provide role
+        /// The container_name from the provide role.
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
-        /// Readiness and liveliness probe service port names
+        /// Readiness and liveliness probe service port names.
         tcp_socket_action_port_name: &'static str,
-        /// The JMX Exporter metrics port
+        /// The JMX Exporter metrics port.
         metrics_port: u16,
     },
     Zkfc {
+        /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
@@ -93,7 +90,7 @@ impl ContainerConfig {
     const JVM_HEAP_FACTOR: f32 = 0.8;
     const VECTOR_TOML: &'static str = "vector.toml";
 
-    /// Creates the main process containers for
+    /// Creates the main process containers for:
     /// - Namenode main process
     /// - Namenode ZooKeeper fail over controller
     /// - Datanode main process
@@ -127,6 +124,7 @@ impl ContainerConfig {
         Ok(cb.build())
     }
 
+    /// Creates respective init containers for namenodes, datanodes and journalnodes.
     pub fn init_containers(
         &self,
         resolved_product_image: &ResolvedProductImage,
@@ -168,12 +166,13 @@ impl ContainerConfig {
                 }
                 HdfsRole::JournalNode => {}
             },
-            ContainerConfig::Zkfc { .. } => {}
+            _ => {}
         }
 
         Ok(init_containers)
     }
 
+    /// Build container for namenode formatting.
     fn namenode_init_container_format_namenode(
         &self,
         resolved_product_image: &ResolvedProductImage,
@@ -251,6 +250,7 @@ impl ContainerConfig {
             .build())
     }
 
+    /// Build container for ZooKeeper formatting.
     fn namenode_init_container_format_zk(
         &self,
         resolved_product_image: &ResolvedProductImage,
@@ -281,6 +281,7 @@ impl ContainerConfig {
             .add_volume_mount(Self::HDFS_CONFIG_VOLUME_MOUNT_NAME, self.volume_mount_dirs().config_mount()).build())
     }
 
+    /// Build datanode container to wait for namenodes to become ready.
     fn datanode_init_container_wait_for_namenode(
         &self,
         resolved_product_image: &ResolvedProductImage,
@@ -413,6 +414,7 @@ impl ContainerConfig {
         vec![args.join(" && ")]
     }
 
+    /// Returns the main container env variables.
     fn env(
         &self,
         zookeeper_config_map_name: &str,
@@ -463,6 +465,7 @@ impl ContainerConfig {
         }
     }
 
+    /// Returns the main container volume mounts.
     fn volume_mounts(&self) -> Vec<VolumeMount> {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(
@@ -509,6 +512,7 @@ impl ContainerConfig {
         volume_mounts
     }
 
+    /// Create a config directory for the respective container.
     fn create_config_directory_cmd(&self) -> String {
         format!(
             "mkdir -p {config_dir_name}",
@@ -516,6 +520,7 @@ impl ContainerConfig {
         )
     }
 
+    /// Copy the `vector.toml` config file if available to the stackable config dir.
     fn copy_vector_toml_cmd(
         &self,
         logging: &Logging<stackable_hdfs_crd::Container>,
@@ -530,6 +535,7 @@ impl ContainerConfig {
         None
     }
 
+    /// Copy the `core-site.xml` and `hdfs-site.xml` to the respective container config dir.
     fn copy_hdfs_and_core_site_xml_cmd(&self) -> String {
         vec![
             format!(
@@ -546,6 +552,10 @@ impl ContainerConfig {
         .join(" && ")
     }
 
+    /// Copy the `log4j.properties` to the respective container config dir.
+    /// This will be copied from:
+    /// - Custom: the log dir mount of the custom config map
+    /// - Automatic: the container config mount dir
     fn copy_log4j_properties_cmd(
         &self,
         logging: &Logging<stackable_hdfs_crd::Container>,
@@ -569,6 +579,7 @@ impl ContainerConfig {
         )
     }
 
+    /// Build HADOOP_{*node}_OPTS for each namenode, datanodes and journalnodes.
     fn build_hadoop_opts(&self, resources: &ResourceRequirements) -> Result<String, Error> {
         match self {
             ContainerConfig::Hdfs { role, metrics_port, .. } => {
@@ -596,6 +607,7 @@ impl ContainerConfig {
         }
     }
 
+    /// Transform the ProductConfig map structure to a Vector of env vars.
     fn transform_env_overrides_to_env_vars(
         env_overrides: Option<&BTreeMap<String, String>>,
     ) -> Vec<EnvVar> {
@@ -611,6 +623,7 @@ impl ContainerConfig {
             .collect()
     }
 
+    /// Common shared or required container env variables.
     fn shared_env_vars(hadoop_conf_dir: &str, zk_config_map_name: &str) -> Vec<EnvVar> {
         vec![
             EnvVar {
@@ -649,6 +662,7 @@ impl ContainerConfig {
         ]
     }
 
+    /// Container ports for the main containers namenode, datanode and journalnode.
     fn container_ports(&self) -> Vec<ContainerPort> {
         match self {
             ContainerConfig::Hdfs { role, .. } => role
@@ -716,6 +730,7 @@ impl TryFrom<&str> for ContainerConfig {
     }
 }
 
+/// Helper struct to collect required config and logging dirs.
 pub struct ContainerVolumeDirs {
     /// The final config dir where to store core-site.xml, hdfs-size.xml and logging configs.
     final_config: String,
