@@ -28,8 +28,6 @@ pub enum Error {
         entry: &'static str,
         cm_name: String,
     },
-    #[snafu(display("crd validation failure"))]
-    CrdValidationFailure { source: stackable_hdfs_crd::Error },
     #[snafu(display("vectorAggregatorConfigMapName must be set"))]
     MissingVectorAggregatorAddress,
 }

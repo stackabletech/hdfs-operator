@@ -106,8 +106,6 @@ pub enum Error {
     },
     #[snafu(display("Object has no name"))]
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
-    #[snafu(display("Object has no namespace [{obj_ref}]"))]
-    ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
     #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
     BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,

@@ -12,9 +12,8 @@ use stackable_hdfs_crd::{
     },
     HdfsPodRef, HdfsRole,
 };
-use stackable_operator::builder::VolumeMountBuilder;
 use stackable_operator::{
-    builder::ContainerBuilder,
+    builder::{ContainerBuilder, VolumeMountBuilder},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::core::v1::{
@@ -28,11 +27,6 @@ use stackable_operator::{
 };
 use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
-
-pub const HADOOP_HOME: &str = "/stackable/hadoop";
-
-pub const STACKABLE_CONFIG_DIR: &str = "/stackable/config";
-pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -76,7 +70,7 @@ pub enum ContainerConfig {
 }
 
 impl ContainerConfig {
-    // extra containers
+    // extra side containers
     pub const ZKFC_CONTAINER_NAME: &'static str = "zkfc";
     // volumes
     pub const STACKABLE_CONFIG_VOLUME_MOUNT_NAME: &'static str = "config";
@@ -89,10 +83,13 @@ impl ContainerConfig {
 
     const JVM_HEAP_FACTOR: f32 = 0.8;
     const VECTOR_TOML: &'static str = "vector.toml";
+    const HADOOP_HOME: &'static str = "/stackable/hadoop";
+    const STACKABLE_ROOT_CONFIG_DIR: &'static str = "/stackable/config";
+    const STACKABLE_ROOT_DATA_DIR: &'static str = "/stackable/data";
 
     /// Creates the main process containers for:
     /// - Namenode main process
-    /// - Namenode ZooKeeper fail over controller
+    /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
     pub fn main_container(
@@ -133,13 +130,6 @@ impl ContainerConfig {
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<Vec<Container>, Error> {
         let mut init_containers = vec![];
-
-        let mut env = Self::transform_env_overrides_to_env_vars(env_overrides);
-        env.extend(Self::shared_env_vars(
-            // We use the config mount dir directly here to not have to copy to the standard directory
-            self.volume_mount_dirs().config_mount(),
-            zk_config_map_name,
-        ));
 
         if let ContainerConfig::Hdfs { role, .. } = self {
             match role {
@@ -231,7 +221,7 @@ impl ContainerConfig {
                  else
                    echo \"Pod $POD_NAME already formatted. Skipping...\"
                  fi",
-                    hadoop_home = HADOOP_HOME,
+                    hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
                         .map(|pod_ref| pod_ref.pod_name.as_ref())
@@ -241,7 +231,7 @@ impl ContainerConfig {
                 ),
             ])
             .add_env_vars(env)
-            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
+            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, Self::STACKABLE_ROOT_DATA_DIR)
             .add_volume_mount(
                 Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                 self.volume_mount_dirs().config_mount(),
@@ -272,11 +262,12 @@ impl ContainerConfig {
                 "sh".to_string(),
                 "-c".to_string(),
                 format!("
-                    test \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {HADOOP_HOME}/bin/hdfs zkfc -formatZK -nonInteractive || true"
+                    test \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", 
+                    hadoop_home = Self::HADOOP_HOME
                 )
             ])
             .add_env_vars(env)
-            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
+            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, Self::STACKABLE_ROOT_DATA_DIR)
             .add_volume_mount(Self::HDFS_CONFIG_VOLUME_MOUNT_NAME, self.volume_mount_dirs().config_mount()).build())
     }
 
@@ -332,7 +323,7 @@ impl ContainerConfig {
                   sleep 5
                 done
             ",
-                    hadoop_home = HADOOP_HOME,
+                    hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
                         .map(|pod_ref| pod_ref.pod_name.as_ref())
@@ -341,7 +332,7 @@ impl ContainerConfig {
                 ),
             ])
             .add_env_vars(env)
-            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
+            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, Self::STACKABLE_ROOT_DATA_DIR)
             .add_volume_mount(
                 Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                 self.volume_mount_dirs().config_mount(),
@@ -397,7 +388,7 @@ impl ContainerConfig {
 
                 args.push(format!(
                     "{hadoop_home}/bin/hdfs --debug {role}",
-                    hadoop_home = HADOOP_HOME,
+                    hadoop_home = Self::HADOOP_HOME,
                 ));
             }
             ContainerConfig::Zkfc { .. } => {
@@ -407,7 +398,10 @@ impl ContainerConfig {
                     stackable_hdfs_crd::Container::Zkfc,
                 ));
 
-                args.push(format!("{HADOOP_HOME}/bin/hdfs zkfc"));
+                args.push(format!(
+                    "{hadoop_home}/bin/hdfs zkfc",
+                    hadoop_home = Self::HADOOP_HOME
+                ));
             }
         }
         vec![args.join(" && ")]
@@ -469,7 +463,7 @@ impl ContainerConfig {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(
                 Self::STACKABLE_CONFIG_VOLUME_MOUNT_NAME,
-                STACKABLE_CONFIG_DIR,
+                Self::STACKABLE_ROOT_CONFIG_DIR,
             )
             .build(),
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
@@ -479,8 +473,11 @@ impl ContainerConfig {
         match self {
             ContainerConfig::Hdfs { .. } => {
                 volume_mounts.extend(vec![
-                    VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
-                        .build(),
+                    VolumeMountBuilder::new(
+                        Self::DATA_VOLUME_MOUNT_NAME,
+                        Self::STACKABLE_ROOT_DATA_DIR,
+                    )
+                    .build(),
                     VolumeMountBuilder::new(
                         Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                         self.volume_mount_dirs().config_mount(),
@@ -526,9 +523,10 @@ impl ContainerConfig {
     ) -> Option<String> {
         if logging.enable_vector_agent {
             return Some(format!(
-                "cp {vector_toml_location}/{vector_file} {STACKABLE_CONFIG_DIR}/{vector_file}",
+                "cp {vector_toml_location}/{vector_file} {stackable_config_dir}/{vector_file}",
                 vector_toml_location = self.volume_mount_dirs().config_mount(),
-                vector_file = Self::VECTOR_TOML
+                vector_file = Self::VECTOR_TOML,
+                stackable_config_dir = Self::STACKABLE_ROOT_CONFIG_DIR
             ));
         }
         None
@@ -627,7 +625,7 @@ impl ContainerConfig {
         vec![
             EnvVar {
                 name: "HADOOP_HOME".to_string(),
-                value: Some(String::from(HADOOP_HOME)),
+                value: Some(String::from(Self::HADOOP_HOME)),
                 ..EnvVar::default()
             },
             EnvVar {
