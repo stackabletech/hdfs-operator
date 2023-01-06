@@ -3,6 +3,7 @@
 //! For pods with the label `hdfs.stackable.tech/pod-service=true` a NodePort is created that exposes the local node pod.
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::constants::*;
+use stackable_hdfs_crd::HdfsRole;
 use stackable_operator::{
     builder::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
@@ -71,9 +72,9 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error
         .containers
         .iter()
         .filter(|container| {
-            container.name == "namenode"
-                || container.name == "datanode"
-                || container.name == "journalnode"
+            container.name == HdfsRole::NameNode.to_string()
+                || container.name == HdfsRole::DataNode.to_string()
+                || container.name == HdfsRole::JournalNode.to_string()
         })
         .flat_map(|c| c.ports.as_ref())
         .flat_map(|cp| cp.iter())
