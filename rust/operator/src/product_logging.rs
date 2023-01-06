@@ -37,7 +37,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
-pub const LOG4J_CONFIG_FILE: &str = "hdfs.log4j.properties";
+pub const HDFS_LOG4J_CONFIG_FILE: &str = "hdfs.log4j.properties";
 pub const ZKFC_LOG4J_CONFIG_FILE: &str = "zkfc.log4j.properties";
 
 const VECTOR_AGGREGATOR_CM_ENTRY: &str = "ADDRESS";
@@ -91,7 +91,7 @@ pub fn extend_role_group_config_map(
     }) = logging.containers.get(&Container::Hdfs)
     {
         cm_builder.add_data(
-            LOG4J_CONFIG_FILE,
+            HDFS_LOG4J_CONFIG_FILE,
             product_logging::framework::create_log4j_config(
                 &format!("{STACKABLE_LOG_DIR}/hdfs"),
                 HDFS_LOG_FILE,
