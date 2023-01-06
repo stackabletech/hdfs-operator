@@ -206,9 +206,8 @@ impl HdfsRole {
                     })?;
 
                 let mut role_config = role.config.config.clone();
-                let mut role_group_config = role
-                    .role_groups
-                    .get(role_group)
+                let mut role_group_config = hdfs
+                    .namenode_rolegroup(role_group)
                     .with_context(|| MissingRoleGroupSnafu {
                         role: HdfsRole::NameNode.to_string(),
                         role_group: role_group.to_string(),
@@ -235,9 +234,8 @@ impl HdfsRole {
                     })?;
 
                 let mut role_config = role.config.config.clone();
-                let mut role_group_config = role
-                    .role_groups
-                    .get(role_group)
+                let mut role_group_config = hdfs
+                    .datanode_rolegroup(role_group)
                     .with_context(|| MissingRoleGroupSnafu {
                         role: HdfsRole::DataNode.to_string(),
                         role_group: role_group.to_string(),
@@ -264,9 +262,8 @@ impl HdfsRole {
                     })?;
 
                 let mut role_config = role.config.config.clone();
-                let mut role_group_config = role
-                    .role_groups
-                    .get(role_group)
+                let mut role_group_config = hdfs
+                    .journalnode_rolegroup(role_group)
                     .with_context(|| MissingRoleGroupSnafu {
                         role: HdfsRole::JournalNode.to_string(),
                         role_group: role_group.to_string(),
@@ -318,40 +315,32 @@ impl HdfsCluster {
         group_labels
     }
 
-    /// Get a reference to the datanode [`RoleGroup`] struct if it exists.
-    pub fn datanode_rolegroup(
-        &self,
-        rg_ref: &RoleGroupRef<Self>,
-    ) -> Option<&RoleGroup<DataNodeConfigFragment>> {
-        self.spec
-            .data_nodes
-            .as_ref()?
-            .role_groups
-            .get(&rg_ref.role_group)
-    }
-
     /// Get a reference to the namenode [`RoleGroup`] struct if it exists.
     pub fn namenode_rolegroup(
         &self,
-        rg_ref: &RoleGroupRef<Self>,
+        role_group: &str,
     ) -> Option<&RoleGroup<NameNodeConfigFragment>> {
-        self.spec
-            .name_nodes
-            .as_ref()?
-            .role_groups
-            .get(&rg_ref.role_group)
+        self.spec.name_nodes.as_ref()?.role_groups.get(role_group)
+    }
+
+    /// Get a reference to the datanode [`RoleGroup`] struct if it exists.
+    pub fn datanode_rolegroup(
+        &self,
+        role_group: &str,
+    ) -> Option<&RoleGroup<DataNodeConfigFragment>> {
+        self.spec.data_nodes.as_ref()?.role_groups.get(role_group)
     }
 
     /// Get a reference to the journalnode [`RoleGroup`] struct if it exists.
     pub fn journalnode_rolegroup(
         &self,
-        rg_ref: &RoleGroupRef<Self>,
+        role_group: &str,
     ) -> Option<&RoleGroup<JournalNodeConfigFragment>> {
         self.spec
             .journal_nodes
             .as_ref()?
             .role_groups
-            .get(&rg_ref.role_group)
+            .get(role_group)
     }
 
     pub fn rolegroup_ref(
@@ -393,21 +382,6 @@ impl HdfsCluster {
         role: &HdfsRole,
     ) -> Vec<(RoleGroupRef<HdfsCluster>, u16)> {
         match role {
-            HdfsRole::JournalNode => self
-                .spec
-                .journal_nodes
-                .iter()
-                .flat_map(|role| &role.role_groups)
-                // Order rolegroups consistently, to avoid spurious downstream rewrites
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .map(|(rolegroup_name, role_group)| {
-                    (
-                        self.rolegroup_ref(HdfsRole::JournalNode.to_string(), rolegroup_name),
-                        role_group.replicas.unwrap_or_default(),
-                    )
-                })
-                .collect(),
             HdfsRole::NameNode => self
                 .spec
                 .name_nodes
@@ -434,6 +408,21 @@ impl HdfsCluster {
                 .map(|(rolegroup_name, role_group)| {
                     (
                         self.rolegroup_ref(HdfsRole::DataNode.to_string(), rolegroup_name),
+                        role_group.replicas.unwrap_or_default(),
+                    )
+                })
+                .collect(),
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .iter()
+                .flat_map(|role| &role.role_groups)
+                // Order rolegroups consistently, to avoid spurious downstream rewrites
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(rolegroup_name, role_group)| {
+                    (
+                        self.rolegroup_ref(HdfsRole::JournalNode.to_string(), rolegroup_name),
                         role_group.replicas.unwrap_or_default(),
                     )
                 })

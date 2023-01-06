@@ -625,7 +625,7 @@ fn rolegroup_statefulset(
     // role specific pod settings configured here
     match role {
         HdfsRole::NameNode => {
-            let rg = hdfs.namenode_rolegroup(rolegroup_ref);
+            let rg = hdfs.namenode_rolegroup(&rolegroup_ref.role_group);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
 
@@ -674,7 +674,7 @@ fn rolegroup_statefulset(
         HdfsRole::DataNode => {
             let hdfs_data_node_container_config = ContainerConfig::from(role.clone());
 
-            let rg = hdfs.datanode_rolegroup(rolegroup_ref);
+            let rg = hdfs.datanode_rolegroup(&rolegroup_ref.role_group);
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             for init_container in hdfs_data_node_container_config
@@ -704,7 +704,7 @@ fn rolegroup_statefulset(
         HdfsRole::JournalNode => {
             let hdfs_journal_node_container_config = ContainerConfig::from(role.clone());
 
-            let rg = hdfs.journalnode_rolegroup(rolegroup_ref);
+            let rg = hdfs.journalnode_rolegroup(&rolegroup_ref.role_group);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
 
