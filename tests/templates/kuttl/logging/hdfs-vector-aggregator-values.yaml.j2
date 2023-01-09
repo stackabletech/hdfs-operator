@@ -80,8 +80,6 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
         .container == "vector"
-
-
     customLogConfigNameNode0:
       type: filter
       inputs: [vector]
@@ -104,7 +102,7 @@ customConfig:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
         .container == "zkfc"
     customLogConfigNameNode0Vector:
       type: filter
