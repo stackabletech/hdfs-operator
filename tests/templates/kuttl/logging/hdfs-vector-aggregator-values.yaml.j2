@@ -20,89 +20,178 @@ customConfig:
       type: vector
       version: "2"
   transforms:
-    automaticLogConfigNameNode:
+    automaticLogConfigNameNode0:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-namenode-automatic-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "hdfs"
-    automaticLogConfigNameNodeZkfc:
+    automaticLogConfigNameNode1:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-namenode-automatic-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "hdfs"
+    automaticLogConfigNameNode0Zkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "zkfc"
-    automaticLogConfigNameNodeVector:
+    automaticLogConfigNameNode1Zkfc:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-namenode-automatic-log-config-0" &&
-        .container == "vector"
-    customLogConfigNameNode:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        .pod == "test-hdfs-namenode-custom-log-config-0" &&
-        .container == "hdfs"
-    customLogConfigNameNodeZkfc:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        .pod == "test-hdfs-namenode-custom-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "zkfc"
-    customLogConfigNameNodeVector:
+    automaticLogConfigNameNode0Vector:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-namenode-custom-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "vector"
-    automaticLogConfigDataNode:
+    automaticLogConfigNameNode1Vector:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-datanode-automatic-log-config-0" &&
-        .container == "hdfs"
-    automaticLogConfigDataNodeVector:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        .pod == "test-hdfs-datanode-automatic-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "vector"
-    customLogConfigDataNode:
+
+    automaticLogConfigDataNode0:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-datanode-custom-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "hdfs"
-    customLogConfigDataNodeVector:
+    automaticLogConfigDataNode1:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-datanode-custom-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-datanode-default-1" &&
+        .container == "hdfs"
+    automaticLogConfigDataNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "vector"
-    automaticLogConfigJournalNode:
+    automaticLogConfigDataNode1Vector:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-journalnode-automatic-log-config-0" &&
-        .container == "hdfs"
-    automaticLogConfigJournalNodeVector:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        .pod == "test-hdfs-journalnode-automatic-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-datanode-default-1" &&
         .container == "vector"
-    customLogConfigJournalNode:
+
+    automaticLogConfigJournalNode0:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-journalnode-custom-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
         .container == "hdfs"
-    customLogConfigJournalNodeVector:
+    automaticLogConfigJournalNode1:
       type: filter
       inputs: [vector]
       condition: >-
-        .pod == "test-hdfs-journalnode-custom-log-config-0" &&
+        .pod == "test-hdfs-automatic-log-journalnode-default-1" &&
+        .container == "hdfs"
+    automaticLogConfigJournalNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
+        .container == "vector"
+    automaticLogConfigJournalNode1Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-journalnode-default-1" &&
+        .container == "vector"
+
+    customLogConfigNameNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "hdfs"
+    customLogConfigNameNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "hdfs"
+    customLogConfigNameNode0Zkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "zkfc"
+    customLogConfigNameNode1Zkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "zkfc"
+    customLogConfigNameNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "vector"
+    customLogConfigNameNode1Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "vector"
+
+    customLogConfigDataNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-0" &&
+        .container == "hdfs"
+    customLogConfigDataNode1:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-1" &&
+        .container == "hdfs"
+    customLogConfigDataNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-0" &&
+        .container == "vector"
+    customLogConfigDataNode1Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-1" &&
+        .container == "vector"
+
+    customLogConfigJournalNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-journalnode-default-0" &&
+        .container == "hdfs"
+    customLogConfigJournalNode1:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-journalnode-default-1" &&
+        .container == "hdfs"
+    customLogConfigJournalNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-journalnode-default-0" &&
+        .container == "vector"
+    customLogConfigJournalNode1Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-journalnode-default-1" &&
         .container == "vector"
   sinks:
     out:

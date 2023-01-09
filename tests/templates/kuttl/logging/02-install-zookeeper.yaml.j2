@@ -23,7 +23,15 @@ spec:
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperZnode
 metadata:
-  name: test-znode
+  name: test-hdfs-automatic-log-znode
+spec:
+  clusterRef:
+    name: test-zk
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: test-hdfs-custom-log-znode
 spec:
   clusterRef:
     name: test-zk

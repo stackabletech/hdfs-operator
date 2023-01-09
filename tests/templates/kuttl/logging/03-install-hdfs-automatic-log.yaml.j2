@@ -1,40 +1,18 @@
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hdfs-log-config
-data:
-  hdfs.log4j.properties: |
-    log4j.rootLogger=INFO, FILE
-    log4j.appender.FILE=org.apache.log4j.FileAppender
-    log4j.appender.FILE.File=/stackable/log/hdfs/hdfs.log4j.xml
-    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hdfs-zkfc-log-config
-data:
-  zkfc.log4j.properties: |
-    log4j.rootLogger=INFO, FILE
-    log4j.appender.FILE=org.apache.log4j.FileAppender
-    log4j.appender.FILE.File=/stackable/log/zkfc/zkfc.log4j.xml
-    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
----
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
-  name: test-hdfs
+  name: test-hdfs-automatic-log
 spec:
   image:
     productVersion: "{{ test_scenario['values']['hdfs-latest'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['hdfs-latest'].split('-stackable')[1] }}"
   vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
-  zookeeperConfigMapName: test-znode
+  zookeeperConfigMapName: test-hdfs-automatic-log-znode
   nameNodes:
     roleGroups:
-      automatic-log-config:
-        replicas: 1
+      default:
+        replicas: 2
         config:
           logging:
             enableVectorAgent: true
@@ -63,21 +41,9 @@ spec:
                 loggers:
                   ROOT:
                     level: INFO
-      custom-log-config:
-        replicas: 1
-        config:
-          logging:
-            enableVectorAgent: true
-            containers:
-              hdfs:
-                custom:
-                  configMap: hdfs-log-config
-              zkfc:
-                custom:
-                  configMap: hdfs-zkfc-log-config
   dataNodes:
     roleGroups:
-      automatic-log-config:
+      default:
         replicas: 1
         config:
           logging:
@@ -99,18 +65,9 @@ spec:
                 loggers:
                   ROOT:
                     level: INFO
-      custom-log-config:
-        replicas: 1
-        config:
-          logging:
-            enableVectorAgent: true
-            containers:
-              hdfs:
-                custom:
-                  configMap: hdfs-log-config
   journalNodes:
     roleGroups:
-      automatic-log-config:
+      default:
         replicas: 1
         config:
           logging:
@@ -132,12 +89,3 @@ spec:
                 loggers:
                   ROOT:
                     level: INFO
-      custom-log-config:
-        replicas: 1
-        config:
-          logging:
-            enableVectorAgent: true
-            containers:
-              hdfs:
-                custom:
-                  configMap: hdfs-log-config
