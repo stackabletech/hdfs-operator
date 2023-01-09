@@ -195,7 +195,7 @@ dataNodes:
               hdfsStorageType: Ssd
 ----
 
-This will create 3 pvcs:
+This will create 3 PVCs:
 
 1. `data-hdfs-datanode-default-0` (5Ti)
 2. `data-1-hdfs-datanode-default-0` (5Ti)
