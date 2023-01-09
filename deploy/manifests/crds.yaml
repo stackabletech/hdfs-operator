@@ -205,8 +205,8 @@ spec:
                                     enum:
                                       - Archive
                                       - Disk
-                                      - Ssd
-                                      - RamDisk
+                                      - SSD
+                                      - RAMDisk
                                     nullable: true
                                     type: string
                                   selectors:
@@ -436,8 +436,8 @@ spec:
                                           enum:
                                             - Archive
                                             - Disk
-                                            - Ssd
-                                            - RamDisk
+                                            - SSD
+                                            - RAMDisk
                                           nullable: true
                                           type: string
                                         selectors:

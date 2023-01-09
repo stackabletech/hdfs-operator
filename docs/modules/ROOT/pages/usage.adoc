@@ -192,7 +192,7 @@ dataNodes:
               capacity: 500Gi
               storageClass: premium
               count: 1
-              hdfsStorageType: Ssd
+              hdfsStorageType: SSD
 ----
 
 This will create 3 PVCs:

@@ -63,7 +63,9 @@ pub struct DataNodePvc {
 pub enum HdfsStorageType {
     Archive,
     Disk,
+    #[serde(rename = "SSD")]
     Ssd,
+    #[serde(rename = "RAMDisk")]
     RamDisk,
 }
 

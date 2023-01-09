@@ -889,7 +889,7 @@ spec:
                 capacity: 10Gi
                 storageClass: premium
                 count: 3
-                hdfsStorageType: Ssd
+                hdfsStorageType: SSD
   journalNodes:
     roleGroups:
       default:
