@@ -212,7 +212,7 @@ dataNodes:
         resources:
           cpu:
             max: '4'
-            min: '500m'
+            min: '100m'
           storage:
             data:
               capacity: 2Gi
