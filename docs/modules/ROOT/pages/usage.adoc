@@ -205,7 +205,7 @@ By configuring and using a dedicated `storageClass` you can configure your HDFS 
 
 [NOTE]
 ====
-You might need to re-create the StatefulSet to apply the new pvc configurations because of https://github.com/kubernetes/kubernetes/issues/68737[this Kubernetes issue].
+You might need to re-create the StatefulSet to apply the new PVC configuration because of https://github.com/kubernetes/kubernetes/issues/68737[this Kubernetes issue].
 You can delete the StatefulSet using `kubectl delete sts --cascade=false <statefulset>`.
 The hdfs-operator will re-create the StatefulSet automatically.
 ====
