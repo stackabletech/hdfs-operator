@@ -57,11 +57,11 @@ const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
-pub const MAX_HDFS_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
 
 const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
 const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    MAX_HDFS_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
+    MAX_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -280,6 +280,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
+                &role,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
@@ -377,6 +378,7 @@ fn rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
+    role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
@@ -469,6 +471,7 @@ fn rolegroup_config_map(
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml);
 
     extend_role_group_config_map(
+        role,
         rolegroup_ref,
         vector_aggregator_address,
         &merged_config.logging(),

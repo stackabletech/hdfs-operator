@@ -1,7 +1,7 @@
-use crate::hdfs_controller::MAX_HDFS_LOG_FILES_SIZE_IN_MIB;
+use crate::hdfs_controller::MAX_LOG_FILES_SIZE_IN_MIB;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{Container, HdfsCluster};
+use stackable_hdfs_crd::{Container, HdfsCluster, HdfsRole};
 use stackable_operator::{
     builder::ConfigMapBuilder,
     client::Client,
@@ -79,6 +79,7 @@ pub async fn resolve_vector_aggregator_address(
 
 /// Extend the role group ConfigMap with logging and Vector configurations
 pub fn extend_role_group_config_map(
+    role: &HdfsRole,
     rolegroup: &RoleGroupRef<HdfsCluster>,
     vector_aggregator_address: Option<&str>,
     logging: &Logging<Container>,
@@ -93,27 +94,29 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!("{STACKABLE_LOG_DIR}/hdfs"),
                 HDFS_LOG_FILE,
-                MAX_HDFS_LOG_FILES_SIZE_IN_MIB,
+                MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
                 log_config,
             ),
         );
     }
 
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&Container::Zkfc)
-    {
-        cm_builder.add_data(
-            ZKFC_LOG4J_CONFIG_FILE,
-            product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/zkfc"),
-                ZKFC_LOG_FILE,
-                MAX_HDFS_LOG_FILES_SIZE_IN_MIB,
-                CONSOLE_CONVERSION_PATTERN,
-                log_config,
-            ),
-        );
+    if role == &HdfsRole::NameNode {
+        if let Some(ContainerLogConfig {
+            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+        }) = logging.containers.get(&Container::Zkfc)
+        {
+            cm_builder.add_data(
+                ZKFC_LOG4J_CONFIG_FILE,
+                product_logging::framework::create_log4j_config(
+                    &format!("{STACKABLE_LOG_DIR}/zkfc"),
+                    ZKFC_LOG_FILE,
+                    MAX_LOG_FILES_SIZE_IN_MIB,
+                    CONSOLE_CONVERSION_PATTERN,
+                    log_config,
+                ),
+            );
+        }
     }
 
     let vector_log_config = if let Some(ContainerLogConfig {
