@@ -25,5 +25,5 @@ tests:
       - zookeeper-latest
   - name: logging
     dimensions:
-      - hdfs
+      - hadoop
       - zookeeper-latest
