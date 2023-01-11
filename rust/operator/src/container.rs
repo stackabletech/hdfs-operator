@@ -73,7 +73,6 @@ impl ContainerConfig {
     // extra side containers
     pub const ZKFC_CONTAINER_NAME: &'static str = "zkfc";
     // volumes
-    pub const STACKABLE_CONFIG_VOLUME_MOUNT_NAME: &'static str = "config";
     pub const STACKABLE_LOG_VOLUME_MOUNT_NAME: &'static str = "log";
     pub const DATA_VOLUME_MOUNT_NAME: &'static str = "data";
     pub const HDFS_CONFIG_VOLUME_MOUNT_NAME: &'static str = "hdfs-config";
@@ -82,9 +81,7 @@ impl ContainerConfig {
     pub const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
 
     const JVM_HEAP_FACTOR: f32 = 0.8;
-    const VECTOR_TOML: &'static str = "vector.toml";
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
-    const STACKABLE_ROOT_CONFIG_DIR: &'static str = "/stackable/config";
     const STACKABLE_ROOT_DATA_DIR: &'static str = "/stackable/data";
 
     /// Creates the main process containers for:
@@ -374,10 +371,6 @@ impl ContainerConfig {
             self.copy_hdfs_and_core_site_xml_cmd(),
         ];
 
-        if let Some(cp_vector_toml_cmd) = self.copy_vector_toml_cmd(logging) {
-            args.push(cp_vector_toml_cmd);
-        }
-
         match self {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push(self.copy_log4j_properties_cmd(
@@ -460,15 +453,11 @@ impl ContainerConfig {
 
     /// Returns the main container volume mounts.
     fn volume_mounts(&self) -> Vec<VolumeMount> {
-        let mut volume_mounts = vec![
-            VolumeMountBuilder::new(
-                Self::STACKABLE_CONFIG_VOLUME_MOUNT_NAME,
-                Self::STACKABLE_ROOT_CONFIG_DIR,
-            )
-            .build(),
-            VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
-                .build(),
-        ];
+        let mut volume_mounts =
+            vec![
+                VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
+                    .build(),
+            ];
 
         match self {
             ContainerConfig::Hdfs { .. } => {
@@ -514,22 +503,6 @@ impl ContainerConfig {
             "mkdir -p {config_dir_name}",
             config_dir_name = self.volume_mount_dirs().final_config()
         )
-    }
-
-    /// Copy the `vector.toml` config file if available to the stackable config dir.
-    fn copy_vector_toml_cmd(
-        &self,
-        logging: &Logging<stackable_hdfs_crd::Container>,
-    ) -> Option<String> {
-        if logging.enable_vector_agent {
-            return Some(format!(
-                "cp {vector_toml_location}/{vector_file} {stackable_config_dir}/{vector_file}",
-                vector_toml_location = self.volume_mount_dirs().config_mount(),
-                vector_file = Self::VECTOR_TOML,
-                stackable_config_dir = Self::STACKABLE_ROOT_CONFIG_DIR
-            ));
-        }
-        None
     }
 
     /// Copy the `core-site.xml` and `hdfs-site.xml` to the respective container config dir.

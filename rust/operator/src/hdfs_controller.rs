@@ -521,15 +521,6 @@ fn rolegroup_statefulset(
             .build(),
     )
     .add_volume(
-        VolumeBuilder::new(ContainerConfig::STACKABLE_CONFIG_VOLUME_MOUNT_NAME)
-            .empty_dir(EmptyDirVolumeSource {
-                medium: None,
-                // TODO: determine size
-                size_limit: Some(Quantity("11Mi".to_string())),
-            })
-            .build(),
-    )
-    .add_volume(
         VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
             .empty_dir(EmptyDirVolumeSource {
                 medium: None,
