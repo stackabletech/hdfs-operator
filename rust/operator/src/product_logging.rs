@@ -39,7 +39,7 @@ pub const HDFS_LOG4J_CONFIG_FILE: &str = "hdfs.log4j.properties";
 pub const ZKFC_LOG4J_CONFIG_FILE: &str = "zkfc.log4j.properties";
 
 const VECTOR_AGGREGATOR_CM_ENTRY: &str = "ADDRESS";
-const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %-5p [%t] %c{2}: %.1000m%n";
+const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %-5p %c{2} (%F:%M(%L)) - %m%n";
 const HDFS_LOG_FILE: &str = "hdfs.log4j.xml";
 const ZKFC_LOG_FILE: &str = "zkfc.log4j.xml";
 
