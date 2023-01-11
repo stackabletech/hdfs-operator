@@ -258,8 +258,7 @@ impl ContainerConfig {
             .args(vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                format!("
-                    test \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", 
+                format!("test \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", 
                     hadoop_home = Self::HADOOP_HOME
                 )
             ])
