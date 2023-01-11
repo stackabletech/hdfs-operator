@@ -10,7 +10,7 @@ use stackable_hdfs_crd::{
         DEFAULT_NAME_NODE_METRICS_PORT, HDFS_SITE_XML, LOG4J_PROPERTIES, SERVICE_PORT_NAME_IPC,
         SERVICE_PORT_NAME_RPC,
     },
-    HdfsPodRef, HdfsRole,
+    HdfsPodRef, HdfsRole, MergedConfig,
 };
 use stackable_operator::{
     builder::{ContainerBuilder, VolumeMountBuilder},
@@ -23,7 +23,7 @@ use stackable_operator::{
         apimachinery::pkg::util::intstr::IntOrString,
     },
     memory::to_java_heap,
-    product_logging::spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
+    product_logging::spec::{ContainerLogConfig, ContainerLogConfigChoice},
 };
 use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
@@ -94,21 +94,22 @@ impl ContainerConfig {
         resolved_product_image: &ResolvedProductImage,
         zk_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
-        resources: &ResourceRequirements,
-        logging: &Logging<stackable_hdfs_crd::Container>,
+        merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Result<Container, Error> {
         let mut cb =
             ContainerBuilder::new(self.name()).with_context(|_| InvalidContainerNameSnafu {
                 name: self.name().to_string(),
             })?;
 
+        let resources = merged_config.resources();
+
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
-            .args(self.args(logging))
-            .add_env_vars(self.env(zk_config_map_name, env_overrides, resources)?)
+            .args(self.args(merged_config))
+            .add_env_vars(self.env(zk_config_map_name, env_overrides, &resources.into())?)
             .add_volume_mounts(self.volume_mounts())
             .add_container_ports(self.container_ports())
-            .resources(resources.clone());
+            .resources(merged_config.resources().into());
 
         if let Some(probe) = self.tcp_socket_action_probe(10, 10) {
             cb.readiness_probe(probe.clone());
@@ -364,7 +365,7 @@ impl ContainerConfig {
     }
 
     /// Returns the container command arguments.
-    fn args(&self, logging: &Logging<stackable_hdfs_crd::Container>) -> Vec<String> {
+    fn args(&self, merged_config: &(dyn MergedConfig + Send + 'static)) -> Vec<String> {
         let mut args = vec![
             self.create_config_directory_cmd(),
             self.copy_hdfs_and_core_site_xml_cmd(),
@@ -373,9 +374,8 @@ impl ContainerConfig {
         match self {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push(self.copy_log4j_properties_cmd(
-                    logging,
                     HDFS_LOG4J_CONFIG_FILE,
-                    stackable_hdfs_crd::Container::Hdfs,
+                    merged_config.hdfs_logging(),
                 ));
 
                 args.push(format!(
@@ -384,16 +384,16 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::Zkfc { .. } => {
-                args.push(self.copy_log4j_properties_cmd(
-                    logging,
-                    ZKFC_LOG4J_CONFIG_FILE,
-                    stackable_hdfs_crd::Container::Zkfc,
-                ));
+                if let Some(container_config) = merged_config.zkfc_logging() {
+                    args.push(
+                        self.copy_log4j_properties_cmd(ZKFC_LOG4J_CONFIG_FILE, container_config),
+                    );
 
-                args.push(format!(
-                    "{hadoop_home}/bin/hdfs zkfc",
-                    hadoop_home = Self::HADOOP_HOME
-                ));
+                    args.push(format!(
+                        "{hadoop_home}/bin/hdfs zkfc",
+                        hadoop_home = Self::HADOOP_HOME
+                    ));
+                }
             }
         }
         vec![args.join(" && ")]
@@ -527,13 +527,12 @@ impl ContainerConfig {
     /// - Automatic: the container config mount dir
     fn copy_log4j_properties_cmd(
         &self,
-        logging: &Logging<stackable_hdfs_crd::Container>,
         log4j_config_file: &str,
-        container: stackable_hdfs_crd::Container,
+        container_log_config: ContainerLogConfig,
     ) -> String {
-        let source_log4j_properties_dir = if let Some(ContainerLogConfig {
+        let source_log4j_properties_dir = if let ContainerLogConfig {
             choice: Some(ContainerLogConfigChoice::Custom(_)),
-        }) = logging.containers.get(&container)
+        } = container_log_config
         {
             self.volume_mount_dirs().log_mount()
         } else {

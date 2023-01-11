@@ -22,7 +22,7 @@ use stackable_operator::{
     product_config::types::PropertyNameKind,
     product_config_utils::{ConfigError, Configuration},
     product_logging,
-    product_logging::spec::Logging,
+    product_logging::spec::{ContainerLogConfig, Logging},
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
@@ -77,8 +77,30 @@ pub struct HdfsClusterSpec {
 /// This is a shared trait for all role/role-group config structs to avoid duplication
 /// when extracting role specific configuration structs.
 pub trait MergedConfig {
+    /// Resources shared by all roles
     fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits>;
-    fn logging(&self) -> Logging<Container>;
+    /// Main container shared by all roles
+    fn hdfs_logging(&self) -> ContainerLogConfig;
+    /// Vector container shared by all roles
+    fn vector_logging(&self) -> ContainerLogConfig;
+    /// Helper method to access if vector container should be deployed
+    fn vector_logging_enabled(&self) -> bool;
+    /// Namenode side container (ZooKeeperFailOverController)
+    fn zkfc_logging(&self) -> Option<ContainerLogConfig> {
+        None
+    }
+    /// Namenode init container to format namenode
+    fn format_namenode_logging(&self) -> Option<ContainerLogConfig> {
+        None
+    }
+    /// Namenode init container to format zookeeper
+    fn format_zookeeper_logging(&self) -> Option<ContainerLogConfig> {
+        None
+    }
+    /// Datanode init container to wait for namenodes to become ready
+    fn wait_for_namenode(&self) -> Option<ContainerLogConfig> {
+        None
+    }
 }
 
 #[derive(
@@ -525,26 +547,6 @@ pub struct HdfsStorageConfig {
     pub data: PvcConfig,
 }
 
-#[derive(
-    Clone,
-    Debug,
-    Deserialize,
-    Display,
-    Eq,
-    EnumIter,
-    JsonSchema,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-)]
-#[serde(rename_all = "camelCase")]
-pub enum Container {
-    Hdfs,
-    Vector,
-    Zkfc,
-}
-
 fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntimeLimits> {
     ResourcesFragment {
         cpu: CpuLimitsFragment {
@@ -565,6 +567,28 @@ fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntim
     }
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum NameNodeContainer {
+    Hdfs,
+    Vector,
+    Zkfc,
+    FormatNameNode,
+    FormatZooKeeper,
+}
+
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -583,15 +607,53 @@ pub struct NameNodeConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
-    pub logging: Logging<Container>,
+    pub logging: Logging<NameNodeContainer>,
 }
 
 impl MergedConfig for NameNodeConfig {
     fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
         self.resources.clone()
     }
-    fn logging(&self) -> Logging<Container> {
-        self.logging.clone()
+
+    fn hdfs_logging(&self) -> ContainerLogConfig {
+        self.logging
+            .containers
+            .get(&NameNodeContainer::Hdfs)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn vector_logging(&self) -> ContainerLogConfig {
+        self.logging
+            .containers
+            .get(&NameNodeContainer::Vector)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn vector_logging_enabled(&self) -> bool {
+        self.logging.enable_vector_agent
+    }
+
+    fn zkfc_logging(&self) -> Option<ContainerLogConfig> {
+        self.logging
+            .containers
+            .get(&NameNodeContainer::Zkfc)
+            .cloned()
+    }
+
+    fn format_namenode_logging(&self) -> Option<ContainerLogConfig> {
+        self.logging
+            .containers
+            .get(&NameNodeContainer::FormatNameNode)
+            .cloned()
+    }
+
+    fn format_zookeeper_logging(&self) -> Option<ContainerLogConfig> {
+        self.logging
+            .containers
+            .get(&NameNodeContainer::FormatZooKeeper)
+            .cloned()
     }
 }
 
@@ -640,6 +702,26 @@ impl Configuration for NameNodeConfigFragment {
     }
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum DataNodeContainer {
+    Hdfs,
+    Vector,
+    WaitForNameNode,
+}
+
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -658,15 +740,39 @@ pub struct DataNodeConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
-    pub logging: Logging<Container>,
+    pub logging: Logging<DataNodeContainer>,
 }
 
 impl MergedConfig for DataNodeConfig {
     fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
         self.resources.clone()
     }
-    fn logging(&self) -> Logging<Container> {
-        self.logging.clone()
+
+    fn hdfs_logging(&self) -> ContainerLogConfig {
+        self.logging
+            .containers
+            .get(&DataNodeContainer::Hdfs)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn vector_logging(&self) -> ContainerLogConfig {
+        self.logging
+            .containers
+            .get(&DataNodeContainer::Vector)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn vector_logging_enabled(&self) -> bool {
+        self.logging.enable_vector_agent
+    }
+
+    fn wait_for_namenode(&self) -> Option<ContainerLogConfig> {
+        self.logging
+            .containers
+            .get(&DataNodeContainer::WaitForNameNode)
+            .cloned()
     }
 }
 
@@ -715,6 +821,25 @@ impl Configuration for DataNodeConfigFragment {
     }
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum JournalNodeContainer {
+    Hdfs,
+    Vector,
+}
+
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -733,15 +858,32 @@ pub struct JournalNodeConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
-    pub logging: Logging<Container>,
+    pub logging: Logging<JournalNodeContainer>,
 }
 
 impl MergedConfig for JournalNodeConfig {
     fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
         self.resources.clone()
     }
-    fn logging(&self) -> Logging<Container> {
-        self.logging.clone()
+
+    fn hdfs_logging(&self) -> ContainerLogConfig {
+        self.logging
+            .containers
+            .get(&JournalNodeContainer::Hdfs)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn vector_logging(&self) -> ContainerLogConfig {
+        self.logging
+            .containers
+            .get(&JournalNodeContainer::Vector)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn vector_logging_enabled(&self) -> bool {
+        self.logging.enable_vector_agent
     }
 }
 

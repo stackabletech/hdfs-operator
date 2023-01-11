@@ -1,7 +1,7 @@
 use crate::hdfs_controller::MAX_LOG_FILES_SIZE_IN_MIB;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{Container, HdfsCluster, HdfsRole};
+use stackable_hdfs_crd::{HdfsCluster, MergedConfig};
 use stackable_operator::{
     builder::ConfigMapBuilder,
     client::Client,
@@ -9,7 +9,7 @@ use stackable_operator::{
     kube::ResourceExt,
     product_logging::{
         self,
-        spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
+        spec::{ContainerLogConfig, ContainerLogConfigChoice},
     },
     role_utils::RoleGroupRef,
 };
@@ -79,15 +79,14 @@ pub async fn resolve_vector_aggregator_address(
 
 /// Extend the role group ConfigMap with logging and Vector configurations
 pub fn extend_role_group_config_map(
-    role: &HdfsRole,
     rolegroup: &RoleGroupRef<HdfsCluster>,
     vector_aggregator_address: Option<&str>,
-    logging: &Logging<Container>,
+    merged_config: &(dyn MergedConfig + Send + 'static),
     cm_builder: &mut ConfigMapBuilder,
 ) -> Result<()> {
-    if let Some(ContainerLogConfig {
+    if let ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&Container::Hdfs)
+    } = merged_config.hdfs_logging()
     {
         cm_builder.add_data(
             HDFS_LOG4J_CONFIG_FILE,
@@ -96,45 +95,43 @@ pub fn extend_role_group_config_map(
                 HDFS_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
-                log_config,
+                &log_config,
             ),
         );
     }
 
-    if role == &HdfsRole::NameNode {
-        if let Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) = logging.containers.get(&Container::Zkfc)
-        {
-            cm_builder.add_data(
-                ZKFC_LOG4J_CONFIG_FILE,
-                product_logging::framework::create_log4j_config(
-                    &format!("{STACKABLE_LOG_DIR}/zkfc"),
-                    ZKFC_LOG_FILE,
-                    MAX_LOG_FILES_SIZE_IN_MIB,
-                    CONSOLE_CONVERSION_PATTERN,
-                    log_config,
-                ),
-            );
-        }
+    if let Some(ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    }) = merged_config.zkfc_logging()
+    {
+        cm_builder.add_data(
+            ZKFC_LOG4J_CONFIG_FILE,
+            product_logging::framework::create_log4j_config(
+                &format!("{STACKABLE_LOG_DIR}/zkfc"),
+                ZKFC_LOG_FILE,
+                MAX_LOG_FILES_SIZE_IN_MIB,
+                CONSOLE_CONVERSION_PATTERN,
+                &log_config,
+            ),
+        );
     }
 
-    let vector_log_config = if let Some(ContainerLogConfig {
+    let vector_log_config = if let ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&Container::Vector)
+    } = merged_config.vector_logging()
     {
         Some(log_config)
     } else {
         None
     };
 
-    if logging.enable_vector_agent {
+    if merged_config.vector_logging_enabled() {
         cm_builder.add_data(
             product_logging::framework::VECTOR_CONFIG_FILE,
             product_logging::framework::create_vector_config(
                 rolegroup,
                 vector_aggregator_address.context(MissingVectorAggregatorAddressSnafu)?,
-                vector_log_config,
+                vector_log_config.as_ref(),
             ),
         );
     }

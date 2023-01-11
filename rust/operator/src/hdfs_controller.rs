@@ -280,7 +280,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
-                &role,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
@@ -378,7 +377,6 @@ fn rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
-    role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
@@ -471,10 +469,9 @@ fn rolegroup_config_map(
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml);
 
     extend_role_group_config_map(
-        role,
         rolegroup_ref,
         vector_aggregator_address,
-        &merged_config.logging(),
+        merged_config,
         &mut builder,
     )
     .context(InvalidLoggingConfigSnafu {
@@ -502,7 +499,6 @@ fn rolegroup_statefulset(
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
 
-    let logging = merged_config.logging();
     let service_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
@@ -537,17 +533,17 @@ fn rolegroup_statefulset(
             .build(),
     );
 
-    if let Some(ContainerLogConfig {
+    if let ContainerLogConfig {
         choice:
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                 custom: ConfigMapLogConfig { config_map },
             })),
-    }) = logging.containers.get(&stackable_hdfs_crd::Container::Hdfs)
+    } = merged_config.hdfs_logging()
     {
         pb.add_volume(
             VolumeBuilder::new(ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME)
                 .config_map(ConfigMapVolumeSource {
-                    name: Some(config_map.clone()),
+                    name: Some(config_map),
                     ..ConfigMapVolumeSource::default()
                 })
                 .build(),
@@ -563,7 +559,7 @@ fn rolegroup_statefulset(
         );
     }
 
-    if role == &HdfsRole::NameNode {
+    if let Some(zkfc_container_log_config) = merged_config.zkfc_logging() {
         pb.add_volume(
             VolumeBuilder::new(ContainerConfig::ZKFC_CONFIG_VOLUME_MOUNT_NAME)
                 .config_map(ConfigMapVolumeSource {
@@ -573,17 +569,17 @@ fn rolegroup_statefulset(
                 .build(),
         );
 
-        if let Some(ContainerLogConfig {
+        if let ContainerLogConfig {
             choice:
                 Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                     custom: ConfigMapLogConfig { config_map },
                 })),
-        }) = logging.containers.get(&stackable_hdfs_crd::Container::Zkfc)
+        } = zkfc_container_log_config
         {
             pb.add_volume(
                 VolumeBuilder::new(ContainerConfig::ZKFC_LOG_VOLUME_MOUNT_NAME)
                     .config_map(ConfigMapVolumeSource {
-                        name: Some(config_map.clone()),
+                        name: Some(config_map),
                         ..ConfigMapVolumeSource::default()
                     })
                     .build(),
@@ -600,15 +596,12 @@ fn rolegroup_statefulset(
         }
     }
 
-    if logging.enable_vector_agent {
+    if merged_config.vector_logging_enabled() {
         pb.add_container(product_logging::framework::vector_container(
             resolved_product_image,
             ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
             ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
-            merged_config
-                .logging()
-                .containers
-                .get(&stackable_hdfs_crd::Container::Vector),
+            Some(&merged_config.vector_logging()),
         ));
     }
 
@@ -645,8 +638,7 @@ fn rolegroup_statefulset(
                         resolved_product_image,
                         zk_config_map_name,
                         env_overrides,
-                        &merged_config.resources().into(),
-                        &logging,
+                        merged_config,
                     )
                     .context(FailedToCreateContainerSnafu)?,
             );
@@ -657,8 +649,7 @@ fn rolegroup_statefulset(
                         resolved_product_image,
                         zk_config_map_name,
                         env_overrides,
-                        &merged_config.resources().into(),
-                        &logging,
+                        merged_config,
                     )
                     .context(FailedToCreateContainerSnafu)?,
             );
@@ -687,8 +678,7 @@ fn rolegroup_statefulset(
                         resolved_product_image,
                         zk_config_map_name,
                         env_overrides,
-                        &merged_config.resources().into(),
-                        &logging,
+                        merged_config,
                     )
                     .context(FailedToCreateContainerSnafu)?,
             );
@@ -719,8 +709,7 @@ fn rolegroup_statefulset(
                         resolved_product_image,
                         zk_config_map_name,
                         env_overrides,
-                        &merged_config.resources().into(),
-                        &logging,
+                        merged_config,
                     )
                     .context(FailedToCreateContainerSnafu)?,
             );
