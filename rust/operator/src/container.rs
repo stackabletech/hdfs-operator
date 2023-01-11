@@ -52,11 +52,11 @@ pub enum ContainerConfig {
     Hdfs {
         /// HDFS role (name-, data-, journal-node) which will be the container_name.
         role: HdfsRole,
-        /// The container_name from the provide role.
+        /// The container name derived from the provided role.
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
-        /// Readiness and liveliness probe service port names.
+        /// Readiness and liveness probe service port name.
         tcp_socket_action_port_name: &'static str,
         /// The JMX Exporter metrics port.
         metrics_port: u16,

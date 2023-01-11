@@ -116,8 +116,6 @@ pub enum Error {
     BuildDiscoveryConfigMap {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("Object has no associated namespace"))]
-    NoNamespace,
     #[snafu(display("Failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,

@@ -20,8 +20,6 @@ pub enum Error {
     PodHasNoName,
     #[snafu(display("Pod [{name}] has no labels"))]
     PodHasNoLabels { name: String },
-    #[snafu(display("Pod [{name}] has no [role] label"))]
-    PodHasNoRoleLabel { name: String },
     #[snafu(display("Pod [{name}] has no spec"))]
     PodHasNoSpec { name: String },
     #[snafu(display("Failed to build owner reference of pod [{name}]"))]
