@@ -124,19 +124,18 @@ impl ContainerConfig {
                 name: self.name().to_string(),
             })?;
 
-        let resources = merged_config.resources();
+        let resources = self.resources(merged_config);
 
         cb.image_from_product_image(resolved_product_image)
             .command(self.command())
             .args(self.args(merged_config, &[]))
-            .add_env_vars(self.env(
-                zookeeper_config_map_name,
-                env_overrides,
-                Some(&resources.into()),
-            ))
+            .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
             .add_volume_mounts(self.volume_mounts())
-            .add_container_ports(self.container_ports())
-            .resources(merged_config.resources().into());
+            .add_container_ports(self.container_ports());
+
+        if let Some(resources) = resources {
+            cb.resources(resources);
+        }
 
         if let Some(probe) = self.tcp_socket_action_probe(10, 10) {
             cb.readiness_probe(probe.clone());
@@ -319,13 +318,13 @@ impl ContainerConfig {
                     self.name(),
                 ));
                 args.push(formatdoc!(
-                    r#"
+                    r###"
                     echo "Attempt to format ZooKeeper..."    
                     if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then 
                       {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true
                     else 
                       echo "ZooKeeper already formatted!" 
-                    fi"#,
+                    fi"###,
                     hadoop_home = Self::HADOOP_HOME
                 ));
             }
@@ -334,7 +333,7 @@ impl ContainerConfig {
                     merged_config.wait_for_namenodes(),
                     self.name(),
                 ));
-                args.push(formatdoc!(r#"
+                args.push(formatdoc!(r###"
                     echo "Waiting for namenodes to get ready:"
                     n=0
                     while [ ${{n}} -lt 12 ];
@@ -360,7 +359,7 @@ impl ContainerConfig {
                       echo ""
                       n=$(( n  + 1))
                       sleep 5
-                    done"#,
+                    done"###,
                 hadoop_home = Self::HADOOP_HOME,
                 pod_names = namenode_podrefs
                     .iter()
@@ -414,6 +413,18 @@ impl ContainerConfig {
         }
 
         env
+    }
+
+    /// Returns the container env variables.
+    fn resources(
+        &self,
+        merged_config: &(dyn MergedConfig + Send + 'static),
+    ) -> Option<ResourceRequirements> {
+        // Only the Hadoop main containers will get resources
+        match self {
+            ContainerConfig::Hdfs { .. } => Some(merged_config.resources().into()),
+            _ => None,
+        }
     }
 
     /// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
