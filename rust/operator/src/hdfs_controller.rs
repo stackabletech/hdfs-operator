@@ -60,8 +60,9 @@ const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
 
 const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
+/// We have a maximum of 5 logging files (namenode)
 const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    MAX_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB;
+    5 * (MAX_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB);
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
