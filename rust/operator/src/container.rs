@@ -3,6 +3,7 @@ use crate::{
     product_logging::{HDFS_LOG4J_CONFIG_FILE, STACKABLE_LOG_DIR, ZKFC_LOG4J_CONFIG_FILE},
 };
 
+use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{
@@ -23,6 +24,7 @@ use stackable_operator::{
         apimachinery::pkg::util::intstr::IntOrString,
     },
     memory::to_java_heap,
+    product_logging,
     product_logging::spec::{ContainerLogConfig, ContainerLogConfigChoice},
 };
 use std::{collections::BTreeMap, str::FromStr};
@@ -67,11 +69,33 @@ pub enum ContainerConfig {
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
     },
+    FormatNameNode {
+        /// The provided custom container name.
+        container_name: String,
+        /// Volume mounts for config and logging.
+        volume_mounts: ContainerVolumeDirs,
+    },
+    FormatZooKeeper {
+        /// The provided custom container name.
+        container_name: String,
+        /// Volume mounts for config and logging.
+        volume_mounts: ContainerVolumeDirs,
+    },
+    WaitForNameNode {
+        /// The provided custom container name.
+        container_name: String,
+        /// Volume mounts for config and logging.
+        volume_mounts: ContainerVolumeDirs,
+    },
 }
 
 impl ContainerConfig {
     // extra side containers
     pub const ZKFC_CONTAINER_NAME: &'static str = "zkfc";
+    // extra init containers
+    pub const FORMAT_NAMENODE_CONTAINER_NAME: &'static str = "format-namenode";
+    pub const FORMAT_ZOOKEEPER_CONTAINER_NAME: &'static str = "format-zookeeper";
+    pub const WAIT_FOR_NAMENODES_CONTAINER_NAME: &'static str = "wait-for-namenodes";
     // volumes
     pub const STACKABLE_LOG_VOLUME_MOUNT_NAME: &'static str = "log";
     pub const DATA_VOLUME_MOUNT_NAME: &'static str = "data";
@@ -92,7 +116,7 @@ impl ContainerConfig {
     pub fn main_container(
         &self,
         resolved_product_image: &ResolvedProductImage,
-        zk_config_map_name: &str,
+        zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Result<Container, Error> {
@@ -104,9 +128,13 @@ impl ContainerConfig {
         let resources = merged_config.resources();
 
         cb.image_from_product_image(resolved_product_image)
-            .command(Self::command())
-            .args(self.args(merged_config))
-            .add_env_vars(self.env(zk_config_map_name, env_overrides, &resources.into())?)
+            .command(self.command())
+            .args(self.args(merged_config, &[]))
+            .add_env_vars(self.env(
+                zookeeper_config_map_name,
+                env_overrides,
+                Some(&resources.into()),
+            ))
             .add_volume_mounts(self.volume_mounts())
             .add_container_ports(self.container_ports())
             .resources(merged_config.resources().into());
@@ -119,221 +147,24 @@ impl ContainerConfig {
         Ok(cb.build())
     }
 
-    /// Creates respective init containers for namenodes, datanodes and journalnodes.
-    pub fn init_containers(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        zk_config_map_name: &str,
-        env_overrides: Option<&BTreeMap<String, String>>,
-        namenode_podrefs: &[HdfsPodRef],
-    ) -> Result<Vec<Container>, Error> {
-        let mut init_containers = vec![];
-
-        if let ContainerConfig::Hdfs { role, .. } = self {
-            match role {
-                HdfsRole::NameNode => {
-                    init_containers.push(self.namenode_init_container_format_namenode(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        namenode_podrefs,
-                    )?);
-                    init_containers.push(self.namenode_init_container_format_zk(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                    )?)
-                }
-                HdfsRole::DataNode => {
-                    init_containers.push(self.datanode_init_container_wait_for_namenode(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        namenode_podrefs,
-                    )?);
-                }
-                HdfsRole::JournalNode => {}
-            }
-        }
-
-        Ok(init_containers)
-    }
-
-    /// Build container for namenode formatting.
-    fn namenode_init_container_format_namenode(
+    /// Creates respective init containers for:
+    /// - Namenode (format-namenode, format-zookeeper)
+    /// - Datanode (wait-for-namenodes)
+    pub fn init_container(
         &self,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         namenode_podrefs: &[HdfsPodRef],
+        merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Result<Container, Error> {
-        let mut env = Self::transform_env_overrides_to_env_vars(env_overrides);
-        env.extend(Self::shared_env_vars(
-            // We use the config mount dir directly here to not have to copy
-            self.volume_mount_dirs().config_mount(),
-            zookeeper_config_map_name,
-        ));
-
-        Ok(ContainerBuilder::new("format-namenode")
-            .with_context(|_| InvalidContainerNameSnafu {
-                name: "format-namenode",
-            })?
+        Ok(ContainerBuilder::new(self.name())
+            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
             .image_from_product_image(resolved_product_image)
-            .args(vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                // First step we check for active namenodes. This step should return an active namenode
-                // for e.g. scaling. It may fail if the active namenode is restarted and the standby
-                // namenode takes over.
-                // This is why in the second part we check if the node is formatted already via
-                // $NAMENODE_DIR/current/VERSION. Then we dont do anything.
-                // If there is no active namenode, the current pod is not formatted we format as
-                // active namenode. Otherwise as standby node.
-                format!(
-                    "
-                 echo \"Start formatting namenode $POD_NAME. Checking for active namenodes:\"
-                 for id in {pod_names}
-                 do
-                   echo -n \"Checking pod $id... \"
-                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
-                   if [ \"$SERVICE_STATE\" == \"active\" ]
-                   then
-                     ACTIVE_NAMENODE=$id
-                     echo \"active\"
-                     break
-                   fi
-                   echo \"\"
-                 done
-
-                 set -e
-                 if [ ! -f \"{namenode_dir}/current/VERSION\" ]
-                 then
-                   if [ -z ${{ACTIVE_NAMENODE+x}} ]
-                   then
-                     echo \"Create pod $POD_NAME as active namenode.\"
-                     {hadoop_home}/bin/hdfs namenode -format -noninteractive
-                   else
-                     echo \"Create pod $POD_NAME as standby namenode.\"
-                     {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
-                   fi
-                 else
-                   echo \"Pod $POD_NAME already formatted. Skipping...\"
-                 fi",
-                    hadoop_home = Self::HADOOP_HOME,
-                    pod_names = namenode_podrefs
-                        .iter()
-                        .map(|pod_ref| pod_ref.pod_name.as_ref())
-                        .collect::<Vec<&str>>()
-                        .join(" "),
-                    namenode_dir = HdfsNodeDataDirectory::default().namenode,
-                ),
-            ])
-            .add_env_vars(env)
-            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, Self::STACKABLE_ROOT_DATA_DIR)
-            .add_volume_mount(
-                Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-                self.volume_mount_dirs().config_mount(),
-            )
-            .build())
-    }
-
-    /// Build container for ZooKeeper formatting.
-    fn namenode_init_container_format_zk(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        zookeeper_config_map_name: &str,
-        env_overrides: Option<&BTreeMap<String, String>>,
-    ) -> Result<Container, Error> {
-        let mut env = Self::transform_env_overrides_to_env_vars(env_overrides);
-        env.extend(Self::shared_env_vars(
-            // We use the config mount dir directly here to not have to copy
-            self.volume_mount_dirs().config_mount(),
-            zookeeper_config_map_name,
-        ));
-
-        Ok(ContainerBuilder::new("format-zk")
-            .with_context(|_| InvalidContainerNameSnafu {
-                name: "format-zk"
-            })?
-            .image_from_product_image(resolved_product_image)
-            .args(vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                format!("test \"0\" -eq \"$(echo $POD_NAME | sed -e 's/.*-//')\" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true", 
-                    hadoop_home = Self::HADOOP_HOME
-                )
-            ])
-            .add_env_vars(env)
-            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, Self::STACKABLE_ROOT_DATA_DIR)
-            .add_volume_mount(Self::HDFS_CONFIG_VOLUME_MOUNT_NAME, self.volume_mount_dirs().config_mount()).build())
-    }
-
-    /// Build datanode container to wait for namenodes to become ready.
-    fn datanode_init_container_wait_for_namenode(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        zookeeper_config_map_name: &str,
-        env_overrides: Option<&BTreeMap<String, String>>,
-        namenode_podrefs: &[HdfsPodRef],
-    ) -> Result<Container, Error> {
-        let mut env = Self::transform_env_overrides_to_env_vars(env_overrides);
-        env.extend(Self::shared_env_vars(
-            // We use the config mount dir directly here to not have to copy
-            self.volume_mount_dirs().config_mount(),
-            zookeeper_config_map_name,
-        ));
-
-        Ok(ContainerBuilder::new("wait-for-namenodes")
-            .with_context(|_| InvalidContainerNameSnafu {
-                name: "wait-for-namenodes",
-            })?
-            .image_from_product_image(resolved_product_image)
-            .args(vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                format!(
-                    "
-                echo \"Waiting for namenodes to get ready:\"
-                n=0
-                while [ ${{n}} -lt 12 ];
-                do
-                  ALL_NODES_READY=true
-                  for id in {pod_names}
-                  do
-                    echo -n \"Checking pod $id... \"
-                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
-                    if [ \"$SERVICE_STATE\" = \"active\" ] || [ \"$SERVICE_STATE\" = \"standby\" ]
-                    then
-                      echo \"$SERVICE_STATE\"
-                    else
-                      echo \"not ready\"
-                      ALL_NODES_READY=false
-                    fi
-                  done
-                  if [ \"$ALL_NODES_READY\" == \"true\" ]
-                  then
-                    echo \"All namenodes ready!\"
-                    break
-                  fi
-                  echo \"\"
-                  n=$(( n  + 1))
-                  sleep 5
-                done
-            ",
-                    hadoop_home = Self::HADOOP_HOME,
-                    pod_names = namenode_podrefs
-                        .iter()
-                        .map(|pod_ref| pod_ref.pod_name.as_ref())
-                        .collect::<Vec<&str>>()
-                        .join(" ")
-                ),
-            ])
-            .add_env_vars(env)
-            .add_volume_mount(Self::DATA_VOLUME_MOUNT_NAME, Self::STACKABLE_ROOT_DATA_DIR)
-            .add_volume_mount(
-                Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-                self.volume_mount_dirs().config_mount(),
-            )
+            .command(self.command())
+            .args(self.args(merged_config, namenode_podrefs))
+            .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, None))
+            .add_volume_mounts(self.volume_mounts())
             .build())
     }
 
@@ -342,6 +173,28 @@ impl ContainerConfig {
         match &self {
             ContainerConfig::Hdfs { container_name, .. } => container_name.as_str(),
             ContainerConfig::Zkfc { container_name, .. } => container_name.as_str(),
+            ContainerConfig::FormatNameNode { container_name, .. } => container_name.as_str(),
+            ContainerConfig::FormatZooKeeper { container_name, .. } => container_name.as_str(),
+            ContainerConfig::WaitForNameNode { container_name, .. } => container_name.as_str(),
+        }
+    }
+
+    /// Get the logging command for init containers
+    fn init_container_logging_args(
+        container_log_config: Option<ContainerLogConfig>,
+        container_name: &str,
+    ) -> String {
+        if let Some(ContainerLogConfig {
+            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+        }) = container_log_config
+        {
+            product_logging::framework::capture_shell_output(
+                STACKABLE_LOG_DIR,
+                container_name,
+                &log_config,
+            )
+        } else {
+            String::new()
         }
     }
 
@@ -350,22 +203,34 @@ impl ContainerConfig {
         match &self {
             ContainerConfig::Hdfs { volume_mounts, .. } => volume_mounts,
             ContainerConfig::Zkfc { volume_mounts, .. } => volume_mounts,
+            ContainerConfig::FormatNameNode { volume_mounts, .. } => volume_mounts,
+            ContainerConfig::FormatZooKeeper { volume_mounts, .. } => volume_mounts,
+            ContainerConfig::WaitForNameNode { volume_mounts, .. } => volume_mounts,
         }
     }
 
     /// Returns the container command.
-    fn command() -> Vec<String> {
-        vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-euo".to_string(),
-            "pipefail".to_string(),
-            "-c".to_string(),
-        ]
+    fn command(&self) -> Vec<String> {
+        match self {
+            ContainerConfig::Hdfs { .. } | ContainerConfig::Zkfc { .. } => vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-euo".to_string(),
+                "pipefail".to_string(),
+                "-c".to_string(),
+            ],
+            ContainerConfig::FormatNameNode { .. }
+            | ContainerConfig::FormatZooKeeper { .. }
+            | ContainerConfig::WaitForNameNode { .. } => vec!["bash".to_string(), "-c".to_string()],
+        }
     }
 
     /// Returns the container command arguments.
-    fn args(&self, merged_config: &(dyn MergedConfig + Send + 'static)) -> Vec<String> {
+    fn args(
+        &self,
+        merged_config: &(dyn MergedConfig + Send + 'static),
+        namenode_podrefs: &[HdfsPodRef],
+    ) -> Vec<String> {
         let mut args = vec![
             self.create_config_directory_cmd(),
             self.copy_hdfs_and_core_site_xml_cmd(),
@@ -395,6 +260,107 @@ impl ContainerConfig {
                     ));
                 }
             }
+            ContainerConfig::FormatNameNode { .. } => {
+                args.push(Self::init_container_logging_args(
+                    merged_config.format_namenode_logging(),
+                    self.name(),
+                ));
+
+                // First step we check for active namenodes. This step should return an active namenode
+                // for e.g. scaling. It may fail if the active namenode is restarted and the standby
+                // namenode takes over.
+                // This is why in the second part we check if the node is formatted already via
+                // $NAMENODE_DIR/current/VERSION. Then we dont do anything.
+                // If there is no active namenode, the current pod is not formatted we format as
+                // active namenode. Otherwise as standby node.
+                args.push(formatdoc!(r###"
+                    echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
+                    for id in {pod_names}
+                    do
+                      echo -n "Checking pod $id... "
+                      SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
+                      if [ "$SERVICE_STATE" == "active" ]
+                      then
+                        ACTIVE_NAMENODE=$id
+                        echo "active"
+                        break
+                      fi
+                      echo ""
+                    done
+    
+                    set -e
+                    if [ ! -f "{namenode_dir}/current/VERSION" ]
+                    then
+                      if [ -z ${{ACTIVE_NAMENODE+x}} ]
+                      then
+                        echo "Create pod $POD_NAME as active namenode."
+                        {hadoop_home}/bin/hdfs namenode -format -noninteractive
+                      else
+                        echo "Create pod $POD_NAME as standby namenode."
+                        {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
+                      fi
+                    else
+                      echo "Pod $POD_NAME already formatted. Skipping..."
+                    fi"###,
+                    hadoop_home = Self::HADOOP_HOME,
+                    pod_names = namenode_podrefs
+                        .iter()
+                        .map(|pod_ref| pod_ref.pod_name.as_ref())
+                        .collect::<Vec<&str>>()
+                        .join(" "),
+                    namenode_dir = HdfsNodeDataDirectory::default().namenode,
+                ));
+            }
+            ContainerConfig::FormatZooKeeper { .. } => {
+                args.push(Self::init_container_logging_args(
+                    merged_config.format_zookeeper_logging(),
+                    self.name(),
+                ));
+                args.push(formatdoc!(r###"test "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true "###,
+                    hadoop_home = Self::HADOOP_HOME
+                ));
+            }
+            ContainerConfig::WaitForNameNode { .. } => {
+                args.push(Self::init_container_logging_args(
+                    merged_config.wait_for_namenode(),
+                    self.name(),
+                ));
+                args.push(formatdoc!(r#"
+                    echo "Waiting for namenodes to get ready:"
+                    n=0
+                    while [ ${{n}} -lt 12 ];
+                    do
+                      ALL_NODES_READY=true
+                      for id in {pod_names}
+                      do
+                        echo -n "Checking pod $id... "
+                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
+                        if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
+                        then
+                          echo "$SERVICE_STATE"
+                        else
+                          echo "not ready"
+                          ALL_NODES_READY=false
+                        fi
+                      done
+                      if [ "$ALL_NODES_READY" == "true" ]
+                      then
+                        echo "All namenodes ready!"
+                        break
+                      fi
+                      echo ""
+                      n=$(( n  + 1))
+                      sleep 5
+                    done
+                "#,
+                hadoop_home = Self::HADOOP_HOME,
+                pod_names = namenode_podrefs
+                    .iter()
+                    .map(|pod_ref| pod_ref.pod_name.as_ref())
+                    .collect::<Vec<&str>>()
+                    .join(" ")
+                ));
+            }
         }
         vec![args.join(" && ")]
     }
@@ -404,26 +370,42 @@ impl ContainerConfig {
         &self,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
-        resources: &ResourceRequirements,
-    ) -> Result<Vec<EnvVar>, Error> {
+        resources: Option<&ResourceRequirements>,
+    ) -> Vec<EnvVar> {
         let mut env = Self::transform_env_overrides_to_env_vars(env_overrides);
-        env.extend(Self::shared_env_vars(
-            self.volume_mount_dirs().final_config(),
-            zookeeper_config_map_name,
-        ));
 
         match self {
             ContainerConfig::Hdfs { role, .. } => {
-                env.push(EnvVar {
-                    name: role.hadoop_opts().to_string(),
-                    value: self.build_hadoop_opts(resources).ok(),
-                    ..EnvVar::default()
-                });
+                env.extend(Self::shared_env_vars(
+                    self.volume_mount_dirs().final_config(),
+                    zookeeper_config_map_name,
+                ));
+                if let Some(resources) = resources {
+                    env.push(EnvVar {
+                        name: role.hadoop_opts().to_string(),
+                        value: self.build_hadoop_opts(resources).ok(),
+                        ..EnvVar::default()
+                    });
+                }
             }
-            ContainerConfig::Zkfc { .. } => {}
+            ContainerConfig::Zkfc { .. } => {
+                env.extend(Self::shared_env_vars(
+                    self.volume_mount_dirs().final_config(),
+                    zookeeper_config_map_name,
+                ));
+            }
+            ContainerConfig::FormatNameNode { .. }
+            | ContainerConfig::FormatZooKeeper { .. }
+            | ContainerConfig::WaitForNameNode { .. } => {
+                env.extend(Self::shared_env_vars(
+                    // We use the config mount dir directly here to not have to copy
+                    self.volume_mount_dirs().config_mount(),
+                    zookeeper_config_map_name,
+                ));
+            }
         }
 
-        Ok(env)
+        env
     }
 
     /// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
@@ -488,6 +470,22 @@ impl ContainerConfig {
                     VolumeMountBuilder::new(
                         Self::ZKFC_LOG_VOLUME_MOUNT_NAME,
                         self.volume_mount_dirs().log_mount(),
+                    )
+                    .build(),
+                ]);
+            }
+            ContainerConfig::FormatNameNode { .. }
+            | ContainerConfig::FormatZooKeeper { .. }
+            | ContainerConfig::WaitForNameNode { .. } => {
+                volume_mounts.extend(vec![
+                    VolumeMountBuilder::new(
+                        Self::DATA_VOLUME_MOUNT_NAME,
+                        Self::STACKABLE_ROOT_DATA_DIR,
+                    )
+                    .build(),
+                    VolumeMountBuilder::new(
+                        Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
+                        self.volume_mount_dirs().config_mount(),
                     )
                     .build(),
                 ]);
@@ -571,7 +569,7 @@ impl ContainerConfig {
                 .trim()
                 .to_string())
             }
-            ContainerConfig::Zkfc { .. } => Ok("".to_string()),
+            _ => Ok("".to_string()),
         }
     }
 
@@ -643,7 +641,7 @@ impl ContainerConfig {
                     ..ContainerPort::default()
                 })
                 .collect(),
-            ContainerConfig::Zkfc { .. } => {
+            _ => {
                 vec![]
             }
         }
@@ -686,9 +684,23 @@ impl TryFrom<&str> for ContainerConfig {
             Ok(role) => Ok(ContainerConfig::from(role)),
             // No hadoop main process container
             Err(_) => match container_name {
+                // side container
                 Self::ZKFC_CONTAINER_NAME => Ok(Self::Zkfc {
                     container_name: container_name.to_string(),
-                    volume_mounts: ContainerVolumeDirs::from(Self::ZKFC_CONTAINER_NAME),
+                    volume_mounts: ContainerVolumeDirs::from(container_name),
+                }),
+                // init containers
+                Self::FORMAT_NAMENODE_CONTAINER_NAME => Ok(Self::FormatNameNode {
+                    container_name: container_name.to_string(),
+                    volume_mounts: ContainerVolumeDirs::from(container_name),
+                }),
+                Self::FORMAT_ZOOKEEPER_CONTAINER_NAME => Ok(Self::FormatZooKeeper {
+                    container_name: container_name.to_string(),
+                    volume_mounts: ContainerVolumeDirs::from(container_name),
+                }),
+                Self::WAIT_FOR_NAMENODES_CONTAINER_NAME => Ok(Self::WaitForNameNode {
+                    container_name: container_name.to_string(),
+                    volume_mounts: ContainerVolumeDirs::from(container_name),
                 }),
                 _ => Err(Error::UnrecognizedContainerName {
                     container_name: container_name.to_string(),

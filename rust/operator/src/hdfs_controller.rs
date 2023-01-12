@@ -607,44 +607,54 @@ fn rolegroup_statefulset(
 
     let replicas;
     let zk_config_map_name = &hdfs.spec.zookeeper_config_map_name;
+
+    // HDFS main container
+    pb.add_container(
+        ContainerConfig::from(role.clone())
+            .main_container(
+                resolved_product_image,
+                zk_config_map_name,
+                env_overrides,
+                merged_config,
+            )
+            .context(FailedToCreateContainerSnafu)?,
+    );
     // role specific pod settings configured here
     match role {
         HdfsRole::NameNode => {
             let rg = hdfs.namenode_rolegroup(&rolegroup_ref.role_group);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-
-            let hdfs_container_config = ContainerConfig::from(role.clone());
-            let zkfc_container_config =
-                ContainerConfig::try_from(ContainerConfig::ZKFC_CONTAINER_NAME)
-                    .context(FailedToCreateContainerConfigSnafu)?;
-
-            for init_container in hdfs_container_config
-                .init_containers(
-                    resolved_product_image,
-                    zk_config_map_name,
-                    env_overrides,
-                    namenode_podrefs,
-                )
-                .context(FailedToCreateContainerSnafu)?
-            {
-                pb.add_init_container(init_container);
-            }
-
-            // HDFS main container
-            pb.add_container(
-                hdfs_container_config
-                    .main_container(
+            // Format namenode init container
+            pb.add_init_container(
+                ContainerConfig::try_from(ContainerConfig::FORMAT_NAMENODE_CONTAINER_NAME)
+                    .context(FailedToCreateContainerConfigSnafu)?
+                    .init_container(
                         resolved_product_image,
                         zk_config_map_name,
                         env_overrides,
+                        namenode_podrefs,
+                        merged_config,
+                    )
+                    .context(FailedToCreateContainerSnafu)?,
+            );
+            // Format ZooKeeper init container
+            pb.add_init_container(
+                ContainerConfig::try_from(ContainerConfig::FORMAT_ZOOKEEPER_CONTAINER_NAME)
+                    .context(FailedToCreateContainerConfigSnafu)?
+                    .init_container(
+                        resolved_product_image,
+                        zk_config_map_name,
+                        env_overrides,
+                        namenode_podrefs,
                         merged_config,
                     )
                     .context(FailedToCreateContainerSnafu)?,
             );
             // Zookeeper fail over container
             pb.add_container(
-                zkfc_container_config
+                ContainerConfig::try_from(ContainerConfig::ZKFC_CONTAINER_NAME)
+                    .context(FailedToCreateContainerConfigSnafu)?
                     .main_container(
                         resolved_product_image,
                         zk_config_map_name,
@@ -655,64 +665,27 @@ fn rolegroup_statefulset(
             );
         }
         HdfsRole::DataNode => {
-            let hdfs_data_node_container_config = ContainerConfig::from(role.clone());
-
             let rg = hdfs.datanode_rolegroup(&rolegroup_ref.role_group);
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
-            for init_container in hdfs_data_node_container_config
-                .init_containers(
-                    resolved_product_image,
-                    zk_config_map_name,
-                    env_overrides,
-                    namenode_podrefs,
-                )
-                .context(FailedToCreateContainerSnafu)?
-            {
-                pb.add_init_container(init_container);
-            }
-            // main container
-            pb.add_container(
-                hdfs_data_node_container_config
-                    .main_container(
+            // Wait for namenode init container
+            pb.add_init_container(
+                ContainerConfig::try_from(ContainerConfig::WAIT_FOR_NAMENODES_CONTAINER_NAME)
+                    .context(FailedToCreateContainerConfigSnafu)?
+                    .init_container(
                         resolved_product_image,
                         zk_config_map_name,
                         env_overrides,
+                        namenode_podrefs,
                         merged_config,
                     )
                     .context(FailedToCreateContainerSnafu)?,
             );
         }
         HdfsRole::JournalNode => {
-            let hdfs_journal_node_container_config = ContainerConfig::from(role.clone());
-
             let rg = hdfs.journalnode_rolegroup(&rolegroup_ref.role_group);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-
-            for init_container in hdfs_journal_node_container_config
-                .init_containers(
-                    resolved_product_image,
-                    zk_config_map_name,
-                    env_overrides,
-                    namenode_podrefs,
-                )
-                .context(FailedToCreateContainerSnafu)?
-            {
-                pb.add_init_container(init_container);
-            }
-
-            // main container
-            pb.add_container(
-                hdfs_journal_node_container_config
-                    .main_container(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        merged_config,
-                    )
-                    .context(FailedToCreateContainerSnafu)?,
-            );
         }
     }
 
