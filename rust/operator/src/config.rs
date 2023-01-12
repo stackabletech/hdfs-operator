@@ -22,15 +22,15 @@ impl Default for HdfsNodeDataDirectory {
         HdfsNodeDataDirectory {
             namenode: format!(
                 "{STACKABLE_ROOT_DATA_DIR}/{role}",
-                role = HdfsRole::NameNode.to_string()
+                role = HdfsRole::NameNode
             ),
             datanode: format!(
                 "{STACKABLE_ROOT_DATA_DIR}/{role}",
-                role = HdfsRole::DataNode.to_string()
+                role = HdfsRole::DataNode
             ),
             journalnode: format!(
                 "{STACKABLE_ROOT_DATA_DIR}/{role}",
-                role = HdfsRole::JournalNode.to_string()
+                role = HdfsRole::JournalNode
             ),
         }
     }
