@@ -5,13 +5,10 @@ use stackable_hdfs_crd::constants::{
     DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_NAME_SERVICES, DFS_REPLICATION,
     FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
 };
-use stackable_hdfs_crd::HdfsPodRef;
+use stackable_hdfs_crd::{HdfsPodRef, HdfsRole};
 use std::collections::BTreeMap;
 
-// dirs
-const NAME_NODE_DATA_DIR: &str = "/stackable/data/namenode";
-const DATA_NODE_DATA_DIR: &str = "/stackable/data/datanode";
-const JOURNAL_NODE_DATA_DIR: &str = "/stackable/data/journalnode";
+pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
 
 #[derive(Clone)]
 pub struct HdfsNodeDataDirectory {
@@ -23,9 +20,18 @@ pub struct HdfsNodeDataDirectory {
 impl Default for HdfsNodeDataDirectory {
     fn default() -> Self {
         HdfsNodeDataDirectory {
-            namenode: NAME_NODE_DATA_DIR.to_string(),
-            datanode: DATA_NODE_DATA_DIR.to_string(),
-            journalnode: JOURNAL_NODE_DATA_DIR.to_string(),
+            namenode: format!(
+                "{STACKABLE_ROOT_DATA_DIR}/{role}",
+                role = HdfsRole::NameNode.to_string()
+            ),
+            datanode: format!(
+                "{STACKABLE_ROOT_DATA_DIR}/{role}",
+                role = HdfsRole::DataNode.to_string()
+            ),
+            journalnode: format!(
+                "{STACKABLE_ROOT_DATA_DIR}/{role}",
+                role = HdfsRole::JournalNode.to_string()
+            ),
         }
     }
 }

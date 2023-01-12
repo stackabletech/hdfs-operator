@@ -1,5 +1,5 @@
 use crate::{
-    config::HdfsNodeDataDirectory,
+    config::{HdfsNodeDataDirectory, STACKABLE_ROOT_DATA_DIR},
     product_logging::{HDFS_LOG4J_CONFIG_FILE, STACKABLE_LOG_DIR, ZKFC_LOG4J_CONFIG_FILE},
 };
 
@@ -106,7 +106,6 @@ impl ContainerConfig {
 
     const JVM_HEAP_FACTOR: f32 = 0.8;
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
-    const STACKABLE_ROOT_DATA_DIR: &'static str = "/stackable/data";
 
     /// Creates the main process containers for:
     /// - Namenode main process
@@ -374,7 +373,7 @@ impl ContainerConfig {
         vec![args.join(" && ")]
     }
 
-    /// Returns the main container env variables.
+    /// Returns the container env variables.
     fn env(
         &self,
         zookeeper_config_map_name: &str,
@@ -452,11 +451,8 @@ impl ContainerConfig {
         match self {
             ContainerConfig::Hdfs { .. } => {
                 volume_mounts.extend(vec![
-                    VolumeMountBuilder::new(
-                        Self::DATA_VOLUME_MOUNT_NAME,
-                        Self::STACKABLE_ROOT_DATA_DIR,
-                    )
-                    .build(),
+                    VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
+                        .build(),
                     VolumeMountBuilder::new(
                         Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                         self.volume_mount_dirs().config_mount(),
@@ -487,11 +483,8 @@ impl ContainerConfig {
             | ContainerConfig::FormatZooKeeper { .. }
             | ContainerConfig::WaitForNameNodes { .. } => {
                 volume_mounts.extend(vec![
-                    VolumeMountBuilder::new(
-                        Self::DATA_VOLUME_MOUNT_NAME,
-                        Self::STACKABLE_ROOT_DATA_DIR,
-                    )
-                    .build(),
+                    VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
+                        .build(),
                     VolumeMountBuilder::new(
                         Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                         self.volume_mount_dirs().config_mount(),
