@@ -8,7 +8,7 @@ def check_processed_events():
         json={
             'query': """
                 {
-                    transforms {
+                    transforms(first:100) {
                         nodes {
                             componentId
                             metrics {

@@ -69,7 +69,7 @@ pub enum ContainerConfig {
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
     },
-    FormatNameNode {
+    FormatNameNodes {
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
@@ -81,7 +81,7 @@ pub enum ContainerConfig {
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
     },
-    WaitForNameNode {
+    WaitForNameNodes {
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
@@ -93,7 +93,7 @@ impl ContainerConfig {
     // extra side containers
     pub const ZKFC_CONTAINER_NAME: &'static str = "zkfc";
     // extra init containers
-    pub const FORMAT_NAMENODE_CONTAINER_NAME: &'static str = "format-namenode";
+    pub const FORMAT_NAMENODES_CONTAINER_NAME: &'static str = "format-namenodes";
     pub const FORMAT_ZOOKEEPER_CONTAINER_NAME: &'static str = "format-zookeeper";
     pub const WAIT_FOR_NAMENODES_CONTAINER_NAME: &'static str = "wait-for-namenodes";
     // volumes
@@ -173,9 +173,9 @@ impl ContainerConfig {
         match &self {
             ContainerConfig::Hdfs { container_name, .. } => container_name.as_str(),
             ContainerConfig::Zkfc { container_name, .. } => container_name.as_str(),
-            ContainerConfig::FormatNameNode { container_name, .. } => container_name.as_str(),
+            ContainerConfig::FormatNameNodes { container_name, .. } => container_name.as_str(),
             ContainerConfig::FormatZooKeeper { container_name, .. } => container_name.as_str(),
-            ContainerConfig::WaitForNameNode { container_name, .. } => container_name.as_str(),
+            ContainerConfig::WaitForNameNodes { container_name, .. } => container_name.as_str(),
         }
     }
 
@@ -203,9 +203,9 @@ impl ContainerConfig {
         match &self {
             ContainerConfig::Hdfs { volume_mounts, .. } => volume_mounts,
             ContainerConfig::Zkfc { volume_mounts, .. } => volume_mounts,
-            ContainerConfig::FormatNameNode { volume_mounts, .. } => volume_mounts,
+            ContainerConfig::FormatNameNodes { volume_mounts, .. } => volume_mounts,
             ContainerConfig::FormatZooKeeper { volume_mounts, .. } => volume_mounts,
-            ContainerConfig::WaitForNameNode { volume_mounts, .. } => volume_mounts,
+            ContainerConfig::WaitForNameNodes { volume_mounts, .. } => volume_mounts,
         }
     }
 
@@ -219,9 +219,11 @@ impl ContainerConfig {
                 "pipefail".to_string(),
                 "-c".to_string(),
             ],
-            ContainerConfig::FormatNameNode { .. }
+            ContainerConfig::FormatNameNodes { .. }
             | ContainerConfig::FormatZooKeeper { .. }
-            | ContainerConfig::WaitForNameNode { .. } => vec!["bash".to_string(), "-c".to_string()],
+            | ContainerConfig::WaitForNameNodes { .. } => {
+                vec!["bash".to_string(), "-c".to_string()]
+            }
         }
     }
 
@@ -231,13 +233,12 @@ impl ContainerConfig {
         merged_config: &(dyn MergedConfig + Send + 'static),
         namenode_podrefs: &[HdfsPodRef],
     ) -> Vec<String> {
-        let mut args = vec![
-            self.create_config_directory_cmd(),
-            self.copy_hdfs_and_core_site_xml_cmd(),
-        ];
+        let mut args = vec![];
 
         match self {
             ContainerConfig::Hdfs { role, .. } => {
+                args.push(self.create_config_directory_cmd());
+                args.push(self.copy_hdfs_and_core_site_xml_cmd());
                 args.push(self.copy_log4j_properties_cmd(
                     HDFS_LOG4J_CONFIG_FILE,
                     merged_config.hdfs_logging(),
@@ -249,6 +250,8 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::Zkfc { .. } => {
+                args.push(self.create_config_directory_cmd());
+                args.push(self.copy_hdfs_and_core_site_xml_cmd());
                 if let Some(container_config) = merged_config.zkfc_logging() {
                     args.push(
                         self.copy_log4j_properties_cmd(ZKFC_LOG4J_CONFIG_FILE, container_config),
@@ -260,9 +263,9 @@ impl ContainerConfig {
                     ));
                 }
             }
-            ContainerConfig::FormatNameNode { .. } => {
+            ContainerConfig::FormatNameNodes { .. } => {
                 args.push(Self::init_container_logging_args(
-                    merged_config.format_namenode_logging(),
+                    merged_config.format_namenodes_logging(),
                     self.name(),
                 ));
 
@@ -316,13 +319,20 @@ impl ContainerConfig {
                     merged_config.format_zookeeper_logging(),
                     self.name(),
                 ));
-                args.push(formatdoc!(r###"test "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" && {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true "###,
+                args.push(formatdoc!(
+                    r#"
+                    echo "Attempt to format ZooKeeper..."    
+                    if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then 
+                      {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true
+                    else 
+                      echo "ZooKeeper already formatted!" 
+                    fi"#,
                     hadoop_home = Self::HADOOP_HOME
                 ));
             }
-            ContainerConfig::WaitForNameNode { .. } => {
+            ContainerConfig::WaitForNameNodes { .. } => {
                 args.push(Self::init_container_logging_args(
-                    merged_config.wait_for_namenode(),
+                    merged_config.wait_for_namenodes(),
                     self.name(),
                 ));
                 args.push(formatdoc!(r#"
@@ -351,8 +361,7 @@ impl ContainerConfig {
                       echo ""
                       n=$(( n  + 1))
                       sleep 5
-                    done
-                "#,
+                    done"#,
                 hadoop_home = Self::HADOOP_HOME,
                 pod_names = namenode_podrefs
                     .iter()
@@ -394,9 +403,9 @@ impl ContainerConfig {
                     zookeeper_config_map_name,
                 ));
             }
-            ContainerConfig::FormatNameNode { .. }
+            ContainerConfig::FormatNameNodes { .. }
             | ContainerConfig::FormatZooKeeper { .. }
-            | ContainerConfig::WaitForNameNode { .. } => {
+            | ContainerConfig::WaitForNameNodes { .. } => {
                 env.extend(Self::shared_env_vars(
                     // We use the config mount dir directly here to not have to copy
                     self.volume_mount_dirs().config_mount(),
@@ -474,9 +483,9 @@ impl ContainerConfig {
                     .build(),
                 ]);
             }
-            ContainerConfig::FormatNameNode { .. }
+            ContainerConfig::FormatNameNodes { .. }
             | ContainerConfig::FormatZooKeeper { .. }
-            | ContainerConfig::WaitForNameNode { .. } => {
+            | ContainerConfig::WaitForNameNodes { .. } => {
                 volume_mounts.extend(vec![
                     VolumeMountBuilder::new(
                         Self::DATA_VOLUME_MOUNT_NAME,
@@ -690,7 +699,7 @@ impl TryFrom<&str> for ContainerConfig {
                     volume_mounts: ContainerVolumeDirs::from(container_name),
                 }),
                 // init containers
-                Self::FORMAT_NAMENODE_CONTAINER_NAME => Ok(Self::FormatNameNode {
+                Self::FORMAT_NAMENODES_CONTAINER_NAME => Ok(Self::FormatNameNodes {
                     container_name: container_name.to_string(),
                     volume_mounts: ContainerVolumeDirs::from(container_name),
                 }),
@@ -698,7 +707,7 @@ impl TryFrom<&str> for ContainerConfig {
                     container_name: container_name.to_string(),
                     volume_mounts: ContainerVolumeDirs::from(container_name),
                 }),
-                Self::WAIT_FOR_NAMENODES_CONTAINER_NAME => Ok(Self::WaitForNameNode {
+                Self::WAIT_FOR_NAMENODES_CONTAINER_NAME => Ok(Self::WaitForNameNodes {
                     container_name: container_name.to_string(),
                     volume_mounts: ContainerVolumeDirs::from(container_name),
                 }),

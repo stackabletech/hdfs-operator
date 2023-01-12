@@ -627,7 +627,7 @@ fn rolegroup_statefulset(
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             // Format namenode init container
             pb.add_init_container(
-                ContainerConfig::try_from(ContainerConfig::FORMAT_NAMENODE_CONTAINER_NAME)
+                ContainerConfig::try_from(ContainerConfig::FORMAT_NAMENODES_CONTAINER_NAME)
                     .context(FailedToCreateContainerConfigSnafu)?
                     .init_container(
                         resolved_product_image,

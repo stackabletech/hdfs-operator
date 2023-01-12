@@ -90,7 +90,7 @@ pub trait MergedConfig {
         None
     }
     /// Namenode init container to format namenode
-    fn format_namenode_logging(&self) -> Option<ContainerLogConfig> {
+    fn format_namenodes_logging(&self) -> Option<ContainerLogConfig> {
         None
     }
     /// Namenode init container to format zookeeper
@@ -98,7 +98,7 @@ pub trait MergedConfig {
         None
     }
     /// Datanode init container to wait for namenodes to become ready
-    fn wait_for_namenode(&self) -> Option<ContainerLogConfig> {
+    fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
         None
     }
 }
@@ -585,7 +585,7 @@ pub enum NameNodeContainer {
     Hdfs,
     Vector,
     Zkfc,
-    FormatNameNode,
+    FormatNameNodes,
     FormatZooKeeper,
 }
 
@@ -642,10 +642,10 @@ impl MergedConfig for NameNodeConfig {
             .cloned()
     }
 
-    fn format_namenode_logging(&self) -> Option<ContainerLogConfig> {
+    fn format_namenodes_logging(&self) -> Option<ContainerLogConfig> {
         self.logging
             .containers
-            .get(&NameNodeContainer::FormatNameNode)
+            .get(&NameNodeContainer::FormatNameNodes)
             .cloned()
     }
 
@@ -719,7 +719,7 @@ impl Configuration for NameNodeConfigFragment {
 pub enum DataNodeContainer {
     Hdfs,
     Vector,
-    WaitForNameNode,
+    WaitForNameNodes,
 }
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
@@ -768,10 +768,10 @@ impl MergedConfig for DataNodeConfig {
         self.logging.enable_vector_agent
     }
 
-    fn wait_for_namenode(&self) -> Option<ContainerLogConfig> {
+    fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
         self.logging
             .containers
-            .get(&DataNodeContainer::WaitForNameNode)
+            .get(&DataNodeContainer::WaitForNameNodes)
             .cloned()
     }
 }
