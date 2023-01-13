@@ -243,10 +243,12 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::FormatNameNodes { .. } => {
-                args.push(Self::init_container_logging_args(
+                if let Some(logging_args) = Self::init_container_logging_args(
                     merged_config.format_namenodes_logging(),
                     self.name(),
-                ));
+                ) {
+                    args.push(logging_args);
+                }
 
                 // First step we check for active namenodes. This step should return an active namenode
                 // for e.g. scaling. It may fail if the active namenode is restarted and the standby
@@ -294,10 +296,12 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::FormatZooKeeper { .. } => {
-                args.push(Self::init_container_logging_args(
+                if let Some(logging_args) = Self::init_container_logging_args(
                     merged_config.format_zookeeper_logging(),
                     self.name(),
-                ));
+                ) {
+                    args.push(logging_args);
+                }
                 args.push(formatdoc!(
                     r###"
                     echo "Attempt to format ZooKeeper..."    
@@ -310,10 +314,12 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::WaitForNameNodes { .. } => {
-                args.push(Self::init_container_logging_args(
+                if let Some(logging_args) = Self::init_container_logging_args(
                     merged_config.wait_for_namenodes(),
                     self.name(),
-                ));
+                ) {
+                    args.push(logging_args);
+                }
                 args.push(formatdoc!(r###"
                     echo "Waiting for namenodes to get ready:"
                     n=0
@@ -645,18 +651,18 @@ impl ContainerConfig {
     fn init_container_logging_args(
         container_log_config: Option<ContainerLogConfig>,
         container_name: &str,
-    ) -> String {
+    ) -> Option<String> {
         if let Some(ContainerLogConfig {
             choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
         }) = container_log_config
         {
-            product_logging::framework::capture_shell_output(
+            Some(product_logging::framework::capture_shell_output(
                 STACKABLE_LOG_DIR,
                 container_name,
                 &log_config,
-            )
+            ))
         } else {
-            String::new()
+            None
         }
     }
 }
