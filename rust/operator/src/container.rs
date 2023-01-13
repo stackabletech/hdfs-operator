@@ -235,12 +235,12 @@ impl ContainerConfig {
                     args.push(
                         self.copy_log4j_properties_cmd(ZKFC_LOG4J_CONFIG_FILE, container_config),
                     );
-
-                    args.push(format!(
-                        "{hadoop_home}/bin/hdfs zkfc",
-                        hadoop_home = Self::HADOOP_HOME
-                    ));
                 }
+
+                args.push(format!(
+                    "{hadoop_home}/bin/hdfs zkfc",
+                    hadoop_home = Self::HADOOP_HOME
+                ));
             }
             ContainerConfig::FormatNameNodes { .. } => {
                 args.push(Self::init_container_logging_args(
