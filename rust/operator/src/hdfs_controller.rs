@@ -133,8 +133,8 @@ pub enum Error {
     ConfigMerge { source: stackable_hdfs_crd::Error },
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
-    #[snafu(display("failed to create (init) container"))]
-    FailedToCreateContainerConfig { source: crate::container::Error },
+    #[snafu(display("failed to create container and volume configuration"))]
+    FailedToCreateContainerAndVolumeConfiguration { source: crate::container::Error },
 }
 
 impl ReconcilerError for Error {
@@ -497,6 +497,7 @@ fn rolegroup_statefulset(
             .build(),
     );
 
+    // Adds all containers and volumes to the pod builder
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
         role,
@@ -507,7 +508,7 @@ fn rolegroup_statefulset(
         &object_name,
         namenode_podrefs,
     )
-    .context(FailedToCreateContainerConfigSnafu)?;
+    .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()

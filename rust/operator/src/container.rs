@@ -1,10 +1,21 @@
-use crate::product_logging::{
-    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-    MAX_LOG_FILES_SIZE_IN_MIB, WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-};
+//! This module configures required HDFS containers and their volumes.
+//!
+//! ## Features
+//!
+//! - Create all required main, side and init containers for Namenodes, Datanodes and Journalnodes
+//! - Adds required volumes and volume mounts
+//! - Set required env variables
+//! - Build container commands and args
+//! - Set resources
+//! - Add tcp probes and container ports (to the main containers)
+//!
 use crate::{
     config::{HdfsNodeDataDirectory, STACKABLE_ROOT_DATA_DIR},
-    product_logging::{HDFS_LOG4J_CONFIG_FILE, STACKABLE_LOG_DIR, ZKFC_LOG4J_CONFIG_FILE},
+    product_logging::{
+        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+        HDFS_LOG4J_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR,
+        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+    },
 };
 
 use indoc::formatdoc;
@@ -115,16 +126,16 @@ impl ContainerConfig {
     const JVM_HEAP_FACTOR: f32 = 0.8;
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
 
-    // We have a maximum of 4 continuous logging files for namenodes. Datanode and Journalnode require less.
-    // We add another 1MB as buffer for each possible logging file.
+    // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
+    // require less. We add another 1MB as buffer for each possible logging file.
     // - name node main container
     // - zkfc side container
     // - format namenode init container
     // - format zookeeper init container
     const LOG_VOLUME_SIZE_IN_MIB: u32 = 4 * (MAX_LOG_FILES_SIZE_IN_MIB + 1);
 
-    #[allow(clippy::too_many_arguments)]
     /// Add all main, side and init containers as well as required volumes to the pod builder.
+    #[allow(clippy::too_many_arguments)]
     pub fn add_containers_and_volumes(
         pb: &mut PodBuilder,
         role: &HdfsRole,
@@ -158,6 +169,16 @@ impl ContainerConfig {
         // role specific pod settings configured here
         match role {
             HdfsRole::NameNode => {
+                // Zookeeper fail over container
+                let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
+                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
+                pb.add_container(zkfc_container_config.main_container(
+                    resolved_product_image,
+                    zk_config_map_name,
+                    env_overrides,
+                    merged_config,
+                )?);
+
                 // Format namenode init container
                 let format_namenodes_container_config =
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
@@ -183,16 +204,6 @@ impl ContainerConfig {
                     zk_config_map_name,
                     env_overrides,
                     namenode_podrefs,
-                    merged_config,
-                )?);
-
-                // Zookeeper fail over container
-                let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
-                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
-                pb.add_container(zkfc_container_config.main_container(
-                    resolved_product_image,
-                    zk_config_map_name,
-                    env_overrides,
                     merged_config,
                 )?);
             }
