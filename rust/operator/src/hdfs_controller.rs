@@ -58,11 +58,15 @@ const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
 pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
-
 const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
-/// We have a maximum of 5 logging files (namenode)
+// We have a maximum of 3 continuous logging files and 2 * 2 (stderr, stdout) for init containers (namenode)
+// - name node main container (1)
+// - zkfc side container (1)
+// - vector side container (1)
+// - format namenode init container -> stdout + stderr (2) -> small
+// - format zookeeper init container -> stdout + stderr (2) -> small
 const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    5 * (MAX_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB);
+    7 * (MAX_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB);
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

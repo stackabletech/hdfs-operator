@@ -167,32 +167,13 @@ impl ContainerConfig {
     }
 
     /// Return the container name.
-    pub fn name(&self) -> &str {
+    fn name(&self) -> &str {
         match &self {
             ContainerConfig::Hdfs { container_name, .. } => container_name.as_str(),
             ContainerConfig::Zkfc { container_name, .. } => container_name.as_str(),
             ContainerConfig::FormatNameNodes { container_name, .. } => container_name.as_str(),
             ContainerConfig::FormatZooKeeper { container_name, .. } => container_name.as_str(),
             ContainerConfig::WaitForNameNodes { container_name, .. } => container_name.as_str(),
-        }
-    }
-
-    /// Get the logging command for init containers
-    fn init_container_logging_args(
-        container_log_config: Option<ContainerLogConfig>,
-        container_name: &str,
-    ) -> String {
-        if let Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) = container_log_config
-        {
-            product_logging::framework::capture_shell_output(
-                STACKABLE_LOG_DIR,
-                container_name,
-                &log_config,
-            )
-        } else {
-            String::new()
         }
     }
 
@@ -586,6 +567,25 @@ impl ContainerConfig {
         }
     }
 
+    /// Container ports for the main containers namenode, datanode and journalnode.
+    fn container_ports(&self) -> Vec<ContainerPort> {
+        match self {
+            ContainerConfig::Hdfs { role, .. } => role
+                .ports()
+                .into_iter()
+                .map(|(name, value)| ContainerPort {
+                    name: Some(name),
+                    container_port: i32::from(value),
+                    protocol: Some("TCP".to_string()),
+                    ..ContainerPort::default()
+                })
+                .collect(),
+            _ => {
+                vec![]
+            }
+        }
+    }
+
     /// Transform the ProductConfig map structure to a Vector of env vars.
     fn transform_env_overrides_to_env_vars(
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -641,22 +641,22 @@ impl ContainerConfig {
         ]
     }
 
-    /// Container ports for the main containers namenode, datanode and journalnode.
-    fn container_ports(&self) -> Vec<ContainerPort> {
-        match self {
-            ContainerConfig::Hdfs { role, .. } => role
-                .ports()
-                .into_iter()
-                .map(|(name, value)| ContainerPort {
-                    name: Some(name),
-                    container_port: i32::from(value),
-                    protocol: Some("TCP".to_string()),
-                    ..ContainerPort::default()
-                })
-                .collect(),
-            _ => {
-                vec![]
-            }
+    /// Get the logging command for init containers
+    fn init_container_logging_args(
+        container_log_config: Option<ContainerLogConfig>,
+        container_name: &str,
+    ) -> String {
+        if let Some(ContainerLogConfig {
+            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+        }) = container_log_config
+        {
+            product_logging::framework::capture_shell_output(
+                STACKABLE_LOG_DIR,
+                container_name,
+                &log_config,
+            )
+        } else {
+            String::new()
         }
     }
 }
