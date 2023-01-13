@@ -74,12 +74,6 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-zookeeper"
-    automaticLogConfigNameNode1FormatZookeeper:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
-        .container == "format-zookeeper"
     automaticLogConfigDataNode0:
       type: filter
       inputs: [vector]

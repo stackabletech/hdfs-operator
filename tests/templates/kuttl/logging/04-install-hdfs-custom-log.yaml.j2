@@ -21,6 +21,39 @@ data:
     log4j.appender.FILE.File=/stackable/log/zkfc/zkfc.log4j.xml
     log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-format-namenodes-log-config
+data:
+  format-namenodes.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/format-namenodes/format-namenodes.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-format-zookeeper-log-config
+data:
+  format-zookeeper.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/format-zookeeper/format-zookeeper.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-wait-for-namenodes-log-config
+data:
+  wait-for-namenodes.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/wait-for-namenodes/wait-for-namenodes.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
@@ -45,6 +78,12 @@ spec:
               zkfc:
                 custom:
                   configMap: hdfs-zkfc-log-config
+              formatNameNodes:
+                custom:
+                  configMap: hdfs-format-namenodes-log-config
+              formatZooKeeper:
+                custom:
+                  configMap: hdfs-format-zookeeper-log-config
   dataNodes:
     roleGroups:
       default:
@@ -56,6 +95,9 @@ spec:
               hdfs:
                 custom:
                   configMap: hdfs-log-config
+              waitForNameNodes:
+                custom:
+                  configMap: hdfs-wait-for-namenodes-log-config
   journalNodes:
     roleGroups:
       default:

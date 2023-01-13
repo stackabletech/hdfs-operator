@@ -1,5 +1,3 @@
-use crate::hdfs_controller::MAX_LOG_FILES_SIZE_IN_MIB;
-
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{HdfsCluster, MergedConfig};
 use stackable_operator::{
@@ -35,13 +33,22 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+
 pub const HDFS_LOG4J_CONFIG_FILE: &str = "hdfs.log4j.properties";
 pub const ZKFC_LOG4J_CONFIG_FILE: &str = "zkfc.log4j.properties";
+pub const FORMAT_NAMENODES_LOG4J_CONFIG_FILE: &str = "format-namenodes.log4j.properties";
+pub const FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE: &str = "format-zookeeper.log4j.properties";
+pub const WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE: &str = "wait-for-namenodes.log4j.properties";
 
 const VECTOR_AGGREGATOR_CM_ENTRY: &str = "ADDRESS";
 const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %-5p %c{2} (%F:%M(%L)) - %m%n";
+
 const HDFS_LOG_FILE: &str = "hdfs.log4j.xml";
 const ZKFC_LOG_FILE: &str = "zkfc.log4j.xml";
+const FORMAT_NAMENODES_LOG_FILE: &str = "format-namenodes.log4j.xml";
+const FORMAT_ZOOKEEPER_LOG_FILE: &str = "format-zookeeper.log4j.xml";
+const WAIT_FOR_NAMENODES_LOG_FILE: &str = "wait-for-namenodes.log4j.xml";
 
 /// Return the address of the Vector aggregator if the corresponding ConfigMap name is given in the
 /// cluster spec
@@ -109,6 +116,54 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!("{STACKABLE_LOG_DIR}/zkfc"),
                 ZKFC_LOG_FILE,
+                MAX_LOG_FILES_SIZE_IN_MIB,
+                CONSOLE_CONVERSION_PATTERN,
+                &log_config,
+            ),
+        );
+    }
+
+    if let Some(ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    }) = merged_config.format_namenodes_logging()
+    {
+        cm_builder.add_data(
+            FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
+            product_logging::framework::create_log4j_config(
+                &format!("{STACKABLE_LOG_DIR}/format-namenodes"),
+                FORMAT_NAMENODES_LOG_FILE,
+                MAX_LOG_FILES_SIZE_IN_MIB,
+                CONSOLE_CONVERSION_PATTERN,
+                &log_config,
+            ),
+        );
+    }
+
+    if let Some(ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    }) = merged_config.format_zookeeper_logging()
+    {
+        cm_builder.add_data(
+            FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+            product_logging::framework::create_log4j_config(
+                &format!("{STACKABLE_LOG_DIR}/format-zookeeper"),
+                FORMAT_ZOOKEEPER_LOG_FILE,
+                MAX_LOG_FILES_SIZE_IN_MIB,
+                CONSOLE_CONVERSION_PATTERN,
+                &log_config,
+            ),
+        );
+    }
+
+    if let Some(ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    }) = merged_config.wait_for_namenodes()
+    {
+        cm_builder.add_data(
+            WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+            product_logging::framework::create_log4j_config(
+                &format!("{STACKABLE_LOG_DIR}/wait-for-namenodes"),
+                WAIT_FOR_NAMENODES_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
                 &log_config,

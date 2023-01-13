@@ -1,3 +1,7 @@
+use crate::product_logging::{
+    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+    MAX_LOG_FILES_SIZE_IN_MIB, WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+};
 use crate::{
     config::{HdfsNodeDataDirectory, STACKABLE_ROOT_DATA_DIR},
     product_logging::{HDFS_LOG4J_CONFIG_FILE, STACKABLE_LOG_DIR, ZKFC_LOG4J_CONFIG_FILE},
@@ -13,18 +17,20 @@ use stackable_hdfs_crd::{
     },
     HdfsPodRef, HdfsRole, MergedConfig,
 };
+use stackable_operator::builder::VolumeBuilder;
+use stackable_operator::product_logging::spec::{ConfigMapLogConfig, CustomContainerLogConfig};
 use stackable_operator::{
     builder::{ContainerBuilder, VolumeMountBuilder},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::core::v1::{
-            ConfigMapKeySelector, Container, ContainerPort, EnvVar, EnvVarSource,
-            ObjectFieldSelector, Probe, ResourceRequirements, TCPSocketAction, VolumeMount,
+            ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
+            EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, Probe,
+            ResourceRequirements, TCPSocketAction, Volume, VolumeMount,
         },
-        apimachinery::pkg::util::intstr::IntOrString,
+        apimachinery::pkg::{api::resource::Quantity, util::intstr::IntOrString},
     },
     memory::to_java_heap,
-    product_logging,
     product_logging::spec::{ContainerLogConfig, ContainerLogConfigChoice},
 };
 use std::{collections::BTreeMap, str::FromStr};
@@ -103,9 +109,25 @@ impl ContainerConfig {
     pub const HDFS_LOG_VOLUME_MOUNT_NAME: &'static str = "hdfs-log-config";
     pub const ZKFC_CONFIG_VOLUME_MOUNT_NAME: &'static str = "zkfc-config";
     pub const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
+    pub const FORMAT_NAMENODES_CONFIG_VOLUME_MOUNT_NAME: &'static str = "format-namenodes-config";
+    pub const FORMAT_NAMENODES_LOG_VOLUME_MOUNT_NAME: &'static str = "format-namenodes-log-config";
+    pub const FORMAT_ZOOKEEPER_CONFIG_VOLUME_MOUNT_NAME: &'static str = "format-zookeeper-config";
+    pub const FORMAT_ZOOKEEPER_LOG_VOLUME_MOUNT_NAME: &'static str = "format-zookeeper-log-config";
+    pub const WAIT_FOR_NAMENODES_CONFIG_VOLUME_MOUNT_NAME: &'static str =
+        "wait-for-namenodes-config";
+    pub const WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME: &'static str =
+        "wait-for-namenodes-log-config";
 
     const JVM_HEAP_FACTOR: f32 = 0.8;
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
+
+    // We have a maximum of 4 continuous logging files for namenodes. Datanode and Journalnode require less.
+    // We add another 1MB as buffer for each possible logging file.
+    // - name node main container
+    // - zkfc side container
+    // - format namenode init container
+    // - format zookeeper init container
+    const LOG_VOLUME_SIZE_IN_MIB: u32 = 4 * (MAX_LOG_FILES_SIZE_IN_MIB + 1);
 
     /// Creates the main/side containers for:
     /// - Namenode main process
@@ -212,12 +234,13 @@ impl ContainerConfig {
         merged_config: &(dyn MergedConfig + Send + 'static),
         namenode_podrefs: &[HdfsPodRef],
     ) -> Vec<String> {
-        let mut args = vec![];
+        let mut args = vec![
+            self.create_config_directory_cmd(),
+            self.copy_hdfs_and_core_site_xml_cmd(),
+        ];
 
         match self {
             ContainerConfig::Hdfs { role, .. } => {
-                args.push(self.create_config_directory_cmd());
-                args.push(self.copy_hdfs_and_core_site_xml_cmd());
                 args.push(self.copy_log4j_properties_cmd(
                     HDFS_LOG4J_CONFIG_FILE,
                     merged_config.hdfs_logging(),
@@ -229,8 +252,6 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::Zkfc { .. } => {
-                args.push(self.create_config_directory_cmd());
-                args.push(self.copy_hdfs_and_core_site_xml_cmd());
                 if let Some(container_config) = merged_config.zkfc_logging() {
                     args.push(
                         self.copy_log4j_properties_cmd(ZKFC_LOG4J_CONFIG_FILE, container_config),
@@ -243,13 +264,12 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::FormatNameNodes { .. } => {
-                if let Some(logging_args) = Self::init_container_logging_args(
-                    merged_config.format_namenodes_logging(),
-                    self.name(),
-                ) {
-                    args.push(logging_args);
+                if let Some(container_config) = merged_config.format_namenodes_logging() {
+                    args.push(self.copy_log4j_properties_cmd(
+                        FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
+                        container_config,
+                    ));
                 }
-
                 // First step we check for active namenodes. This step should return an active namenode
                 // for e.g. scaling. It may fail if the active namenode is restarted and the standby
                 // namenode takes over.
@@ -296,11 +316,11 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::FormatZooKeeper { .. } => {
-                if let Some(logging_args) = Self::init_container_logging_args(
-                    merged_config.format_zookeeper_logging(),
-                    self.name(),
-                ) {
-                    args.push(logging_args);
+                if let Some(container_config) = merged_config.format_zookeeper_logging() {
+                    args.push(self.copy_log4j_properties_cmd(
+                        FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+                        container_config,
+                    ));
                 }
                 args.push(formatdoc!(
                     r###"
@@ -314,11 +334,11 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::WaitForNameNodes { .. } => {
-                if let Some(logging_args) = Self::init_container_logging_args(
-                    merged_config.wait_for_namenodes(),
-                    self.name(),
-                ) {
-                    args.push(logging_args);
+                if let Some(container_config) = merged_config.wait_for_namenodes() {
+                    args.push(self.copy_log4j_properties_cmd(
+                        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+                        container_config,
+                    ));
                 }
                 args.push(formatdoc!(r###"
                     echo "Waiting for namenodes to get ready:"
@@ -392,8 +412,7 @@ impl ContainerConfig {
             | ContainerConfig::FormatZooKeeper { .. }
             | ContainerConfig::WaitForNameNodes { .. } => {
                 env.extend(Self::shared_env_vars(
-                    // We use the config mount dir directly here to not have to copy
-                    self.volume_mount_dirs().config_mount(),
+                    self.volume_mount_dirs().final_config(),
                     zookeeper_config_map_name,
                 ));
             }
@@ -438,6 +457,232 @@ impl ContainerConfig {
         }
     }
 
+    /// Return the container volumes
+    pub fn volumes(
+        &self,
+        merged_config: &(dyn MergedConfig + Send + 'static),
+        object_name: &str,
+    ) -> Vec<Volume> {
+        let mut volumes = vec![];
+
+        match self {
+            ContainerConfig::Hdfs { .. } => {
+                volumes.push(
+                    VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
+                        .empty_dir(EmptyDirVolumeSource {
+                            medium: None,
+                            size_limit: Some(Quantity(format!(
+                                "{volume_size_in_mb}Mi",
+                                volume_size_in_mb = Self::LOG_VOLUME_SIZE_IN_MIB
+                            ))),
+                        })
+                        .build(),
+                );
+                volumes.push(
+                    VolumeBuilder::new(ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME)
+                        .config_map(ConfigMapVolumeSource {
+                            name: Some(object_name.to_string()),
+                            ..ConfigMapVolumeSource::default()
+                        })
+                        .build(),
+                );
+                if let ContainerLogConfig {
+                    choice:
+                        Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                            custom: ConfigMapLogConfig { config_map },
+                        })),
+                } = merged_config.hdfs_logging()
+                {
+                    volumes.push(
+                        VolumeBuilder::new(ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME)
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(config_map),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                    );
+                } else {
+                    volumes.push(
+                        VolumeBuilder::new(ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME)
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(object_name.to_string()),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                    );
+                }
+            }
+            ContainerConfig::Zkfc { .. } => {
+                if let Some(container_log_config) = merged_config.zkfc_logging() {
+                    volumes.push(
+                        VolumeBuilder::new(ContainerConfig::ZKFC_CONFIG_VOLUME_MOUNT_NAME)
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(object_name.to_string()),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                    );
+                    if let ContainerLogConfig {
+                        choice:
+                            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                                custom: ConfigMapLogConfig { config_map },
+                            })),
+                    } = container_log_config
+                    {
+                        volumes.push(
+                            VolumeBuilder::new(ContainerConfig::ZKFC_LOG_VOLUME_MOUNT_NAME)
+                                .config_map(ConfigMapVolumeSource {
+                                    name: Some(config_map),
+                                    ..ConfigMapVolumeSource::default()
+                                })
+                                .build(),
+                        );
+                    } else {
+                        volumes.push(
+                            VolumeBuilder::new(ContainerConfig::ZKFC_LOG_VOLUME_MOUNT_NAME)
+                                .config_map(ConfigMapVolumeSource {
+                                    name: Some(object_name.to_string()),
+                                    ..ConfigMapVolumeSource::default()
+                                })
+                                .build(),
+                        );
+                    }
+                }
+            }
+            ContainerConfig::FormatNameNodes { .. } => {
+                if let Some(container_log_config) = merged_config.format_namenodes_logging() {
+                    volumes.push(
+                        VolumeBuilder::new(
+                            ContainerConfig::FORMAT_NAMENODES_CONFIG_VOLUME_MOUNT_NAME,
+                        )
+                        .config_map(ConfigMapVolumeSource {
+                            name: Some(object_name.to_string()),
+                            ..ConfigMapVolumeSource::default()
+                        })
+                        .build(),
+                    );
+                    if let ContainerLogConfig {
+                        choice:
+                            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                                custom: ConfigMapLogConfig { config_map },
+                            })),
+                    } = container_log_config
+                    {
+                        volumes.push(
+                            VolumeBuilder::new(
+                                ContainerConfig::FORMAT_NAMENODES_LOG_VOLUME_MOUNT_NAME,
+                            )
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(config_map),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                        );
+                    } else {
+                        volumes.push(
+                            VolumeBuilder::new(
+                                ContainerConfig::FORMAT_NAMENODES_LOG_VOLUME_MOUNT_NAME,
+                            )
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(object_name.to_string()),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                        );
+                    }
+                }
+            }
+            ContainerConfig::FormatZooKeeper { .. } => {
+                if let Some(container_log_config) = merged_config.format_zookeeper_logging() {
+                    volumes.push(
+                        VolumeBuilder::new(
+                            ContainerConfig::FORMAT_ZOOKEEPER_CONFIG_VOLUME_MOUNT_NAME,
+                        )
+                        .config_map(ConfigMapVolumeSource {
+                            name: Some(object_name.to_string()),
+                            ..ConfigMapVolumeSource::default()
+                        })
+                        .build(),
+                    );
+                    if let ContainerLogConfig {
+                        choice:
+                            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                                custom: ConfigMapLogConfig { config_map },
+                            })),
+                    } = container_log_config
+                    {
+                        volumes.push(
+                            VolumeBuilder::new(
+                                ContainerConfig::FORMAT_ZOOKEEPER_LOG_VOLUME_MOUNT_NAME,
+                            )
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(config_map),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                        );
+                    } else {
+                        volumes.push(
+                            VolumeBuilder::new(
+                                ContainerConfig::FORMAT_ZOOKEEPER_LOG_VOLUME_MOUNT_NAME,
+                            )
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(object_name.to_string()),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                        );
+                    }
+                }
+            }
+            ContainerConfig::WaitForNameNodes { .. } => {
+                if let Some(container_log_config) = merged_config.wait_for_namenodes() {
+                    volumes.push(
+                        VolumeBuilder::new(
+                            ContainerConfig::WAIT_FOR_NAMENODES_CONFIG_VOLUME_MOUNT_NAME,
+                        )
+                        .config_map(ConfigMapVolumeSource {
+                            name: Some(object_name.to_string()),
+                            ..ConfigMapVolumeSource::default()
+                        })
+                        .build(),
+                    );
+                    if let ContainerLogConfig {
+                        choice:
+                            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                                custom: ConfigMapLogConfig { config_map },
+                            })),
+                    } = container_log_config
+                    {
+                        volumes.push(
+                            VolumeBuilder::new(
+                                ContainerConfig::WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME,
+                            )
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(config_map),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                        );
+                    } else {
+                        volumes.push(
+                            VolumeBuilder::new(
+                                ContainerConfig::WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME,
+                            )
+                            .config_map(ConfigMapVolumeSource {
+                                name: Some(object_name.to_string()),
+                                ..ConfigMapVolumeSource::default()
+                            })
+                            .build(),
+                        );
+                    }
+                }
+            }
+        }
+
+        volumes
+    }
+
     /// Returns the container volume mounts.
     fn volume_mounts(&self) -> Vec<VolumeMount> {
         let mut volume_mounts =
@@ -477,15 +722,50 @@ impl ContainerConfig {
                     .build(),
                 ]);
             }
-            ContainerConfig::FormatNameNodes { .. }
-            | ContainerConfig::FormatZooKeeper { .. }
-            | ContainerConfig::WaitForNameNodes { .. } => {
+            ContainerConfig::FormatNameNodes { .. } => {
                 volume_mounts.extend(vec![
                     VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
                         .build(),
                     VolumeMountBuilder::new(
-                        Self::HDFS_CONFIG_VOLUME_MOUNT_NAME,
+                        Self::FORMAT_NAMENODES_CONFIG_VOLUME_MOUNT_NAME,
                         self.volume_mount_dirs().config_mount(),
+                    )
+                    .build(),
+                    VolumeMountBuilder::new(
+                        Self::FORMAT_NAMENODES_LOG_VOLUME_MOUNT_NAME,
+                        self.volume_mount_dirs().log_mount(),
+                    )
+                    .build(),
+                ]);
+            }
+            ContainerConfig::FormatZooKeeper { .. } => {
+                volume_mounts.extend(vec![
+                    VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
+                        .build(),
+                    VolumeMountBuilder::new(
+                        Self::FORMAT_ZOOKEEPER_CONFIG_VOLUME_MOUNT_NAME,
+                        self.volume_mount_dirs().config_mount(),
+                    )
+                    .build(),
+                    VolumeMountBuilder::new(
+                        Self::FORMAT_ZOOKEEPER_LOG_VOLUME_MOUNT_NAME,
+                        self.volume_mount_dirs().log_mount(),
+                    )
+                    .build(),
+                ]);
+            }
+            ContainerConfig::WaitForNameNodes { .. } => {
+                volume_mounts.extend(vec![
+                    VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
+                        .build(),
+                    VolumeMountBuilder::new(
+                        Self::WAIT_FOR_NAMENODES_CONFIG_VOLUME_MOUNT_NAME,
+                        self.volume_mount_dirs().config_mount(),
+                    )
+                    .build(),
+                    VolumeMountBuilder::new(
+                        Self::WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME,
+                        self.volume_mount_dirs().log_mount(),
                     )
                     .build(),
                 ]);
@@ -645,25 +925,6 @@ impl ContainerConfig {
                 ..EnvVar::default()
             },
         ]
-    }
-
-    /// Get the logging command for init containers
-    fn init_container_logging_args(
-        container_log_config: Option<ContainerLogConfig>,
-        container_name: &str,
-    ) -> Option<String> {
-        if let Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) = container_log_config
-        {
-            Some(product_logging::framework::capture_shell_output(
-                STACKABLE_LOG_DIR,
-                container_name,
-                &log_config,
-            ))
-        } else {
-            None
-        }
     }
 }
 

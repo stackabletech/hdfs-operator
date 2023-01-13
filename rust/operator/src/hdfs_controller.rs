@@ -11,21 +11,16 @@ use crate::container::ContainerConfig;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
 use stackable_operator::{
-    builder::{
-        ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder, VolumeBuilder,
-    },
+    builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
     cluster_resources::ClusterResources,
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{
-                ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, Service, ServicePort,
-                ServiceSpec,
-            },
+            core::v1::{ConfigMap, Service, ServicePort, ServiceSpec},
         },
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::{
         api::ObjectMeta,
@@ -36,13 +31,7 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
-    product_logging::{
-        self,
-        spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig,
-        },
-    },
+    product_logging::{self},
     role_utils::RoleGroupRef,
 };
 use std::{
@@ -56,16 +45,6 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
-
-pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
-const OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB: u32 = 1;
-// We have a maximum of 2 continuous logging files and 2 * 2 (stderr, stdout) for init containers (namenode)
-// - name node main container (1)
-// - zkfc side container (1)
-// - format namenode init container -> stdout + stderr (2) -> small
-// - format zookeeper init container -> stdout + stderr (2) -> small
-const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    6 * (MAX_LOG_FILES_SIZE_IN_MIB + OVERFLOW_BUFFER_ON_LOG_VOLUME_IN_MIB);
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -503,7 +482,7 @@ fn rolegroup_statefulset(
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
 
-    let service_name = rolegroup_ref.object_name();
+    let object_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
     // common pod settings
@@ -512,22 +491,6 @@ fn rolegroup_statefulset(
         ..ObjectMeta::default()
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
-    .add_volume(
-        VolumeBuilder::new(ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME)
-            .config_map(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
-                ..ConfigMapVolumeSource::default()
-            })
-            .build(),
-    )
-    .add_volume(
-        VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
-            .empty_dir(EmptyDirVolumeSource {
-                medium: None,
-                size_limit: Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
-            })
-            .build(),
-    )
     .service_account_name(rbac_sa)
     .security_context(
         PodSecurityContextBuilder::new()
@@ -536,69 +499,6 @@ fn rolegroup_statefulset(
             .fs_group(1000)
             .build(),
     );
-
-    if let ContainerLogConfig {
-        choice:
-            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                custom: ConfigMapLogConfig { config_map },
-            })),
-    } = merged_config.hdfs_logging()
-    {
-        pb.add_volume(
-            VolumeBuilder::new(ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME)
-                .config_map(ConfigMapVolumeSource {
-                    name: Some(config_map),
-                    ..ConfigMapVolumeSource::default()
-                })
-                .build(),
-        );
-    } else {
-        pb.add_volume(
-            VolumeBuilder::new(ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME)
-                .config_map(ConfigMapVolumeSource {
-                    name: Some(rolegroup_ref.object_name()),
-                    ..ConfigMapVolumeSource::default()
-                })
-                .build(),
-        );
-    }
-
-    if let Some(zkfc_container_log_config) = merged_config.zkfc_logging() {
-        pb.add_volume(
-            VolumeBuilder::new(ContainerConfig::ZKFC_CONFIG_VOLUME_MOUNT_NAME)
-                .config_map(ConfigMapVolumeSource {
-                    name: Some(rolegroup_ref.object_name()),
-                    ..ConfigMapVolumeSource::default()
-                })
-                .build(),
-        );
-
-        if let ContainerLogConfig {
-            choice:
-                Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                    custom: ConfigMapLogConfig { config_map },
-                })),
-        } = zkfc_container_log_config
-        {
-            pb.add_volume(
-                VolumeBuilder::new(ContainerConfig::ZKFC_LOG_VOLUME_MOUNT_NAME)
-                    .config_map(ConfigMapVolumeSource {
-                        name: Some(config_map),
-                        ..ConfigMapVolumeSource::default()
-                    })
-                    .build(),
-            );
-        } else {
-            pb.add_volume(
-                VolumeBuilder::new(ContainerConfig::ZKFC_LOG_VOLUME_MOUNT_NAME)
-                    .config_map(ConfigMapVolumeSource {
-                        name: Some(rolegroup_ref.object_name()),
-                        ..ConfigMapVolumeSource::default()
-                    })
-                    .build(),
-            );
-        }
-    }
 
     if merged_config.vector_logging_enabled() {
         pb.add_container(product_logging::framework::vector_container(
@@ -609,12 +509,12 @@ fn rolegroup_statefulset(
         ));
     }
 
-    let replicas;
     let zk_config_map_name = &hdfs.spec.zookeeper_config_map_name;
-
     // HDFS main container
+    let main_container_config = ContainerConfig::from(role.clone());
+    pb.add_volumes(main_container_config.volumes(merged_config, &object_name));
     pb.add_container(
-        ContainerConfig::from(role.clone())
+        main_container_config
             .main_container(
                 resolved_product_image,
                 zk_config_map_name,
@@ -623,29 +523,22 @@ fn rolegroup_statefulset(
             )
             .context(FailedToCreateContainerSnafu)?,
     );
+
+    let replicas;
     // role specific pod settings configured here
     match role {
         HdfsRole::NameNode => {
             let rg = hdfs.namenode_rolegroup(&rolegroup_ref.role_group);
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
+
             // Format namenode init container
-            pb.add_init_container(
+            let format_namenodes_container_config =
                 ContainerConfig::try_from(ContainerConfig::FORMAT_NAMENODES_CONTAINER_NAME)
-                    .context(FailedToCreateContainerConfigSnafu)?
-                    .init_container(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        namenode_podrefs,
-                        merged_config,
-                    )
-                    .context(FailedToCreateContainerSnafu)?,
-            );
-            // Format ZooKeeper init container
+                    .context(FailedToCreateContainerConfigSnafu)?;
+            pb.add_volumes(format_namenodes_container_config.volumes(merged_config, &object_name));
             pb.add_init_container(
-                ContainerConfig::try_from(ContainerConfig::FORMAT_ZOOKEEPER_CONTAINER_NAME)
-                    .context(FailedToCreateContainerConfigSnafu)?
+                format_namenodes_container_config
                     .init_container(
                         resolved_product_image,
                         zk_config_map_name,
@@ -655,10 +548,31 @@ fn rolegroup_statefulset(
                     )
                     .context(FailedToCreateContainerSnafu)?,
             );
+
+            // Format ZooKeeper init container
+            let format_zookeeper_container_config =
+                ContainerConfig::try_from(ContainerConfig::FORMAT_ZOOKEEPER_CONTAINER_NAME)
+                    .context(FailedToCreateContainerConfigSnafu)?;
+            pb.add_volumes(format_zookeeper_container_config.volumes(merged_config, &object_name));
+            pb.add_init_container(
+                format_zookeeper_container_config
+                    .init_container(
+                        resolved_product_image,
+                        zk_config_map_name,
+                        env_overrides,
+                        namenode_podrefs,
+                        merged_config,
+                    )
+                    .context(FailedToCreateContainerSnafu)?,
+            );
+
             // Zookeeper fail over container
-            pb.add_container(
+            let zkfc_container_config =
                 ContainerConfig::try_from(ContainerConfig::ZKFC_CONTAINER_NAME)
-                    .context(FailedToCreateContainerConfigSnafu)?
+                    .context(FailedToCreateContainerConfigSnafu)?;
+            pb.add_volumes(zkfc_container_config.volumes(merged_config, &object_name));
+            pb.add_container(
+                zkfc_container_config
                     .main_container(
                         resolved_product_image,
                         zk_config_map_name,
@@ -672,10 +586,16 @@ fn rolegroup_statefulset(
             let rg = hdfs.datanode_rolegroup(&rolegroup_ref.role_group);
             replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
             pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
+
             // Wait for namenode init container
-            pb.add_init_container(
+            let wait_for_namenodes_container_config =
                 ContainerConfig::try_from(ContainerConfig::WAIT_FOR_NAMENODES_CONTAINER_NAME)
-                    .context(FailedToCreateContainerConfigSnafu)?
+                    .context(FailedToCreateContainerConfigSnafu)?;
+            pb.add_volumes(
+                wait_for_namenodes_container_config.volumes(merged_config, &object_name),
+            );
+            pb.add_init_container(
+                wait_for_namenodes_container_config
                     .init_container(
                         resolved_product_image,
                         zk_config_map_name,
@@ -721,7 +641,7 @@ fn rolegroup_statefulset(
                 )),
                 ..LabelSelector::default()
             },
-            service_name,
+            service_name: object_name,
             template: pb.build_template(),
             volume_claim_templates: Some(vec![merged_config.resources().storage.data.build_pvc(
                 ContainerConfig::DATA_VOLUME_MOUNT_NAME,
