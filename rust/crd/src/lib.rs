@@ -16,7 +16,7 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
+    k8s_openapi::apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
     kube::{runtime::reflector::ObjectRef, CustomResource},
     labels::role_group_selector_labels,
     product_config::types::PropertyNameKind,
@@ -75,7 +75,7 @@ pub struct HdfsClusterSpec {
 }
 
 /// This is a shared trait for all role/role-group config structs to avoid duplication
-/// when extracting role specific configuration structs.
+/// when extracting role specific configuration structs like resources or logging.
 pub trait MergedConfig {
     /// Resources shared by all roles
     fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits>;
@@ -310,6 +310,46 @@ impl HdfsRole {
             HdfsRole::NameNode => "HDFS_NAMENODE_OPTS",
             HdfsRole::DataNode => "HDFS_DATANODE_OPTS",
             HdfsRole::JournalNode => "HDFS_JOURNALNODE_OPTS",
+        }
+    }
+
+    /// Return replicas for a certain rolegroup.
+    pub fn role_group_replicas(&self, hdfs: &HdfsCluster, role_group: &str) -> i32 {
+        match self {
+            HdfsRole::NameNode => hdfs
+                .namenode_rolegroup(role_group)
+                .and_then(|rg| rg.replicas)
+                .unwrap_or_default()
+                .into(),
+            HdfsRole::DataNode => hdfs
+                .datanode_rolegroup(role_group)
+                .and_then(|rg| rg.replicas)
+                .unwrap_or_default()
+                .into(),
+            HdfsRole::JournalNode => hdfs
+                .journalnode_rolegroup(role_group)
+                .and_then(|rg| rg.replicas)
+                .unwrap_or_default()
+                .into(),
+        }
+    }
+
+    /// Return the node/label selector for a certain rolegroup.
+    pub fn role_group_node_selector(
+        &self,
+        hdfs: &HdfsCluster,
+        role_group: &str,
+    ) -> Option<LabelSelector> {
+        match self {
+            HdfsRole::NameNode => hdfs
+                .namenode_rolegroup(role_group)
+                .and_then(|rg| rg.selector.clone()),
+            HdfsRole::DataNode => hdfs
+                .datanode_rolegroup(role_group)
+                .and_then(|rg| rg.selector.clone()),
+            HdfsRole::JournalNode => hdfs
+                .journalnode_rolegroup(role_group)
+                .and_then(|rg| rg.selector.clone()),
         }
     }
 }
@@ -582,10 +622,15 @@ fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntim
 )]
 #[serde(rename_all = "camelCase")]
 pub enum NameNodeContainer {
+    #[strum(serialize = "hdfs")]
     Hdfs,
+    #[strum(serialize = "vector")]
     Vector,
+    #[strum(serialize = "zkfc")]
     Zkfc,
+    #[strum(serialize = "format-namenodes")]
     FormatNameNodes,
+    #[strum(serialize = "format-zookeeper")]
     FormatZooKeeper,
 }
 
@@ -717,8 +762,11 @@ impl Configuration for NameNodeConfigFragment {
 )]
 #[serde(rename_all = "camelCase")]
 pub enum DataNodeContainer {
+    #[strum(serialize = "hdfs")]
     Hdfs,
+    #[strum(serialize = "vector")]
     Vector,
+    #[strum(serialize = "wait-for-namenodes")]
     WaitForNameNodes,
 }
 
@@ -836,7 +884,9 @@ impl Configuration for DataNodeConfigFragment {
 )]
 #[serde(rename_all = "camelCase")]
 pub enum JournalNodeContainer {
+    #[strum(serialize = "hdfs")]
     Hdfs,
+    #[strum(serialize = "vector")]
     Vector,
 }
 

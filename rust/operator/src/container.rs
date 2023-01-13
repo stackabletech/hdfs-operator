@@ -956,35 +956,34 @@ impl From<HdfsRole> for ContainerConfig {
     }
 }
 
-impl TryFrom<&str> for ContainerConfig {
+impl TryFrom<String> for ContainerConfig {
     type Error = Error;
 
-    fn try_from(container_name: &str) -> Result<Self, Self::Error> {
-        match HdfsRole::from_str(container_name) {
+    fn try_from(container_name: String) -> Result<Self, Self::Error> {
+        match HdfsRole::from_str(container_name.as_str()) {
             Ok(role) => Ok(ContainerConfig::from(role)),
             // No hadoop main process container
-            Err(_) => match container_name {
-                // side container
+            Err(_) => match container_name.as_str() {
+                // namenode side container
                 Self::ZKFC_CONTAINER_NAME => Ok(Self::Zkfc {
-                    container_name: container_name.to_string(),
-                    volume_mounts: ContainerVolumeDirs::from(container_name),
+                    volume_mounts: ContainerVolumeDirs::from(container_name.as_str()),
+                    container_name,
                 }),
-                // init containers
+                // namenode init containers
                 Self::FORMAT_NAMENODES_CONTAINER_NAME => Ok(Self::FormatNameNodes {
-                    container_name: container_name.to_string(),
-                    volume_mounts: ContainerVolumeDirs::from(container_name),
+                    volume_mounts: ContainerVolumeDirs::from(container_name.as_str()),
+                    container_name,
                 }),
                 Self::FORMAT_ZOOKEEPER_CONTAINER_NAME => Ok(Self::FormatZooKeeper {
-                    container_name: container_name.to_string(),
-                    volume_mounts: ContainerVolumeDirs::from(container_name),
+                    volume_mounts: ContainerVolumeDirs::from(container_name.as_str()),
+                    container_name,
                 }),
+                // datanode init containers
                 Self::WAIT_FOR_NAMENODES_CONTAINER_NAME => Ok(Self::WaitForNameNodes {
-                    container_name: container_name.to_string(),
-                    volume_mounts: ContainerVolumeDirs::from(container_name),
+                    volume_mounts: ContainerVolumeDirs::from(container_name.as_str()),
+                    container_name,
                 }),
-                _ => Err(Error::UnrecognizedContainerName {
-                    container_name: container_name.to_string(),
-                }),
+                _ => Err(Error::UnrecognizedContainerName { container_name }),
             },
         }
     }

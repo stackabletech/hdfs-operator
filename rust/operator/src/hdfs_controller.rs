@@ -1,15 +1,18 @@
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder},
+    container::ContainerConfig,
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     rbac, OPERATOR_NAME,
 };
 
-use crate::container::ContainerConfig;
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
+use stackable_hdfs_crd::{
+    constants::*, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig,
+    NameNodeContainer,
+};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
@@ -485,12 +488,12 @@ fn rolegroup_statefulset(
     let object_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
-    // common pod settings
     pb.metadata(ObjectMeta {
         labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
         ..ObjectMeta::default()
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
+    .node_selector_opt(role.role_group_node_selector(hdfs, &rolegroup_ref.role_group))
     .service_account_name(rbac_sa)
     .security_context(
         PodSecurityContextBuilder::new()
@@ -524,17 +527,12 @@ fn rolegroup_statefulset(
             .context(FailedToCreateContainerSnafu)?,
     );
 
-    let replicas;
     // role specific pod settings configured here
     match role {
         HdfsRole::NameNode => {
-            let rg = hdfs.namenode_rolegroup(&rolegroup_ref.role_group);
-            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
-            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-
             // Format namenode init container
             let format_namenodes_container_config =
-                ContainerConfig::try_from(ContainerConfig::FORMAT_NAMENODES_CONTAINER_NAME)
+                ContainerConfig::try_from(NameNodeContainer::FormatNameNodes.to_string())
                     .context(FailedToCreateContainerConfigSnafu)?;
             pb.add_volumes(format_namenodes_container_config.volumes(merged_config, &object_name));
             pb.add_init_container(
@@ -551,7 +549,7 @@ fn rolegroup_statefulset(
 
             // Format ZooKeeper init container
             let format_zookeeper_container_config =
-                ContainerConfig::try_from(ContainerConfig::FORMAT_ZOOKEEPER_CONTAINER_NAME)
+                ContainerConfig::try_from(NameNodeContainer::FormatZooKeeper.to_string())
                     .context(FailedToCreateContainerConfigSnafu)?;
             pb.add_volumes(format_zookeeper_container_config.volumes(merged_config, &object_name));
             pb.add_init_container(
@@ -568,7 +566,7 @@ fn rolegroup_statefulset(
 
             // Zookeeper fail over container
             let zkfc_container_config =
-                ContainerConfig::try_from(ContainerConfig::ZKFC_CONTAINER_NAME)
+                ContainerConfig::try_from(NameNodeContainer::Zkfc.to_string())
                     .context(FailedToCreateContainerConfigSnafu)?;
             pb.add_volumes(zkfc_container_config.volumes(merged_config, &object_name));
             pb.add_container(
@@ -583,13 +581,9 @@ fn rolegroup_statefulset(
             );
         }
         HdfsRole::DataNode => {
-            let rg = hdfs.datanode_rolegroup(&rolegroup_ref.role_group);
-            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
-
             // Wait for namenode init container
             let wait_for_namenodes_container_config =
-                ContainerConfig::try_from(ContainerConfig::WAIT_FOR_NAMENODES_CONTAINER_NAME)
+                ContainerConfig::try_from(DataNodeContainer::WaitForNameNodes.to_string())
                     .context(FailedToCreateContainerConfigSnafu)?;
             pb.add_volumes(
                 wait_for_namenodes_container_config.volumes(merged_config, &object_name),
@@ -606,11 +600,7 @@ fn rolegroup_statefulset(
                     .context(FailedToCreateContainerSnafu)?,
             );
         }
-        HdfsRole::JournalNode => {
-            let rg = hdfs.journalnode_rolegroup(&rolegroup_ref.role_group);
-            pb.node_selector_opt(rg.and_then(|rg| rg.selector.clone()));
-            replicas = rg.and_then(|rg| rg.replicas).unwrap_or_default();
-        }
+        HdfsRole::JournalNode => {}
     }
 
     Ok(StatefulSet {
@@ -631,7 +621,7 @@ fn rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("OrderedReady".to_string()),
-            replicas: Some(i32::from(replicas)),
+            replicas: Some(role.role_group_replicas(hdfs, &rolegroup_ref.role_group)),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
                     hdfs,

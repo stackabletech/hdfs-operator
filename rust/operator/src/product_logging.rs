@@ -1,5 +1,5 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{HdfsCluster, MergedConfig};
+use stackable_hdfs_crd::{DataNodeContainer, HdfsCluster, MergedConfig, NameNodeContainer};
 use stackable_operator::{
     builder::ConfigMapBuilder,
     client::Client,
@@ -114,7 +114,10 @@ pub fn extend_role_group_config_map(
         cm_builder.add_data(
             ZKFC_LOG4J_CONFIG_FILE,
             product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/zkfc"),
+                &format!(
+                    "{STACKABLE_LOG_DIR}/{container_name}",
+                    container_name = NameNodeContainer::Zkfc.to_string()
+                ),
                 ZKFC_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
@@ -130,7 +133,10 @@ pub fn extend_role_group_config_map(
         cm_builder.add_data(
             FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
             product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/format-namenodes"),
+                &format!(
+                    "{STACKABLE_LOG_DIR}/{container_name}",
+                    container_name = NameNodeContainer::FormatNameNodes.to_string()
+                ),
                 FORMAT_NAMENODES_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
@@ -146,7 +152,10 @@ pub fn extend_role_group_config_map(
         cm_builder.add_data(
             FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
             product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/format-zookeeper"),
+                &format!(
+                    "{STACKABLE_LOG_DIR}/{container_name}",
+                    container_name = NameNodeContainer::FormatZooKeeper.to_string()
+                ),
                 FORMAT_ZOOKEEPER_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
@@ -162,7 +171,10 @@ pub fn extend_role_group_config_map(
         cm_builder.add_data(
             WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
             product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/wait-for-namenodes"),
+                &format!(
+                    "{STACKABLE_LOG_DIR}/{container_name}",
+                    container_name = DataNodeContainer::WaitForNameNodes.to_string()
+                ),
                 WAIT_FOR_NAMENODES_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
