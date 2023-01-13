@@ -9,10 +9,7 @@ use crate::{
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{
-    constants::*, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig,
-    NameNodeContainer,
-};
+use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
@@ -34,7 +31,6 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
-    product_logging::{self},
     role_utils::RoleGroupRef,
 };
 use std::{
@@ -137,8 +133,6 @@ pub enum Error {
     ConfigMerge { source: stackable_hdfs_crd::Error },
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
-    #[snafu(display("failed to create (init) container"))]
-    FailedToCreateContainer { source: crate::container::Error },
     #[snafu(display("failed to create (init) container"))]
     FailedToCreateContainerConfig { source: crate::container::Error },
 }
@@ -503,105 +497,17 @@ fn rolegroup_statefulset(
             .build(),
     );
 
-    if merged_config.vector_logging_enabled() {
-        pb.add_container(product_logging::framework::vector_container(
-            resolved_product_image,
-            ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-            ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
-            Some(&merged_config.vector_logging()),
-        ));
-    }
-
-    let zk_config_map_name = &hdfs.spec.zookeeper_config_map_name;
-    // HDFS main container
-    let main_container_config = ContainerConfig::from(role.clone());
-    pb.add_volumes(main_container_config.volumes(merged_config, &object_name));
-    pb.add_container(
-        main_container_config
-            .main_container(
-                resolved_product_image,
-                zk_config_map_name,
-                env_overrides,
-                merged_config,
-            )
-            .context(FailedToCreateContainerSnafu)?,
-    );
-
-    // role specific pod settings configured here
-    match role {
-        HdfsRole::NameNode => {
-            // Format namenode init container
-            let format_namenodes_container_config =
-                ContainerConfig::try_from(NameNodeContainer::FormatNameNodes.to_string())
-                    .context(FailedToCreateContainerConfigSnafu)?;
-            pb.add_volumes(format_namenodes_container_config.volumes(merged_config, &object_name));
-            pb.add_init_container(
-                format_namenodes_container_config
-                    .init_container(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        namenode_podrefs,
-                        merged_config,
-                    )
-                    .context(FailedToCreateContainerSnafu)?,
-            );
-
-            // Format ZooKeeper init container
-            let format_zookeeper_container_config =
-                ContainerConfig::try_from(NameNodeContainer::FormatZooKeeper.to_string())
-                    .context(FailedToCreateContainerConfigSnafu)?;
-            pb.add_volumes(format_zookeeper_container_config.volumes(merged_config, &object_name));
-            pb.add_init_container(
-                format_zookeeper_container_config
-                    .init_container(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        namenode_podrefs,
-                        merged_config,
-                    )
-                    .context(FailedToCreateContainerSnafu)?,
-            );
-
-            // Zookeeper fail over container
-            let zkfc_container_config =
-                ContainerConfig::try_from(NameNodeContainer::Zkfc.to_string())
-                    .context(FailedToCreateContainerConfigSnafu)?;
-            pb.add_volumes(zkfc_container_config.volumes(merged_config, &object_name));
-            pb.add_container(
-                zkfc_container_config
-                    .main_container(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        merged_config,
-                    )
-                    .context(FailedToCreateContainerSnafu)?,
-            );
-        }
-        HdfsRole::DataNode => {
-            // Wait for namenode init container
-            let wait_for_namenodes_container_config =
-                ContainerConfig::try_from(DataNodeContainer::WaitForNameNodes.to_string())
-                    .context(FailedToCreateContainerConfigSnafu)?;
-            pb.add_volumes(
-                wait_for_namenodes_container_config.volumes(merged_config, &object_name),
-            );
-            pb.add_init_container(
-                wait_for_namenodes_container_config
-                    .init_container(
-                        resolved_product_image,
-                        zk_config_map_name,
-                        env_overrides,
-                        namenode_podrefs,
-                        merged_config,
-                    )
-                    .context(FailedToCreateContainerSnafu)?,
-            );
-        }
-        HdfsRole::JournalNode => {}
-    }
+    ContainerConfig::add_containers_and_volumes(
+        &mut pb,
+        role,
+        resolved_product_image,
+        merged_config,
+        env_overrides,
+        &hdfs.spec.zookeeper_config_map_name,
+        &object_name,
+        namenode_podrefs,
+    )
+    .context(FailedToCreateContainerConfigSnafu)?;
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()

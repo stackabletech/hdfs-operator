@@ -116,7 +116,7 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!(
                     "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = NameNodeContainer::Zkfc.to_string()
+                    container_name = NameNodeContainer::Zkfc
                 ),
                 ZKFC_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
@@ -135,7 +135,7 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!(
                     "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = NameNodeContainer::FormatNameNodes.to_string()
+                    container_name = NameNodeContainer::FormatNameNodes
                 ),
                 FORMAT_NAMENODES_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
@@ -154,7 +154,7 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!(
                     "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = NameNodeContainer::FormatZooKeeper.to_string()
+                    container_name = NameNodeContainer::FormatZooKeeper
                 ),
                 FORMAT_ZOOKEEPER_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
@@ -173,7 +173,7 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!(
                     "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = DataNodeContainer::WaitForNameNodes.to_string()
+                    container_name = DataNodeContainer::WaitForNameNodes
                 ),
                 WAIT_FOR_NAMENODES_LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
