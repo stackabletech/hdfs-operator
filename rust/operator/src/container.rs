@@ -487,33 +487,18 @@ impl ContainerConfig {
     ) -> Vec<EnvVar> {
         let mut env = Self::transform_env_overrides_to_env_vars(env_overrides);
 
-        match self {
-            ContainerConfig::Hdfs { role, .. } => {
-                env.extend(Self::shared_env_vars(
-                    self.volume_mount_dirs().final_config(),
-                    zookeeper_config_map_name,
-                ));
-                if let Some(resources) = resources {
-                    env.push(EnvVar {
-                        name: role.hadoop_opts().to_string(),
-                        value: self.build_hadoop_opts(resources).ok(),
-                        ..EnvVar::default()
-                    });
-                }
-            }
-            ContainerConfig::Zkfc { .. } => {
-                env.extend(Self::shared_env_vars(
-                    self.volume_mount_dirs().final_config(),
-                    zookeeper_config_map_name,
-                ));
-            }
-            ContainerConfig::FormatNameNodes { .. }
-            | ContainerConfig::FormatZooKeeper { .. }
-            | ContainerConfig::WaitForNameNodes { .. } => {
-                env.extend(Self::shared_env_vars(
-                    self.volume_mount_dirs().final_config(),
-                    zookeeper_config_map_name,
-                ));
+        env.extend(Self::shared_env_vars(
+            self.volume_mount_dirs().final_config(),
+            zookeeper_config_map_name,
+        ));
+
+        if let ContainerConfig::Hdfs { role, .. } = self {
+            if let Some(resources) = resources {
+                env.push(EnvVar {
+                    name: role.hadoop_opts().to_string(),
+                    value: self.build_hadoop_opts(resources).ok(),
+                    ..EnvVar::default()
+                });
             }
         }
 
@@ -564,7 +549,7 @@ impl ContainerConfig {
     ) -> Vec<Volume> {
         let mut volumes = vec![];
 
-        match self {
+        let container_log_config = match self {
             ContainerConfig::Hdfs { .. } => {
                 volumes.push(
                     VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
@@ -578,46 +563,20 @@ impl ContainerConfig {
                         .build(),
                 );
 
-                volumes.extend(Self::common_container_volumes(
-                    Some(merged_config.hdfs_logging()),
-                    object_name,
-                    self.volume_mount_dirs().config_mount_name(),
-                    self.volume_mount_dirs().log_mount_name(),
-                ));
+                Some(merged_config.hdfs_logging())
             }
-            ContainerConfig::Zkfc { .. } => {
-                volumes.extend(Self::common_container_volumes(
-                    merged_config.zkfc_logging(),
-                    object_name,
-                    self.volume_mount_dirs().config_mount_name(),
-                    self.volume_mount_dirs().log_mount_name(),
-                ));
-            }
-            ContainerConfig::FormatNameNodes { .. } => {
-                volumes.extend(Self::common_container_volumes(
-                    merged_config.format_namenodes_logging(),
-                    object_name,
-                    self.volume_mount_dirs().config_mount_name(),
-                    self.volume_mount_dirs().log_mount_name(),
-                ));
-            }
-            ContainerConfig::FormatZooKeeper { .. } => {
-                volumes.extend(Self::common_container_volumes(
-                    merged_config.format_zookeeper_logging(),
-                    object_name,
-                    self.volume_mount_dirs().config_mount_name(),
-                    self.volume_mount_dirs().log_mount_name(),
-                ));
-            }
-            ContainerConfig::WaitForNameNodes { .. } => {
-                volumes.extend(Self::common_container_volumes(
-                    merged_config.wait_for_namenodes(),
-                    object_name,
-                    self.volume_mount_dirs().config_mount_name(),
-                    self.volume_mount_dirs().log_mount_name(),
-                ));
-            }
-        }
+            ContainerConfig::Zkfc { .. } => merged_config.zkfc_logging(),
+            ContainerConfig::FormatNameNodes { .. } => merged_config.format_namenodes_logging(),
+            ContainerConfig::FormatZooKeeper { .. } => merged_config.format_zookeeper_logging(),
+            ContainerConfig::WaitForNameNodes { .. } => merged_config.wait_for_namenodes(),
+        };
+
+        volumes.extend(Self::common_container_volumes(
+            container_log_config,
+            object_name,
+            self.volume_mount_dirs().config_mount_name(),
+            self.volume_mount_dirs().log_mount_name(),
+        ));
 
         volumes
     }
@@ -643,7 +602,6 @@ impl ContainerConfig {
             ContainerConfig::Hdfs { .. }
             | ContainerConfig::FormatNameNodes { .. }
             | ContainerConfig::FormatZooKeeper { .. }
-            // TODO: which container does need the data folder?
             | ContainerConfig::WaitForNameNodes { .. } => {
                 volume_mounts.push(
                     VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
