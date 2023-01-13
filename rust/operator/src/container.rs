@@ -107,7 +107,7 @@ impl ContainerConfig {
     const JVM_HEAP_FACTOR: f32 = 0.8;
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
 
-    /// Creates the main process containers for:
+    /// Creates the main/side containers for:
     /// - Namenode main process
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
@@ -146,7 +146,7 @@ impl ContainerConfig {
     }
 
     /// Creates respective init containers for:
-    /// - Namenode (format-namenode, format-zookeeper)
+    /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
     pub fn init_container(
         &self,
@@ -402,7 +402,7 @@ impl ContainerConfig {
         env
     }
 
-    /// Returns the container env variables.
+    /// Returns the container resources.
     fn resources(
         &self,
         merged_config: &(dyn MergedConfig + Send + 'static),
@@ -438,7 +438,7 @@ impl ContainerConfig {
         }
     }
 
-    /// Returns the main container volume mounts.
+    /// Returns the container volume mounts.
     fn volume_mounts(&self) -> Vec<VolumeMount> {
         let mut volume_mounts =
             vec![
