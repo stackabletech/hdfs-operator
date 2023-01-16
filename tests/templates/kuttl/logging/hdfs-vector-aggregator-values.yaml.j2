@@ -140,6 +140,24 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-1" &&
         .container == "vector"
+    customLogConfigNameNode0FormatNameNodes:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "format-namenodes"
+    customLogConfigNameNode1FormatNamenodes:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "format-namenodes"
+    customLogConfigNameNode0FormatZookeeper:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "format-zookeeper"
     customLogConfigDataNode0:
       type: filter
       inputs: [vector]
@@ -152,6 +170,12 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-custom-log-datanode-default-0" &&
         .container == "vector"
+    customLogConfigDataNode0WaitForNameNodes:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-0" &&
+        .container == "wait-for-namenodes"
     customLogConfigJournalNode0:
       type: filter
       inputs: [vector]
