@@ -1,0 +1,17 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >-
+      helm install hdfs-vector-aggregator vector
+      --namespace $NAMESPACE
+      --version 0.18.0
+      --repo https://helm.vector.dev
+      --values hdfs-vector-aggregator-values.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-vector-aggregator-discovery
+data:
+  ADDRESS: hdfs-vector-aggregator:6123

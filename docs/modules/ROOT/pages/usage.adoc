@@ -14,13 +14,12 @@ metadata:
   name: simple-zk
 spec:
   image:
-    productVersion: 3.5.8
-    stackableVersion: 0.8.0
+    productVersion: 3.8.0
+    stackableVersion: 0.9.0
   servers:
     roleGroups:
       default:
         replicas: 3
-        config: {}
 ---
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperZnode
@@ -49,7 +48,7 @@ metadata:
 spec:
   image:
     productVersion: 3.3.4
-    stackableVersion: 0.2.0
+    stackableVersion: 0.3.0
   zookeeperConfigMapName: simple-znode
   dfsReplication: 3
   nameNodes:
@@ -73,6 +72,32 @@ IMPORTANT: When scaling namenodes up, make sure to increase the replica count on
 
 The managed HDFS instances are automatically configured to export Prometheus metrics. See
 xref:home:operators:monitoring.adoc[] for more details.
+
+== Log aggregation
+
+The logs can be forwarded to a Vector log aggregator by providing a discovery
+ConfigMap for the aggregator and by enabling the log agent:
+
+[source,yaml]
+----
+spec:
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+  nameNodes:
+    config:
+      logging:
+        enableVectorAgent: true
+  dataNodes:
+    config:
+      logging:
+        enableVectorAgent: true
+  journalNodes:
+    config:
+      logging:
+        enableVectorAgent: true
+----
+
+Further information on how to configure logging, can be found in
+xref:home:concepts:logging.adoc[].
 
 == Configuration & Environment Overrides
 
@@ -187,7 +212,7 @@ dataNodes:
         resources:
           cpu:
             max: '4'
-            min: '500m'
+            min: '100m'
           storage:
             data:
               capacity: 2Gi

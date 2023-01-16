@@ -5,14 +5,10 @@ use stackable_hdfs_crd::constants::{
     DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_NAME_SERVICES, DFS_REPLICATION,
     FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
 };
-use stackable_hdfs_crd::HdfsPodRef;
+use stackable_hdfs_crd::{HdfsPodRef, HdfsRole};
 use std::collections::BTreeMap;
 
-// dirs
-pub const NAMENODE_DIR: &str = "/data/name";
-pub const DATANODE_DIR: &str = "/data/data";
-pub const JOURNALNODE_DIR: &str = "/data/journal";
-pub const ROOT_DATA_DIR: &str = "/data";
+pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
 
 #[derive(Clone)]
 pub struct HdfsNodeDataDirectory {
@@ -24,9 +20,18 @@ pub struct HdfsNodeDataDirectory {
 impl Default for HdfsNodeDataDirectory {
     fn default() -> Self {
         HdfsNodeDataDirectory {
-            namenode: NAMENODE_DIR.to_string(),
-            datanode: DATANODE_DIR.to_string(),
-            journalnode: JOURNALNODE_DIR.to_string(),
+            namenode: format!(
+                "{STACKABLE_ROOT_DATA_DIR}/{role}",
+                role = HdfsRole::NameNode
+            ),
+            datanode: format!(
+                "{STACKABLE_ROOT_DATA_DIR}/{role}",
+                role = HdfsRole::DataNode
+            ),
+            journalnode: format!(
+                "{STACKABLE_ROOT_DATA_DIR}/{role}",
+                role = HdfsRole::JournalNode
+            ),
         }
     }
 }
@@ -173,7 +178,7 @@ impl HdfsSiteConfigBuilder {
         &mut self,
         namenode_podrefs: &[HdfsPodRef],
         address: &str,
-        default_port: i32,
+        default_port: u16,
     ) -> &mut Self {
         for nn in namenode_podrefs {
             self.config.insert(

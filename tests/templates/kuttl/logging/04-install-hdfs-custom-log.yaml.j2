@@ -1,0 +1,111 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-log-config
+data:
+  hdfs.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/hdfs/hdfs.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-zkfc-log-config
+data:
+  zkfc.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/zkfc/zkfc.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-format-namenodes-log-config
+data:
+  format-namenodes.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/format-namenodes/format-namenodes.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-format-zookeeper-log-config
+data:
+  format-zookeeper.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/format-zookeeper/format-zookeeper.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-wait-for-namenodes-log-config
+data:
+  wait-for-namenodes.log4j.properties: |
+    log4j.rootLogger=INFO, FILE
+    log4j.appender.FILE=org.apache.log4j.FileAppender
+    log4j.appender.FILE.File=/stackable/log/wait-for-namenodes/wait-for-namenodes.log4j.xml
+    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: test-hdfs-custom-log
+spec:
+  image:
+    productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
+  vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
+  zookeeperConfigMapName: test-hdfs-custom-log-znode
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hdfs:
+                custom:
+                  configMap: hdfs-log-config
+              zkfc:
+                custom:
+                  configMap: hdfs-zkfc-log-config
+              formatNameNodes:
+                custom:
+                  configMap: hdfs-format-namenodes-log-config
+              formatZooKeeper:
+                custom:
+                  configMap: hdfs-format-zookeeper-log-config
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hdfs:
+                custom:
+                  configMap: hdfs-log-config
+              waitForNameNodes:
+                custom:
+                  configMap: hdfs-wait-for-namenodes-log-config
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hdfs:
+                custom:
+                  configMap: hdfs-log-config
