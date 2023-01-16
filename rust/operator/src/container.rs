@@ -146,16 +146,6 @@ impl ContainerConfig {
         object_name: &str,
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<(), Error> {
-        // Vector side container
-        if merged_config.vector_logging_enabled() {
-            pb.add_container(product_logging::framework::vector_container(
-                resolved_product_image,
-                ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-                ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
-                Some(&merged_config.vector_logging()),
-            ));
-        }
-
         // HDFS main container
         let main_container_config = Self::from(role.clone());
         pb.add_volumes(main_container_config.volumes(merged_config, object_name));
@@ -165,6 +155,16 @@ impl ContainerConfig {
             env_overrides,
             merged_config,
         )?);
+
+        // Vector side container
+        if merged_config.vector_logging_enabled() {
+            pb.add_container(product_logging::framework::vector_container(
+                resolved_product_image,
+                ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
+                ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
+                Some(&merged_config.vector_logging()),
+            ));
+        }
 
         // role specific pod settings configured here
         match role {
