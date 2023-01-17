@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Log aggregation added ([#290]).
+- Support for multiple storage directories ([#296]).
 
 ### Changed
 
@@ -21,6 +22,7 @@ All notable changes to this project will be documented in this file.
 [#281]: https://github.com/stackabletech/hdfs-operator/pull/281
 [#286]: https://github.com/stackabletech/hdfs-operator/pull/286
 [#290]: https://github.com/stackabletech/hdfs-operator/pull/290
+[#296]: https://github.com/stackabletech/hdfs-operator/pull/296
 
 ## [0.6.0] - 2022-11-07
 

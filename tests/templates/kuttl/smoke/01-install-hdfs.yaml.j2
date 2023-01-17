@@ -34,9 +34,23 @@ spec:
           min: '300m'
         memory:
           limit: '512Mi'
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+        storage:
+          data: # We need to overwrite the data pvcs coming from the default value
+            count: 0
+          hdd:
+            capacity: 2Gi
+            count: 2
+            hdfsStorageType: Disk
+          ssd:
+            capacity: 1Gi
+            # storageClass: premium # We can't set the storage class in itegration tests, as we don't know which ones are available
+            count: 1
+            hdfsStorageType: SSD
+{% endif %}
     roleGroups:
       default:
-        replicas: 1
+        replicas: {{ test_scenario['values']['number-of-datanodes'] }}
   journalNodes:
     config:
       resources:

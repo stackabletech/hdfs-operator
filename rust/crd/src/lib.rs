@@ -1,4 +1,5 @@
 pub mod constants;
+pub mod storage;
 
 use constants::*;
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use stackable_operator::{
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
-            PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
+            PvcConfigFragment, Resources, ResourcesFragment,
         },
     },
     config::{
@@ -27,6 +28,10 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 use std::collections::{BTreeMap, HashMap};
+use storage::{
+    DataNodePvcFragment, DataNodeStorageConfigInnerType, HdfsStorageConfig,
+    HdfsStorageConfigFragment, HdfsStorageType,
+};
 use strum::{Display, EnumIter, EnumString};
 
 #[derive(Snafu, Debug)]
@@ -77,8 +82,18 @@ pub struct HdfsClusterSpec {
 /// This is a shared trait for all role/role-group config structs to avoid duplication
 /// when extracting role specific configuration structs like resources or logging.
 pub trait MergedConfig {
-    /// Resources shared by all roles
-    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits>;
+    /// Resources shared by all roles (except datanodes).
+    /// DataNodes must use `data_node_resources`
+    fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
+        None
+    }
+    /// Resources for datanodes.
+    /// Other roles must use `resources`.
+    fn data_node_resources(
+        &self,
+    ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
+        None
+    }
     /// Main container shared by all roles
     fn hdfs_logging(&self) -> ContainerLogConfig;
     /// Vector container shared by all roles
@@ -566,27 +581,6 @@ impl HdfsPodRef {
     }
 }
 
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
-#[fragment_attrs(
-    allow(clippy::derive_partial_eq_without_eq),
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
-pub struct HdfsStorageConfig {
-    #[fragment_attrs(serde(default))]
-    pub data: PvcConfig,
-}
-
 fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntimeLimits> {
     ResourcesFragment {
         cpu: CpuLimitsFragment {
@@ -604,6 +598,27 @@ fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntim
                 selectors: None,
             },
         },
+    }
+}
+
+pub fn default_data_node_resources_fragment(
+) -> ResourcesFragment<DataNodeStorageConfigInnerType, NoRuntimeLimits> {
+    let default_resources_fragment = default_resources_fragment();
+    ResourcesFragment {
+        cpu: default_resources_fragment.cpu,
+        memory: default_resources_fragment.memory,
+        storage: BTreeMap::from([(
+            "data".to_string(),
+            DataNodePvcFragment {
+                pvc: PvcConfigFragment {
+                    capacity: Some(Quantity("5Gi".to_owned())),
+                    storage_class: None,
+                    selectors: None,
+                },
+                count: Some(1),
+                hdfs_storage_type: Some(HdfsStorageType::default()),
+            },
+        )]),
     }
 }
 
@@ -656,8 +671,8 @@ pub struct NameNodeConfig {
 }
 
 impl MergedConfig for NameNodeConfig {
-    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
-        self.resources.clone()
+    fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
+        Some(self.resources.clone())
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -786,14 +801,16 @@ pub enum DataNodeContainer {
 )]
 pub struct DataNodeConfig {
     #[fragment_attrs(serde(default))]
-    pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
+    pub resources: Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<DataNodeContainer>,
 }
 
 impl MergedConfig for DataNodeConfig {
-    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
-        self.resources.clone()
+    fn data_node_resources(
+        &self,
+    ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
+        Some(self.resources.clone())
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -827,7 +844,7 @@ impl MergedConfig for DataNodeConfig {
 impl DataNodeConfigFragment {
     pub fn default_config() -> Self {
         Self {
-            resources: default_resources_fragment(),
+            resources: default_data_node_resources_fragment(),
             logging: product_logging::spec::default_logging(),
         }
     }
@@ -912,8 +929,8 @@ pub struct JournalNodeConfig {
 }
 
 impl MergedConfig for JournalNodeConfig {
-    fn resources(&self) -> Resources<HdfsStorageConfig, NoRuntimeLimits> {
-        self.resources.clone()
+    fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
+        Some(self.resources.clone())
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -977,6 +994,8 @@ impl Configuration for JournalNodeConfigFragment {
 
 #[cfg(test)]
 mod test {
+    use crate::storage::HdfsStorageType;
+
     use super::{HdfsCluster, HdfsRole};
     use stackable_operator::k8s_openapi::{
         api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
@@ -1002,21 +1021,22 @@ spec:
           resources:
             storage:
               data:
-                capacity: 5Gi
+                capacity: 10Gi
         replicas: 1
 ";
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let capacity = role
+        let resources = role
             .merged_config(&hdfs, "default")
             .unwrap()
-            .resources()
-            .storage
-            .data
-            .capacity;
+            .data_node_resources()
+            .unwrap();
+        let pvc = resources.storage.get("data").unwrap();
 
-        assert_eq!(Some(Quantity("5Gi".to_string())), capacity);
+        assert_eq!(pvc.count, 1);
+        assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
+        assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
     }
 
     #[test]
@@ -1037,7 +1057,7 @@ spec:
       resources:
         storage:
           data:
-            capacity: 5Gi
+            capacity: 10Gi
     roleGroups:
       default:
         replicas: 1
@@ -1045,15 +1065,16 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let capacity = role
+        let resources = role
             .merged_config(&hdfs, "default")
             .unwrap()
-            .resources()
-            .storage
-            .data
-            .capacity;
+            .data_node_resources()
+            .unwrap();
+        let pvc = resources.storage.get("data").unwrap();
 
-        assert_eq!(Some(Quantity("5Gi".to_string())), capacity);
+        assert_eq!(pvc.count, 1);
+        assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
+        assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
     }
 
     #[test]
@@ -1077,15 +1098,80 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let capacity = role
+        let resources = role
             .merged_config(&hdfs, "default")
             .unwrap()
-            .resources()
-            .storage
-            .data
-            .capacity;
+            .data_node_resources()
+            .unwrap();
+        let pvc = resources.storage.get("data").unwrap();
 
-        assert_eq!(Some(Quantity("2Gi".to_string())), capacity);
+        assert_eq!(pvc.count, 1);
+        assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
+        assert_eq!(pvc.pvc.capacity, Some(Quantity("5Gi".to_string())));
+    }
+
+    #[test]
+    pub fn test_pvc_rolegroup_multiple_pvcs_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
+  zookeeperConfigMapName: hdfs-zk
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          resources:
+            storage:
+              data: # We need to overwrite the data pvcs coming from the default value
+                count: 0
+              my-disks:
+                capacity: 100Gi
+                count: 5
+                hdfsStorageType: Disk
+              my-ssds:
+                capacity: 10Gi
+                storageClass: premium
+                count: 3
+                hdfsStorageType: SSD
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let role = HdfsRole::DataNode;
+        let resources = role
+            .merged_config(&hdfs, "default")
+            .unwrap()
+            .data_node_resources()
+            .unwrap();
+
+        let pvc = resources.storage.get("data").unwrap();
+        assert_eq!(pvc.count, 0);
+
+        let pvc = resources.storage.get("my-disks").unwrap();
+        assert_eq!(pvc.count, 5);
+        assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
+        assert_eq!(pvc.pvc.capacity, Some(Quantity("100Gi".to_string())));
+        assert_eq!(pvc.pvc.storage_class, None);
+
+        let pvc = resources.storage.get("my-ssds").unwrap();
+        assert_eq!(pvc.count, 3);
+        assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Ssd);
+        assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
+        assert_eq!(pvc.pvc.storage_class, Some("premium".to_string()));
     }
 
     #[test]
@@ -1119,7 +1205,8 @@ spec:
         let rr: ResourceRequirements = role
             .merged_config(&hdfs, "default")
             .unwrap()
-            .resources()
+            .data_node_resources()
+            .unwrap()
             .into();
 
         let expected = ResourceRequirements {
@@ -1170,7 +1257,8 @@ spec:
         let rr: ResourceRequirements = role
             .merged_config(&hdfs, "default")
             .unwrap()
-            .resources()
+            .data_node_resources()
+            .unwrap()
             .into();
 
         let expected = ResourceRequirements {
