@@ -31,9 +31,16 @@ pub struct HdfsStorageConfig {
     pub data: PvcConfig,
 }
 
-/// We can't use a struct with a BTreeMap attribute that is serde(flatten),
-/// as the whole struct will be missing in the generated CRD for some reasons.
-/// So we define a type for the inner BTreeMap and a struct with some helper functions.
+// We can't use a struct with a BTreeMap attribute that is #[fragment_attrs(serde(flatten))],
+// as all of the `storage` additionalProperties will be missing in the generated CRD for some reasons.
+//
+// This will result in errors such as
+// Warning: unknown field "spec.dataNodes.config.resources.storage.data"
+// Warning: unknown field "spec.dataNodes.config.resources.storage.hdd"
+// Warning: unknown field "spec.dataNodes.config.resources.storage.ssd"
+// making it impossible to configure multiple pvcs
+//
+// So we define a type for the inner BTreeMap and a struct with some helper functions.
 pub type DataNodeStorageConfigInnerType = BTreeMap<String, DataNodePvc>;
 
 /// Use this struct to call functions on the `DataNodeStorageConfigInnerType` type.

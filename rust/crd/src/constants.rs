@@ -55,8 +55,8 @@ pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
 pub const NAMENODE_ROOT_DATA_DIR: &str = "/stackable/data/namenode";
 pub const JOURNALNODE_ROOT_DATA_DIR: &str = "/stackable/data/journalnode";
 
-// Will end up with something like `/stackable/data/data/data` and `/stackable/data/data-1/data` etc.
+// Will end up with something like `/stackable/data/<pvc-name>/datanode` e.g. `/stackable/data/data/datanode` and `/stackable/data/data-1/datanode` etc.
 // We need one additional level because we don't want users to call their pvc e.g. `hadoop`
 // ending up with a location of `/stackable/hadoop/data`
 pub const DATANODE_ROOT_DATA_DIR_PREFIX: &str = "/stackable/data/";
-pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/data";
+pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/datanode";
