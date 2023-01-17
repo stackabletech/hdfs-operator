@@ -229,7 +229,7 @@ mod test {
                 ..PersistentVolumeClaimSpec::default()
             })
         );
-        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/data/data");
+        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/data/datanode");
     }
 
     #[test]
@@ -292,6 +292,6 @@ mod test {
                 ..PersistentVolumeClaimSpec::default()
             })
         );
-        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/hdd/data,[DISK]/stackable/data/hdd-1/data,[DISK]/stackable/data/hdd-2/data,[DISK]/stackable/data/hdd-3/data,[DISK]/stackable/data/hdd-4/data,[DISK]/stackable/data/hdd-5/data,[DISK]/stackable/data/hdd-6/data,[DISK]/stackable/data/hdd-7/data,[SSD]/stackable/data/ssd/data,[SSD]/stackable/data/ssd-1/data,[SSD]/stackable/data/ssd-2/data,[SSD]/stackable/data/ssd-3/data")
+        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/hdd/datanode,[DISK]/stackable/data/hdd-1/datanode,[DISK]/stackable/data/hdd-2/datanode,[DISK]/stackable/data/hdd-3/datanode,[DISK]/stackable/data/hdd-4/datanode,[DISK]/stackable/data/hdd-5/datanode,[DISK]/stackable/data/hdd-6/datanode,[DISK]/stackable/data/hdd-7/datanode,[SSD]/stackable/data/ssd/datanode,[SSD]/stackable/data/ssd-1/datanode,[SSD]/stackable/data/ssd-2/datanode,[SSD]/stackable/data/ssd-3/datanode")
     }
 }
