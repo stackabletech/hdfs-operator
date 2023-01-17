@@ -280,6 +280,7 @@ spec:
                                     nullable: true
                                     type: string
                                   count:
+                                    default: 1
                                     format: uint16
                                     minimum: 0.0
                                     nullable: true
@@ -594,6 +595,7 @@ spec:
                                           nullable: true
                                           type: string
                                         count:
+                                          default: 1
                                           format: uint16
                                           minimum: 0.0
                                           nullable: true
