@@ -3,51 +3,22 @@ use stackable_hdfs_crd::constants::{
     DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
     DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_NAME_DIR,
     DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_NAME_SERVICES, DFS_REPLICATION,
-    FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
+    FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM, JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
 };
-use stackable_hdfs_crd::{HdfsPodRef, HdfsRole};
+use stackable_hdfs_crd::storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType};
+use stackable_hdfs_crd::HdfsPodRef;
 use std::collections::BTreeMap;
 
-pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
-
 #[derive(Clone)]
-pub struct HdfsNodeDataDirectory {
-    pub namenode: String,
-    pub datanode: String,
-    pub journalnode: String,
-}
-
-impl Default for HdfsNodeDataDirectory {
-    fn default() -> Self {
-        HdfsNodeDataDirectory {
-            namenode: format!(
-                "{STACKABLE_ROOT_DATA_DIR}/{role}",
-                role = HdfsRole::NameNode
-            ),
-            datanode: format!(
-                "{STACKABLE_ROOT_DATA_DIR}/{role}",
-                role = HdfsRole::DataNode
-            ),
-            journalnode: format!(
-                "{STACKABLE_ROOT_DATA_DIR}/{role}",
-                role = HdfsRole::JournalNode
-            ),
-        }
-    }
-}
-
-#[derive(Clone, Default)]
 pub struct HdfsSiteConfigBuilder {
     config: BTreeMap<String, String>,
-    data_directory: HdfsNodeDataDirectory,
     logical_name: String,
 }
 
 impl HdfsSiteConfigBuilder {
-    pub fn new(logical_name: String, data_directory: HdfsNodeDataDirectory) -> Self {
+    pub fn new(logical_name: String) -> Self {
         HdfsSiteConfigBuilder {
             config: BTreeMap::new(),
-            data_directory,
             logical_name,
         }
     }
@@ -65,23 +36,31 @@ impl HdfsSiteConfigBuilder {
     pub fn dfs_namenode_name_dir(&mut self) -> &mut Self {
         self.config.insert(
             DFS_NAMENODE_NAME_DIR.to_string(),
-            self.data_directory.namenode.clone(),
+            NAMENODE_ROOT_DATA_DIR.to_string(),
         );
         self
     }
 
-    pub fn dfs_datanode_data_dir(&mut self) -> &mut Self {
-        self.config.insert(
-            DFS_DATANODE_DATA_DIR.to_string(),
-            self.data_directory.datanode.clone(),
-        );
+    pub fn dfs_datanode_data_dir(
+        &mut self,
+        datanode_storage: Option<DataNodeStorageConfigInnerType>,
+    ) -> &mut Self {
+        if let Some(datanode_storage) = datanode_storage {
+            let datanode_storage = DataNodeStorageConfig {
+                pvcs: datanode_storage,
+            };
+            self.config.insert(
+                DFS_DATANODE_DATA_DIR.to_string(),
+                datanode_storage.get_datanode_data_dir(),
+            );
+        }
         self
     }
 
     pub fn dfs_journalnode_edits_dir(&mut self) -> &mut Self {
         self.config.insert(
             DFS_JOURNALNODE_EDITS_DIR.to_string(),
-            self.data_directory.journalnode.clone(),
+            JOURNALNODE_ROOT_DATA_DIR.to_string(),
         );
         self
     }
@@ -150,7 +129,7 @@ impl HdfsSiteConfigBuilder {
                     "{}.{}.{}",
                     DFS_NAMENODE_NAME_DIR, self.logical_name, nn.pod_name
                 ),
-                self.data_directory.namenode.clone(),
+                NAMENODE_ROOT_DATA_DIR.to_string(),
             );
         }
         self

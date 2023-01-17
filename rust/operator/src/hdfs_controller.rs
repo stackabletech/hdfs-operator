@@ -1,6 +1,6 @@
 use crate::{
     build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder},
+    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::ContainerConfig,
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
@@ -381,37 +381,34 @@ fn rolegroup_config_map(
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
-                hdfs_site_xml = HdfsSiteConfigBuilder::new(
-                    hdfs_name.to_string(),
-                    HdfsNodeDataDirectory::default(),
-                )
-                // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
-                // be formatted by the namenode, or used by the other services.
-                // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-                .dfs_namenode_name_dir()
-                .dfs_datanode_data_dir()
-                .dfs_journalnode_edits_dir()
-                .dfs_replication(
-                    *hdfs
-                        .spec
-                        .dfs_replication
-                        .as_ref()
-                        .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
-                )
-                .dfs_name_services()
-                .dfs_ha_namenodes(namenode_podrefs)
-                .dfs_namenode_shared_edits_dir(journalnode_podrefs)
-                .dfs_namenode_name_dir_ha(namenode_podrefs)
-                .dfs_namenode_rpc_address_ha(namenode_podrefs)
-                .dfs_namenode_http_address_ha(namenode_podrefs)
-                .dfs_client_failover_proxy_provider()
-                .add("dfs.ha.fencing.methods", "shell(/bin/true)")
-                .add("dfs.ha.nn.not-become-active-in-safemode", "true")
-                .add("dfs.ha.automatic-failover.enabled", "true")
-                .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                // the extend with config must come last in order to have overrides working!!!
-                .extend(config)
-                .build_as_xml();
+                hdfs_site_xml = HdfsSiteConfigBuilder::new(hdfs_name.to_string())
+                    // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
+                    // be formatted by the namenode, or used by the other services.
+                    // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                    .dfs_namenode_name_dir()
+                    .dfs_datanode_data_dir(merged_config.data_node_resources().map(|r| r.storage))
+                    .dfs_journalnode_edits_dir()
+                    .dfs_replication(
+                        *hdfs
+                            .spec
+                            .dfs_replication
+                            .as_ref()
+                            .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
+                    )
+                    .dfs_name_services()
+                    .dfs_ha_namenodes(namenode_podrefs)
+                    .dfs_namenode_shared_edits_dir(journalnode_podrefs)
+                    .dfs_namenode_name_dir_ha(namenode_podrefs)
+                    .dfs_namenode_rpc_address_ha(namenode_podrefs)
+                    .dfs_namenode_http_address_ha(namenode_podrefs)
+                    .dfs_client_failover_proxy_provider()
+                    .add("dfs.ha.fencing.methods", "shell(/bin/true)")
+                    .add("dfs.ha.nn.not-become-active-in-safemode", "true")
+                    .add("dfs.ha.automatic-failover.enabled", "true")
+                    .add("dfs.ha.namenode.id", "${env.POD_NAME}")
+                    // the extend with config must come last in order to have overrides working!!!
+                    .extend(config)
+                    .build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
@@ -540,10 +537,8 @@ fn rolegroup_statefulset(
             },
             service_name: object_name,
             template: pb.build_template(),
-            volume_claim_templates: Some(vec![merged_config.resources().storage.data.build_pvc(
-                ContainerConfig::DATA_VOLUME_MOUNT_NAME,
-                Some(vec!["ReadWriteOnce"]),
-            )]),
+
+            volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
             ..StatefulSetSpec::default()
         }),
         status: None,

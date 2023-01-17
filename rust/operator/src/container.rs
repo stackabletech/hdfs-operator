@@ -9,23 +9,22 @@
 //! - Set resources
 //! - Add tcp probes and container ports (to the main containers)
 //!
-use crate::{
-    config::{HdfsNodeDataDirectory, STACKABLE_ROOT_DATA_DIR},
-    product_logging::{
-        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        HDFS_LOG4J_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR,
-        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
-    },
+use crate::product_logging::{
+    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE, HDFS_LOG4J_CONFIG_FILE,
+    MAX_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR, WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+    ZKFC_LOG4J_CONFIG_FILE,
 };
 
 use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{
-        CORE_SITE_XML, DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
-        DEFAULT_NAME_NODE_METRICS_PORT, HDFS_SITE_XML, LOG4J_PROPERTIES, SERVICE_PORT_NAME_IPC,
-        SERVICE_PORT_NAME_RPC,
+        CORE_SITE_XML, DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
+        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, HDFS_SITE_XML,
+        LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
+        STACKABLE_ROOT_DATA_DIR,
     },
+    storage::DataNodeStorageConfig,
     DataNodeContainer, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
 use stackable_operator::{
@@ -34,11 +33,12 @@ use stackable_operator::{
     k8s_openapi::{
         api::core::v1::{
             ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
-            EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, Probe,
-            ResourceRequirements, TCPSocketAction, Volume, VolumeMount,
+            EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim,
+            Probe, ResourceRequirements, TCPSocketAction, Volume, VolumeMount,
         },
         apimachinery::pkg::{api::resource::Quantity, util::intstr::IntOrString},
     },
+    kube::ResourceExt,
     memory::to_java_heap,
     product_logging,
     product_logging::spec::{
@@ -228,6 +228,24 @@ impl ContainerConfig {
         Ok(())
     }
 
+    pub fn volume_claim_templates(
+        role: &HdfsRole,
+        merged_config: &(dyn MergedConfig + Send + 'static),
+    ) -> Option<Vec<PersistentVolumeClaim>> {
+        match role {
+            HdfsRole::NameNode | HdfsRole::JournalNode => merged_config.resources().map(|r| {
+                vec![r.storage.data.build_pvc(
+                    ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+                    Some(vec!["ReadWriteOnce"]),
+                )]
+            }),
+            HdfsRole::DataNode => merged_config
+                .data_node_resources()
+                .map(|r| r.storage)
+                .map(|storage| DataNodeStorageConfig { pvcs: storage }.build_pvcs()),
+        }
+    }
+
     /// Creates the main/side containers for:
     /// - Namenode main process
     /// - Namenode ZooKeeper fail over controller (ZKFC)
@@ -251,7 +269,7 @@ impl ContainerConfig {
             .command(self.command())
             .args(self.args(merged_config, &[]))
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
-            .add_volume_mounts(self.volume_mounts())
+            .add_volume_mounts(self.volume_mounts(merged_config))
             .add_container_ports(self.container_ports());
 
         if let Some(resources) = resources {
@@ -283,7 +301,7 @@ impl ContainerConfig {
             .command(self.command())
             .args(self.args(merged_config, namenode_podrefs))
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts())
+            .add_volume_mounts(self.volume_mounts(merged_config))
             .build())
     }
 
@@ -390,9 +408,9 @@ impl ContainerConfig {
                       fi
                       echo ""
                     done
-    
+
                     set -e
-                    if [ ! -f "{namenode_dir}/current/VERSION" ]
+                    if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
                     then
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
@@ -411,7 +429,6 @@ impl ContainerConfig {
                         .map(|pod_ref| pod_ref.pod_name.as_ref())
                         .collect::<Vec<&str>>()
                         .join(" "),
-                    namenode_dir = HdfsNodeDataDirectory::default().namenode,
                 ));
             }
             ContainerConfig::FormatZooKeeper { .. } => {
@@ -423,11 +440,11 @@ impl ContainerConfig {
                 }
                 args.push(formatdoc!(
                     r###"
-                    echo "Attempt to format ZooKeeper..."    
-                    if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then 
+                    echo "Attempt to format ZooKeeper..."
+                    if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
                       {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true
-                    else 
-                      echo "ZooKeeper already formatted!" 
+                    else
+                      echo "ZooKeeper already formatted!"
                     fi"###,
                     hadoop_home = Self::HADOOP_HOME
                 ));
@@ -512,7 +529,12 @@ impl ContainerConfig {
     ) -> Option<ResourceRequirements> {
         // Only the Hadoop main containers will get resources
         match self {
-            ContainerConfig::Hdfs { .. } => Some(merged_config.resources().into()),
+            ContainerConfig::Hdfs { role, .. } if role != &HdfsRole::DataNode => {
+                merged_config.resources().map(|c| c.into())
+            }
+            ContainerConfig::Hdfs { role, .. } if role == &HdfsRole::DataNode => {
+                merged_config.data_node_resources().map(|c| c.into())
+            }
             _ => None,
         }
     }
@@ -582,7 +604,10 @@ impl ContainerConfig {
     }
 
     /// Returns the container volume mounts.
-    fn volume_mounts(&self) -> Vec<VolumeMount> {
+    fn volume_mounts(
+        &self,
+        merged_config: &(dyn MergedConfig + Send + 'static),
+    ) -> Vec<VolumeMount> {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
                 .build(),
@@ -599,16 +624,42 @@ impl ContainerConfig {
         ];
 
         match self {
-            ContainerConfig::Hdfs { .. }
-            | ContainerConfig::FormatNameNodes { .. }
-            | ContainerConfig::FormatZooKeeper { .. }
-            | ContainerConfig::WaitForNameNodes { .. } => {
+            ContainerConfig::FormatNameNodes { .. } => {
+                // As FormatNameNodes and FormatZooKeeper only run on the Namenode we can safely assume the only
+                // pvc is called "data".
                 volume_mounts.push(
                     VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
                         .build(),
                 );
             }
-            ContainerConfig::Zkfc { .. } => {}
+            ContainerConfig::Hdfs { role, .. } => match role {
+                HdfsRole::NameNode | HdfsRole::JournalNode => {
+                    volume_mounts.push(
+                        VolumeMountBuilder::new(
+                            Self::DATA_VOLUME_MOUNT_NAME,
+                            STACKABLE_ROOT_DATA_DIR,
+                        )
+                        .build(),
+                    );
+                }
+                HdfsRole::DataNode => {
+                    for pvc in Self::volume_claim_templates(role, merged_config)
+                        .iter()
+                        .flatten()
+                    {
+                        let pvc_name = pvc.name_unchecked();
+                        volume_mounts.push(VolumeMount {
+                            mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
+                            name: pvc_name,
+                            ..VolumeMount::default()
+                        });
+                    }
+                }
+            },
+            // The other containers don't need any data pvcs to be mounted
+            ContainerConfig::Zkfc { .. }
+            | ContainerConfig::WaitForNameNodes { .. }
+            | ContainerConfig::FormatZooKeeper { .. } => {}
         }
         volume_mounts
     }

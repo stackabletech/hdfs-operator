@@ -1,7 +1,5 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: install-hdfs
 commands:
   - script: kubectl exec -n $NAMESPACE webhdfs-0 -- python /tmp/webhdfs.py ls

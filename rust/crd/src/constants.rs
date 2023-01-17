@@ -50,3 +50,13 @@ pub const DFS_HA_NAMENODES: &str = "dfs.ha.namenodes";
 // core-site.xml
 pub const FS_DEFAULT_FS: &str = "fs.defaultFS";
 pub const HA_ZOOKEEPER_QUORUM: &str = "ha.zookeeper.quorum";
+
+pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
+pub const NAMENODE_ROOT_DATA_DIR: &str = "/stackable/data/namenode";
+pub const JOURNALNODE_ROOT_DATA_DIR: &str = "/stackable/data/journalnode";
+
+// Will end up with something like `/stackable/data/data/data` and `/stackable/data/data-1/data` etc.
+// We need one additional level because we don't want users to call their pvc e.g. `hadoop`
+// ending up with a location of `/stackable/hadoop/data`
+pub const DATANODE_ROOT_DATA_DIR_PREFIX: &str = "/stackable/data/";
+pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/data";

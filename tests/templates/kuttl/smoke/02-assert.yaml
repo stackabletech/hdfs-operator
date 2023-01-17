@@ -1,8 +1,6 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: webhdfs
 timeout: 300
 ---
 apiVersion: apps/v1
