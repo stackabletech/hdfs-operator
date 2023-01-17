@@ -137,15 +137,15 @@ pub struct DataNodePvc {
     #[fragment_attrs(serde(default, flatten))]
     pub pvc: PvcConfig,
 
-    #[serde(default = "default_number_of_datanode_pvcs")]
+    #[fragment_attrs(serde(default = "default_number_of_datanode_pvcs"))]
     pub count: u16,
 
     #[fragment_attrs(serde(default))]
     pub hdfs_storage_type: HdfsStorageType,
 }
 
-fn default_number_of_datanode_pvcs() -> u16 {
-    1
+fn default_number_of_datanode_pvcs() -> Option<u16> {
+    Some(1)
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
