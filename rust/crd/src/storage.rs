@@ -170,3 +170,121 @@ impl HdfsStorageType {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::collections::BTreeMap;
+
+    use stackable_operator::{
+        commons::resources::PvcConfig,
+        k8s_openapi::{
+            api::core::v1::{PersistentVolumeClaimSpec, ResourceRequirements},
+            apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        },
+    };
+
+    use super::{DataNodePvc, DataNodeStorageConfig, HdfsStorageType};
+
+    #[test]
+    pub fn test_datanode_storage_defaults() {
+        let data_node_storage = DataNodeStorageConfig {
+            pvcs: BTreeMap::from([(
+                "data".to_string(),
+                DataNodePvc {
+                    pvc: PvcConfig {
+                        capacity: Some(Quantity("5Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                    count: 1,
+                    hdfs_storage_type: HdfsStorageType::default(),
+                },
+            )]),
+        };
+
+        let pvcs = data_node_storage.build_pvcs();
+        let datanode_data_dir = data_node_storage.get_datanode_data_dir();
+
+        assert_eq!(pvcs.len(), 1);
+        assert_eq!(pvcs[0].metadata.name, Some("data".to_string()));
+        assert_eq!(
+            pvcs[0].spec,
+            Some(PersistentVolumeClaimSpec {
+                resources: Some(ResourceRequirements {
+                    requests: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity("5Gi".to_string())
+                    )])),
+                    ..ResourceRequirements::default()
+                }),
+                access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                storage_class_name: None,
+                ..PersistentVolumeClaimSpec::default()
+            })
+        );
+        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/data/data");
+    }
+
+    #[test]
+    pub fn test_datanode_storage_multiple_storage_types() {
+        let data_node_storage = DataNodeStorageConfig {
+            pvcs: BTreeMap::from([
+                (
+                    "hdd".to_string(),
+                    DataNodePvc {
+                        pvc: PvcConfig {
+                            capacity: Some(Quantity("12Ti".to_owned())),
+                            storage_class: Some("hdd-storage-class".to_string()),
+                            selectors: Some(LabelSelector {
+                                match_expressions: None,
+                                match_labels: Some(BTreeMap::from([(
+                                    "foo".to_string(),
+                                    "bar".to_string(),
+                                )])),
+                            }),
+                        },
+                        count: 8,
+                        hdfs_storage_type: HdfsStorageType::Disk,
+                    },
+                ),
+                (
+                    "ssd".to_string(),
+                    DataNodePvc {
+                        pvc: PvcConfig {
+                            capacity: Some(Quantity("2Ti".to_owned())),
+                            storage_class: Some("premium-ssd".to_string()),
+                            selectors: None,
+                        },
+                        count: 4,
+                        hdfs_storage_type: HdfsStorageType::Ssd,
+                    },
+                ),
+            ]),
+        };
+        let pvcs = data_node_storage.build_pvcs();
+        let datanode_data_dir = data_node_storage.get_datanode_data_dir();
+
+        assert_eq!(pvcs.len(), 8 + 4);
+        assert_eq!(pvcs[0].metadata.name, Some("hdd".to_string()));
+        assert_eq!(
+            pvcs[0].spec,
+            Some(PersistentVolumeClaimSpec {
+                resources: Some(ResourceRequirements {
+                    requests: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity("12Ti".to_string())
+                    )])),
+                    ..ResourceRequirements::default()
+                }),
+                access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                storage_class_name: Some("hdd-storage-class".to_string()),
+                selector: Some(LabelSelector {
+                    match_expressions: None,
+                    match_labels: Some(BTreeMap::from([("foo".to_string(), "bar".to_string())]))
+                }),
+                ..PersistentVolumeClaimSpec::default()
+            })
+        );
+        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/hdd/data,[DISK]/stackable/data/hdd-1/data,[DISK]/stackable/data/hdd-2/data,[DISK]/stackable/data/hdd-3/data,[DISK]/stackable/data/hdd-4/data,[DISK]/stackable/data/hdd-5/data,[DISK]/stackable/data/hdd-6/data,[DISK]/stackable/data/hdd-7/data,[SSD]/stackable/data/ssd/data,[SSD]/stackable/data/ssd-1/data,[SSD]/stackable/data/ssd-2/data,[SSD]/stackable/data/ssd-3/data")
+    }
+}
