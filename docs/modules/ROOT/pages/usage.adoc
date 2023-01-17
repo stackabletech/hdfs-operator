@@ -194,6 +194,51 @@ In the above example, all data nodes in the default group will store data (the l
 
 By default, in case nothing is configured in the custom resource for a certain role group, each Pod will have a `1Gi` large local volume mount for the data location.
 
+==== Multiple storage volumes
+
+Datanodes can have multiple disks attached to increase the storage size as well as speed.
+They can be of different type, e.g. HDDs or SSDs.
+
+You can configure multiple [PersistentVolumeClaims](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims) (PVCs) for the datanodes as follows:
+
+[source,yaml]
+----
+dataNodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          storage:
+            data: # We need to overwrite the data pvcs coming from the default value
+              count: 0
+            my-disks:
+              count: 3
+              capacity: 12Ti
+              hdfsStorageType: Disk
+            my-ssds:
+              count: 2
+              capacity: 5Ti
+              storageClass: premium-ssd
+              hdfsStorageType: SSD
+----
+
+This will create the following PVCs:
+
+1. `my-disks-hdfs-datanode-default-0` (12Ti)
+2. `my-disks-1-hdfs-datanode-default-0` (12Ti)
+3. `my-disks-2-hdfs-datanode-default-0` (12Ti)
+4. `my-ssds-hdfs-datanode-default-0` (5Ti)
+5. `my-ssds-1-hdfs-datanode-default-0` (5Ti)
+
+By configuring and using a dedicated https://kubernetes.io/docs/concepts/storage/storage-classes/[StorageClass] you can configure your HDFS to use local disks attached to Kubernetes nodes.
+
+[NOTE]
+====
+You might need to re-create the StatefulSet to apply the new PVC configuration because of https://github.com/kubernetes/kubernetes/issues/68737[this Kubernetes issue].
+You can delete the StatefulSet using `kubectl delete sts --cascade=false <statefulset>`.
+The hdfs-operator will re-create the StatefulSet automatically.
+====
+
 === Resource Requests
 
 // The "nightly" version is needed because the "include" directive searches for
