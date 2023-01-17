@@ -625,8 +625,7 @@ impl ContainerConfig {
 
         match self {
             ContainerConfig::FormatNameNodes { .. } => {
-                // As FormatNameNodes and FormatZooKeeper only run on the Namenode we can safely assume the only
-                // pvc is called "data".
+                // As FormatNameNodes only runs on the Namenodes we can safely assume the only pvc is called "data".
                 volume_mounts.push(
                     VolumeMountBuilder::new(Self::DATA_VOLUME_MOUNT_NAME, STACKABLE_ROOT_DATA_DIR)
                         .build(),
