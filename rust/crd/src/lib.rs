@@ -603,9 +603,10 @@ fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntim
 
 pub fn default_data_node_resources_fragment(
 ) -> ResourcesFragment<DataNodeStorageConfigInnerType, NoRuntimeLimits> {
+    let default_resources_fragment = default_resources_fragment();
     ResourcesFragment {
-        cpu: default_resources_fragment().cpu,
-        memory: default_resources_fragment().memory,
+        cpu: default_resources_fragment.cpu,
+        memory: default_resources_fragment.memory,
         storage: BTreeMap::from([(
             "data".to_string(),
             DataNodePvcFragment {
