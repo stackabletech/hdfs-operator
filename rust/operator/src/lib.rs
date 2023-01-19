@@ -1,6 +1,7 @@
 mod config;
 mod discovery;
 mod hdfs_controller;
+mod listener;
 mod pod_svc_controller;
 mod rbac;
 

@@ -1,5 +1,5 @@
 default_registry("docker.stackable.tech/sandbox")
-allow_k8s_contexts('gke_engineering-329019_europe-west1-d_sliebau-hdfs')
+allow_k8s_contexts('gke_engineering-329019_europe-west1-d_sliebau-datanode-hostname')
 
 meta = read_json('nix/meta.json')
 operator_name = meta['operator']['name']

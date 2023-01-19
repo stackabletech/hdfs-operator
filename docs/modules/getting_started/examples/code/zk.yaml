@@ -8,6 +8,9 @@ spec:
     productVersion: 3.8.0
     stackableVersion: 0.8.0
   servers:
+    config:
+      logging:
+        enableVectorAgent: false
     roleGroups:
       default:
         replicas: 1

@@ -11,7 +11,8 @@ use stackable_operator::client::Client;
 use stackable_operator::cluster_resources::ClusterResources;
 use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Container, ContainerPort, ObjectFieldSelector, PodSpec, PodTemplateSpec, Probe,
+    Container, ContainerPort, EphemeralVolumeSource, ObjectFieldSelector,
+    PersistentVolumeClaimSpec, PersistentVolumeClaimTemplate, PodSpec, PodTemplateSpec, Probe,
     ResourceRequirements, SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::{
@@ -21,6 +22,7 @@ use stackable_operator::k8s_openapi::api::{
         ServicePort, ServiceSpec, Volume,
     },
 };
+use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::api::ObjectMeta;
@@ -303,6 +305,8 @@ fn rolegroup_config_map(
                 .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                 .add("dfs.ha.automatic-failover.enabled", "true")
                 .add("dfs.ha.namenode.id", "${env.POD_NAME}")
+                .add("dfs.client.use.datanode.hostname", "true")
+                .add("dfs.datanode.use.datanode.hostname", "true")
                 // the extend with config must come last in order to have overrides working!!!
                 .extend(config)
                 .build_as_xml();
@@ -369,6 +373,7 @@ fn rolegroup_statefulset(
     let containers;
 
     let (pvc, resources) = hdfs.resources(role, rolegroup_ref).unwrap_or_default();
+    let listener_class = hdfs.spec.exposure.clone();
 
     match role {
         HdfsRole::DataNode => {
@@ -603,12 +608,22 @@ fn datanode_containers(
         ..EnvVar::default()
     });
 
+    let port_envs = ["data", "http", "ipc"].map(|port_name| {
+        format!(
+            "{port_name_upper}_PORT=$(cat /stackable/listener/default-address/ports/{port_name})",
+            port_name_upper = port_name.to_uppercase(),
+        )
+    });
+
     Ok(vec![Container {
         name: rolegroup_ref.role.clone(),
         args: Some(vec![
-            format!("{hadoop_home}/bin/hdfs", hadoop_home = HADOOP_HOME),
-            "--debug".to_string(),
-            "datanode".to_string(),
+            "sh".to_string(),
+            "-c".to_string(),
+            format!(
+                r"NODE_IP=$(cat /stackable/listener/default-address/address) {ports} {HADOOP_HOME}/bin/hdfs --debug datanode",
+                ports = port_envs.join(" ")
+            ),
         ]),
         env: Some(env),
         readiness_probe: Some(tcp_socket_action_probe(SERVICE_PORT_NAME_IPC, 10, 10)),
@@ -823,6 +838,11 @@ fn hdfs_common_container(
             VolumeMount {
                 mount_path: String::from(CONFIG_DIR_NAME),
                 name: "config".to_string(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                mount_path: "/stackable/listener".to_string(),
+                name: "listener".to_string(),
                 ..VolumeMount::default()
             },
         ]),

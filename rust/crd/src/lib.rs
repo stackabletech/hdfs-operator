@@ -45,6 +45,7 @@ use stackable_operator::config::fragment;
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
     pub image: ProductImage,
+    pub exposure: Option<ExposureConfig>,
     pub auto_format_fs: Option<bool>,
     pub zookeeper_config_map_name: String,
     pub data_nodes: Option<Role<DataNodeConfig>>,
@@ -52,6 +53,12 @@ pub struct HdfsClusterSpec {
     pub journal_nodes: Option<Role<JournalNodeConfig>>,
     pub dfs_replication: Option<u8>,
     pub log4j: Option<String>,
+}
+
+#[serde(rename_all = "camelCase")]
+pub struct ExposureConfig {
+    pub listener_class: String,
+    pub persistent: bool,
 }
 
 #[derive(
