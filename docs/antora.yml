@@ -1,7 +1,7 @@
 name: hdfs
-version: "nightly"
+version: "23.1.0"
 title: Stackable Operator for Apache HDFS
 nav:
   - modules/getting_started/nav.adoc
   - modules/ROOT/nav.adoc
-prerelease: true
+prerelease: false
