@@ -6,5 +6,4 @@ All services (with the exception of the Zookeeper daemon on the node names) run 
 
 The metrics endpoints are also used as liveliness probes by K8S.
 
-The managed HDFS instances are automatically configured to export Prometheus metrics. See
-xref:home:operators:monitoring.adoc[] for more details.
+See xref:home:operators:monitoring.adoc[] for more details.

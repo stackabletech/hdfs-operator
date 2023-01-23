@@ -25,7 +25,7 @@ By default, in case nothing is configured in the custom resource for a certain r
 Datanodes can have multiple disks attached to increase the storage size as well as speed.
 They can be of different type, e.g. HDDs or SSDs.
 
-You can configure multiple [PersistentVolumeClaims](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims) (PVCs) for the datanodes as follows:
+You can configure multiple https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims[PersistentVolumeClaims] (PVCs) for the datanodes as follows:
 
 [source,yaml]
 ----

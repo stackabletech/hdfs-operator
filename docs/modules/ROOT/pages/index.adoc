@@ -2,15 +2,17 @@
 
 The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] is used to set up HFDS in high-availability mode. It depends on the xref:zookeeper:ROOT:index.adoc[] to operate a ZooKeeper cluster to coordinate the active/passive name node.
 
-WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop[Stackable] repository
+NOTE: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop[Stackable] repository
 
-== Kubernetes objects
+== Roles
 
-This operator can be used to set up a highly available HDFS cluster. It implements three roles of the HDFS cluster:
+Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster are implemented:
 
 * Data Node - responsible for holding the actual data. *IMPORTANT* Currently the data is kept in `hostPath` volumes of 1GB and no configuration options are exposed to the user. Each data node has its own volume.
 * Journal Node - responsible for keeping track of HDFS blocks and used to perform failovers in case the active name node fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
 * Name Node - responsible for keeping track of HDFS blocks and providing access to the data.
+
+== Kubernetes objects
 
 The operator creates the following K8S objects per role group defined in the custom resource.
 

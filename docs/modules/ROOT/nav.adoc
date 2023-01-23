@@ -2,8 +2,8 @@
 * Concepts
 ** xref:discovery.adoc[]
 * xref:usage-guide/index.adoc[]
+** xref:usage-guide/resources.adoc[]
 ** xref:usage-guide/logging-log-aggregation.adoc[]
 ** xref:usage-guide/monitoring.adoc[]
-** xref:usage-guide/resources.adoc[]
 ** xref:usage-guide/scaling.adoc[]
 ** xref:usage-guide/configuration-environment-overrides.adoc[]
