@@ -20,7 +20,7 @@ The operator creates the following K8S objects per role group defined in the cus
 * ConfigMap - HDFS configuration files like `core-site.xml` and `hdfs-site.xml` are defined here and mounted in the pods.
 * StatefulSet - where the replica count of each role group is defined. By default, a cluster will have 2 name nodes, 3 journal nodes and 3 data nodes.
 
-In addition, a `NodePort` service is created for each pod that exposes all container ports to the outside world (from the perspective of K8S).
+In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that exposes all container ports to the outside world (from the perspective of K8S).
 
 In the custom resource you can specify the number of replicas per role group (name node, data node or journal node) but the operator will make sure that:
 
