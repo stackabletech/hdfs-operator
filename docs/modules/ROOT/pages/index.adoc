@@ -1,6 +1,6 @@
 = Stackable Operator for Apache HDFS
 
-The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] is used to set up HFDS in high-availability mode. It depends on the xref:zookeeper:ROOT:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby name nodes.
+The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] is used to set up HFDS in high-availability mode. It depends on the xref:zookeeper:ROOT:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby NameNodes.
 
 NOTE: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop[Stackable] repository
 
@@ -8,9 +8,9 @@ NOTE: This operator only works with images from the https://repo.stackable.tech/
 
 Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster are implemented:
 
-* Data Node - responsible for storing the actual data.
-* Journal Node - responsible for keeping track of HDFS blocks and used to perform failovers in case the active name node fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
-* Name Node - responsible for keeping track of HDFS blocks and providing access to the data.
+* DataNode - responsible for storing the actual data.
+* JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
+* NameNode - responsible for keeping track of HDFS blocks and providing access to the data.
 
 == Kubernetes objects
 
@@ -22,11 +22,11 @@ The operator creates the following K8S objects per role group defined in the cus
 
 In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that exposes all container ports to the outside world (from the perspective of K8S).
 
-In the custom resource you can specify the number of replicas per role group (name node, data node or journal node). A minimal working configuration requires:
+In the custom resource you can specify the number of replicas per role group (NameNode, DataNode or JournalNode). A minimal working configuration requires:
 
-* 2 name nodes (HA)
-* 1 journal node
-* 1 data node (should match at least the `dfsReplication` factor)
+* 2 NameNodes (HA)
+* 1 JournalNode
+* 1 DataNode (should match at least the `dfsReplication` factor)
 
 == Supported Versions
 

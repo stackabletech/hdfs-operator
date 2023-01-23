@@ -16,7 +16,7 @@ dataNodes:
               capacity: 128Gi
 ----
 
-In the above example, all data nodes in the default group will store data (the location of `dfs.datanode.name.dir`) on a `128Gi` volume.
+In the above example, all DataNodes in the default group will store data (the location of `dfs.datanode.name.dir`) on a `128Gi` volume.
 
 By default, in case nothing is configured in the custom resource for a certain role group, each Pod will have a `5Gi` large volume mount for the data location.
 
