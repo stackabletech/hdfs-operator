@@ -22,12 +22,6 @@ The operator creates the following K8S objects per role group defined in the cus
 
 In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that exposes all container ports to the outside world (from the perspective of K8S).
 
-In the custom resource you can specify the number of replicas per role group (name node, data node or journal node) but the operator will make sure that:
-
-* at least two name nodes are started
-* at least one journal node is started
-* no data nodes are started unless the number of replicas is greater than zero.
-
 == Supported Versions
 
 The Stackable Operator for Apache HDFS currently supports the following versions of HDFS:
