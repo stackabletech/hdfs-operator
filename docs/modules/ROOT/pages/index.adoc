@@ -18,7 +18,7 @@ The operator creates the following K8S objects per role group defined in the cus
 
 * Service - ClusterIP used for intra-cluster communication.
 * ConfigMap - HDFS configuration files like `core-site.xml`, `hdfs-site.xml` and `log4j.properties` are defined here and mounted in the pods.
-* StatefulSet - where the replica count of each role group is defined. By default, a cluster will have 2 name nodes, 3 journal nodes and 3 data nodes.
+* StatefulSet - where the replica count, volume mounts and more for each role group is defined.
 
 In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that exposes all container ports to the outside world (from the perspective of K8S).
 
