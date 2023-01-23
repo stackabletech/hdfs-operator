@@ -17,7 +17,7 @@ Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster a
 The operator creates the following K8S objects per role group defined in the custom resource.
 
 * Service - ClusterIP used for intra-cluster communication.
-* ConfigMap - HDFS configuration files like `core-site.xml` and `hdfs-site.xml` are defined here and mounted in the pods.
+* ConfigMap - HDFS configuration files like `core-site.xml`, `hdfs-site.xml` and `log4j.properties` are defined here and mounted in the pods.
 * StatefulSet - where the replica count of each role group is defined. By default, a cluster will have 2 name nodes, 3 journal nodes and 3 data nodes.
 
 In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that exposes all container ports to the outside world (from the perspective of K8S).
