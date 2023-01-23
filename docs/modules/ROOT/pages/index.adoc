@@ -16,7 +16,7 @@ Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster a
 
 The operator creates the following K8S objects per role group defined in the custom resource.
 
-* ClusterIP - used for intra-cluster communication.
+* Service - ClusterIP used for intra-cluster communication.
 * ConfigMap - HDFS configuration files like `core-site.xml` and `hdfs-site.xml` are defined here and mounted in the pods.
 * StatefulSet - where the replica count of each role group is defined. By default, a cluster will have 2 name nodes, 3 journal nodes and 3 data nodes.
 
