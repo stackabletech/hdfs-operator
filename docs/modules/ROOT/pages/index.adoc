@@ -1,8 +1,30 @@
 = Stackable Operator for Apache HDFS
 
-This is an operator for Kubernetes that can manage https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] clusters.
+The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] is used to set up HFDS in high-availability mode. It depends on the xref:zookeeper:ROOT:index.adoc[] to operate a ZooKeeper cluster to coordinate the active/passive name node.
 
 WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop[Stackable] repository
+
+== Kubernetes objects
+
+This operator can be used to set up a highly available HDFS cluster. It implements three roles of the HDFS cluster:
+
+* Data Node - responsible for holding the actual data. *IMPORTANT* Currently the data is kept in `hostPath` volumes of 1GB and no configuration options are exposed to the user. Each data node has its own volume.
+* Journal Node - responsible for keeping track of HDFS blocks and used to perform failovers in case the active name node fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
+* Name Node - responsible for keeping track of HDFS blocks and providing access to the data.
+
+The operator creates the following K8S objects per role group defined in the custom resource.
+
+* ClusterIP - used for intra-cluster communication.
+* ConfigMap - HDFS configuration files like `core-site.xml` and `hdfs-site.xml` are defined here and mounted in the pods.
+* StatefulSet - where the replica count of each role group is defined. By default, a cluster will have 2 name nodes, 3 journal nodes and 3 data nodes.
+
+In addition, a `NodePort` service is created for each pod that exposes all container ports to the outside world (from the perspective of K8S).
+
+In the custom resource you can specify the number of replicas per role group (name node, data node or journal node) but the operator will make sure that:
+
+* at least two name nodes are started
+* at least one journal node is started
+* no data nodes are started unless the number of replicas is greater than zero.
 
 == Supported Versions
 
@@ -10,7 +32,7 @@ The Stackable Operator for Apache HDFS currently supports the following versions
 
 include::partial$supported-versions.adoc[]
 
-== Docker
+== Docker image
 
 [source]
 ----

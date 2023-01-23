@@ -1,0 +1,75 @@
+
+= Configuration & Environment Overrides
+
+The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+
+IMPORTANT: Overriding certain properties can lead to faulty clusters. In general this means, do not change ports, hostnames or properties related to data dirs, high-availability or security.
+
+== Configuration Properties
+
+For a role or role group, at the same level of `config`, you can specify `configOverrides` for the `hdfs-site.xml` and `core-site.xml`. For example, if you want to set additional properties on the namenode servers, adapt the `nameNodes` section of the cluster resource like so:
+
+[source,yaml]
+----
+nameNodes:
+  roleGroups:
+    default:
+      config: [...]
+      configOverrides:
+        core-site.xml:
+          fs.trash.interval: "5"
+        hdfs-site.xml:
+          dfs.namenode.num.checkpoints.retained: "3"
+      replicas: 2
+----
+
+Just as for the `config`, it is possible to specify this at role level as well:
+
+[source,yaml]
+----
+nameNodes:
+  configOverrides:
+    core-site.xml:
+      fs.trash.interval: "5"
+    hdfs-site.xml:
+      dfs.namenode.num.checkpoints.retained: "3"
+  roleGroups:
+    default:
+      config: [...]
+      replicas: 2
+----
+
+All override property values must be strings. The properties will be formatted and escaped correctly into the XML file.
+
+For a full list of configuration options we refer to the Apache Hdfs documentation for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs-site.xml] and https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/core-default.xml[core-site.xml]
+
+
+== Environment Variables
+
+In a similar fashion, environment variables can be (over)written. For example per role group:
+
+[source,yaml]
+----
+nameNodes:
+  roleGroups:
+    default:
+      config: {}
+      envOverrides:
+        MY_ENV_VAR: "MY_VALUE"
+      replicas: 1
+----
+
+or per role:
+
+[source,yaml]
+----
+nameNodes:
+  envOverrides:
+    MY_ENV_VAR: "MY_VALUE"
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+----
+
+IMPORTANT: Some environment variables will be overriden by the operator and cannot be set manually by the user. These are `HADOOP_HOME`, `HADOOP_CONF_DIR`, `POD_NAME` and `ZOOKEEPER`.
