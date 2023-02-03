@@ -11,6 +11,7 @@ use crate::{
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
 use stackable_operator::{
+    annotations::reconciliation_paused,
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
     cluster_resources::ClusterResources,
@@ -152,6 +153,13 @@ pub struct Ctx {
 
 pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
+
+    // Check if the CRD has the annotation to pause reconciliaton set to true and abort
+    if reconciliation_paused(&hdfs) {
+        tracing::info!("Reconciliation for this cluster has been paused, aborting ..");
+        return Ok(Action::await_change());
+    }
+
     let client = &ctx.client;
 
     let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
