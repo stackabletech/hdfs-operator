@@ -4,15 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Log aggregation added ([#290]).
+- Support for multiple storage directories ([#296]).
+
 ### Changed
 
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#281]).
-- Updated stackable image versions ([#271])
-- `operator-rs` `0.25.2` -> `0.27.1` ([#276])
+- Updated stackable image versions ([#271]).
+- Fix the previously ignored node selector on role groups ([#286]).
+- `operator-rs` `0.25.2` -> `0.30.2` ([#276], [#286], [#290]).
+- Replaced `thiserror` with `snafu` ([#290]).
 
 [#271]: https://github.com/stackabletech/hdfs-operator/pull/271
 [#276]: https://github.com/stackabletech/hdfs-operator/pull/276
 [#281]: https://github.com/stackabletech/hdfs-operator/pull/281
+[#286]: https://github.com/stackabletech/hdfs-operator/pull/286
+[#290]: https://github.com/stackabletech/hdfs-operator/pull/290
+[#296]: https://github.com/stackabletech/hdfs-operator/pull/296
 
 ## [0.6.0] - 2022-11-07
 
@@ -23,14 +33,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.24.0` -> `0.25.2` ([#249])
+- `operator-rs` `0.24.0` -> `0.25.2` ([#249]).
 
 [#249]: https://github.com/stackabletech/hdfs-operator/pull/249
 [#250]: https://github.com/stackabletech/hdfs-operator/pull/250
 
 ### Fixed
 
-- Set specified resource request and limit on namenode main container ([#259])
+- Set specified resource request and limit on namenode main container ([#259]).
 
 [#259]: https://github.com/stackabletech/hdfs-operator/pull/259
 
@@ -38,9 +48,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Include chart name when installing with a custom release name ([#205])
-- Added OpenShift compatibility ([#225])
-- Add recommended labels to NodePort services ([#240])
+- Include chart name when installing with a custom release name ([#205]).
+- Added OpenShift compatibility ([#225]).
+- Add recommended labels to NodePort services ([#240]).
 
 [#205]: https://github.com/stackabletech/hdfs-operator/pull/205
 [#225]: https://github.com/stackabletech/hdfs-operator/pull/225

@@ -133,4 +133,4 @@ include::example$code/getting_started.sh[tag=delete-file]
 
 == What's next
 
-Look at the xref:ROOT:usage.adoc[Usage page] to find out more about configuring your HDFS cluster.
+Look at the xref:ROOT:usage-guide/index.adoc[] to find out more about configuring your HDFS cluster.

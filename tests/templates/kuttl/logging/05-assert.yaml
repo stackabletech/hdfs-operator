@@ -1,12 +1,12 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 600
+timeout: 300
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-zk-server-default
+  name: hdfs-test-runner
 status:
   readyReplicas: 1
   replicas: 1

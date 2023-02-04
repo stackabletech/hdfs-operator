@@ -1,6 +1,6 @@
 use crate::{
     build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsNodeDataDirectory, HdfsSiteConfigBuilder},
+    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
 };
 use stackable_hdfs_crd::{
     constants::{CORE_SITE_XML, HDFS_SITE_XML},
@@ -48,7 +48,7 @@ pub fn build_discovery_configmap(
 }
 
 fn build_discovery_hdfs_site_xml(logical_name: String, namenode_podrefs: &[HdfsPodRef]) -> String {
-    HdfsSiteConfigBuilder::new(logical_name, HdfsNodeDataDirectory::default())
+    HdfsSiteConfigBuilder::new(logical_name)
         .dfs_name_services()
         .dfs_ha_namenodes(namenode_podrefs)
         .dfs_namenode_rpc_address_ha(namenode_podrefs)

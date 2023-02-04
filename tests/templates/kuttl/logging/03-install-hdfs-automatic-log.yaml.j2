@@ -1,0 +1,115 @@
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: test-hdfs-automatic-log
+spec:
+  image:
+    productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
+  vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
+  zookeeperConfigMapName: test-hdfs-automatic-log-znode
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hdfs:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              zkfc:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              vector:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              formatNameNodes:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              formatZooKeeper:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hdfs:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              vector:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              waitForNameNodes:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              hdfs:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              vector:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO

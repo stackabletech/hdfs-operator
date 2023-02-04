@@ -6,7 +6,7 @@ timeout: 600
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-hdfs-namenode-default
+  name: test-hdfs-custom-log-namenode-default
 status:
   readyReplicas: 2
   replicas: 2
@@ -14,7 +14,7 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-hdfs-journalnode-default
+  name: test-hdfs-custom-log-datanode-default
 status:
   readyReplicas: 1
   replicas: 1
@@ -22,15 +22,7 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-hdfs-datanode-default
-status:
-  readyReplicas: 1
-  replicas: 1
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: test-hdfs-datanode-remove
+  name: test-hdfs-custom-log-journalnode-default
 status:
   readyReplicas: 1
   replicas: 1

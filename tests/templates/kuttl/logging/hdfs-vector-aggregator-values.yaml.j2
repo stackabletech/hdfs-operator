@@ -1,0 +1,199 @@
+---
+role: Aggregator
+service:
+  ports:
+  - name: api
+    port: 8686
+    protocol: TCP
+    targetPort: 8686
+  - name: vector
+    port: 6123
+    protocol: TCP
+    targetPort: 6000
+customConfig:
+  api:
+    address: 0.0.0.0:8686
+    enabled: true
+  sources:
+    vector:
+      address: 0.0.0.0:6000
+      type: vector
+      version: "2"
+  transforms:
+    automaticLogConfigNameNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "hdfs"
+    automaticLogConfigNameNode1:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "hdfs"
+    automaticLogConfigNameNode0Zkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "zkfc"
+    automaticLogConfigNameNode1Zkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "zkfc"
+    automaticLogConfigNameNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "vector"
+    automaticLogConfigNameNode1Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "vector"
+    automaticLogConfigNameNode0FormatNameNode:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "format-namenodes"
+    automaticLogConfigNameNode1FormatNameNode:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "format-namenodes"
+    automaticLogConfigNameNode0FormatZookeeper:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "format-zookeeper"
+    automaticLogConfigDataNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
+        .container == "hdfs"
+    automaticLogConfigDataNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
+        .container == "vector"
+    automaticLogConfigDataNode0WaitForNameNodes:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
+        .container == "wait-for-namenodes"
+    automaticLogConfigJournalNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
+        .container == "hdfs"
+    automaticLogConfigJournalNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
+        .container == "vector"
+    customLogConfigNameNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "hdfs"
+    customLogConfigNameNode1:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "hdfs"
+    customLogConfigNameNode0Zkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "zkfc"
+    customLogConfigNameNode1Zkfc:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "zkfc"
+    customLogConfigNameNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "vector"
+    customLogConfigNameNode1Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "vector"
+    customLogConfigNameNode0FormatNameNodes:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "format-namenodes"
+    customLogConfigNameNode1FormatNamenodes:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "format-namenodes"
+    customLogConfigNameNode0FormatZookeeper:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "format-zookeeper"
+    customLogConfigDataNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-0" &&
+        .container == "hdfs"
+    customLogConfigDataNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-0" &&
+        .container == "vector"
+    customLogConfigDataNode0WaitForNameNodes:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-0" &&
+        .container == "wait-for-namenodes"
+    customLogConfigJournalNode0:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-journalnode-default-0" &&
+        .container == "hdfs"
+    customLogConfigJournalNode0Vector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "test-hdfs-custom-log-journalnode-default-0" &&
+        .container == "vector"
+  sinks:
+    out:
+      inputs: [automaticLogConfig*, customLogConfig*]
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+      type: vector
+      address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
+{% else %}
+      type: blackhole
+{% endif %}

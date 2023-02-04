@@ -1,15 +1,44 @@
 //! NodePort controller for exposing individual Pods.
 //!
 //! For pods with the label `hdfs.stackable.tech/pod-service=true` a NodePort is created that exposes the local node pod.
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::constants::*;
-use stackable_hdfs_crd::error::{Error, HdfsOperatorResult};
-use stackable_operator::builder::ObjectMetaBuilder;
+use stackable_hdfs_crd::HdfsRole;
 use stackable_operator::{
+    builder::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
     kube::runtime::controller::Action,
+    logging::controller::ReconcilerError,
 };
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+use strum::{EnumDiscriminants, IntoStaticStr};
+
+#[derive(Snafu, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(IntoStaticStr))]
+pub enum Error {
+    #[snafu(display("Pod has no name"))]
+    PodHasNoName,
+    #[snafu(display("Pod [{name}] has no labels"))]
+    PodHasNoLabels { name: String },
+    #[snafu(display("Pod [{name}] has no spec"))]
+    PodHasNoSpec { name: String },
+    #[snafu(display("Failed to build owner reference of pod [{name}]"))]
+    PodOwnerReference {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display("Cannot create pod service [{name}]"))]
+    ApplyPodServiceFailed {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+}
+
+impl ReconcilerError for Error {
+    fn category(&self) -> &'static str {
+        ErrorDiscriminants::from(self).into()
+    }
+}
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -17,20 +46,16 @@ pub struct Ctx {
 
 const APP_KUBERNETES_LABEL_BASE: &str = "app.kubernetes.io/";
 
-pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
+pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error> {
     tracing::info!("Starting reconcile");
 
-    let name = pod.metadata.name.clone().ok_or(Error::PodHasNoName)?;
+    let name = pod.metadata.name.clone().context(PodHasNoNameSnafu)?;
 
     let pod_labels = pod
         .metadata
         .labels
         .as_ref()
-        .ok_or(Error::PodHasNoLabels { name: name.clone() })?;
-
-    let role = pod_labels
-        .get("role")
-        .ok_or(Error::PodHasNoRoleLabel { name: name.clone() })?;
+        .with_context(|| PodHasNoLabelsSnafu { name: name.clone() })?;
 
     let recommended_labels_from_pod = pod_labels
         .iter()
@@ -41,10 +66,14 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<A
     let ports: Vec<(String, i32)> = pod
         .spec
         .as_ref()
-        .ok_or(Error::PodHasNoSpec { name: name.clone() })?
+        .with_context(|| PodHasNoSpecSnafu { name: name.clone() })?
         .containers
         .iter()
-        .filter(|container| container.name == role.clone())
+        .filter(|container| {
+            container.name == HdfsRole::NameNode.to_string()
+                || container.name == HdfsRole::DataNode.to_string()
+                || container.name == HdfsRole::JournalNode.to_string()
+        })
         .flat_map(|c| c.ports.as_ref())
         .flat_map(|cp| cp.iter())
         .map(|cp| (cp.name.clone().unwrap_or_default(), cp.container_port))
@@ -55,10 +84,7 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<A
             .name_and_namespace(pod.as_ref())
             .labels(recommended_labels_from_pod)
             .ownerreference_from_resource(pod.as_ref(), None, None)
-            .map_err(|source| Error::PodOwnerReference {
-                source,
-                name: name.clone(),
-            })?
+            .with_context(|_| PodOwnerReferenceSnafu { name: name.clone() })?
             .build(),
         spec: Some(ServiceSpec {
             type_: Some("NodePort".to_string()),
@@ -85,7 +111,7 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> HdfsOperatorResult<A
     ctx.client
         .apply_patch(FIELD_MANAGER_SCOPE_POD, &svc, &svc)
         .await
-        .map_err(|source| Error::ApplyPodServiceFailed { source, name })?;
+        .with_context(|_| ApplyPodServiceFailedSnafu { name })?;
 
     Ok(Action::await_change())
 }
