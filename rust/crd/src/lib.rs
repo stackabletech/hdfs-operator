@@ -63,6 +63,7 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
     pub image: ProductImage,
+    pub exposure: Option<ExposureConfig>,
     pub auto_format_fs: Option<bool>,
     pub dfs_replication: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -116,6 +117,12 @@ pub trait MergedConfig {
     fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
         None
     }
+}
+
+#[serde(rename_all = "camelCase")]
+pub struct ExposureConfig {
+    pub listener_class: String,
+    pub persistent: bool,
 }
 
 #[derive(
