@@ -1,6 +1,6 @@
 = First steps
 
-Once you have followed the steps in the xref:installation.adoc[] section to install the operator and its dependencies, you will now deploy an HDFS cluster and its dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by creating, verifying and deleting a test file in HDFS.
+Once you have followed the steps in the xref:getting_started/installation.adoc[] section to install the operator and its dependencies, you will now deploy an HDFS cluster and its dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by creating, verifying and deleting a test file in HDFS.
 
 == Setup
 
@@ -9,22 +9,22 @@ Once you have followed the steps in the xref:installation.adoc[] section to inst
 To deploy a Zookeeper cluster create one file called `zk.yaml`:
 
 [source,yaml]
-include::example$code/zk.yaml[]
+include::example$getting_started/zk.yaml[]
 
 We also need to define a ZNode that will be used by the HDFS cluster to reference Zookeeper. Create another file called `znode.yaml`:
 
 [source,yaml]
-include::example$code/znode.yaml[]
+include::example$getting_started/znode.yaml[]
 
 Apply both of these files:
 
 [source]
-include::example$code/getting_started.sh[tag=install-zk]
+include::example$getting_started/getting_started.sh[tag=install-zk]
 
 The state of the Zookeeper cluster can be tracked with `kubectl`:
 
 [source]
-include::example$code/getting_started.sh[tag=watch-zk-rollout]
+include::example$getting_started/getting_started.sh[tag=watch-zk-rollout]
 
 === HDFS
 
@@ -32,7 +32,7 @@ An HDFS cluster has three components: the `namenode`, the `datanode` and the `jo
 
 [source,yaml]
 ----
-include::example$code/hdfs.yaml[]
+include::example$getting_started/hdfs.yaml[]
 ----
 
 Where:
@@ -47,13 +47,13 @@ It should generally be safe to simply use the latest image version that is avail
 Create the actual HDFS cluster by applying the file:
 
 ----
-include::example$code/getting_started.sh[tag=install-hdfs]
+include::example$getting_started/getting_started.sh[tag=install-hdfs]
 ----
 
 Track the progress with `kubectl` as this step may take a few minutes:
 
 [source]
-include::example$code/getting_started.sh[tag=watch-hdfs-rollout]
+include::example$getting_started/getting_started.sh[tag=watch-hdfs-rollout]
 
 
 == Verify that it works
@@ -62,29 +62,29 @@ To test the cluster you can create a new file, check its status and then delete 
 
 [source,yaml]
 ----
-include::example$code/webhdfs.yaml[]
+include::example$getting_started/webhdfs.yaml[]
 ----
 
 Apply it and monitor its progress:
 
 [source]
-include::example$code/getting_started.sh[tag=install-webhdfs]
-include::example$code/getting_started.sh[tag=watch-helper-rollout]
+include::example$getting_started/getting_started.sh[tag=install-webhdfs]
+include::example$getting_started/getting_started.sh[tag=watch-helper-rollout]
 
 To begin with  the cluster should be empty: this can be verified by listing all resources at the root directory (which should return an empty array!):
 
 [source]
-include::example$code/getting_started.sh[tag=file-status]
+include::example$getting_started/getting_started.sh[tag=file-status]
 
 Creating a file in HDFS using the https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Create_and_Write_to_a_File[Webhdfs API] requires a two-step `PUT` (the reason for having a two-step create/append is to prevent clients from sending out data before the redirect). First, create a file with some text in it called `testdata.txt` and copy it to the `tmp` directory on the helper pod:
 
 [source]
-include::example$code/getting_started.sh[tag=copy-file]
+include::example$getting_started/getting_started.sh[tag=copy-file]
 
 Then use `curl` to issue a `PUT` command:
 
 [source]
-include::example$code/getting_started.sh[tag=create-file]
+include::example$getting_started/getting_started.sh[tag=create-file]
 
 This will return a location that will look something like this:
 
@@ -94,12 +94,12 @@ http://simple-hdfs-datanode-default-0.simple-hdfs-datanode-default.default.svc.c
 You can assign this to a local variable - e.g. `$location` - or you can copy-and-paste it into the URL, and then issue a second `PUT` like this:
 
 [source]
-include::example$code/getting_started.sh[tag=create-file-redirected]
+include::example$getting_started/getting_started.sh[tag=create-file-redirected]
 
 Rechecking the status again with:
 
 [source]
-include::example$code/getting_started.sh[tag=file-status]
+include::example$getting_started/getting_started.sh[tag=file-status]
 
 will now display some metadata about the file that was created in the HDFS cluster:
 
@@ -129,8 +129,8 @@ will now display some metadata about the file that was created in the HDFS clust
 To clean up, the file can be deleted like this:
 
 [source]
-include::example$code/getting_started.sh[tag=delete-file]
+include::example$getting_started/getting_started.sh[tag=delete-file]
 
 == What's next
 
-Look at the xref:ROOT:usage-guide/index.adoc[] to find out more about configuring your HDFS cluster.
+Look at the xref:usage-guide/index.adoc[] to find out more about configuring your HDFS cluster.
