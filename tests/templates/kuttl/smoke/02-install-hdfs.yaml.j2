@@ -14,9 +14,14 @@ spec:
     productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
   zookeeperConfigMapName: hdfs-zk
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
   dfsReplication: 1
   nameNodes:
     config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
         cpu:
           max: '1'
@@ -28,6 +33,8 @@ spec:
         replicas: 2
   dataNodes:
     config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
         cpu:
           max: '1'
@@ -53,6 +60,8 @@ spec:
         replicas: {{ test_scenario['values']['number-of-datanodes'] }}
   journalNodes:
     config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
         cpu:
           max: '1'
