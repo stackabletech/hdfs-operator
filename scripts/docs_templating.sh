@@ -35,7 +35,7 @@ while read -r file
 do
   new_file_name=${file%.j2} # Remove .j2 suffix
   echo "templating $new_file_name"
-  jijinja2 "$file" "$templating_vars_file" -o "$new_file_name"
+  jinja2 "$file" "$templating_vars_file" -o "$new_file_name"
 done
 
 echo "done"
