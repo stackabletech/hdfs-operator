@@ -10,6 +10,8 @@ publish = false
 
 [dependencies]
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.30.2" }
+stackable-operator-derive = { git = "https://github.com/stackabletech/operator-rs.git", branch = "feat/pause-reconciliation" }
+
 stackable-hdfs-crd = { path = "../crd" }
 
 futures = "0.3"

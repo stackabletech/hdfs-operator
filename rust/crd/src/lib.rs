@@ -4,6 +4,7 @@ pub mod storage;
 use constants::*;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::config::common_config::ServiceType;
 use stackable_operator::{
     commons::{
         product_image_selection::ProductImage,
@@ -13,6 +14,7 @@ use stackable_operator::{
         },
     },
     config::{
+        common_config::ClusterSpecCommons,
         fragment,
         fragment::{Fragment, ValidationError},
         merge::Merge,
@@ -63,7 +65,8 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
     pub image: ProductImage,
-    pub exposure: Option<ExposureConfig>,
+    #[serde(flatten)]
+    pub common: ClusterSpecCommons,
     pub auto_format_fs: Option<bool>,
     pub dfs_replication: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -117,12 +120,6 @@ pub trait MergedConfig {
     fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
         None
     }
-}
-
-#[serde(rename_all = "camelCase")]
-pub struct ExposureConfig {
-    pub listener_class: String,
-    pub persistent: bool,
 }
 
 #[derive(
@@ -394,7 +391,9 @@ impl HdfsCluster {
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
         // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
         // useful for development purposes.
-        group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+        if self.spec.common.service_type() == ServiceType::NodePort {
+            group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+        }
 
         group_labels
     }

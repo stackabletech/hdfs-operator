@@ -4,9 +4,6 @@ kind: HdfsCluster
 metadata:
   name: simple-hdfs
 spec:
-  networkAccess:
-    listenerClass: public
-    persistent: true
   image:
     productVersion: 3.3.4
     stackableVersion: 0.3.0

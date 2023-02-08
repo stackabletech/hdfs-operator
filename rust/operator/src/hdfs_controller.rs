@@ -10,8 +10,11 @@ use crate::{
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
+use stackable_operator::config::common_config::handle_common_flags;
+use stackable_operator::error::Error as OperatorError;
+use stackable_operator::error::Error::ReconciliationAborted;
+use stackable_operator::error::OperatorResult;
 use stackable_operator::{
-    annotations::reconciliation_paused,
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
     cluster_resources::ClusterResources,
@@ -57,6 +60,10 @@ pub enum Error {
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("Failed to stop cluster resources"))]
+    StopClusterResources {
+        source: stackable_operator::error::Error,
+    },
     #[snafu(display("Cannot create rolegroup service [{name}]"))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
@@ -99,6 +106,11 @@ pub enum Error {
     BuildDiscoveryConfigMap {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("Error handling common flags"))]
+    HandleCommonFlags {
+        source: stackable_operator::error::Error,
+    },
+
     #[snafu(display("Failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
@@ -151,14 +163,35 @@ pub struct Ctx {
     pub product_config: ProductConfigManager,
 }
 
-pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
-    tracing::info!("Starting reconcile");
+use crate::hdfs_controller::Error::HandleCommonFlags;
+use stackable_operator_derive::handle_common_flags;
 
-    // Check if the CRD has the annotation to pause reconciliaton set to true and abort
-    if reconciliation_paused(&hdfs) {
-        tracing::info!("Reconciliation for this cluster has been paused, aborting ..");
-        return Ok(Action::await_change());
+pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
+    handle_common_flags!();
+
+    let client = &ctx.client;
+    /*
+    let cluster_resources = ClusterResources::new(
+        APP_NAME,
+        OPERATOR_NAME,
+        RESOURCE_MANAGER_HDFS_CONTROLLER,
+        &hdfs.object_ref(&()),
+    )
+    .context(CreateClusterResourcesSnafu)?;
+
+    match stackable_operator::config::common_config::handle_common_flags(
+        &client,
+        &cluster_resources,
+        &hdfs.spec.common,
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(ReconciliationAborted { .. }) => return Ok(Action::await_change()),
+        Err(e) => return Err(HandleCommonFlags { source: e }),
     }
+    */
+    tracing::info!("Starting reconcile");
 
     let client = &ctx.client;
 

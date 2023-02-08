@@ -10,7 +10,7 @@ use stackable_operator::{
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
-    pub const TARGET: Option<&str> = option_env!("TARGET");
+    pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
 }
 
 #[derive(clap::Parser)]
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
                 crate_description!(),
                 crate_version!(),
                 built_info::GIT_VERSION,
-                built_info::TARGET.unwrap_or("unknown target"),
+                built_info::TARGET_PLATFORM.unwrap_or("unknown target"),
                 built_info::BUILT_TIME_UTC,
                 built_info::RUSTC_VERSION,
             );

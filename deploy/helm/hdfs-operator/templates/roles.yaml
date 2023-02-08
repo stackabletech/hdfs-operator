@@ -45,12 +45,22 @@ rules:
     resources:
       - statefulsets
     verbs:
+      - get
       - create
       - delete
       - list
       - patch
       - update
       - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets/scale
+    verbs:
+      - list
+      - get
+      - update
+      - patch
   - apiGroups:
       - batch
     resources:
