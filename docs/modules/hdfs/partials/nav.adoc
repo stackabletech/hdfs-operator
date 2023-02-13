@@ -1,0 +1,12 @@
+* xref:hdfs:getting_started/index.adoc[]
+** xref:hdfs:getting_started/installation.adoc[]
+** xref:hdfs:getting_started/first_steps.adoc[]
+* xref:hdfs:configuration.adoc[]
+* Concepts
+** xref:hdfs:discovery.adoc[]
+* xref:hdfs:usage-guide/index.adoc[]
+** xref:hdfs:usage-guide/resources.adoc[]
+** xref:hdfs:usage-guide/logging-log-aggregation.adoc[]
+** xref:hdfs:usage-guide/monitoring.adoc[]
+** xref:hdfs:usage-guide/scaling.adoc[]
+** xref:hdfs:usage-guide/configuration-environment-overrides.adoc[]
