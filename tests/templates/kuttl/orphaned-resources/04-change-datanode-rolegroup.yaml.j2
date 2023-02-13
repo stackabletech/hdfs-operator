@@ -6,6 +6,8 @@ metadata:
 spec:
   dataNodes:
     config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
         cpu:
           max: '1'
