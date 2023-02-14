@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{crate_description, crate_version, Parser};
 use stackable_hdfs_crd::constants::APP_NAME;
 use stackable_hdfs_crd::HdfsCluster;
 use stackable_hdfs_operator::OPERATOR_NAME;
@@ -10,10 +10,11 @@ use stackable_operator::{
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
+    pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
 }
 
 #[derive(clap::Parser)]
-#[clap(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]
+#[clap(about, author)]
 struct Opts {
     #[clap(subcommand)]
     cmd: Command,
@@ -36,10 +37,10 @@ async fn main() -> anyhow::Result<()> {
             );
 
             stackable_operator::utils::print_startup_string(
-                built_info::PKG_DESCRIPTION,
-                built_info::PKG_VERSION,
+                crate_description!(),
+                crate_version!(),
                 built_info::GIT_VERSION,
-                built_info::TARGET,
+                built_info::TARGET_PLATFORM.unwrap_or("unknown target"),
                 built_info::BUILT_TIME_UTC,
                 built_info::RUSTC_VERSION,
             );
