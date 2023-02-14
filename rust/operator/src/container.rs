@@ -9,10 +9,13 @@
 //! - Set resources
 //! - Add tcp probes and container ports (to the main containers)
 //!
-use crate::product_logging::{
-    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE, HDFS_LOG4J_CONFIG_FILE,
-    MAX_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR, WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-    ZKFC_LOG4J_CONFIG_FILE,
+use crate::{
+    hdfs_controller::KEYSTORE_DIR_NAME,
+    product_logging::{
+        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+        HDFS_LOG4J_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR,
+        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+    },
 };
 
 use indoc::formatdoc;
@@ -28,7 +31,10 @@ use stackable_hdfs_crd::{
     DataNodeContainer, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
 use stackable_operator::{
-    builder::{ContainerBuilder, PodBuilder, VolumeBuilder, VolumeMountBuilder},
+    builder::{
+        ContainerBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+        VolumeMountBuilder,
+    },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::core::v1::{
@@ -268,6 +274,13 @@ impl ContainerConfig {
         cb.image_from_product_image(resolved_product_image)
             .command(self.command())
             .args(self.args(merged_config, &[]))
+            .add_env_var(
+                "HADDOP_OPTS",
+                "-Djava.security.krb5.conf=/kerberos/krb5.conf",
+            )
+            .add_env_var("HADOOP_JAAS_DEBUG", "true")
+            .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
+            .add_env_var("KRB5_TRACE", "/dev/stdout")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
             .add_volume_mounts(self.volume_mounts(merged_config))
             .add_container_ports(self.container_ports());
@@ -585,6 +598,47 @@ impl ContainerConfig {
                         .build(),
                 );
 
+                let mut krb_src = VolumeBuilder::new("kerberos")
+                    .ephemeral(
+                        SecretOperatorVolumeSourceBuilder::new("kerberos")
+                            .with_pod_scope()
+                            .with_node_scope()
+                            .build(),
+                    )
+                    .build();
+                krb_src
+                    .ephemeral
+                    .as_mut()
+                    .unwrap()
+                    .volume_claim_template
+                    .get_or_insert(Default::default())
+                    .metadata
+                    .get_or_insert(Default::default())
+                    .annotations
+                    .get_or_insert(Default::default())
+                    .insert(
+                        "secrets.stackable.tech/kerberos.service.names".to_string(),
+                        "jn,nn,dn,HTTP".to_string(),
+                    );
+                volumes.push(krb_src);
+
+                volumes.push(
+                    VolumeBuilder::new("tls")
+                        .ephemeral(
+                            SecretOperatorVolumeSourceBuilder::new("tls")
+                                .with_pod_scope()
+                                .with_node_scope()
+                                .build(),
+                        )
+                        .build(),
+                );
+
+                volumes.push(
+                    VolumeBuilder::new("keystore")
+                        .with_empty_dir(Option::<String>::None, None)
+                        .build(),
+                );
+
                 Some(merged_config.hdfs_logging())
             }
             ContainerConfig::Zkfc { .. } => merged_config.zkfc_logging(),
@@ -621,6 +675,9 @@ impl ContainerConfig {
                 self.volume_mount_dirs().log_mount(),
             )
             .build(),
+            VolumeMountBuilder::new("kerberos", "/kerberos").build(),
+            VolumeMountBuilder::new("tls", "/stackable/tls").build(),
+            VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build(),
         ];
 
         match self {

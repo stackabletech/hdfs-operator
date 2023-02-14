@@ -45,6 +45,8 @@ const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
+pub(crate) const KEYSTORE_DIR_NAME: &str = "/stackable/keystore";
+
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
@@ -377,6 +379,8 @@ fn rolegroup_config_map(
 
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
+    let mut ssl_server_xml = String::new();
+    let mut ssl_client_xml = String::new();
 
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
@@ -406,6 +410,11 @@ fn rolegroup_config_map(
                     .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                     .add("dfs.ha.automatic-failover.enabled", "true")
                     .add("dfs.ha.namenode.id", "${env.POD_NAME}")
+                    .add("dfs.block.access.token.enable", "true")
+                    .add("dfs.data.transfer.protection", "authentication")
+                    .add("dfs.http.policy", "HTTPS_ONLY")
+                    .add("dfs.https.client.keystore.resource", "ssl-client.xml")
+                    .add("dfs.https.server.keystore.resource", "ssl-server.xml")
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
@@ -414,9 +423,106 @@ fn rolegroup_config_map(
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
+                    .extend(
+                        &[
+                            (
+                                "hadoop.security.authentication".to_string(),
+                                "kerberos".to_string(),
+                            ),
+                            (
+                                "hadoop.security.authentication".to_string(),
+                                "kerberos".to_string(),
+                            ),
+                            (
+                                "hadoop.security.authorization".to_string(),
+                                "true".to_string(),
+                            ),
+                            (
+                                "hadoop.registry.kerberos.realm".to_string(),
+                                "CLUSTER.LOCAL".to_string(),
+                            ),
+                            (
+                                "dfs.web.authentication.kerberos.principal".to_string(),
+                                "HTTP/_HOST@CLUSTER.LOCAL".to_string(),
+                            ),
+                            (
+                                "dfs.journalnode.kerberos.internal.spnego.principal".to_string(),
+                                "HTTP/_HOST@CLUSTER.LOCAL".to_string(),
+                            ),
+                            (
+                                "dfs.journalnode.kerberos.principal".to_string(),
+                                "jn/_HOST@CLUSTER.LOCAL".to_string(),
+                            ),
+                            (
+                                "dfs.namenode.kerberos.principal".to_string(),
+                                "nn/_HOST@CLUSTER.LOCAL".to_string(),
+                            ),
+                            (
+                                "dfs.datanode.kerberos.principal".to_string(),
+                                "dn/_HOST@CLUSTER.LOCAL".to_string(),
+                            ),
+                            (
+                                "dfs.web.authentication.keytab.file".to_string(),
+                                "/kerberos/keytab".to_string(),
+                            ),
+                            (
+                                "dfs.journalnode.keytab.file".to_string(),
+                                "/kerberos/keytab".to_string(),
+                            ),
+                            (
+                                "dfs.namenode.keytab.file".to_string(),
+                                "/kerberos/keytab".to_string(),
+                            ),
+                            (
+                                "dfs.datanode.keytab.file".to_string(),
+                                "/kerberos/keytab".to_string(),
+                            ),
+                        ]
+                        .into(),
+                    )
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
+            }
+            PropertyNameKind::File(file_name) if file_name == "ssl-server.xml" => {
+                let mut config_opts = BTreeMap::new();
+                config_opts.extend([
+                    (
+                        "ssl.server.keystore.location".to_string(),
+                        Some(format!("{KEYSTORE_DIR_NAME}/keystore.p12")),
+                    ),
+                    (
+                        "ssl.server.keystore.password".to_string(),
+                        Some("secret".to_string()),
+                    ),
+                    (
+                        "ssl.server.keystore.type".to_string(),
+                        Some("pkcs12".to_string()),
+                    ),
+                ]);
+                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
+                ssl_server_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+            }
+            PropertyNameKind::File(file_name) if file_name == "ssl-client.xml" => {
+                let mut config_opts = BTreeMap::new();
+                config_opts.extend([
+                    (
+                        "ssl.client.truststore.location".to_string(),
+                        Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
+                    ),
+                    (
+                        "ssl.client.truststore.password".to_string(),
+                        Some("secret".to_string()),
+                    ),
+                    (
+                        "ssl.client.truststore.type".to_string(),
+                        Some("pkcs12".to_string()),
+                    ),
+                ]);
+                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
+                ssl_client_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
             }
             _ => {}
         }
@@ -443,7 +549,9 @@ fn rolegroup_config_map(
                 .build(),
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
-        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml);
+        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
+        .add_data("ssl-server.xml", ssl_server_xml)
+        .add_data("ssl-client.xml", ssl_client_xml);
 
     extend_role_group_config_map(
         rolegroup_ref,
