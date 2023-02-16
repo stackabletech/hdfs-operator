@@ -7,7 +7,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinities::{
-            anti_affinity_between_role_pods, StackableAffinity, StackableAffinityFragment,
+            affinity_between_cluster_pods, affinity_between_role_pods, StackableAffinity,
+            StackableAffinityFragment,
         },
         product_image_selection::ProductImage,
         resources::{
@@ -21,7 +22,7 @@ use stackable_operator::{
         merge::Merge,
     },
     k8s_openapi::{
-        api::core::v1::PodAntiAffinity,
+        api::core::v1::{PodAffinity, PodAntiAffinity},
         apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
     },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
@@ -772,10 +773,15 @@ impl NameNodeConfigFragment {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
             affinity: StackableAffinityFragment {
-                pod_affinity: None,
+                pod_affinity: Some(PodAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        affinity_between_cluster_pods(APP_NAME, cluster_name, 20),
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
                 pod_anti_affinity: Some(PodAntiAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        anti_affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
+                        affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
                     ]),
                     required_during_scheduling_ignored_during_execution: None,
                 }),
@@ -913,10 +919,15 @@ impl DataNodeConfigFragment {
             resources: default_data_node_resources_fragment(),
             logging: product_logging::spec::default_logging(),
             affinity: StackableAffinityFragment {
-                pod_affinity: None,
+                pod_affinity: Some(PodAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        affinity_between_cluster_pods(APP_NAME, cluster_name, 20),
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
                 pod_anti_affinity: Some(PodAntiAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        anti_affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
+                        affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
                     ]),
                     required_during_scheduling_ignored_during_execution: None,
                 }),
@@ -1043,10 +1054,15 @@ impl JournalNodeConfigFragment {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
             affinity: StackableAffinityFragment {
-                pod_affinity: None,
+                pod_affinity: Some(PodAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        affinity_between_cluster_pods(APP_NAME, cluster_name, 20),
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
                 pod_anti_affinity: Some(PodAntiAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        anti_affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
+                        affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
                     ]),
                     required_during_scheduling_ignored_during_execution: None,
                 }),
@@ -1098,7 +1114,7 @@ mod test {
         commons::affinities::{StackableAffinity, StackableNodeSelector},
         k8s_openapi::{
             api::core::v1::{
-                NodeAffinity, NodeSelector, NodeSelectorRequirement, NodeSelectorTerm,
+                NodeAffinity, NodeSelector, NodeSelectorRequirement, NodeSelectorTerm, PodAffinity,
                 PodAffinityTerm, PodAntiAffinity, ResourceRequirements, WeightedPodAffinityTerm,
             },
             apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
@@ -1420,7 +1436,29 @@ spec:
         assert_eq!(
             merged_config.affinity(),
             &StackableAffinity {
-                pod_affinity: None,
+                pod_affinity: Some(PodAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        WeightedPodAffinityTerm {
+                            pod_affinity_term: PodAffinityTerm {
+                                label_selector: Some(LabelSelector {
+                                    match_expressions: None,
+                                    match_labels: Some(BTreeMap::from([
+                                        ("app.kubernetes.io/name".to_string(), "hdfs".to_string(),),
+                                        (
+                                            "app.kubernetes.io/instance".to_string(),
+                                            "simple-hdfs".to_string(),
+                                        ),
+                                    ]))
+                                }),
+                                namespace_selector: None,
+                                namespaces: None,
+                                topology_key: "kubernetes.io/hostname".to_string(),
+                            },
+                            weight: 20
+                        }
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
                 pod_anti_affinity: Some(PodAntiAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
                         WeightedPodAffinityTerm {
@@ -1494,7 +1532,29 @@ spec:
         assert_eq!(
             merged_config.affinity(),
             &StackableAffinity {
-                pod_affinity: None,
+                pod_affinity: Some(PodAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        WeightedPodAffinityTerm {
+                            pod_affinity_term: PodAffinityTerm {
+                                label_selector: Some(LabelSelector {
+                                    match_expressions: None,
+                                    match_labels: Some(BTreeMap::from([
+                                        ("app.kubernetes.io/name".to_string(), "hdfs".to_string(),),
+                                        (
+                                            "app.kubernetes.io/instance".to_string(),
+                                            "simple-hdfs".to_string(),
+                                        ),
+                                    ]))
+                                }),
+                                namespace_selector: None,
+                                namespaces: None,
+                                topology_key: "kubernetes.io/hostname".to_string(),
+                            },
+                            weight: 20
+                        }
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
                 pod_anti_affinity: Some(PodAntiAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
                         WeightedPodAffinityTerm {
