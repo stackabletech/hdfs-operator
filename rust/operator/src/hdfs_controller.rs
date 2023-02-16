@@ -484,7 +484,7 @@ fn rolegroup_statefulset(
         ..ObjectMeta::default()
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
-    .node_selector_opt(role.role_group_node_selector(hdfs, &rolegroup_ref.role_group))
+    .affinity(merged_config.affinity())
     .service_account_name(rbac_sa)
     .security_context(
         PodSecurityContextBuilder::new()

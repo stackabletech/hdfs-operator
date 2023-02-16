@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
+        affinities::{
+            anti_affinity_between_role_pods, StackableAffinity, StackableAffinityFragment,
+        },
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -17,8 +20,11 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
-    kube::{runtime::reflector::ObjectRef, CustomResource},
+    k8s_openapi::{
+        api::core::v1::PodAntiAffinity,
+        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+    },
+    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     labels::role_group_selector_labels,
     product_config::types::PropertyNameKind,
     product_config_utils::{ConfigError, Configuration},
@@ -94,6 +100,7 @@ pub trait MergedConfig {
     ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
         None
     }
+    fn affinity(&self) -> &StackableAffinity;
     /// Main container shared by all roles
     fn hdfs_logging(&self) -> ContainerLogConfig;
     /// Vector container shared by all roles
@@ -233,7 +240,8 @@ impl HdfsRole {
     ) -> Result<Box<dyn MergedConfig + Send + 'static>, Error> {
         match self {
             HdfsRole::NameNode => {
-                let default_config = NameNodeConfigFragment::default_config();
+                let default_config =
+                    NameNodeConfigFragment::default_config(&hdfs.name_any(), &self.to_string());
                 let role = hdfs
                     .spec
                     .name_nodes
@@ -253,6 +261,17 @@ impl HdfsRole {
                     .config
                     .clone();
 
+                if let Some(RoleGroup {
+                    selector: Some(selector),
+                    ..
+                }) = role.role_groups.get(role_group)
+                {
+                    // Migrate old `selector` attribute, see ADR 26 affinities.
+                    // TODO Can be removed after support for the old `selector` field is dropped.
+                    #[allow(deprecated)]
+                    role_group_config.affinity.add_legacy_selector(selector);
+                }
+
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
                 Ok(Box::new(
@@ -261,7 +280,8 @@ impl HdfsRole {
                 ))
             }
             HdfsRole::DataNode => {
-                let default_config = DataNodeConfigFragment::default_config();
+                let default_config =
+                    DataNodeConfigFragment::default_config(&hdfs.name_any(), &self.to_string());
                 let role = hdfs
                     .spec
                     .data_nodes
@@ -281,6 +301,17 @@ impl HdfsRole {
                     .config
                     .clone();
 
+                if let Some(RoleGroup {
+                    selector: Some(selector),
+                    ..
+                }) = role.role_groups.get(role_group)
+                {
+                    // Migrate old `selector` attribute, see ADR 26 affinities.
+                    // TODO Can be removed after support for the old `selector` field is dropped.
+                    #[allow(deprecated)]
+                    role_group_config.affinity.add_legacy_selector(selector);
+                }
+
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
                 Ok(Box::new(
@@ -289,7 +320,8 @@ impl HdfsRole {
                 ))
             }
             HdfsRole::JournalNode => {
-                let default_config = JournalNodeConfigFragment::default_config();
+                let default_config =
+                    JournalNodeConfigFragment::default_config(&hdfs.name_any(), &self.to_string());
                 let role = hdfs
                     .spec
                     .journal_nodes
@@ -308,6 +340,17 @@ impl HdfsRole {
                     .config
                     .config
                     .clone();
+
+                if let Some(RoleGroup {
+                    selector: Some(selector),
+                    ..
+                }) = role.role_groups.get(role_group)
+                {
+                    // Migrate old `selector` attribute, see ADR 26 affinities.
+                    // TODO Can be removed after support for the old `selector` field is dropped.
+                    #[allow(deprecated)]
+                    role_group_config.affinity.add_legacy_selector(selector);
+                }
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
@@ -668,11 +711,17 @@ pub struct NameNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<NameNodeContainer>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl MergedConfig for NameNodeConfig {
     fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
         Some(self.resources.clone())
+    }
+
+    fn affinity(&self) -> &StackableAffinity {
+        &self.affinity
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -718,10 +767,21 @@ impl MergedConfig for NameNodeConfig {
 }
 
 impl NameNodeConfigFragment {
-    pub fn default_config() -> Self {
+    pub fn default_config(cluster_name: &str, role: &str) -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
+            affinity: StackableAffinityFragment {
+                pod_affinity: None,
+                pod_anti_affinity: Some(PodAntiAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        anti_affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
+                node_affinity: None,
+                node_selector: None,
+            },
         }
     }
 }
@@ -804,6 +864,8 @@ pub struct DataNodeConfig {
     pub resources: Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<DataNodeContainer>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl MergedConfig for DataNodeConfig {
@@ -811,6 +873,10 @@ impl MergedConfig for DataNodeConfig {
         &self,
     ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
         Some(self.resources.clone())
+    }
+
+    fn affinity(&self) -> &StackableAffinity {
+        &self.affinity
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -842,10 +908,21 @@ impl MergedConfig for DataNodeConfig {
 }
 
 impl DataNodeConfigFragment {
-    pub fn default_config() -> Self {
+    pub fn default_config(cluster_name: &str, role: &str) -> Self {
         Self {
             resources: default_data_node_resources_fragment(),
             logging: product_logging::spec::default_logging(),
+            affinity: StackableAffinityFragment {
+                pod_affinity: None,
+                pod_anti_affinity: Some(PodAntiAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        anti_affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
+                node_affinity: None,
+                node_selector: None,
+            },
         }
     }
 }
@@ -926,11 +1003,17 @@ pub struct JournalNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<JournalNodeContainer>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl MergedConfig for JournalNodeConfig {
     fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
         Some(self.resources.clone())
+    }
+
+    fn affinity(&self) -> &StackableAffinity {
+        &self.affinity
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -955,10 +1038,21 @@ impl MergedConfig for JournalNodeConfig {
 }
 
 impl JournalNodeConfigFragment {
-    pub fn default_config() -> Self {
+    pub fn default_config(cluster_name: &str, role: &str) -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
+            affinity: StackableAffinityFragment {
+                pod_affinity: None,
+                pod_anti_affinity: Some(PodAntiAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        anti_affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
+                node_affinity: None,
+                node_selector: None,
+            },
         }
     }
 }
@@ -994,11 +1088,21 @@ impl Configuration for JournalNodeConfigFragment {
 
 #[cfg(test)]
 mod test {
+    use rstest::rstest;
+    use std::collections::BTreeMap;
+
     use crate::storage::HdfsStorageType;
 
     use super::{HdfsCluster, HdfsRole};
-    use stackable_operator::k8s_openapi::{
-        api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
+    use stackable_operator::{
+        commons::affinities::{StackableAffinity, StackableNodeSelector},
+        k8s_openapi::{
+            api::core::v1::{
+                NodeAffinity, NodeSelector, NodeSelectorRequirement, NodeSelectorTerm,
+                PodAffinityTerm, PodAntiAffinity, ResourceRequirements, WeightedPodAffinityTerm,
+            },
+            apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        },
     };
 
     #[test]
@@ -1224,6 +1328,7 @@ spec:
                 ]
                 .into(),
             ),
+            ..ResourceRequirements::default()
         };
         assert_eq!(expected, rr);
     }
@@ -1276,7 +1381,167 @@ spec:
                 ]
                 .into(),
             ),
+            ..ResourceRequirements::default()
         };
         assert_eq!(expected, rr);
+    }
+
+    #[rstest]
+    #[case(HdfsRole::JournalNode)]
+    #[case(HdfsRole::NameNode)]
+    #[case(HdfsRole::DataNode)]
+    fn test_affinity_defaults(#[case] role: HdfsRole) {
+        let input = r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: simple-hdfs
+spec:
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
+  zookeeperConfigMapName: hdfs-zk
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+        "#;
+        let hdfs: HdfsCluster = serde_yaml::from_str(input).unwrap();
+        let merged_config = role.merged_config(&hdfs, "default").unwrap();
+
+        assert_eq!(
+            merged_config.affinity(),
+            &StackableAffinity {
+                pod_affinity: None,
+                pod_anti_affinity: Some(PodAntiAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        WeightedPodAffinityTerm {
+                            pod_affinity_term: PodAffinityTerm {
+                                label_selector: Some(LabelSelector {
+                                    match_expressions: None,
+                                    match_labels: Some(BTreeMap::from([
+                                        ("app.kubernetes.io/name".to_string(), "hdfs".to_string(),),
+                                        (
+                                            "app.kubernetes.io/instance".to_string(),
+                                            "simple-hdfs".to_string(),
+                                        ),
+                                        (
+                                            "app.kubernetes.io/component".to_string(),
+                                            role.to_string(),
+                                        )
+                                    ]))
+                                }),
+                                namespace_selector: None,
+                                namespaces: None,
+                                topology_key: "kubernetes.io/hostname".to_string(),
+                            },
+                            weight: 70
+                        }
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
+                node_affinity: None,
+                node_selector: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_affinity_legacy_node_selector() {
+        let input = r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: simple-hdfs
+spec:
+  image:
+    productVersion: 3.3.4
+    stackableVersion: 0.2.0
+  zookeeperConfigMapName: hdfs-zk
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+        selector:
+          matchLabels:
+            disktype: ssd
+          matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - antarctica-east1
+                - antarctica-west1
+        "#;
+        let hdfs: HdfsCluster = serde_yaml::from_str(input).unwrap();
+        let merged_config = HdfsRole::DataNode.merged_config(&hdfs, "default").unwrap();
+
+        assert_eq!(
+            merged_config.affinity(),
+            &StackableAffinity {
+                pod_affinity: None,
+                pod_anti_affinity: Some(PodAntiAffinity {
+                    preferred_during_scheduling_ignored_during_execution: Some(vec![
+                        WeightedPodAffinityTerm {
+                            pod_affinity_term: PodAffinityTerm {
+                                label_selector: Some(LabelSelector {
+                                    match_expressions: None,
+                                    match_labels: Some(BTreeMap::from([
+                                        ("app.kubernetes.io/name".to_string(), "hdfs".to_string(),),
+                                        (
+                                            "app.kubernetes.io/instance".to_string(),
+                                            "simple-hdfs".to_string(),
+                                        ),
+                                        (
+                                            "app.kubernetes.io/component".to_string(),
+                                            "datanode".to_string(),
+                                        )
+                                    ]))
+                                }),
+                                namespace_selector: None,
+                                namespaces: None,
+                                topology_key: "kubernetes.io/hostname".to_string(),
+                            },
+                            weight: 70
+                        }
+                    ]),
+                    required_during_scheduling_ignored_during_execution: None,
+                }),
+                node_affinity: Some(NodeAffinity {
+                    preferred_during_scheduling_ignored_during_execution: None,
+                    required_during_scheduling_ignored_during_execution: Some(NodeSelector {
+                        node_selector_terms: vec![NodeSelectorTerm {
+                            match_expressions: Some(vec![NodeSelectorRequirement {
+                                key: "topology.kubernetes.io/zone".to_string(),
+                                operator: "In".to_string(),
+                                values: Some(vec![
+                                    "antarctica-east1".to_string(),
+                                    "antarctica-west1".to_string()
+                                ]),
+                            }]),
+                            match_fields: None,
+                        }]
+                    }),
+                }),
+                node_selector: Some(StackableNodeSelector {
+                    node_selector: BTreeMap::from([("disktype".to_string(), "ssd".to_string())])
+                }),
+            }
+        );
     }
 }
