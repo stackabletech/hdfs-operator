@@ -1,15 +1,14 @@
+pub mod affinity;
 pub mod constants;
 pub mod storage;
 
+use affinity::get_affinity;
 use constants::*;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
-        affinities::{
-            affinity_between_cluster_pods, affinity_between_role_pods, StackableAffinity,
-            StackableAffinityFragment,
-        },
+        affinities::StackableAffinity,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -21,10 +20,7 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::{
-        api::core::v1::{PodAffinity, PodAntiAffinity},
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
-    },
+    k8s_openapi::apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     labels::role_group_selector_labels,
     product_config::types::PropertyNameKind,
@@ -241,8 +237,7 @@ impl HdfsRole {
     ) -> Result<Box<dyn MergedConfig + Send + 'static>, Error> {
         match self {
             HdfsRole::NameNode => {
-                let default_config =
-                    NameNodeConfigFragment::default_config(&hdfs.name_any(), &self.to_string());
+                let default_config = NameNodeConfigFragment::default_config(&hdfs.name_any(), self);
                 let role = hdfs
                     .spec
                     .name_nodes
@@ -281,8 +276,7 @@ impl HdfsRole {
                 ))
             }
             HdfsRole::DataNode => {
-                let default_config =
-                    DataNodeConfigFragment::default_config(&hdfs.name_any(), &self.to_string());
+                let default_config = DataNodeConfigFragment::default_config(&hdfs.name_any(), self);
                 let role = hdfs
                     .spec
                     .data_nodes
@@ -322,7 +316,7 @@ impl HdfsRole {
             }
             HdfsRole::JournalNode => {
                 let default_config =
-                    JournalNodeConfigFragment::default_config(&hdfs.name_any(), &self.to_string());
+                    JournalNodeConfigFragment::default_config(&hdfs.name_any(), self);
                 let role = hdfs
                     .spec
                     .journal_nodes
@@ -768,26 +762,11 @@ impl MergedConfig for NameNodeConfig {
 }
 
 impl NameNodeConfigFragment {
-    pub fn default_config(cluster_name: &str, role: &str) -> Self {
+    pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
-            affinity: StackableAffinityFragment {
-                pod_affinity: Some(PodAffinity {
-                    preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        affinity_between_cluster_pods(APP_NAME, cluster_name, 20),
-                    ]),
-                    required_during_scheduling_ignored_during_execution: None,
-                }),
-                pod_anti_affinity: Some(PodAntiAffinity {
-                    preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
-                    ]),
-                    required_during_scheduling_ignored_during_execution: None,
-                }),
-                node_affinity: None,
-                node_selector: None,
-            },
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
@@ -914,26 +893,11 @@ impl MergedConfig for DataNodeConfig {
 }
 
 impl DataNodeConfigFragment {
-    pub fn default_config(cluster_name: &str, role: &str) -> Self {
+    pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: default_data_node_resources_fragment(),
             logging: product_logging::spec::default_logging(),
-            affinity: StackableAffinityFragment {
-                pod_affinity: Some(PodAffinity {
-                    preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        affinity_between_cluster_pods(APP_NAME, cluster_name, 20),
-                    ]),
-                    required_during_scheduling_ignored_during_execution: None,
-                }),
-                pod_anti_affinity: Some(PodAntiAffinity {
-                    preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
-                    ]),
-                    required_during_scheduling_ignored_during_execution: None,
-                }),
-                node_affinity: None,
-                node_selector: None,
-            },
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
@@ -1049,26 +1013,11 @@ impl MergedConfig for JournalNodeConfig {
 }
 
 impl JournalNodeConfigFragment {
-    pub fn default_config(cluster_name: &str, role: &str) -> Self {
+    pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
-            affinity: StackableAffinityFragment {
-                pod_affinity: Some(PodAffinity {
-                    preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        affinity_between_cluster_pods(APP_NAME, cluster_name, 20),
-                    ]),
-                    required_during_scheduling_ignored_during_execution: None,
-                }),
-                pod_anti_affinity: Some(PodAntiAffinity {
-                    preferred_during_scheduling_ignored_during_execution: Some(vec![
-                        affinity_between_role_pods(APP_NAME, cluster_name, role, 70),
-                    ]),
-                    required_during_scheduling_ignored_during_execution: None,
-                }),
-                node_affinity: None,
-                node_selector: None,
-            },
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
