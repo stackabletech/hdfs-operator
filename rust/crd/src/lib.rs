@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
-        affinities::StackableAffinity,
+        affinity::StackableAffinity,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
