@@ -1812,7 +1812,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hdfs-crd"
-version = "0.7.0-nightly"
+version = "0.0.0-dev"
 dependencies = [
  "rstest",
  "semver",
@@ -1827,7 +1827,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hdfs-operator"
-version = "0.7.0-nightly"
+version = "0.0.0-dev"
 dependencies = [
  "futures",
  "indoc",
@@ -1844,7 +1844,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hdfs-operator-binary"
-version = "0.7.0-nightly"
+version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "built",
