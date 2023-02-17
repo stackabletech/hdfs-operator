@@ -15,7 +15,7 @@ stackable-hdfs-crd = { path = "../crd" }
 stackable-hdfs-operator = { path = "../operator" }
 anyhow = "1.0"
 clap = "4.0"
-tokio = { version = "1.23", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.24", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [build-dependencies]
