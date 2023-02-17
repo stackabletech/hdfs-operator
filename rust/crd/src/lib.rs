@@ -181,6 +181,10 @@ impl HdfsRole {
                     DEFAULT_NAME_NODE_HTTP_PORT,
                 ),
                 (
+                    String::from(SERVICE_PORT_NAME_HTTPS),
+                    DEFAULT_NAME_NODE_HTTPS_PORT,
+                ),
+                (
                     String::from(SERVICE_PORT_NAME_RPC),
                     DEFAULT_NAME_NODE_RPC_PORT,
                 ),

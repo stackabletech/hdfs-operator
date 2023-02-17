@@ -275,12 +275,12 @@ impl ContainerConfig {
             .command(self.command())
             .args(self.args(merged_config, &[]))
             .add_env_var(
-                "HADDOP_OPTS",
+                "HADOOP_OPTS",
                 "-Djava.security.krb5.conf=/kerberos/krb5.conf",
             )
             .add_env_var("HADOOP_JAAS_DEBUG", "true")
             .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
-            .add_env_var("KRB5_TRACE", "/dev/stdout")
+            .add_env_var("KRB5_TRACE", "/dev/stderr")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
             .add_volume_mounts(self.volume_mounts(merged_config))
             .add_container_ports(self.container_ports());
@@ -313,6 +313,13 @@ impl ContainerConfig {
             .image_from_product_image(resolved_product_image)
             .command(self.command())
             .args(self.args(merged_config, namenode_podrefs))
+            .add_env_var(
+                "HADOOP_OPTS",
+                "-Djava.security.krb5.conf=/kerberos/krb5.conf",
+            )
+            .add_env_var("HADOOP_JAAS_DEBUG", "true")
+            .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
+            .add_env_var("KRB5_TRACE", "/dev/stderr")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(merged_config))
             .build())
@@ -368,6 +375,22 @@ impl ContainerConfig {
             self.create_config_directory_cmd(),
             self.copy_hdfs_and_core_site_xml_cmd(),
         ];
+        args.push([
+        "echo Storing password",
+        &format!("echo secret > {keystore_directory}/password", keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Cleaning up truststore - just in case",
+        &format!("rm -f {keystore_directory}/truststore.p12", keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Creating truststore",
+        &format!("keytool -importcert -file /stackable/tls/ca.crt -keystore {keystore_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", 
+                 keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Creating certificate chain",
+        &format!("cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {keystore_directory}/chain.crt", keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Creating keystore",
+        &format!("openssl pkcs12 -export -in {keystore_directory}/chain.crt -inkey /stackable/tls/tls.key -out {keystore_directory}/keystore.p12 --passout file:{keystore_directory}/password", 
+                 keystore_directory = KEYSTORE_DIR_NAME),
+        "echo Cleaning up password",
+        &format!("rm -f {keystore_directory}/password", keystore_directory = KEYSTORE_DIR_NAME),
+    ].join(" && "));
 
         match self {
             ContainerConfig::Hdfs { role, .. } => {
@@ -407,12 +430,17 @@ impl ContainerConfig {
                 // $NAMENODE_DIR/current/VERSION. Then we dont do anything.
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
-                args.push(formatdoc!(r###"
+                args.push(formatdoc!(
+                    r###"
+                    # hdfs' admin tools don't support specifying a custom keytab
+                    kinit nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL -kt /kerberos/keytab
+                    cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                     echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
                     for id in {pod_names}
                     do
                       echo -n "Checking pod $id... "
-                      SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
+                      SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id | tail -n1)
+                      echo "FOOBAR $SERVICE_STATE BARFOO"
                       if [ "$SERVICE_STATE" == "active" ]
                       then
                         ACTIVE_NAMENODE=$id
@@ -422,8 +450,21 @@ impl ContainerConfig {
                       echo ""
                     done
 
+                    echo Storing password
+                    echo secret > {KEYSTORE_DIR_NAME}/password
+                    echo Cleaning up truststore - just in case
+                    rm -f {KEYSTORE_DIR_NAME}/truststore.p12
+                    echo Creating truststore
+                    keytool -importcert -file /stackable/tls/ca.crt -keystore {KEYSTORE_DIR_NAME}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret
+                    echo Creating certificate chain
+                    cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {KEYSTORE_DIR_NAME}/chain.crt
+                    echo Creating keystore
+                    openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout file:{KEYSTORE_DIR_NAME}/password
+                    echo Cleaning up password
+                    rm -f {KEYSTORE_DIR_NAME}/password
+
                     set -e
-                    if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
+                    if ! ls {NAMENODE_ROOT_DATA_DIR}/current/fsimage_*
                     then
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
@@ -434,8 +475,11 @@ impl ContainerConfig {
                         {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                       fi
                     else
+                      cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
-                    fi"###,
+                    fi
+
+                    "###,
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
@@ -478,7 +522,7 @@ impl ContainerConfig {
                       for id in {pod_names}
                       do
                         echo -n "Checking pod $id... "
-                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null)
+                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null | tail -n1)
                         if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
                         then
                           echo "$SERVICE_STATE"
@@ -603,6 +647,7 @@ impl ContainerConfig {
                         SecretOperatorVolumeSourceBuilder::new("kerberos")
                             .with_pod_scope()
                             .with_node_scope()
+                            .with_service_scope("simple-hdfs-namenode-default")
                             .build(),
                     )
                     .build();
@@ -732,15 +777,20 @@ impl ContainerConfig {
     fn copy_hdfs_and_core_site_xml_cmd(&self) -> String {
         vec![
             format!(
-                "cp {config_dir_mount}/{HDFS_SITE_XML} {config_dir_name}/{HDFS_SITE_XML}",
+                "cp {config_dir_mount}/* {config_dir_name}",
                 config_dir_mount = self.volume_mount_dirs().config_mount(),
                 config_dir_name = self.volume_mount_dirs().final_config()
             ),
-            format!(
-                "cp {config_dir_mount}/{CORE_SITE_XML} {config_dir_name}/{CORE_SITE_XML}",
-                config_dir_mount = self.volume_mount_dirs().config_mount(),
-                config_dir_name = self.volume_mount_dirs().final_config()
-            ),
+            // format!(
+            //     "cp {config_dir_mount}/{HDFS_SITE_XML} {config_dir_name}/{HDFS_SITE_XML}",
+            //     config_dir_mount = self.volume_mount_dirs().config_mount(),
+            //     config_dir_name = self.volume_mount_dirs().final_config()
+            // ),
+            // format!(
+            //     "cp {config_dir_mount}/{CORE_SITE_XML} {config_dir_name}/{CORE_SITE_XML}",
+            //     config_dir_mount = self.volume_mount_dirs().config_mount(),
+            //     config_dir_name = self.volume_mount_dirs().final_config()
+            // ),
         ]
         .join(" && ")
     }

@@ -6,18 +6,52 @@ metadata:
 spec:
   image:
     productVersion: 3.3.4
-    stackableVersion: 0.3.0
+    stackableVersion: 23.4.0-rc2
+    repo: docker.stackable.tech/natkr/krb5
   zookeeperConfigMapName: simple-hdfs-znode
   dfsReplication: 3
   nameNodes:
     roleGroups:
       default:
         replicas: 2
+    config:
+      logging:
+        containers:
+          hdfs:
+            loggers:
+              ROOT:
+                level: DEBUG
+            console:
+              level: DEBUG
+          formatNameNodes:
+            loggers:
+              ROOT:
+                level: DEBUG
+            console:
+              level: DEBUG
   dataNodes:
     roleGroups:
       default:
         replicas: 1
+    config:
+      logging:
+        containers:
+          hdfs:
+            loggers:
+              ROOT:
+                level: DEBUG
+            console:
+              level: DEBUG
   journalNodes:
     roleGroups:
       default:
         replicas: 1
+    config:
+      logging:
+        containers:
+          hdfs:
+            loggers:
+              ROOT:
+                level: DEBUG
+            console:
+              level: DEBUG

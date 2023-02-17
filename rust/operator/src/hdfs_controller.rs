@@ -454,8 +454,18 @@ fn rolegroup_config_map(
                                 "jn/_HOST@CLUSTER.LOCAL".to_string(),
                             ),
                             (
+                                "dfs.journalnode.kerberos.principal.pattern".to_string(),
+                                "jn/*.simple-hdfs-journalnode-default.default.svc.cluster.local@CLUSTER.LOCAL"
+                                    .to_string(),
+                            ),
+                            (
                                 "dfs.namenode.kerberos.principal".to_string(),
-                                "nn/_HOST@CLUSTER.LOCAL".to_string(),
+                                "nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL".to_string(),
+                            ),
+                            (
+                                "dfs.namenode.kerberos.principal.pattern".to_string(),
+                                "nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL"
+                                    .to_string(),
                             ),
                             (
                                 "dfs.datanode.kerberos.principal".to_string(),
@@ -476,6 +486,10 @@ fn rolegroup_config_map(
                             (
                                 "dfs.datanode.keytab.file".to_string(),
                                 "/kerberos/keytab".to_string(),
+                            ),
+                            (
+                                "hadoop.user.group.static.mapping.overrides".to_string(),
+                                "dr.who=;nn=;".to_string(),
                             ),
                         ]
                         .into(),
