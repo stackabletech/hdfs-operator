@@ -1,0 +1,83 @@
+= Pod Placement
+
+You can configure Pod placement for HDFS nodes as described in xref:concepts:pod_placement.adoc[].
+
+Default Pod placement constraints for name nodes:
+
+[source,yaml]
+----
+affinity:
+  podAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: cluster-name
+            app.kubernetes.io/name: hdfs
+        topologyKey: kubernetes.io/hostname
+      weight: 20
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: namenode
+            app.kubernetes.io/instance: hdfs
+            app.kubernetes.io/name: hdfs
+        topologyKey: kubernetes.io/hostname
+      weight: 70
+----
+
+Default Pod placement constraints for data nodes:
+
+[source,yaml]
+----
+affinity:
+  podAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: cluster-name
+            app.kubernetes.io/name: hdfs
+        topologyKey: kubernetes.io/hostname
+      weight: 20
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: datanode
+            app.kubernetes.io/instance: cluster-name
+            app.kubernetes.io/name: hdfs
+        topologyKey: kubernetes.io/hostname
+      weight: 70
+----
+
+Default Pod placement constraints for journal nodes:
+
+[source,yaml]
+----
+affinity:
+  podAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: cluster-name
+            app.kubernetes.io/name: hdfs
+        topologyKey: kubernetes.io/hostname
+      weight: 20
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: journalnode
+            app.kubernetes.io/instance: cluster-name
+            app.kubernetes.io/name: hdfs
+        topologyKey: kubernetes.io/hostname
+      weight: 70
+----
+
+In the examples above `cluster-name` is the name of the HDFS custom resource that owns this Pod.

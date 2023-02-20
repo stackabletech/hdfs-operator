@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Deploy default and support custom affinities ([#319]).
+
+[#319]: https://github.com/stackabletech/hdfs-operator/pull/319
+
+## [23.1.0] - 2023-01-23
+
+### Added
+
 - Log aggregation added ([#290]).
 - Support for multiple storage directories ([#296]).
 
