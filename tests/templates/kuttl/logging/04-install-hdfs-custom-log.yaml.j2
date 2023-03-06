@@ -62,8 +62,9 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
-  vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
-  zookeeperConfigMapName: test-hdfs-custom-log-znode
+  clusterConfig:
+    vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
+    zookeeperConfigMapName: test-hdfs-custom-log-znode
   nameNodes:
     roleGroups:
       default:
