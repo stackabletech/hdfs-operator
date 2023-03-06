@@ -8,7 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - Deploy default and support custom affinities ([#319]).
 
+### Changed
+
+- `operator-rs` `0.36.0` -> `0.37.0` ([#326]).
+- [Breaking] Moved top level config option to `clusterConfig` ([#326]).
+
 [#319]: https://github.com/stackabletech/hdfs-operator/pull/319
+[#326]: https://github.com/stackabletech/hdfs-operator/pull/326
 
 ## [23.1.0] - 2023-01-23
 
