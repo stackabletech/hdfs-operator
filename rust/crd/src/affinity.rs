@@ -57,7 +57,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   journalNodes:
     roleGroups:
       default:
@@ -144,7 +145,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:    
+    zookeeperConfigMapName: hdfs-zk
   journalNodes:
     roleGroups:
       default:

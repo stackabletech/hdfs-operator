@@ -1078,7 +1078,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     roleGroups:
       default:
@@ -1116,7 +1117,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     config:
       resources:
@@ -1154,7 +1156,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     roleGroups:
       default:
@@ -1187,7 +1190,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   nameNodes:
     roleGroups:
       default:
@@ -1251,7 +1255,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     config:
       resources:
@@ -1305,7 +1310,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     roleGroups:
       default:
