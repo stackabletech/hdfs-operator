@@ -24,9 +24,26 @@ spec:
           properties:
             spec:
               properties:
-                autoFormatFs:
-                  nullable: true
-                  type: boolean
+                clusterConfig:
+                  properties:
+                    autoFormatFs:
+                      nullable: true
+                      type: boolean
+                    dfsReplication:
+                      format: uint8
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    vectorAggregatorConfigMapName:
+                      description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                      nullable: true
+                      type: string
+                    zookeeperConfigMapName:
+                      description: Name of the ZooKeeper discovery config map.
+                      type: string
+                  required:
+                    - zookeeperConfigMapName
+                  type: object
                 dataNodes:
                   nullable: true
                   properties:
@@ -1408,11 +1425,6 @@ spec:
                   required:
                     - roleGroups
                   type: object
-                dfsReplication:
-                  format: uint8
-                  minimum: 0.0
-                  nullable: true
-                  type: integer
                 image:
                   anyOf:
                     - required:
@@ -4181,16 +4193,9 @@ spec:
                   required:
                     - roleGroups
                   type: object
-                vectorAggregatorConfigMapName:
-                  description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.
-                  nullable: true
-                  type: string
-                zookeeperConfigMapName:
-                  description: Name of the ZooKeeper discovery config map.
-                  type: string
               required:
+                - clusterConfig
                 - image
-                - zookeeperConfigMapName
               type: object
           required:
             - spec
