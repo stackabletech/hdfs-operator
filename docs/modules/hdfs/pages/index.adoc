@@ -26,7 +26,7 @@ In the custom resource you can specify the number of replicas per role group (Na
 
 * 2 NameNodes (HA)
 * 1 JournalNode
-* 1 DataNode (should match at least the `dfsReplication` factor)
+* 1 DataNode (should match at least the `clusterConfig.dfsReplication` factor)
 
 == Supported Versions
 
