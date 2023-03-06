@@ -66,14 +66,20 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
     pub image: ProductImage,
-    pub auto_format_fs: Option<bool>,
-    pub dfs_replication: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name_nodes: Option<Role<NameNodeConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_nodes: Option<Role<DataNodeConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
+    pub cluster_config: HdfsClusterConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HdfsClusterConfig {
+    pub auto_format_fs: Option<bool>,
+    pub dfs_replication: Option<u8>,
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -798,7 +804,7 @@ impl Configuration for NameNodeConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
         if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.dfs_replication {
+            if let Some(replication) = &resource.spec.cluster_config.dfs_replication {
                 config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
             }
         }
@@ -929,7 +935,7 @@ impl Configuration for DataNodeConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
         if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.dfs_replication {
+            if let Some(replication) = &resource.spec.cluster_config.dfs_replication {
                 config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
             }
         }
