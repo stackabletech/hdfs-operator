@@ -9,7 +9,7 @@ spec:
     olm.properties: '[]'
     categories: Storage
     capabilities: Full Lifecycle
-    description: Apache HDFS for the Stackable platform
+    description: Stackable Operator for Apache HDFS
     repository: https://github.com/stackabletech/hdfs-operator
     containerImage: docker.stackable.tech/stackable/hdfs-operator@sha256:9094393f654345090a5d40449b15e3ca48548e9ce0e3cf5e9af3ba73ee110830
 
