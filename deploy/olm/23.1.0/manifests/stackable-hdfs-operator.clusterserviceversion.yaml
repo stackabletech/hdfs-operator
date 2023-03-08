@@ -158,14 +158,6 @@ spec:
               verbs:
                 - get
             - apiGroups:
-                - authentication.stackable.tech
-              resources:
-                - authenticationclasses
-              verbs:
-                - get
-                - list
-                - watch
-            - apiGroups:
                 - events.k8s.io
               resources:
                 - events
@@ -180,12 +172,6 @@ spec:
                 - list
                 - patch
                 - watch
-            - apiGroups:
-                - hdfs.stackable.tech
-              resources:
-                - hdfsclusters/status
-              verbs:
-                - patch
             - apiGroups:
                 - security.openshift.io
               resources:
