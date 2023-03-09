@@ -2069,4 +2069,3 @@ spec:
       served: true
       storage: true
       subresources: {}
-
