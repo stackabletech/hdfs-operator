@@ -39,7 +39,7 @@ use stackable_operator::{
         apimachinery::pkg::{api::resource::Quantity, util::intstr::IntOrString},
     },
     kube::ResourceExt,
-    memory::to_java_heap,
+    memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
     product_logging::spec::{
         ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
@@ -717,26 +717,36 @@ impl ContainerConfig {
     /// Build HADOOP_{*node}_OPTS for each namenode, datanodes and journalnodes.
     fn build_hadoop_opts(&self, resources: &ResourceRequirements) -> Result<String, Error> {
         match self {
-            ContainerConfig::Hdfs { role, metrics_port, .. } => {
-                Ok(vec![
+            ContainerConfig::Hdfs {
+                role, metrics_port, ..
+            } => {
+                let mut jvm_args = vec![
                     format!(
                         "-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={metrics_port}:/stackable/jmx/{role}.yaml",
-                    ),
-                    resources
-                        .limits
-                        .as_ref()
-                        .and_then(|l| l.get("memory"))
-                        .map(|m| to_java_heap(m, Self::JVM_HEAP_FACTOR))
-                        .unwrap_or_else(|| Ok("".to_string()))
-                        .with_context(|_| InvalidJavaHeapConfigSnafu {
-                            role: role.to_string(),
-                        })?,
-                ]
-                .into_iter()
-                .collect::<Vec<String>>()
-                .join(" ")
-                .trim()
-                .to_string())
+                    )];
+                if let Some(Some(memory_limit)) =
+                    resources.limits.as_ref().map(|limits| limits.get("memory"))
+                {
+                    let memory_limit =
+                        MemoryQuantity::try_from(memory_limit).with_context(|_| {
+                            InvalidJavaHeapConfigSnafu {
+                                role: role.to_string(),
+                            }
+                        })?;
+                    jvm_args.push(format!(
+                        "-Xmx{}",
+                        (memory_limit * Self::JVM_HEAP_FACTOR)
+                            .scale_to(BinaryMultiple::Kibi)
+                            .format_for_java()
+                            .with_context(|_| {
+                                InvalidJavaHeapConfigSnafu {
+                                    role: role.to_string(),
+                                }
+                            })?
+                    ));
+                }
+
+                Ok(jvm_args.join(" ").trim().to_string())
             }
             _ => Ok("".to_string()),
         }

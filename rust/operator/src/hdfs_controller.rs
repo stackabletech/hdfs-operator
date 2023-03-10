@@ -228,7 +228,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             name: rbac_rolebinding.name_any(),
         })?;
 
-    let dfs_replication = hdfs.spec.dfs_replication;
+    let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
 
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {
@@ -391,6 +391,7 @@ fn rolegroup_config_map(
                     .dfs_replication(
                         *hdfs
                             .spec
+                            .cluster_config
                             .dfs_replication
                             .as_ref()
                             .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
@@ -484,7 +485,7 @@ fn rolegroup_statefulset(
         ..ObjectMeta::default()
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
-    .node_selector_opt(role.role_group_node_selector(hdfs, &rolegroup_ref.role_group))
+    .affinity(merged_config.affinity())
     .service_account_name(rbac_sa)
     .security_context(
         PodSecurityContextBuilder::new()
@@ -501,7 +502,7 @@ fn rolegroup_statefulset(
         resolved_product_image,
         merged_config,
         env_overrides,
-        &hdfs.spec.zookeeper_config_map_name,
+        &hdfs.spec.cluster_config.zookeeper_config_map_name,
         &object_name,
         namenode_podrefs,
     )

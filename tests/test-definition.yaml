@@ -2,18 +2,18 @@
 dimensions:
   - name: hadoop
     values:
-      - 3.2.2-stackable23.4.0-rc1
-      - 3.3.3-stackable23.4.0-rc1
-      - 3.3.4-stackable23.4.0-rc1
+      - 3.2.2-stackable23.4.0-rc2
+      - 3.3.3-stackable23.4.0-rc2
+      - 3.3.4-stackable23.4.0-rc2
   - name: hadoop-latest
     values:
-      - 3.3.4-stackable23.4.0-rc1
+      - 3.3.4-stackable23.4.0-rc2
   - name: zookeeper
     values:
-      - 3.8.0-stackable23.4.0-rc1
+      - 3.8.0-stackable23.4.0-rc2
   - name: zookeeper-latest
     values:
-      - 3.8.0-stackable23.4.0-rc1
+      - 3.8.0-stackable23.4.0-rc2
   - name: number-of-datanodes
     values:
       - "1"
