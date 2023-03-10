@@ -60,7 +60,7 @@ sleep 5
 
 echo "Awaiting Zookeeper rollout finish"
 # tag::watch-zk-rollout[]
-kubectl rollout status --watch statefulset/simple-zk-server-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-zk-server-default
 # end::watch-zk-rollout[]
 
 echo "Creating HDFS cluster"
@@ -72,9 +72,9 @@ sleep 5
 
 echo "Awaiting HDFS rollout finish"
 # tag::watch-hdfs-rollout[]
-kubectl rollout status --watch statefulset/simple-hdfs-datanode-default
-kubectl rollout status --watch statefulset/simple-hdfs-namenode-default
-kubectl rollout status --watch statefulset/simple-hdfs-journalnode-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-datanode-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-namenode-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-journalnode-default
 # end::watch-hdfs-rollout[]
 
 echo "Creating Helper"
@@ -86,7 +86,7 @@ sleep 5
 
 echo "Awaiting helper rollout finish"
 # tag::watch-helper-rollout[]
-kubectl rollout status --watch statefulset/webhdfs
+kubectl rollout status --watch --timeout=5m statefulset/webhdfs
 # end::watch-helper-rollout[]
 
 file_status() {
