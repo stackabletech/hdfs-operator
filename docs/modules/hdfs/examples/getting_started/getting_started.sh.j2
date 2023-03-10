@@ -56,7 +56,17 @@ echo "Creating ZNode"
 kubectl apply -f znode.yaml
 # end::install-zk[]
 
-sleep 5
+
+
+for (( i=1; i<=15; i++ ))
+do
+  echo "Waiting for ZookeeperCluster to appear ..."
+  if eval kubectl get statefulset simple-zk-server-default; then
+    break
+  fi
+
+  sleep 1
+done
 
 echo "Awaiting Zookeeper rollout finish"
 # tag::watch-zk-rollout[]
@@ -68,7 +78,15 @@ echo "Creating HDFS cluster"
 kubectl apply -f hdfs.yaml
 # end::install-hdfs[]
 
-sleep 5
+for (( i=1; i<=15; i++ ))
+do
+  echo "Waiting for HdfsCluster to appear ..."
+  if eval kubectl get statefulset simple-hdfs-datanode-default; then
+    break
+  fi
+
+  sleep 1
+done
 
 echo "Awaiting HDFS rollout finish"
 # tag::watch-hdfs-rollout[]
@@ -82,7 +100,15 @@ echo "Creating Helper"
 kubectl apply -f webhdfs.yaml
 # end::install-webhdfs[]
 
-sleep 5
+for (( i=1; i<=15; i++ ))
+do
+  echo "Waiting for Webhdfs helper to appear ..."
+  if eval kubectl get statefulset webhdfs; then
+    break
+  fi
+
+  sleep 1
+done
 
 echo "Awaiting helper rollout finish"
 # tag::watch-helper-rollout[]
