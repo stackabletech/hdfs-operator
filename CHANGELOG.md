@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
-- `--debug` from container start command ([#332]).
+- Removed `--debug` from container start command ([#332]).
 
 [#319]: https://github.com/stackabletech/hdfs-operator/pull/319
 [#326]: https://github.com/stackabletech/hdfs-operator/pull/326
