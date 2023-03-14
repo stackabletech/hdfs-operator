@@ -22,22 +22,24 @@ echo "Adding 'stackable-dev' Helm Chart repository"
 # tag::helm-add-repo[]
 helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
+echo "Updating Helm repo"
+helm repo update
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.13.0-nightly
-helm install --wait hdfs-operator stackable-dev/hdfs-operator --version 0.7.0-nightly
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.5.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.7.0-nightly
+helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.0.0-dev
+helm install --wait hdfs-operator stackable-dev/hdfs-operator --version 0.0.0-dev
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.0.0-dev
+helm install --wait secret-operator stackable-dev/secret-operator --version 0.0.0-dev
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.5.0-nightly \
-  secret=0.7.0-nightly \
-  zookeeper=0.13.0-nightly \
-  hdfs=0.7.0-nightly
+  commons=0.0.0-dev \
+  secret=0.0.0-dev \
+  zookeeper=0.0.0-dev \
+  hdfs=0.0.0-dev
 # end::stackablectl-install-operators[]
 ;;
 *)
@@ -56,11 +58,21 @@ echo "Creating ZNode"
 kubectl apply -f znode.yaml
 # end::install-zk[]
 
-sleep 5
+
+
+for (( i=1; i<=15; i++ ))
+do
+  echo "Waiting for ZookeeperCluster to appear ..."
+  if eval kubectl get statefulset simple-zk-server-default; then
+    break
+  fi
+
+  sleep 1
+done
 
 echo "Awaiting Zookeeper rollout finish"
 # tag::watch-zk-rollout[]
-kubectl rollout status --watch statefulset/simple-zk-server-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-zk-server-default
 # end::watch-zk-rollout[]
 
 echo "Creating HDFS cluster"
@@ -68,13 +80,21 @@ echo "Creating HDFS cluster"
 kubectl apply -f hdfs.yaml
 # end::install-hdfs[]
 
-sleep 5
+for (( i=1; i<=15; i++ ))
+do
+  echo "Waiting for HdfsCluster to appear ..."
+  if eval kubectl get statefulset simple-hdfs-datanode-default; then
+    break
+  fi
+
+  sleep 1
+done
 
 echo "Awaiting HDFS rollout finish"
 # tag::watch-hdfs-rollout[]
-kubectl rollout status --watch statefulset/simple-hdfs-datanode-default
-kubectl rollout status --watch statefulset/simple-hdfs-namenode-default
-kubectl rollout status --watch statefulset/simple-hdfs-journalnode-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-datanode-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-namenode-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-journalnode-default
 # end::watch-hdfs-rollout[]
 
 echo "Creating Helper"
@@ -82,11 +102,19 @@ echo "Creating Helper"
 kubectl apply -f webhdfs.yaml
 # end::install-webhdfs[]
 
-sleep 5
+for (( i=1; i<=15; i++ ))
+do
+  echo "Waiting for Webhdfs helper to appear ..."
+  if eval kubectl get statefulset webhdfs; then
+    break
+  fi
+
+  sleep 1
+done
 
 echo "Awaiting helper rollout finish"
 # tag::watch-helper-rollout[]
-kubectl rollout status --watch statefulset/webhdfs
+kubectl rollout status --watch --timeout=5m statefulset/webhdfs
 # end::watch-helper-rollout[]
 
 file_status() {
