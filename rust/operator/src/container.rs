@@ -364,7 +364,7 @@ impl ContainerConfig {
                 ));
 
                 args.push(format!(
-                    "{hadoop_home}/bin/hdfs --debug {role}",
+                    "{hadoop_home}/bin/hdfs {role}",
                     hadoop_home = Self::HADOOP_HOME,
                 ));
             }
