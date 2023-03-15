@@ -22,9 +22,9 @@ use indoc::formatdoc;
 use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{
-        CORE_SITE_XML, DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
-        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, HDFS_SITE_XML,
-        LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
+        DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
+        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LOG4J_PROPERTIES,
+        NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
         STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
@@ -381,12 +381,12 @@ impl ContainerConfig {
         "echo Cleaning up truststore - just in case",
         &format!("rm -f {keystore_directory}/truststore.p12", keystore_directory = KEYSTORE_DIR_NAME),
         "echo Creating truststore",
-        &format!("keytool -importcert -file /stackable/tls/ca.crt -keystore {keystore_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", 
+        &format!("keytool -importcert -file /stackable/tls/ca.crt -keystore {keystore_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret",
                  keystore_directory = KEYSTORE_DIR_NAME),
         "echo Creating certificate chain",
         &format!("cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {keystore_directory}/chain.crt", keystore_directory = KEYSTORE_DIR_NAME),
         "echo Creating keystore",
-        &format!("openssl pkcs12 -export -in {keystore_directory}/chain.crt -inkey /stackable/tls/tls.key -out {keystore_directory}/keystore.p12 --passout file:{keystore_directory}/password", 
+        &format!("openssl pkcs12 -export -in {keystore_directory}/chain.crt -inkey /stackable/tls/tls.key -out {keystore_directory}/keystore.p12 --passout file:{keystore_directory}/password",
                  keystore_directory = KEYSTORE_DIR_NAME),
         "echo Cleaning up password",
         &format!("rm -f {keystore_directory}/password", keystore_directory = KEYSTORE_DIR_NAME),
@@ -629,7 +629,7 @@ impl ContainerConfig {
         let mut volumes = vec![];
 
         let container_log_config = match self {
-            ContainerConfig::Hdfs { .. } => {
+            ContainerConfig::Hdfs { role, .. } => {
                 volumes.push(
                     VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
                         .empty_dir(EmptyDirVolumeSource {
@@ -642,30 +642,23 @@ impl ContainerConfig {
                         .build(),
                 );
 
-                let mut krb_src = VolumeBuilder::new("kerberos")
-                    .ephemeral(
-                        SecretOperatorVolumeSourceBuilder::new("kerberos")
-                            .with_pod_scope()
-                            .with_node_scope()
-                            .with_service_scope("simple-hdfs-namenode-default")
-                            .build(),
-                    )
-                    .build();
-                krb_src
-                    .ephemeral
-                    .as_mut()
-                    .unwrap()
-                    .volume_claim_template
-                    .get_or_insert(Default::default())
-                    .metadata
-                    .get_or_insert(Default::default())
-                    .annotations
-                    .get_or_insert(Default::default())
-                    .insert(
-                        "secrets.stackable.tech/kerberos.service.names".to_string(),
-                        "jn,nn,dn,HTTP".to_string(),
-                    );
-                volumes.push(krb_src);
+                volumes.push(
+                    VolumeBuilder::new("kerberos")
+                        .ephemeral(
+                            SecretOperatorVolumeSourceBuilder::new("kerberos")
+                                .with_pod_scope()
+                                .with_node_scope()
+                                // .with_service_scope("simple-hdfs-namenode-default")
+                                .with_kerberos_service_name(match role {
+                                    HdfsRole::NameNode => "nn",
+                                    HdfsRole::DataNode => "dn",
+                                    HdfsRole::JournalNode => "jn",
+                                })
+                                .with_kerberos_service_name("HTTP")
+                                .build(),
+                        )
+                        .build(),
+                );
 
                 volumes.push(
                     VolumeBuilder::new("tls")
