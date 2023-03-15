@@ -199,6 +199,16 @@ impl CoreSiteConfigBuilder {
         }
     }
 
+    pub fn add(&mut self, property: &str, value: &str) -> &mut Self {
+        self.config.insert(property.to_string(), value.to_string());
+        self
+    }
+
+    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
+        self.config.extend(properties.clone());
+        self
+    }
+
     pub fn fs_default_fs(&mut self) -> &mut Self {
         self.config.insert(
             FS_DEFAULT_FS.to_string(),
@@ -212,11 +222,6 @@ impl CoreSiteConfigBuilder {
             HA_ZOOKEEPER_QUORUM.to_string(),
             "${env.ZOOKEEPER}".to_string(),
         );
-        self
-    }
-
-    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
-        self.config.extend(properties.clone());
         self
     }
 
