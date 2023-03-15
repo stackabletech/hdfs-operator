@@ -197,6 +197,7 @@ impl ContainerConfig {
                     object_name,
                 ));
                 pb.add_init_container(format_namenodes_container_config.init_container(
+                    hdfs,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -213,6 +214,7 @@ impl ContainerConfig {
                     object_name,
                 ));
                 pb.add_init_container(format_zookeeper_container_config.init_container(
+                    hdfs,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -230,6 +232,7 @@ impl ContainerConfig {
                     object_name,
                 ));
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
+                    hdfs,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -291,7 +294,7 @@ impl ContainerConfig {
             .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
             .add_env_var("KRB5_TRACE", "/dev/stderr")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
-            .add_volume_mounts(self.volume_mounts(merged_config))
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .add_container_ports(self.container_ports(hdfs));
 
         if let Some(resources) = resources {
@@ -311,6 +314,7 @@ impl ContainerConfig {
     /// - Datanode (wait-for-namenodes)
     fn init_container(
         &self,
+        hdfs: &HdfsCluster,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -329,7 +333,7 @@ impl ContainerConfig {
             .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
             .add_env_var("KRB5_TRACE", "/dev/stderr")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(merged_config))
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .build())
     }
 
@@ -711,6 +715,7 @@ impl ContainerConfig {
     /// Returns the container volume mounts.
     fn volume_mounts(
         &self,
+        hdfs: &HdfsCluster,
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Vec<VolumeMount> {
         let mut volume_mounts = vec![
@@ -726,10 +731,14 @@ impl ContainerConfig {
                 self.volume_mount_dirs().log_mount(),
             )
             .build(),
-            VolumeMountBuilder::new("kerberos", "/kerberos").build(),
-            VolumeMountBuilder::new("tls", "/stackable/tls").build(),
-            VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build(),
         ];
+        if hdfs.kerberos_secret_class().is_some() {
+            volume_mounts.push(VolumeMountBuilder::new("kerberos", "/kerberos").build());
+        }
+        if hdfs.https_secret_class().is_some() {
+            volume_mounts.push(VolumeMountBuilder::new("tls", "/stackable/tls").build());
+            volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
+        }
 
         match self {
             ContainerConfig::FormatNameNodes { .. } => {
