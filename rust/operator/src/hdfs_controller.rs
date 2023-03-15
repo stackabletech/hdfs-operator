@@ -434,10 +434,10 @@ fn rolegroup_config_map(
                     .add("dfs.namenode.kerberos.principal","nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL")
                     .add("dfs.namenode.kerberos.principal.pattern","nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL")
                     .add("dfs.datanode.kerberos.principal","dn/_HOST@CLUSTER.LOCAL")
-                    .add("dfs.web.authentication.keytab.file","/kerberos/keytab")
-                    .add("dfs.journalnode.keytab.file","/kerberos/keytab")
-                    .add("dfs.namenode.keytab.file","/kerberos/keytab")
-                    .add("dfs.datanode.keytab.file","/kerberos/keytab")
+                    .add("dfs.web.authentication.keytab.file","/stackable/kerberos/keytab")
+                    .add("dfs.journalnode.keytab.file","/stackable/kerberos/keytab")
+                    .add("dfs.namenode.keytab.file","/stackable/kerberos/keytab")
+                    .add("dfs.datanode.keytab.file","/stackable/kerberos/keytab")
                     .add("hadoop.user.group.static.mapping.overrides","dr.who=;nn=;")
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
@@ -452,7 +452,7 @@ fn rolegroup_config_map(
                     ),
                     (
                         "ssl.server.keystore.password".to_string(),
-                        Some("secret".to_string()),
+                        Some("changeit".to_string()),
                     ),
                     (
                         "ssl.server.keystore.type".to_string(),
@@ -472,7 +472,7 @@ fn rolegroup_config_map(
                     ),
                     (
                         "ssl.client.truststore.password".to_string(),
-                        Some("secret".to_string()),
+                        Some("changeit".to_string()),
                     ),
                     (
                         "ssl.client.truststore.type".to_string(),

@@ -287,13 +287,12 @@ impl ContainerConfig {
         cb.image_from_product_image(resolved_product_image)
             .command(self.command())
             .args(self.args(merged_config, &[]))
-            .add_env_var(
-                "HADOOP_OPTS",
-                "-Djava.security.krb5.conf=/kerberos/krb5.conf",
-            )
-            .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
-            .add_env_var("KRB5_TRACE", "/dev/stderr")
-            .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
+            .add_env_vars(self.env(
+                hdfs,
+                zookeeper_config_map_name,
+                env_overrides,
+                resources.as_ref(),
+            ))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .add_container_ports(self.container_ports(hdfs));
 
@@ -326,13 +325,7 @@ impl ContainerConfig {
             .image_from_product_image(resolved_product_image)
             .command(self.command())
             .args(self.args(merged_config, namenode_podrefs))
-            .add_env_var(
-                "HADOOP_OPTS",
-                "-Djava.security.krb5.conf=/kerberos/krb5.conf",
-            )
-            .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
-            .add_env_var("KRB5_TRACE", "/dev/stderr")
-            .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, None))
+            .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .build())
     }
@@ -385,31 +378,26 @@ impl ContainerConfig {
     ) -> Vec<String> {
         let mut args = vec![
             self.create_config_directory_cmd(),
-            self.copy_hdfs_and_core_site_xml_cmd(),
+            self.copy_config_xml_cmd(),
         ];
-        args.push([
-        "echo Storing password",
-        &format!("echo secret > {keystore_directory}/password", keystore_directory = KEYSTORE_DIR_NAME),
-        "echo Cleaning up truststore - just in case",
-        &format!("rm -f {keystore_directory}/truststore.p12", keystore_directory = KEYSTORE_DIR_NAME),
-        "echo Creating truststore",
-        &format!("keytool -importcert -file /stackable/tls/ca.crt -keystore {keystore_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret",
-                 keystore_directory = KEYSTORE_DIR_NAME),
-        "echo Creating certificate chain",
-        &format!("cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {keystore_directory}/chain.crt", keystore_directory = KEYSTORE_DIR_NAME),
-        "echo Creating keystore",
-        &format!("openssl pkcs12 -export -in {keystore_directory}/chain.crt -inkey /stackable/tls/tls.key -out {keystore_directory}/keystore.p12 --passout file:{keystore_directory}/password",
-                 keystore_directory = KEYSTORE_DIR_NAME),
-        "echo Cleaning up password",
-        &format!("rm -f {keystore_directory}/password", keystore_directory = KEYSTORE_DIR_NAME),
-    ].join(" && "));
-
         match self {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push(self.copy_log4j_properties_cmd(
                     HDFS_LOG4J_CONFIG_FILE,
                     merged_config.hdfs_logging(),
                 ));
+
+                // Only the main containers gets the tls certs mounted and builds the keystore
+                args.push([
+                    "echo Cleaning up truststore - just in case",
+                    &format!("rm -f {KEYSTORE_DIR_NAME}/truststore.p12"),
+                    "echo Creating truststore",
+                    &format!("keytool -importcert -file /stackable/tls/ca.crt -keystore {KEYSTORE_DIR_NAME}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass changeit"),
+                    "echo Creating certificate chain",
+                    &format!("cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {KEYSTORE_DIR_NAME}/chain.crt"),
+                    "echo Creating keystore",
+                    &format!("openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"),
+                ].join(" && "));
 
                 args.push(format!(
                     "{hadoop_home}/bin/hdfs --debug {role}",
@@ -445,7 +433,7 @@ impl ContainerConfig {
                 args.push(formatdoc!(
                     r###"
                     # hdfs' admin tools don't support specifying a custom keytab
-                    kinit nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL -kt /kerberos/keytab
+                    kinit nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL -kt /stackable/kerberos/keytab
                     cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                     echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
                     for id in {pod_names}
@@ -461,19 +449,6 @@ impl ContainerConfig {
                       fi
                       echo ""
                     done
-
-                    echo Storing password
-                    echo secret > {KEYSTORE_DIR_NAME}/password
-                    echo Cleaning up truststore - just in case
-                    rm -f {KEYSTORE_DIR_NAME}/truststore.p12
-                    echo Creating truststore
-                    keytool -importcert -file /stackable/tls/ca.crt -keystore {KEYSTORE_DIR_NAME}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret
-                    echo Creating certificate chain
-                    cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {KEYSTORE_DIR_NAME}/chain.crt
-                    echo Creating keystore
-                    openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout file:{KEYSTORE_DIR_NAME}/password
-                    echo Cleaning up password
-                    rm -f {KEYSTORE_DIR_NAME}/password
 
                     set -e
                     if ! ls {NAMENODE_ROOT_DATA_DIR}/current/fsimage_*
@@ -567,11 +542,12 @@ impl ContainerConfig {
     /// Returns the container env variables.
     fn env(
         &self,
+        hdfs: &HdfsCluster,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         resources: Option<&ResourceRequirements>,
     ) -> Vec<EnvVar> {
-        let mut env = Self::transform_env_overrides_to_env_vars(env_overrides);
+        let mut env = Vec::new();
 
         env.extend(Self::shared_env_vars(
             self.volume_mount_dirs().final_config(),
@@ -579,15 +555,31 @@ impl ContainerConfig {
         ));
 
         if let ContainerConfig::Hdfs { role, .. } = self {
-            if let Some(resources) = resources {
-                env.push(EnvVar {
-                    name: role.hadoop_opts().to_string(),
-                    value: self.build_hadoop_opts(resources).ok(),
-                    ..EnvVar::default()
-                });
-            }
+            env.push(EnvVar {
+                name: role.hadoop_opts().to_string(),
+                value: self.build_hadoop_opts(hdfs, resources).ok(),
+                ..EnvVar::default()
+            });
+        } else {
+            // We need to push this for Kerberos to work as not only the main containers need Kerberos
+            env.push(EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string()),
+                ..EnvVar::default()
+            });
         }
 
+        // Not only the main containers need Kerberos
+        if hdfs.has_security_enabled() {
+            env.push(EnvVar {
+                name: "KRB5_CONFIG".to_string(),
+                value: Some("/stackable/kerberos/krb5.conf".to_string()),
+                ..EnvVar::default()
+            });
+        }
+
+        // Overrides need to come last
+        env.extend(Self::transform_env_overrides_to_env_vars(env_overrides));
         env
     }
 
@@ -655,6 +647,8 @@ impl ContainerConfig {
                         .build(),
                 );
 
+                // Note that we create the volume here, only for the main container.
+                // However, as other containers need this volume as well, it will be also mounted in other containers.
                 if let Some(kerberos_secret_class) = hdfs.kerberos_secret_class() {
                     volumes.push(
                         VolumeBuilder::new("kerberos")
@@ -732,12 +726,17 @@ impl ContainerConfig {
             )
             .build(),
         ];
+
+        // Adding this for all containers, as not only the main container needs Kerberos
         if hdfs.kerberos_secret_class().is_some() {
-            volume_mounts.push(VolumeMountBuilder::new("kerberos", "/kerberos").build());
+            volume_mounts.push(VolumeMountBuilder::new("kerberos", "/stackable/kerberos").build());
         }
-        if hdfs.https_secret_class().is_some() {
-            volume_mounts.push(VolumeMountBuilder::new("tls", "/stackable/tls").build());
-            volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
+        // Only the main container need the tls cert to create their keystore
+        if let ContainerConfig::Hdfs { .. } = self {
+            if hdfs.https_secret_class().is_some() {
+                volume_mounts.push(VolumeMountBuilder::new("tls", "/stackable/tls").build());
+                volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
+            }
         }
 
         match self {
@@ -789,9 +788,9 @@ impl ContainerConfig {
     }
 
     /// Copy all the configuration files to the respective container config dir.
-    fn copy_hdfs_and_core_site_xml_cmd(&self) -> String {
+    fn copy_config_xml_cmd(&self) -> String {
         format!(
-            "cp {config_dir_mount}/* {config_dir_name}",
+            "cp {config_dir_mount}/*.xml {config_dir_name}",
             config_dir_mount = self.volume_mount_dirs().config_mount(),
             config_dir_name = self.volume_mount_dirs().final_config()
         )
@@ -824,7 +823,11 @@ impl ContainerConfig {
     }
 
     /// Build HADOOP_{*node}_OPTS for each namenode, datanodes and journalnodes.
-    fn build_hadoop_opts(&self, resources: &ResourceRequirements) -> Result<String, Error> {
+    fn build_hadoop_opts(
+        &self,
+        hdfs: &HdfsCluster,
+        resources: Option<&ResourceRequirements>,
+    ) -> Result<String, Error> {
         match self {
             ContainerConfig::Hdfs {
                 role, metrics_port, ..
@@ -833,8 +836,15 @@ impl ContainerConfig {
                     format!(
                         "-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={metrics_port}:/stackable/jmx/{role}.yaml",
                     )];
-                if let Some(Some(memory_limit)) =
-                    resources.limits.as_ref().map(|limits| limits.get("memory"))
+
+                if hdfs.has_security_enabled() {
+                    jvm_args.push(
+                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
+                    );
+                }
+
+                if let Some(Some(Some(memory_limit))) =
+                    resources.map(|r| r.limits.as_ref().map(|limits| limits.get("memory")))
                 {
                     let memory_limit =
                         MemoryQuantity::try_from(memory_limit).with_context(|_| {
