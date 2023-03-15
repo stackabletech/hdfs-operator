@@ -1,11 +1,14 @@
+pub mod affinity;
 pub mod constants;
 pub mod storage;
 
+use affinity::get_affinity;
 use constants::*;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
+        affinity::StackableAffinity,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -18,7 +21,7 @@ use stackable_operator::{
         merge::Merge,
     },
     k8s_openapi::apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
-    kube::{runtime::reflector::ObjectRef, CustomResource},
+    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     labels::role_group_selector_labels,
     product_config::types::PropertyNameKind,
     product_config_utils::{ConfigError, Configuration},
@@ -63,14 +66,20 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
     pub image: ProductImage,
-    pub auto_format_fs: Option<bool>,
-    pub dfs_replication: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name_nodes: Option<Role<NameNodeConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_nodes: Option<Role<DataNodeConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
+    pub cluster_config: HdfsClusterConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HdfsClusterConfig {
+    pub auto_format_fs: Option<bool>,
+    pub dfs_replication: Option<u8>,
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,6 +103,7 @@ pub trait MergedConfig {
     ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
         None
     }
+    fn affinity(&self) -> &StackableAffinity;
     /// Main container shared by all roles
     fn hdfs_logging(&self) -> ContainerLogConfig;
     /// Vector container shared by all roles
@@ -237,7 +247,7 @@ impl HdfsRole {
     ) -> Result<Box<dyn MergedConfig + Send + 'static>, Error> {
         match self {
             HdfsRole::NameNode => {
-                let default_config = NameNodeConfigFragment::default_config();
+                let default_config = NameNodeConfigFragment::default_config(&hdfs.name_any(), self);
                 let role = hdfs
                     .spec
                     .name_nodes
@@ -257,6 +267,17 @@ impl HdfsRole {
                     .config
                     .clone();
 
+                if let Some(RoleGroup {
+                    selector: Some(selector),
+                    ..
+                }) = role.role_groups.get(role_group)
+                {
+                    // Migrate old `selector` attribute, see ADR 26 affinities.
+                    // TODO Can be removed after support for the old `selector` field is dropped.
+                    #[allow(deprecated)]
+                    role_group_config.affinity.add_legacy_selector(selector);
+                }
+
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
                 Ok(Box::new(
@@ -265,7 +286,7 @@ impl HdfsRole {
                 ))
             }
             HdfsRole::DataNode => {
-                let default_config = DataNodeConfigFragment::default_config();
+                let default_config = DataNodeConfigFragment::default_config(&hdfs.name_any(), self);
                 let role = hdfs
                     .spec
                     .data_nodes
@@ -285,6 +306,17 @@ impl HdfsRole {
                     .config
                     .clone();
 
+                if let Some(RoleGroup {
+                    selector: Some(selector),
+                    ..
+                }) = role.role_groups.get(role_group)
+                {
+                    // Migrate old `selector` attribute, see ADR 26 affinities.
+                    // TODO Can be removed after support for the old `selector` field is dropped.
+                    #[allow(deprecated)]
+                    role_group_config.affinity.add_legacy_selector(selector);
+                }
+
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
                 Ok(Box::new(
@@ -293,7 +325,8 @@ impl HdfsRole {
                 ))
             }
             HdfsRole::JournalNode => {
-                let default_config = JournalNodeConfigFragment::default_config();
+                let default_config =
+                    JournalNodeConfigFragment::default_config(&hdfs.name_any(), self);
                 let role = hdfs
                     .spec
                     .journal_nodes
@@ -312,6 +345,17 @@ impl HdfsRole {
                     .config
                     .config
                     .clone();
+
+                if let Some(RoleGroup {
+                    selector: Some(selector),
+                    ..
+                }) = role.role_groups.get(role_group)
+                {
+                    // Migrate old `selector` attribute, see ADR 26 affinities.
+                    // TODO Can be removed after support for the old `selector` field is dropped.
+                    #[allow(deprecated)]
+                    role_group_config.affinity.add_legacy_selector(selector);
+                }
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
@@ -674,11 +718,17 @@ pub struct NameNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<NameNodeContainer>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl MergedConfig for NameNodeConfig {
     fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
         Some(self.resources.clone())
+    }
+
+    fn affinity(&self) -> &StackableAffinity {
+        &self.affinity
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -724,10 +774,11 @@ impl MergedConfig for NameNodeConfig {
 }
 
 impl NameNodeConfigFragment {
-    pub fn default_config() -> Self {
+    pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
@@ -759,7 +810,7 @@ impl Configuration for NameNodeConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
         if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.dfs_replication {
+            if let Some(replication) = &resource.spec.cluster_config.dfs_replication {
                 config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
             }
         }
@@ -810,6 +861,8 @@ pub struct DataNodeConfig {
     pub resources: Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<DataNodeContainer>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl MergedConfig for DataNodeConfig {
@@ -817,6 +870,10 @@ impl MergedConfig for DataNodeConfig {
         &self,
     ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
         Some(self.resources.clone())
+    }
+
+    fn affinity(&self) -> &StackableAffinity {
+        &self.affinity
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -848,10 +905,11 @@ impl MergedConfig for DataNodeConfig {
 }
 
 impl DataNodeConfigFragment {
-    pub fn default_config() -> Self {
+    pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: default_data_node_resources_fragment(),
             logging: product_logging::spec::default_logging(),
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
@@ -883,7 +941,7 @@ impl Configuration for DataNodeConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
         if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.dfs_replication {
+            if let Some(replication) = &resource.spec.cluster_config.dfs_replication {
                 config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
             }
         }
@@ -932,11 +990,17 @@ pub struct JournalNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<JournalNodeContainer>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl MergedConfig for JournalNodeConfig {
     fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
         Some(self.resources.clone())
+    }
+
+    fn affinity(&self) -> &StackableAffinity {
+        &self.affinity
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -961,10 +1025,11 @@ impl MergedConfig for JournalNodeConfig {
 }
 
 impl JournalNodeConfigFragment {
-    pub fn default_config() -> Self {
+    pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: default_resources_fragment(),
             logging: product_logging::spec::default_logging(),
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
@@ -1019,7 +1084,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     roleGroups:
       default:
@@ -1057,7 +1123,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     config:
       resources:
@@ -1095,7 +1162,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     roleGroups:
       default:
@@ -1128,7 +1196,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   nameNodes:
     roleGroups:
       default:
@@ -1192,7 +1261,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     config:
       resources:
@@ -1230,6 +1300,7 @@ spec:
                 ]
                 .into(),
             ),
+            ..ResourceRequirements::default()
         };
         assert_eq!(expected, rr);
     }
@@ -1245,7 +1316,8 @@ spec:
   image:
     productVersion: 3.3.4
     stackableVersion: 0.2.0
-  zookeeperConfigMapName: hdfs-zk
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
   dataNodes:
     roleGroups:
       default:
@@ -1282,6 +1354,7 @@ spec:
                 ]
                 .into(),
             ),
+            ..ResourceRequirements::default()
         };
         assert_eq!(expected, rr);
     }

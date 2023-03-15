@@ -15,3 +15,8 @@ result
 image.tar
 
 tilt_options.json
+
+deploy/olm/*/bundle
+deploy/olm/*/bundle.Dockerfile
+deploy/olm/*/catalog.Dockerfile
+deploy/olm/*/catalog

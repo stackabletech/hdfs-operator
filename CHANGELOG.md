@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Deploy default and support custom affinities ([#319]).
+- Added OLM bundle files ([#328]).
+
+### Changed
+
+- `operator-rs` `0.36.0` -> `0.37.0` ([#326]).
+- [Breaking] Moved top level config option to `clusterConfig` ([#326]).
+
+[#319]: https://github.com/stackabletech/hdfs-operator/pull/319
+[#326]: https://github.com/stackabletech/hdfs-operator/pull/326
+[#328]: https://github.com/stackabletech/hdfs-operator/pull/328
+
+## [23.1.0] - 2023-01-23
+
+### Added
+
 - Log aggregation added ([#290]).
 - Support for multiple storage directories ([#296]).
 

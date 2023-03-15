@@ -10,3 +10,4 @@
 ** xref:hdfs:usage-guide/monitoring.adoc[]
 ** xref:hdfs:usage-guide/scaling.adoc[]
 ** xref:hdfs:usage-guide/configuration-environment-overrides.adoc[]
+** xref:hdfs:usage-guide/pod_placement.adoc[]
