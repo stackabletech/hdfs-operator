@@ -405,7 +405,7 @@ fn rolegroup_config_map(
                     .dfs_namenode_shared_edits_dir(journalnode_podrefs)
                     .dfs_namenode_name_dir_ha(namenode_podrefs)
                     .dfs_namenode_rpc_address_ha(namenode_podrefs)
-                    .dfs_namenode_http_address_ha(namenode_podrefs)
+                    .dfs_namenode_http_address_ha(hdfs, namenode_podrefs)
                     .dfs_client_failover_proxy_provider()
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
                     .add("dfs.ha.nn.not-become-active-in-safemode", "true")

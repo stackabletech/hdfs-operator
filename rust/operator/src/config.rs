@@ -7,7 +7,7 @@ use stackable_hdfs_crd::constants::{
     JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
 };
 use stackable_hdfs_crd::storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType};
-use stackable_hdfs_crd::HdfsPodRef;
+use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef};
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
@@ -145,17 +145,24 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn dfs_namenode_http_address_ha(&mut self, namenode_podrefs: &[HdfsPodRef]) -> &mut Self {
-        self.dfs_namenode_address_ha(
-            namenode_podrefs,
-            DFS_NAMENODE_HTTP_ADDRESS,
-            DEFAULT_NAME_NODE_HTTP_PORT,
-        );
-        self.dfs_namenode_address_ha(
-            namenode_podrefs,
-            DFS_NAMENODE_HTTPS_ADDRESS,
-            DEFAULT_NAME_NODE_HTTPS_PORT,
-        );
+    pub fn dfs_namenode_http_address_ha(
+        &mut self,
+        hdfs: &HdfsCluster,
+        namenode_podrefs: &[HdfsPodRef],
+    ) -> &mut Self {
+        if hdfs.has_https_enabled() {
+            self.dfs_namenode_address_ha(
+                namenode_podrefs,
+                DFS_NAMENODE_HTTPS_ADDRESS,
+                DEFAULT_NAME_NODE_HTTPS_PORT,
+            );
+        } else {
+            self.dfs_namenode_address_ha(
+                namenode_podrefs,
+                DFS_NAMENODE_HTTP_ADDRESS,
+                DEFAULT_NAME_NODE_HTTP_PORT,
+            );
+        }
         self
     }
 
