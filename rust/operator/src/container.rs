@@ -288,7 +288,6 @@ impl ContainerConfig {
                 "HADOOP_OPTS",
                 "-Djava.security.krb5.conf=/kerberos/krb5.conf",
             )
-            .add_env_var("HADOOP_JAAS_DEBUG", "true")
             .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
             .add_env_var("KRB5_TRACE", "/dev/stderr")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
@@ -327,7 +326,6 @@ impl ContainerConfig {
                 "HADOOP_OPTS",
                 "-Djava.security.krb5.conf=/kerberos/krb5.conf",
             )
-            .add_env_var("HADOOP_JAAS_DEBUG", "true")
             .add_env_var("KRB5_CONFIG", "/kerberos/krb5.conf")
             .add_env_var("KRB5_TRACE", "/dev/stderr")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, None))
