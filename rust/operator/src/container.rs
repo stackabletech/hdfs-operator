@@ -155,7 +155,7 @@ impl ContainerConfig {
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(role.clone());
-        pb.add_volumes(main_container_config.volumes(merged_config, object_name));
+        pb.add_volumes(main_container_config.volumes(hdfs, merged_config, object_name));
         pb.add_container(main_container_config.main_container(
             hdfs,
             resolved_product_image,
@@ -179,7 +179,7 @@ impl ContainerConfig {
             HdfsRole::NameNode => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
-                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
+                pb.add_volumes(zkfc_container_config.volumes(hdfs, merged_config, object_name));
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
                     resolved_product_image,
@@ -191,9 +191,11 @@ impl ContainerConfig {
                 // Format namenode init container
                 let format_namenodes_container_config =
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
-                pb.add_volumes(
-                    format_namenodes_container_config.volumes(merged_config, object_name),
-                );
+                pb.add_volumes(format_namenodes_container_config.volumes(
+                    hdfs,
+                    merged_config,
+                    object_name,
+                ));
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     resolved_product_image,
                     zk_config_map_name,
@@ -205,9 +207,11 @@ impl ContainerConfig {
                 // Format ZooKeeper init container
                 let format_zookeeper_container_config =
                     Self::try_from(NameNodeContainer::FormatZooKeeper.to_string())?;
-                pb.add_volumes(
-                    format_zookeeper_container_config.volumes(merged_config, object_name),
-                );
+                pb.add_volumes(format_zookeeper_container_config.volumes(
+                    hdfs,
+                    merged_config,
+                    object_name,
+                ));
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     resolved_product_image,
                     zk_config_map_name,
@@ -220,9 +224,11 @@ impl ContainerConfig {
                 // Wait for namenode init container
                 let wait_for_namenodes_container_config =
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
-                pb.add_volumes(
-                    wait_for_namenodes_container_config.volumes(merged_config, object_name),
-                );
+                pb.add_volumes(wait_for_namenodes_container_config.volumes(
+                    hdfs,
+                    merged_config,
+                    object_name,
+                ));
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     resolved_product_image,
                     zk_config_map_name,
@@ -627,6 +633,7 @@ impl ContainerConfig {
     /// Return the container volumes.
     fn volumes(
         &self,
+        hdfs: &HdfsCluster,
         merged_config: &(dyn MergedConfig + Send + 'static),
         object_name: &str,
     ) -> Vec<Volume> {
@@ -646,40 +653,44 @@ impl ContainerConfig {
                         .build(),
                 );
 
-                volumes.push(
-                    VolumeBuilder::new("kerberos")
-                        .ephemeral(
-                            SecretOperatorVolumeSourceBuilder::new("kerberos")
-                                .with_pod_scope()
-                                .with_node_scope()
-                                // .with_service_scope("simple-hdfs-namenode-default")
-                                .with_kerberos_service_name(match role {
-                                    HdfsRole::NameNode => "nn",
-                                    HdfsRole::DataNode => "dn",
-                                    HdfsRole::JournalNode => "jn",
-                                })
-                                .with_kerberos_service_name("HTTP")
-                                .build(),
-                        )
-                        .build(),
-                );
+                if hdfs.has_security_enabled() {
+                    volumes.push(
+                        VolumeBuilder::new("kerberos")
+                            .ephemeral(
+                                SecretOperatorVolumeSourceBuilder::new("kerberos")
+                                    .with_pod_scope()
+                                    .with_node_scope()
+                                    // .with_service_scope("simple-hdfs-namenode-default")
+                                    .with_kerberos_service_name(match role {
+                                        HdfsRole::NameNode => "nn",
+                                        HdfsRole::DataNode => "dn",
+                                        HdfsRole::JournalNode => "jn",
+                                    })
+                                    .with_kerberos_service_name("HTTP")
+                                    .build(),
+                            )
+                            .build(),
+                    );
+                }
 
-                volumes.push(
-                    VolumeBuilder::new("tls")
-                        .ephemeral(
-                            SecretOperatorVolumeSourceBuilder::new("tls")
-                                .with_pod_scope()
-                                .with_node_scope()
-                                .build(),
-                        )
-                        .build(),
-                );
+                if hdfs.has_https_enabled() {
+                    volumes.push(
+                        VolumeBuilder::new("tls")
+                            .ephemeral(
+                                SecretOperatorVolumeSourceBuilder::new("tls")
+                                    .with_pod_scope()
+                                    .with_node_scope()
+                                    .build(),
+                            )
+                            .build(),
+                    );
 
-                volumes.push(
-                    VolumeBuilder::new("keystore")
-                        .with_empty_dir(Option::<String>::None, None)
-                        .build(),
-                );
+                    volumes.push(
+                        VolumeBuilder::new("keystore")
+                            .with_empty_dir(Option::<String>::None, None)
+                            .build(),
+                    );
+                }
 
                 Some(merged_config.hdfs_logging())
             }

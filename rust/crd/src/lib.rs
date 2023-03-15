@@ -577,11 +577,11 @@ impl HdfsCluster {
         Ok(result)
     }
 
-    fn has_security_enabled(&self) -> bool {
+    pub fn has_security_enabled(&self) -> bool {
         self.spec.cluster_config.kerberos.is_some()
     }
 
-    fn has_https_enabled(&self) -> bool {
+    pub fn has_https_enabled(&self) -> bool {
         // TODO Clarify if https can be used without kerberos
         self.has_security_enabled()
     }
