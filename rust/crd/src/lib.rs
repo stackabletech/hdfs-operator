@@ -578,12 +578,27 @@ impl HdfsCluster {
     }
 
     pub fn has_security_enabled(&self) -> bool {
-        self.spec.cluster_config.kerberos.is_some()
+        self.kerberos_secret_class().is_some()
+    }
+
+    pub fn kerberos_secret_class(&self) -> Option<&str> {
+        self.spec
+            .cluster_config
+            .kerberos
+            .as_ref()
+            .map(|k| k.kerberos_secret_class.as_str())
     }
 
     pub fn has_https_enabled(&self) -> bool {
-        // TODO Clarify if https can be used without kerberos
-        self.has_security_enabled()
+        self.https_secret_class().is_some()
+    }
+
+    pub fn https_secret_class(&self) -> Option<&str> {
+        self.spec
+            .cluster_config
+            .kerberos
+            .as_ref()
+            .map(|k| k.tls_secret_class.as_str())
     }
 
     /// Returns required port name and port number tuples depending on the role.

@@ -653,11 +653,11 @@ impl ContainerConfig {
                         .build(),
                 );
 
-                if hdfs.has_security_enabled() {
+                if let Some(kerberos_secret_class) = hdfs.kerberos_secret_class() {
                     volumes.push(
                         VolumeBuilder::new("kerberos")
                             .ephemeral(
-                                SecretOperatorVolumeSourceBuilder::new("kerberos")
+                                SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class)
                                     .with_pod_scope()
                                     .with_node_scope()
                                     // .with_service_scope("simple-hdfs-namenode-default")
@@ -673,9 +673,9 @@ impl ContainerConfig {
                     );
                 }
 
-                if hdfs.has_https_enabled() {
+                if let Some(https_secret_class) = hdfs.https_secret_class() {
                     volumes.push(
-                        VolumeBuilder::new("tls")
+                        VolumeBuilder::new(https_secret_class)
                             .ephemeral(
                                 SecretOperatorVolumeSourceBuilder::new("tls")
                                     .with_pod_scope()
