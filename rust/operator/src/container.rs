@@ -766,26 +766,13 @@ impl ContainerConfig {
         )
     }
 
-    /// Copy the `core-site.xml` and `hdfs-site.xml` to the respective container config dir.
+    /// Copy all the configuration files to the respective container config dir.
     fn copy_hdfs_and_core_site_xml_cmd(&self) -> String {
-        vec![
-            format!(
-                "cp {config_dir_mount}/* {config_dir_name}",
-                config_dir_mount = self.volume_mount_dirs().config_mount(),
-                config_dir_name = self.volume_mount_dirs().final_config()
-            ),
-            // format!(
-            //     "cp {config_dir_mount}/{HDFS_SITE_XML} {config_dir_name}/{HDFS_SITE_XML}",
-            //     config_dir_mount = self.volume_mount_dirs().config_mount(),
-            //     config_dir_name = self.volume_mount_dirs().final_config()
-            // ),
-            // format!(
-            //     "cp {config_dir_mount}/{CORE_SITE_XML} {config_dir_name}/{CORE_SITE_XML}",
-            //     config_dir_mount = self.volume_mount_dirs().config_mount(),
-            //     config_dir_name = self.volume_mount_dirs().final_config()
-            // ),
-        ]
-        .join(" && ")
+        format!(
+            "cp {config_dir_mount}/* {config_dir_name}",
+            config_dir_mount = self.volume_mount_dirs().config_mount(),
+            config_dir_name = self.volume_mount_dirs().final_config()
+        )
     }
 
     /// Copy the `log4j.properties` to the respective container config dir.

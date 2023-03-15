@@ -414,8 +414,8 @@ fn rolegroup_config_map(
                     .add("dfs.block.access.token.enable", "true")
                     .add("dfs.data.transfer.protection", "authentication")
                     .add("dfs.http.policy", "HTTPS_ONLY")
-                    .add("dfs.https.client.keystore.resource", "ssl-client.xml")
-                    .add("dfs.https.server.keystore.resource", "ssl-server.xml")
+                    .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
+                    .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML)
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
@@ -499,7 +499,7 @@ fn rolegroup_config_map(
                     .extend(config)
                     .build_as_xml();
             }
-            PropertyNameKind::File(file_name) if file_name == "ssl-server.xml" => {
+            PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
                 let mut config_opts = BTreeMap::new();
                 config_opts.extend([
                     (
@@ -519,7 +519,7 @@ fn rolegroup_config_map(
                 ssl_server_xml =
                     stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
             }
-            PropertyNameKind::File(file_name) if file_name == "ssl-client.xml" => {
+            PropertyNameKind::File(file_name) if file_name == SSL_CLIENT_XML => {
                 let mut config_opts = BTreeMap::new();
                 config_opts.extend([
                     (
@@ -565,8 +565,8 @@ fn rolegroup_config_map(
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
-        .add_data("ssl-server.xml", ssl_server_xml)
-        .add_data("ssl-client.xml", ssl_client_xml);
+        .add_data(SSL_SERVER_XML, ssl_server_xml)
+        .add_data(SSL_CLIENT_XML, ssl_client_xml);
 
     extend_role_group_config_map(
         rolegroup_ref,
