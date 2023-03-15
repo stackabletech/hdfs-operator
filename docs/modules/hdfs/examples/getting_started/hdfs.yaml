@@ -11,6 +11,10 @@ spec:
   clusterConfig:
     zookeeperConfigMapName: simple-hdfs-znode
     dfsReplication: 1
+    # TODO discuss CRD structure and present in Arch meeting
+    kerberos:
+      tlsSecretClass: tls
+      kerberosSecretClass: kerberos
   nameNodes:
     roleGroups:
       default:

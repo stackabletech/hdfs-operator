@@ -28,7 +28,7 @@ use stackable_hdfs_crd::{
         STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
-    DataNodeContainer, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
+    DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
 use stackable_operator::{
     builder::{
@@ -144,6 +144,7 @@ impl ContainerConfig {
     #[allow(clippy::too_many_arguments)]
     pub fn add_containers_and_volumes(
         pb: &mut PodBuilder,
+        hdfs: &HdfsCluster,
         role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &(dyn MergedConfig + Send + 'static),
@@ -156,6 +157,7 @@ impl ContainerConfig {
         let main_container_config = Self::from(role.clone());
         pb.add_volumes(main_container_config.volumes(merged_config, object_name));
         pb.add_container(main_container_config.main_container(
+            hdfs,
             resolved_product_image,
             zk_config_map_name,
             env_overrides,
@@ -179,6 +181,7 @@ impl ContainerConfig {
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
                 pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
                 pb.add_container(zkfc_container_config.main_container(
+                    hdfs,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -259,6 +262,7 @@ impl ContainerConfig {
     /// - Journalnode main process
     fn main_container(
         &self,
+        hdfs: &HdfsCluster,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -283,7 +287,7 @@ impl ContainerConfig {
             .add_env_var("KRB5_TRACE", "/dev/stderr")
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, resources.as_ref()))
             .add_volume_mounts(self.volume_mounts(merged_config))
-            .add_container_ports(self.container_ports());
+            .add_container_ports(self.container_ports(hdfs));
 
         if let Some(resources) = resources {
             cb.resources(resources);
@@ -840,10 +844,10 @@ impl ContainerConfig {
     }
 
     /// Container ports for the main containers namenode, datanode and journalnode.
-    fn container_ports(&self) -> Vec<ContainerPort> {
+    fn container_ports(&self, hdfs: &HdfsCluster) -> Vec<ContainerPort> {
         match self {
-            ContainerConfig::Hdfs { role, .. } => role
-                .ports()
+            ContainerConfig::Hdfs { role, .. } => hdfs
+                .ports(role)
                 .into_iter()
                 .map(|(name, value)| ContainerPort {
                     name: Some(name),

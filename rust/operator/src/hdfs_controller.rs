@@ -338,7 +338,7 @@ fn rolegroup_service(
         spec: Some(ServiceSpec {
             cluster_ip: Some("None".to_string()),
             ports: Some(
-                role.ports()
+                hdfs.ports(role)
                     .into_iter()
                     .map(|(name, value)| ServicePort {
                         name: Some(name),
@@ -620,6 +620,7 @@ fn rolegroup_statefulset(
     // Adds all containers and volumes to the pod builder
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
+        hdfs,
         role,
         resolved_product_image,
         merged_config,
