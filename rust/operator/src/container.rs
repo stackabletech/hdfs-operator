@@ -711,11 +711,7 @@ impl ContainerConfig {
                                     .with_pod_scope()
                                     .with_node_scope()
                                     // .with_service_scope("simple-hdfs-namenode-default")
-                                    .with_kerberos_service_name(match role {
-                                        HdfsRole::NameNode => "nn",
-                                        HdfsRole::DataNode => "dn",
-                                        HdfsRole::JournalNode => "jn",
-                                    })
+                                    .with_kerberos_service_name(role.kerberos_service_name())
                                     .with_kerberos_service_name("HTTP")
                                     .build(),
                             )

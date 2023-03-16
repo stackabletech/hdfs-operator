@@ -337,6 +337,14 @@ impl HdfsRole {
         }
     }
 
+    pub fn kerberos_service_name(&self) -> &'static str {
+        match self {
+            HdfsRole::NameNode => "nn",
+            HdfsRole::DataNode => "dn",
+            HdfsRole::JournalNode => "jn",
+        }
+    }
+
     /// Return replicas for a certain rolegroup.
     pub fn role_group_replicas(&self, hdfs: &HdfsCluster, role_group: &str) -> i32 {
         match self {
