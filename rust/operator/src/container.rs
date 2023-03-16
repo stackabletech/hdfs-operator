@@ -442,6 +442,9 @@ impl ContainerConfig {
         if hdfs.has_https_enabled() {
             args.push(Self::wait_for_trust_and_keystore_command());
         }
+        if hdfs.has_security_enabled() {
+            args.push(Self::export_kerberos_real_env_var_command());
+        }
         match self {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push(self.copy_log4j_properties_cmd(
@@ -599,14 +602,21 @@ impl ContainerConfig {
     }
 
     /// `kinit` a ticket using the principal created for the specified hdfs role
+    /// Needs the KERBEROS_REALM env var to be present, as `Self::export_kerberos_real_env_var_command` does
     fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole, object_name: &str) -> String {
         // Something like `nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL`
         let principal = format!(
-            "{service_name}/{object_name}.{namespace}.svc.cluster.local@CLUSTER.LOCAL",
+            "{service_name}/{object_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
             namespace = hdfs.namespace().expect("HdfsCluster must be set"),
         );
         format!("kinit {principal} -kt /stackable/kerberos/keytab")
+    }
+
+    // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`
+    fn export_kerberos_real_env_var_command() -> String {
+        "export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)"
+            .to_string()
     }
 
     /// Returns the container env variables.
