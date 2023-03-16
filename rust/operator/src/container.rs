@@ -94,6 +94,8 @@ pub enum ContainerConfig {
         volume_mounts: ContainerVolumeDirs,
     },
     FormatNameNodes {
+        /// HDFS role (name-, data-, journal-node) which will be the container_name.
+        role: HdfsRole,
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
@@ -106,6 +108,8 @@ pub enum ContainerConfig {
         volume_mounts: ContainerVolumeDirs,
     },
     WaitForNameNodes {
+        /// HDFS role (name-, data-, journal-node) which will be the container_name.
+        role: HdfsRole,
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
@@ -162,6 +166,7 @@ impl ContainerConfig {
             zk_config_map_name,
             env_overrides,
             merged_config,
+            object_name,
         )?);
 
         // Vector side container
@@ -229,6 +234,7 @@ impl ContainerConfig {
                     zk_config_map_name,
                     env_overrides,
                     merged_config,
+                    object_name,
                 )?);
 
                 // Format namenode init container
@@ -246,6 +252,7 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    object_name,
                 )?);
 
                 // Format ZooKeeper init container
@@ -263,6 +270,7 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    object_name,
                 )?);
             }
             HdfsRole::DataNode => {
@@ -281,6 +289,7 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    object_name,
                 )?);
             }
             HdfsRole::JournalNode => {}
@@ -319,6 +328,7 @@ impl ContainerConfig {
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         merged_config: &(dyn MergedConfig + Send + 'static),
+        object_name: &str,
     ) -> Result<Container, Error> {
         let mut cb =
             ContainerBuilder::new(self.name()).with_context(|_| InvalidContainerNameSnafu {
@@ -329,7 +339,7 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(self.command())
-            .args(self.args(hdfs, merged_config, &[]))
+            .args(self.args(hdfs, merged_config, &[], object_name))
             .add_env_vars(self.env(
                 hdfs,
                 zookeeper_config_map_name,
@@ -354,6 +364,7 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
+    #[allow(clippy::too_many_arguments)]
     fn init_container(
         &self,
         hdfs: &HdfsCluster,
@@ -362,12 +373,13 @@ impl ContainerConfig {
         env_overrides: Option<&BTreeMap<String, String>>,
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &(dyn MergedConfig + Send + 'static),
+        object_name: &str,
     ) -> Result<Container, Error> {
         Ok(ContainerBuilder::new(self.name())
             .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
             .image_from_product_image(resolved_product_image)
             .command(self.command())
-            .args(self.args(hdfs, merged_config, namenode_podrefs))
+            .args(self.args(hdfs, merged_config, namenode_podrefs, object_name))
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .build())
@@ -419,6 +431,7 @@ impl ContainerConfig {
         hdfs: &HdfsCluster,
         merged_config: &(dyn MergedConfig + Send + 'static),
         namenode_podrefs: &[HdfsPodRef],
+        object_name: &str,
     ) -> Vec<String> {
         let mut args = vec![
             self.create_config_directory_cmd(),
@@ -427,7 +440,7 @@ impl ContainerConfig {
         // We can't influence the order of the init containers.
         // Some init containers - such as format-namenodes - need the tls certs, so let's wait for them to be properly set up
         if hdfs.has_https_enabled() {
-            args.push(self.wait_for_trust_and_keystore_command());
+            args.push(Self::wait_for_trust_and_keystore_command());
         }
         match self {
             ContainerConfig::Hdfs { role, .. } => {
@@ -453,7 +466,7 @@ impl ContainerConfig {
                     hadoop_home = Self::HADOOP_HOME
                 ));
             }
-            ContainerConfig::FormatNameNodes { .. } => {
+            ContainerConfig::FormatNameNodes { role, .. } => {
                 if let Some(container_config) = merged_config.format_namenodes_logging() {
                     args.push(self.copy_log4j_properties_cmd(
                         FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
@@ -467,10 +480,11 @@ impl ContainerConfig {
                 // $NAMENODE_DIR/current/VERSION. Then we don't do anything.
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
+                if hdfs.has_security_enabled() {
+                    args.push(Self::get_kerberos_ticket(hdfs, role, object_name));
+                }
                 args.push(formatdoc!(
                     r###"
-                    # hdfs' admin tools don't support specifying a custom keytab
-                    kinit nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL -kt /stackable/kerberos/keytab
                     cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                     echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
                     for id in {pod_names}
@@ -528,16 +542,18 @@ impl ContainerConfig {
                     hadoop_home = Self::HADOOP_HOME
                 ));
             }
-            ContainerConfig::WaitForNameNodes { .. } => {
+            ContainerConfig::WaitForNameNodes { role, .. } => {
                 if let Some(container_config) = merged_config.wait_for_namenodes() {
                     args.push(self.copy_log4j_properties_cmd(
                         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
                         container_config,
                     ));
                 }
+                if hdfs.has_security_enabled() {
+                    args.push(Self::get_kerberos_ticket(hdfs, role, object_name));
+                }
                 args.push(formatdoc!(r###"
                     echo "Waiting for namenodes to get ready:"
-                    kinit dn/simple-hdfs-datanode-default.default.svc.cluster.local@CLUSTER.LOCAL -kt /stackable/kerberos/keytab
                     n=0
                     while [ ${{n}} -lt 12 ];
                     do
@@ -575,10 +591,22 @@ impl ContainerConfig {
         vec![args.join(" && ")]
     }
 
-    fn wait_for_trust_and_keystore_command(&self) -> String {
+    /// Wait until the init container has created global trust and keystore shared between all containers
+    fn wait_for_trust_and_keystore_command() -> String {
         format!(
             "until [ -f {KEYSTORE_DIR_NAME}/truststore.p12 ]; do echo 'Waiting for truststore to be created' && sleep 1; done && until [ -f {KEYSTORE_DIR_NAME}/keystore.p12 ]; do echo 'Waiting for keystore to be created' && sleep 1; done"
         )
+    }
+
+    /// `kinit` a ticket using the principal created for the specified hdfs role
+    fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole, object_name: &str) -> String {
+        // Something like `nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL`
+        let principal = format!(
+            "{service_name}/{object_name}.{namespace}.svc.cluster.local@CLUSTER.LOCAL",
+            service_name = role.kerberos_service_name(),
+            namespace = hdfs.namespace().expect("HdfsCluster must be set"),
+        );
+        format!("kinit {principal} -kt /stackable/kerberos/keytab")
     }
 
     /// Returns the container env variables.
@@ -1064,6 +1092,7 @@ impl TryFrom<String> for ContainerConfig {
                 // namenode init containers
                 name if name == NameNodeContainer::FormatNameNodes.to_string() => {
                     Ok(Self::FormatNameNodes {
+                        role: HdfsRole::NameNode,
                         volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                         container_name: name,
                     })
@@ -1077,6 +1106,7 @@ impl TryFrom<String> for ContainerConfig {
                 // datanode init containers
                 name if name == DataNodeContainer::WaitForNameNodes.to_string() => {
                     Ok(Self::WaitForNameNodes {
+                        role: HdfsRole::DataNode,
                         volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                         container_name: name,
                     })
