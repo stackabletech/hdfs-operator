@@ -174,6 +174,49 @@ impl ContainerConfig {
             ));
         }
 
+        if let Some(https_secret_class) = hdfs.https_secret_class() {
+            pb.add_volume(
+                VolumeBuilder::new(https_secret_class)
+                    .ephemeral(
+                        SecretOperatorVolumeSourceBuilder::new("tls")
+                            .with_pod_scope()
+                            .with_node_scope()
+                            .build(),
+                    )
+                    .build(),
+            );
+
+            pb.add_volume(
+                VolumeBuilder::new("keystore")
+                    .with_empty_dir(Option::<String>::None, None)
+                    .build(),
+            );
+
+            let create_tls_cert_bundle_init_container =
+                ContainerBuilder::new("create-tls-cert-bundle")
+                    .unwrap()
+                    .image_from_product_image(resolved_product_image)
+                    .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+                    .args(vec![formatdoc!(
+                            r###"
+                            echo "Cleaning up truststore - just in case"
+                            rm -f {KEYSTORE_DIR_NAME}/truststore.p12
+                            echo "Creating truststore"
+                            keytool -importcert -file /stackable/tls/ca.crt -keystore {KEYSTORE_DIR_NAME}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass changeit
+                            echo "Creating certificate chain"
+                            cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {KEYSTORE_DIR_NAME}/chain.crt
+                            echo "Cleaning up keystore - just in case"
+                            rm -f {KEYSTORE_DIR_NAME}/keystore.p12
+                            echo "Creating keystore"
+                            openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"###
+                        )])
+                        // Only this init container needs the actual cert (from tls volume) to create the truststore + keystore from
+                        .add_volume_mount("tls", "/stackable/tls")
+                        .add_volume_mount("keystore", KEYSTORE_DIR_NAME)
+                    .build();
+            pb.add_init_container(create_tls_cert_bundle_init_container);
+        }
+
         // role specific pod settings configured here
         match role {
             HdfsRole::NameNode => {
@@ -286,7 +329,7 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(self.command())
-            .args(self.args(merged_config, &[]))
+            .args(self.args(hdfs, merged_config, &[]))
             .add_env_vars(self.env(
                 hdfs,
                 zookeeper_config_map_name,
@@ -324,7 +367,7 @@ impl ContainerConfig {
             .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
             .image_from_product_image(resolved_product_image)
             .command(self.command())
-            .args(self.args(merged_config, namenode_podrefs))
+            .args(self.args(hdfs, merged_config, namenode_podrefs))
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .build())
@@ -365,7 +408,7 @@ impl ContainerConfig {
             ContainerConfig::FormatNameNodes { .. }
             | ContainerConfig::FormatZooKeeper { .. }
             | ContainerConfig::WaitForNameNodes { .. } => {
-                vec!["bash".to_string(), "-c".to_string()]
+                vec!["/bin/bash".to_string(), "-c".to_string()]
             }
         }
     }
@@ -373,6 +416,7 @@ impl ContainerConfig {
     /// Returns the container command arguments.
     fn args(
         &self,
+        hdfs: &HdfsCluster,
         merged_config: &(dyn MergedConfig + Send + 'static),
         namenode_podrefs: &[HdfsPodRef],
     ) -> Vec<String> {
@@ -380,24 +424,17 @@ impl ContainerConfig {
             self.create_config_directory_cmd(),
             self.copy_config_xml_cmd(),
         ];
+        // We can't influence the order of the init containers.
+        // Some init containers - such as format-namenodes - need the tls certs, so let's wait for them to be properly set up
+        if hdfs.has_https_enabled() {
+            args.push(self.wait_for_trust_and_keystore_command());
+        }
         match self {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push(self.copy_log4j_properties_cmd(
                     HDFS_LOG4J_CONFIG_FILE,
                     merged_config.hdfs_logging(),
                 ));
-
-                // Only the main containers gets the tls certs mounted and builds the keystore
-                args.push([
-                    "echo Cleaning up truststore - just in case",
-                    &format!("rm -f {KEYSTORE_DIR_NAME}/truststore.p12"),
-                    "echo Creating truststore",
-                    &format!("keytool -importcert -file /stackable/tls/ca.crt -keystore {KEYSTORE_DIR_NAME}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass changeit"),
-                    "echo Creating certificate chain",
-                    &format!("cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {KEYSTORE_DIR_NAME}/chain.crt"),
-                    "echo Creating keystore",
-                    &format!("openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"),
-                ].join(" && "));
 
                 args.push(format!(
                     "{hadoop_home}/bin/hdfs --debug {role}",
@@ -427,7 +464,7 @@ impl ContainerConfig {
                 // for e.g. scaling. It may fail if the active namenode is restarted and the standby
                 // namenode takes over.
                 // This is why in the second part we check if the node is formatted already via
-                // $NAMENODE_DIR/current/VERSION. Then we dont do anything.
+                // $NAMENODE_DIR/current/VERSION. Then we don't do anything.
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
                 args.push(formatdoc!(
@@ -464,9 +501,7 @@ impl ContainerConfig {
                     else
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
-                    fi
-
-                    "###,
+                    fi"###,
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
@@ -502,6 +537,7 @@ impl ContainerConfig {
                 }
                 args.push(formatdoc!(r###"
                     echo "Waiting for namenodes to get ready:"
+                    kinit dn/simple-hdfs-datanode-default.default.svc.cluster.local@CLUSTER.LOCAL -kt /stackable/kerberos/keytab
                     n=0
                     while [ ${{n}} -lt 12 ];
                     do
@@ -539,6 +575,12 @@ impl ContainerConfig {
         vec![args.join(" && ")]
     }
 
+    fn wait_for_trust_and_keystore_command(&self) -> String {
+        format!(
+            "until [ -f {KEYSTORE_DIR_NAME}/truststore.p12 ]; do echo 'Waiting for truststore to be created' && sleep 1; done && until [ -f {KEYSTORE_DIR_NAME}/keystore.p12 ]; do echo 'Waiting for keystore to be created' && sleep 1; done"
+        )
+    }
+
     /// Returns the container env variables.
     fn env(
         &self,
@@ -554,20 +596,32 @@ impl ContainerConfig {
             zookeeper_config_map_name,
         ));
 
+        // For the main container we use specialized env variables for every role
+        // (think of like HDFS_NAMENODE_OPTS or HDFS_DATANODE_OPTS)
+        // We do so, so that users shelling into the hdfs Pods will not have problems
+        // because the will read out the HADOOP_OPTS env var as well for the cli clients
+        // (but *not* the HDFS_NAMENODE_OPTS env var)!
+        // The hadoop opts contain a Prometheus metric emitter, which binds itself to a static port.
+        // When the users tries to start a cli tool the port is already taken by the hdfs services,
+        // so we don't want to stuff all the config into HADOOP_OPTS, but rather into the specialized env variables
+        // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
         if let ContainerConfig::Hdfs { role, .. } = self {
             env.push(EnvVar {
                 name: role.hadoop_opts().to_string(),
                 value: self.build_hadoop_opts(hdfs, resources).ok(),
                 ..EnvVar::default()
             });
-        } else {
-            // We need to push this for Kerberos to work as not only the main containers need Kerberos
-            env.push(EnvVar {
-                name: "HADOOP_OPTS".to_string(),
-                value: Some("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string()),
-                ..EnvVar::default()
-            });
         }
+        // Additionally, any other init or sidecar container must have access to the following settings.
+        // As the Prometheus metric emitter is not part of this config it's safe to use for hdfs cli tools as well.
+        // This will not only enable the init containers to work, but also the user to run e.g.
+        // `bin/hdfs dfs -ls /` without getting `Caused by: java.lang.IllegalArgumentException: KrbException: Cannot locate default realm`
+        // because the `-Djava.security.krb5.conf` setting is missing
+        env.push(EnvVar {
+            name: "HADOOP_OPTS".to_string(),
+            value: Some("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string()),
+            ..EnvVar::default()
+        });
 
         // Not only the main containers need Kerberos
         if hdfs.has_security_enabled() {
@@ -669,25 +723,6 @@ impl ContainerConfig {
                     );
                 }
 
-                if let Some(https_secret_class) = hdfs.https_secret_class() {
-                    volumes.push(
-                        VolumeBuilder::new(https_secret_class)
-                            .ephemeral(
-                                SecretOperatorVolumeSourceBuilder::new("tls")
-                                    .with_pod_scope()
-                                    .with_node_scope()
-                                    .build(),
-                            )
-                            .build(),
-                    );
-
-                    volumes.push(
-                        VolumeBuilder::new("keystore")
-                            .with_empty_dir(Option::<String>::None, None)
-                            .build(),
-                    );
-                }
-
                 Some(merged_config.hdfs_logging())
             }
             ContainerConfig::Zkfc { .. } => merged_config.zkfc_logging(),
@@ -727,16 +762,13 @@ impl ContainerConfig {
             .build(),
         ];
 
-        // Adding this for all containers, as not only the main container needs Kerberos
+        // Adding this for all containers, as not only the main container needs Kerberos or TLS
         if hdfs.kerberos_secret_class().is_some() {
             volume_mounts.push(VolumeMountBuilder::new("kerberos", "/stackable/kerberos").build());
         }
-        // Only the main container need the tls cert to create their keystore
-        if let ContainerConfig::Hdfs { .. } = self {
-            if hdfs.https_secret_class().is_some() {
-                volume_mounts.push(VolumeMountBuilder::new("tls", "/stackable/tls").build());
-                volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
-            }
+        if hdfs.https_secret_class().is_some() {
+            // This volume will be propagated by the CreateTlsCertBundle container
+            volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
         }
 
         match self {
