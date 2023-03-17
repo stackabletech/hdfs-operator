@@ -492,14 +492,13 @@ impl ContainerConfig {
                     r###"
                     cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                     echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
-                    for id in {pod_names}
+                    for namenode_id in {pod_names}
                     do
-                      echo -n "Checking pod $id... "
-                      SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id | tail -n1)
-                      echo "FOOBAR $SERVICE_STATE BARFOO"
+                      echo -n "Checking pod $namenode_id... "
+                        {get_service_state_command}
                       if [ "$SERVICE_STATE" == "active" ]
                       then
-                        ACTIVE_NAMENODE=$id
+                        ACTIVE_NAMENODE=$namenode_id
                         echo "active"
                         break
                       fi
@@ -521,6 +520,7 @@ impl ContainerConfig {
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi"###,
+                    get_service_state_command = Self::get_service_state_command(hdfs)?,
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
@@ -557,23 +557,6 @@ impl ContainerConfig {
                 if hdfs.has_security_enabled() {
                     args.push(Self::get_kerberos_ticket(hdfs, role, object_name)?);
                 }
-                let get_service_state_command = if hdfs.has_security_enabled() {
-                    // We need to calculate the exact principal and pass it in her (for security reasons)
-                    // Otherwise the command will fail with `Couldn't set up IO streams: java.lang.IllegalArgumentException: Failed to specify server's Kerberos principal name`
-                    formatdoc!(
-                        r###"
-                        PRINCIPAL=$(echo "nn/${{id}}.$(echo $id | grep -o '.*[^-0-9]').{namespace}.svc.cluster.local@${{KERBEROS_REALM}}")
-                            SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $id 2>/dev/null | tail -n1)"###,
-                        hadoop_home = Self::HADOOP_HOME,
-                        namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
-                    )
-                } else {
-                    formatdoc!(
-                        r###"
-                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null | tail -n1)"###,
-                        hadoop_home = Self::HADOOP_HOME
-                    )
-                };
                 args.push(formatdoc!(
                     r###"
                     echo "Waiting for namenodes to get ready:"
@@ -581,10 +564,10 @@ impl ContainerConfig {
                     while [ ${{n}} -lt 12 ];
                     do
                       ALL_NODES_READY=true
-                      for id in {pod_names}
+                      for namenode_id in {pod_names}
                       do
-                        echo -n "Checking pod $id... "
-                        {get_service_state_command}
+                        echo -n "Checking pod $namenode_id... "
+                          {get_service_state_command}
                         if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
                         then
                           echo "$SERVICE_STATE"
@@ -602,6 +585,7 @@ impl ContainerConfig {
                       n=$(( n  + 1))
                       sleep 5
                     done"###,
+                    get_service_state_command = Self::get_service_state_command(hdfs)?,
                     pod_names = namenode_podrefs
                         .iter()
                         .map(|pod_ref| pod_ref.pod_name.as_ref())
@@ -640,6 +624,24 @@ impl ContainerConfig {
     fn export_kerberos_real_env_var_command() -> String {
         "export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)"
             .to_string()
+    }
+
+    fn get_service_state_command(hdfs: &HdfsCluster) -> Result<String, Error> {
+        Ok(if hdfs.has_security_enabled() {
+            formatdoc!(
+                r###"
+                PRINCIPAL=$(echo "nn/${{namenode_id}}.$(echo $namenode_id | grep -o '.*[^-0-9]').{namespace}.svc.cluster.local@${{KERBEROS_REALM}}")
+                SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $id | tail -n1)"###,
+                hadoop_home = Self::HADOOP_HOME,
+                namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
+            )
+        } else {
+            formatdoc!(
+                r###"
+                SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id | tail -n1)"###,
+                hadoop_home = Self::HADOOP_HOME
+            )
+        })
     }
 
     /// Returns the container env variables.
