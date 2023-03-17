@@ -71,7 +71,7 @@ spec:
       kdc: krb5-kdc.test.svc.cluster.local
       adminServer: krb5-kdc.test.svc.cluster.local
       adminKeytabSecret:
-        namespace: test
+        namespace: default
         name: secret-operator-keytab
       adminPrincipal: stackable-secret-operator
 ---
