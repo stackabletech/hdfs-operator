@@ -6,7 +6,7 @@ timeout: 300
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hdfs-zk-server-default
+  name: krb5-kdc
 status:
   readyReplicas: 1
   replicas: 1

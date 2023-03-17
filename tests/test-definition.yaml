@@ -2,12 +2,12 @@
 dimensions:
   - name: hadoop
     values:
-      - 3.2.2-stackable23.4.0-rc2
-      - 3.3.3-stackable23.4.0-rc2
-      - 3.3.4-stackable23.4.0-rc2
+      - 3.2.2-stackable23.4.0-rc3
+      - 3.3.3-stackable23.4.0-rc3
+      - 3.3.4-stackable23.4.0-rc3
   - name: hadoop-latest
     values:
-      - 3.3.4-stackable23.4.0-rc2
+      - 3.3.4-stackable23.4.0-rc3
   - name: zookeeper
     values:
       - 3.8.0-stackable23.4.0-rc2
@@ -22,6 +22,18 @@ dimensions:
     values:
       - "default"
       - "2hdd-1ssd"
+  - name: kerberos-realm
+    values:
+      - "CLUSTER.LOCAL"
+      # - "PROD.MYCORP" # => Needs some work in the kerberos keytab for secret-operator
+  - name: test-number
+    values:
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "6"
 tests:
   - name: smoke
     dimensions:
@@ -29,6 +41,12 @@ tests:
       - zookeeper
       - number-of-datanodes
       - datanode-pvcs
+  - name: kerberos
+    dimensions:
+      - hadoop
+      - zookeeper-latest
+      - kerberos-realm
+      - test-number
   - name: orphaned-resources
     dimensions:
       - hadoop-latest
