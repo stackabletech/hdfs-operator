@@ -631,14 +631,14 @@ impl ContainerConfig {
             formatdoc!(
                 r###"
                 PRINCIPAL=$(echo "nn/${{namenode_id}}.$(echo $namenode_id | grep -o '.*[^-0-9]').{namespace}.svc.cluster.local@${{KERBEROS_REALM}}")
-                SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $id | tail -n1)"###,
+                    SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $namenode_id | tail -n1)"###,
                 hadoop_home = Self::HADOOP_HOME,
                 namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
             )
         } else {
             formatdoc!(
                 r###"
-                SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id | tail -n1)"###,
+                SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $namenode_id | tail -n1)"###,
                 hadoop_home = Self::HADOOP_HOME
             )
         })
