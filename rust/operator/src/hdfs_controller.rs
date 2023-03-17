@@ -379,12 +379,6 @@ fn rolegroup_config_map(
         .with_context(|| ObjectHasNoNameSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
-    let hdfs_namespace = hdfs
-        .namespace()
-        .with_context(|| ObjectHasNoNamespaceSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
-    let object_name = rolegroup_ref.object_name();
 
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
