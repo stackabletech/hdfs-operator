@@ -455,7 +455,9 @@ fn rolegroup_config_map(
                     core_site_xml_builder
                         .add("hadoop.security.authentication", "kerberos")
                         .add("hadoop.security.authorization", "true")
-                        .add("hadoop.user.group.static.mapping.overrides", "dr.who=;nn=;")
+                        // Otherwise we fail with `java.io.IOException: No groups found for user nn`
+                        // Default value is `dr.who=`, so we include that here
+                        .add("hadoop.user.group.static.mapping.overrides", "dr.who=;nn=;nm=;jn=;")
                         .add("hadoop.registry.kerberos.realm", "${env.KERBEROS_REALM}")
                         .add(
                             "dfs.web.authentication.kerberos.principal",

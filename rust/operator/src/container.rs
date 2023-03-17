@@ -19,7 +19,7 @@ use crate::{
 };
 
 use indoc::formatdoc;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{
         DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
@@ -57,6 +57,8 @@ use strum::{Display, EnumDiscriminants, IntoStaticStr};
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
+    #[snafu(display("object has no namespace"))]
+    ObjectHasNoNamespace,
     #[snafu(display("Invalid java heap config for [{role}]"))]
     InvalidJavaHeapConfig {
         source: stackable_operator::error::Error,
@@ -339,7 +341,7 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(self.command())
-            .args(self.args(hdfs, merged_config, &[], object_name))
+            .args(self.args(hdfs, merged_config, &[], object_name)?)
             .add_env_vars(self.env(
                 hdfs,
                 zookeeper_config_map_name,
@@ -379,7 +381,7 @@ impl ContainerConfig {
             .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
             .image_from_product_image(resolved_product_image)
             .command(self.command())
-            .args(self.args(hdfs, merged_config, namenode_podrefs, object_name))
+            .args(self.args(hdfs, merged_config, namenode_podrefs, object_name)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .build())
@@ -432,7 +434,7 @@ impl ContainerConfig {
         merged_config: &(dyn MergedConfig + Send + 'static),
         namenode_podrefs: &[HdfsPodRef],
         object_name: &str,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, Error> {
         let mut args = vec![
             self.create_config_directory_cmd(),
             self.copy_config_xml_cmd(),
@@ -484,7 +486,7 @@ impl ContainerConfig {
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
                 if hdfs.has_security_enabled() {
-                    args.push(Self::get_kerberos_ticket(hdfs, role, object_name));
+                    args.push(Self::get_kerberos_ticket(hdfs, role, object_name)?);
                 }
                 args.push(formatdoc!(
                     r###"
@@ -553,9 +555,27 @@ impl ContainerConfig {
                     ));
                 }
                 if hdfs.has_security_enabled() {
-                    args.push(Self::get_kerberos_ticket(hdfs, role, object_name));
+                    args.push(Self::get_kerberos_ticket(hdfs, role, object_name)?);
                 }
-                args.push(formatdoc!(r###"
+                let get_service_state_command = if hdfs.has_security_enabled() {
+                    // We need to calculate the exact principal and pass it in her (for security reasons)
+                    // Otherwise the command will fail with `Couldn't set up IO streams: java.lang.IllegalArgumentException: Failed to specify server's Kerberos principal name`
+                    formatdoc!(
+                        r###"
+                        PRINCIPAL=$(echo "nn/${{id}}.$(echo $id | grep -o '.*[^-0-9]').{namespace}.svc.cluster.local@${{KERBEROS_REALM}}")
+                            SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $id 2>/dev/null | tail -n1)"###,
+                        hadoop_home = Self::HADOOP_HOME,
+                        namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
+                    )
+                } else {
+                    formatdoc!(
+                        r###"
+                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null | tail -n1)"###,
+                        hadoop_home = Self::HADOOP_HOME
+                    )
+                };
+                args.push(formatdoc!(
+                    r###"
                     echo "Waiting for namenodes to get ready:"
                     n=0
                     while [ ${{n}} -lt 12 ];
@@ -564,10 +584,7 @@ impl ContainerConfig {
                       for id in {pod_names}
                       do
                         echo -n "Checking pod $id... "
-                        # We need to calculate the exact principal and pass it in her (for security reasons)
-                        # Otherwise the command will fail with Couldn't set up IO streams: java.lang.IllegalArgumentException: Failed to specify server's Kerberos principal name
-                        PRINCIPAL=$(echo "nn/${{id}}.$(echo $id | grep -o '.*[^-0-9]').test.svc.cluster.local@${{KERBEROS_REALM}}")
-                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $id 2>/dev/null | tail -n1)
+                        {get_service_state_command}
                         if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
                         then
                           echo "$SERVICE_STATE"
@@ -585,16 +602,15 @@ impl ContainerConfig {
                       n=$(( n  + 1))
                       sleep 5
                     done"###,
-                hadoop_home = Self::HADOOP_HOME,
-                pod_names = namenode_podrefs
-                    .iter()
-                    .map(|pod_ref| pod_ref.pod_name.as_ref())
-                    .collect::<Vec<&str>>()
-                    .join(" ")
+                    pod_names = namenode_podrefs
+                        .iter()
+                        .map(|pod_ref| pod_ref.pod_name.as_ref())
+                        .collect::<Vec<&str>>()
+                        .join(" ")
                 ));
             }
         }
-        vec![args.join(" && ")]
+        Ok(vec![args.join(" && ")])
     }
 
     /// Wait until the init container has created global trust and keystore shared between all containers
@@ -607,13 +623,17 @@ impl ContainerConfig {
     /// `kinit` a ticket using the principal created for the specified hdfs role
     /// Needs the KERBEROS_REALM env var to be present, as `Self::export_kerberos_real_env_var_command` does
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
-    fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole, object_name: &str) -> String {
+    fn get_kerberos_ticket(
+        hdfs: &HdfsCluster,
+        role: &HdfsRole,
+        object_name: &str,
+    ) -> Result<String, Error> {
         let principal = format!(
             "{service_name}/${{POD_NAME}}.{object_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
-            namespace = hdfs.namespace().expect("HdfsCluster must be set"),
+            namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
         );
-        format!("echo \"Getting ticket for {principal}\" from /stackable/kerberos/keytab && kinit \"{principal}\" -kt /stackable/kerberos/keytab")
+        Ok(format!("echo \"Getting ticket for {principal}\" from /stackable/kerberos/keytab && kinit \"{principal}\" -kt /stackable/kerberos/keytab"))
     }
 
     // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`
