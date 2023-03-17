@@ -564,9 +564,10 @@ impl ContainerConfig {
                       for id in {pod_names}
                       do
                         echo -n "Checking pod $id... "
-                        # TODO remove the following line again, only for debugging purpose
-                        {hadoop_home}/bin/hdfs haadmin -getServiceState $id
-                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id 2>/dev/null | tail -n1)
+                        # We need to calculate the exact principal and pass it in her (for security reasons)
+                        # Otherwise the command will fail with Couldn't set up IO streams: java.lang.IllegalArgumentException: Failed to specify server's Kerberos principal name
+                        PRINCIPAL=$(echo "nn/${{id}}.$(echo $id | grep -o '.*[^-0-9]').test.svc.cluster.local@${{KERBEROS_REALM}}")
+                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $id 2>/dev/null | tail -n1)
                         if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
                         then
                           echo "$SERVICE_STATE"
@@ -605,14 +606,14 @@ impl ContainerConfig {
 
     /// `kinit` a ticket using the principal created for the specified hdfs role
     /// Needs the KERBEROS_REALM env var to be present, as `Self::export_kerberos_real_env_var_command` does
+    /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
     fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole, object_name: &str) -> String {
         let principal = format!(
-            "{service_name}/{hdfs_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
+            "{service_name}/${{POD_NAME}}.{object_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
-            hdfs_name = hdfs.name_unchecked(),
             namespace = hdfs.namespace().expect("HdfsCluster must be set"),
         );
-        format!("echo \"Getting ticket for {principal}\" from /stackable/kerberos/keytab && kinit {principal} -kt /stackable/kerberos/keytab")
+        format!("echo \"Getting ticket for {principal}\" from /stackable/kerberos/keytab && kinit \"{principal}\" -kt /stackable/kerberos/keytab")
     }
 
     // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`
@@ -748,7 +749,8 @@ impl ContainerConfig {
                         VolumeBuilder::new("kerberos")
                             .ephemeral(
                                 SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class)
-                                    .with_service_scope(hdfs.name_unchecked())
+                                    .with_pod_scope()
+                                    .with_node_scope()
                                     .with_kerberos_service_name(role.kerberos_service_name())
                                     .with_kerberos_service_name("HTTP")
                                     .build(),
