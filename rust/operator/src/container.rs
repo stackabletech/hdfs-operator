@@ -607,8 +607,9 @@ impl ContainerConfig {
     /// Needs the KERBEROS_REALM env var to be present, as `Self::export_kerberos_real_env_var_command` does
     fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole, object_name: &str) -> String {
         let principal = format!(
-            "{service_name}/{object_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
+            "{service_name}/{hdfs_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
+            hdfs_name = hdfs.name_unchecked(),
             namespace = hdfs.namespace().expect("HdfsCluster must be set"),
         );
         format!("echo \"Getting ticket for {principal}\" from /stackable/kerberos/keytab && kinit {principal} -kt /stackable/kerberos/keytab")
@@ -747,9 +748,7 @@ impl ContainerConfig {
                         VolumeBuilder::new("kerberos")
                             .ephemeral(
                                 SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class)
-                                    .with_pod_scope()
-                                    .with_node_scope()
-                                    // .with_service_scope("simple-hdfs-namenode-default")
+                                    .with_service_scope(hdfs.name_unchecked())
                                     .with_kerberos_service_name(role.kerberos_service_name())
                                     .with_kerberos_service_name("HTTP")
                                     .build(),
