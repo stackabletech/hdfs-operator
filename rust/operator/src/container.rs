@@ -493,6 +493,8 @@ impl ContainerConfig {
                     for id in {pod_names}
                     do
                       echo -n "Checking pod $id... "
+                      # TODO remove the following line again, only for debugging purpose
+                      {hadoop_home}/bin/hdfs haadmin -getServiceState $id
                       SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $id | tail -n1)
                       echo "FOOBAR $SERVICE_STATE BARFOO"
                       if [ "$SERVICE_STATE" == "active" ]
@@ -603,14 +605,15 @@ impl ContainerConfig {
 
     /// `kinit` a ticket using the principal created for the specified hdfs role
     /// Needs the KERBEROS_REALM env var to be present, as `Self::export_kerberos_real_env_var_command` does
+    /// Also needs the POD_NAME env var to be present, which is set in the Pod spec
     fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole, object_name: &str) -> String {
-        // Something like `nn/simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL`
+        // Something like `nn/simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local@CLUSTER.LOCAL`
         let principal = format!(
-            "{service_name}/{object_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
+            "{service_name}/${{POD_NAME}}.{object_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
             namespace = hdfs.namespace().expect("HdfsCluster must be set"),
         );
-        format!("kinit {principal} -kt /stackable/kerberos/keytab")
+        format!("echo \"Getting ticket for {principal}\" from /stackable/kerberos/keytab && kinit {principal} -kt /stackable/kerberos/keytab")
     }
 
     // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`

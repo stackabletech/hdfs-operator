@@ -2,7 +2,7 @@
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
-  name: simple-hdfs
+  name: hdfs-test
 spec:
   image:
     productVersion: 3.3.4
@@ -69,10 +69,10 @@ spec:
   backend:
     kerberosKeytab:
       realmName: CLUSTER.LOCAL
-      kdc: krb5-kdc.default.svc.cluster.local
-      adminServer: krb5-kdc.default.svc.cluster.local
+      kdc: krb5-kdc.test.svc.cluster.local
+      adminServer: krb5-kdc.test.svc.cluster.local
       adminKeytabSecret:
-        namespace: default
+        namespace: test
         name: secret-operator-keytab
       adminPrincipal: stackable-secret-operator
 ---

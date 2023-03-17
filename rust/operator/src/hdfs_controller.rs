@@ -90,6 +90,8 @@ pub enum Error {
     },
     #[snafu(display("Object has no name"))]
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
+    #[snafu(display("Object has no namespace"))]
+    ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
     #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
     BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,
@@ -262,6 +264,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
+                &role,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
@@ -359,6 +362,7 @@ fn rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
+    role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
@@ -368,7 +372,6 @@ fn rolegroup_config_map(
     vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
-
     let hdfs_name = hdfs
         .metadata
         .name
@@ -376,6 +379,12 @@ fn rolegroup_config_map(
         .with_context(|| ObjectHasNoNameSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
+    let hdfs_namespace = hdfs
+        .namespace()
+        .with_context(|| ObjectHasNoNamespaceSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?;
+    // let object_name = rolegroup_ref.object_name();
 
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
@@ -385,10 +394,11 @@ fn rolegroup_config_map(
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
-                hdfs_site_xml = HdfsSiteConfigBuilder::new(hdfs_name.to_string())
-                    // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
-                    // be formatted by the namenode, or used by the other services.
-                    // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                let mut hdfs_site_xml_builder = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
+                // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
+                // be formatted by the namenode, or used by the other services.
+                // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                hdfs_site_xml_builder
                     .dfs_namenode_name_dir()
                     .dfs_datanode_data_dir(merged_config.data_node_resources().map(|r| r.storage))
                     .dfs_journalnode_edits_dir()
@@ -410,38 +420,134 @@ fn rolegroup_config_map(
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
                     .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                     .add("dfs.ha.automatic-failover.enabled", "true")
-                    .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                    .add("dfs.block.access.token.enable", "true")
-                    .add("dfs.data.transfer.protection", "authentication")
-                    .add("dfs.http.policy", "HTTPS_ONLY")
-                    .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
-                    .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML)
+                    .add("dfs.ha.namenode.id", "${env.POD_NAME}");
+
+                if hdfs.has_security_enabled() {
+                    hdfs_site_xml_builder
+                        .add("dfs.block.access.token.enable", "true")
+                        .add("dfs.data.transfer.protection", "authentication")
+                        .add("dfs.http.policy", "HTTPS_ONLY")
+                        .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
+                        .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML);
+                }
+
+                hdfs_site_xml = hdfs_site_xml_builder
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
-                core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
-                    .fs_default_fs()
-                    .ha_zookeeper_quorum()
-                    .add("hadoop.security.authentication", "kerberos")
-                    .add("hadoop.security.authorization","true")
-                    .add("hadoop.registry.kerberos.realm","${env.KERBEROS_REALM}")
-                    .add("dfs.web.authentication.kerberos.principal","HTTP/_HOST@${env.KERBEROS_REALM}")
-                    .add("dfs.journalnode.kerberos.internal.spnego.principal","HTTP/_HOST@{env.KERBEROS_REALM}")
-                    .add("dfs.journalnode.kerberos.principal","jn/_HOST@${env.KERBEROS_REALM}")
-                    .add("dfs.journalnode.kerberos.principal.pattern","jn/*.simple-hdfs-journalnode-default.default.svc.cluster.local@${env.KERBEROS_REALM}")
-                    .add("dfs.namenode.kerberos.principal","nn/simple-hdfs-namenode-default.default.svc.cluster.local@${env.KERBEROS_REALM}")
-                    .add("dfs.namenode.kerberos.principal.pattern","nn/simple-hdfs-namenode-default.default.svc.cluster.local@${env.KERBEROS_REALM}")
-                    .add("dfs.datanode.kerberos.principal","dn/_HOST@${env.KERBEROS_REALM}")
-                    .add("dfs.web.authentication.keytab.file","/stackable/kerberos/keytab")
-                    .add("dfs.journalnode.keytab.file","/stackable/kerberos/keytab")
-                    .add("dfs.namenode.keytab.file","/stackable/kerberos/keytab")
-                    .add("dfs.datanode.keytab.file","/stackable/kerberos/keytab")
-                    .add("hadoop.user.group.static.mapping.overrides","dr.who=;nn=;")
-                    // the extend with config must come last in order to have overrides working!!!
-                    .extend(config)
-                    .build_as_xml();
+                let mut core_site_xml_builder = CoreSiteConfigBuilder::new(hdfs_name.to_string());
+
+                core_site_xml_builder.fs_default_fs().ha_zookeeper_quorum();
+
+                if hdfs.has_security_enabled() {
+                    // .add("hadoop.security.authentication", "kerberos")
+                    // .add("hadoop.security.authorization","true")
+                    // .add("hadoop.registry.kerberos.realm","${env.KERBEROS_REALM}")
+                    // .add("dfs.web.authentication.kerberos.principal","HTTP/_HOST@${env.KERBEROS_REALM}")
+                    // .add("dfs.journalnode.kerberos.internal.spnego.principal","HTTP/_HOST@{env.KERBEROS_REALM}")
+                    // .add("dfs.journalnode.kerberos.principal","jn/_HOST@${env.KERBEROS_REALM}")
+                    // .add("dfs.journalnode.kerberos.principal.pattern","jn/*.simple-hdfs-journalnode-default.default.svc.cluster.local@${env.KERBEROS_REALM}")
+                    // .add("dfs.namenode.kerberos.principal","nn/simple-hdfs-namenode-default.default.svc.cluster.local@${env.KERBEROS_REALM}")
+                    // .add("dfs.namenode.kerberos.principal.pattern","nn/simple-hdfs-namenode-default.default.svc.cluster.local@${env.KERBEROS_REALM}")
+                    // .add("dfs.datanode.kerberos.principal","dn/_HOST@${env.KERBEROS_REALM}")
+                    // .add("dfs.web.authentication.keytab.file","/stackable/kerberos/keytab")
+                    // .add("dfs.journalnode.keytab.file","/stackable/kerberos/keytab")
+                    // .add("dfs.namenode.keytab.file","/stackable/kerberos/keytab")
+                    // .add("dfs.datanode.keytab.file","/stackable/kerberos/keytab")
+                    // .add("hadoop.user.group.static.mapping.overrides","dr.who=;nn=;")
+
+                    core_site_xml_builder
+                        .add("hadoop.security.authentication", "kerberos")
+                        .add("hadoop.security.authorization", "true")
+                        .add("hadoop.user.group.static.mapping.overrides", "dr.who=;nn=;")
+                        .add("hadoop.registry.kerberos.realm", "${env.KERBEROS_REALM}")
+                        .add(
+                            "dfs.web.authentication.kerberos.principal",
+                            "HTTP/_HOST@${env.KERBEROS_REALM}",
+                        )
+                        .add(
+                            "dfs.web.authentication.keytab.file",
+                            "/stackable/kerberos/keytab",
+                        )
+                        // 10.244.0.30:8485: DestHost:destPort hdfs-test-journalnode-default-0.hdfs-test-journalnode-default.test.svc.cluster.local:8485 , LocalHost:localPort hdfs-test-namenode-default-0/10.244.0.33:0. Failed on local exception: java.io.IOException: Couldn't set up IO streams: java.lang.IllegalArgumentException: Server has invalid Kerberos principal: jn/hdfs-test-journalnode-default-0.hdfs-test-journalnode-default.test.svc.cluster.local@CLUSTER.LOCAL, doesn't match the pattern: jn/*@${{env.KERBEROS_REALM}}
+                        // format!("jn/{hdfs_name}-journalnode-*.{hdfs_name}-journalnode-*.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}").as_str()
+                        .add(
+                            "dfs.journalnode.kerberos.principal.pattern",
+                            format!("jn/{hdfs_name}-journalnode-*.{hdfs_name}-journalnode-*.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}").as_str(),
+                        )
+                        .add(
+                            "dfs.journalnode.kerberos.principal",
+                            "jn/_HOST@${env.KERBEROS_REALM}",
+                        )
+                        .add(
+                            "dfs.journalnode.kerberos.internal.spnego.principal",
+                            "HTTP/_HOST@{env.KERBEROS_REALM}",
+                        )
+                        .add("dfs.journalnode.keytab.file", "/stackable/kerberos/keytab")
+                        .add(
+                            "dfs.namenode.kerberos.principal",
+                            "nn/_HOST@${env.KERBEROS_REALM}",
+                        )
+                        .add(
+                            "dfs.namenode.kerberos.principal.pattern",
+                            format!("nn/{hdfs_name}-namenode-*.{hdfs_name}-namenode-*.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}").as_str(),
+                        )
+                        .add("dfs.namenode.keytab.file", "/stackable/kerberos/keytab")
+                        .add(
+                            "dfs.datanode.kerberos.principal",
+                            "dn/_HOST@${env.KERBEROS_REALM}",
+                        )
+                        .add("dfs.datanode.keytab.file", "/stackable/kerberos/keytab");
+
+                    // match role {
+                    //     HdfsRole::NameNode => {
+                    //         core_site_xml_builder
+                    //             // .add("dfs.namenode.kerberos.principal", format!("nn/{object_name}.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}").as_str())
+                    //             // .add("dfs.namenode.kerberos.principal.pattern", format!("nn/{object_name}.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}").as_str())
+                    //             .add("dfs.namenode.kerberos.principal", "nn/_HOST@${env.KERBEROS_REALM}")
+                    //             .add("dfs.namenode.keytab.file", "/stackable/kerberos/keytab")
+                    //             .add("dfs.journalnode.kerberos.principal.pattern", format!("jn/{hdfs_name}-journalnode-*.{hdfs_name}-journalnode-*.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}").as_str());
+                    //     }
+                    //     HdfsRole::DataNode => {
+                    //         core_site_xml_builder
+                    //             .add(
+                    //                 "dfs.datanode.kerberos.principal",
+                    //                 "dn/_HOST@${env.KERBEROS_REALM}",
+                    //             )
+                    //             .add("dfs.datanode.keytab.file", "/stackable/kerberos/keytab")
+                    //             .add(
+                    //                 "dfs.namenode.kerberos.principal",
+                    //                 "nn/_HOST@${env.KERBEROS_REALM}",
+                    //             )
+                    //             .add(
+                    //                 "dfs.namenode.kerberos.principal.pattern",
+                    //                 format!("nn/*@${{env.KERBEROS_REALM}}").as_str(),
+                    //             );
+                    //     }
+                    //     HdfsRole::JournalNode => {
+                    //         core_site_xml_builder
+                    //             .add(
+                    //                 "dfs.journalnode.kerberos.principal",
+                    //                 "jn/_HOST@${env.KERBEROS_REALM}",
+                    //             )
+                    //             .add("dfs.journalnode.keytab.file", "/stackable/kerberos/keytab")
+                    //             .add(
+                    //                 "dfs.journalnode.kerberos.internal.spnego.principal",
+                    //                 "HTTP/_HOST@{env.KERBEROS_REALM}",
+                    //             );
+                    //     }
+                    // };
+                }
+
+                // export KERBEROS_REALM=$(grep -oP 'default_realm = \K.*' /stackable/kerberos/krb5.conf)
+                // kinit dn/hdfs-test-datanode-default.soenke.svc.cluster.local@${KERBEROS_REALM} -kt /stackable/kerberos/keytab
+                // kinit dn/hdfs-test-datanode-default-0.hdfs-test-datanode-default.soenke.svc.cluster.local@${KERBEROS_REALM} -kt /stackable/kerberos/keytab
+                // /stackable/hadoop/bin/hdfs haadmin -getServiceState hdfs-test-namenode-default-0
+
+                // the extend with config must come last in order to have overrides working!!!
+                core_site_xml = core_site_xml_builder.extend(config).build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
                 let mut config_opts = BTreeMap::new();
