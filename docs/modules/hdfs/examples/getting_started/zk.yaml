@@ -10,4 +10,4 @@ spec:
   servers:
     roleGroups:
       default:
-        replicas: 1
+        replicas: 3

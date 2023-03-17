@@ -37,7 +37,7 @@ spec:
   dataNodes:
     roleGroups:
       default:
-        replicas: 1
+        replicas: 2
     config:
       logging:
         containers:
@@ -50,7 +50,7 @@ spec:
   journalNodes:
     roleGroups:
       default:
-        replicas: 1
+        replicas: 3
     config:
       logging:
         containers:
