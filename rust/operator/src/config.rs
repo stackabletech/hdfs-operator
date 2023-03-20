@@ -185,6 +185,16 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
+    pub fn kerberos_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
+        if hdfs.has_kerberos_enabled() {
+            self.config.insert(
+                "dfs.data.transfer.protection".to_string(),
+                "authentication".to_string(),
+            );
+        }
+        self
+    }
+
     pub fn build_as_xml(&self) -> String {
         let transformed_config = transform_for_product_config(&self.config);
 
@@ -232,7 +242,7 @@ impl CoreSiteConfigBuilder {
         self
     }
 
-    pub fn hadoop_security_authentication(&mut self, hdfs: &HdfsCluster) -> &mut Self {
+    pub fn kerberos_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
         if hdfs.has_kerberos_enabled() {
             self.config.insert(
                 HADOOP_SECURITY_AUTHENTICATION.to_string(),
