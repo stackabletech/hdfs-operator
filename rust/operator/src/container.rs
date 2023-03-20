@@ -444,7 +444,7 @@ impl ContainerConfig {
         if hdfs.has_https_enabled() {
             args.push(Self::wait_for_trust_and_keystore_command());
         }
-        if hdfs.has_security_enabled() {
+        if hdfs.has_kerberos_enabled() {
             args.push(Self::export_kerberos_real_env_var_command());
         }
         match self {
@@ -485,7 +485,7 @@ impl ContainerConfig {
                 // $NAMENODE_DIR/current/VERSION. Then we don't do anything.
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
-                if hdfs.has_security_enabled() {
+                if hdfs.has_kerberos_enabled() {
                     args.push(Self::get_kerberos_ticket(hdfs, role, object_name)?);
                 }
                 args.push(formatdoc!(
@@ -554,7 +554,7 @@ impl ContainerConfig {
                         container_config,
                     ));
                 }
-                if hdfs.has_security_enabled() {
+                if hdfs.has_kerberos_enabled() {
                     args.push(Self::get_kerberos_ticket(hdfs, role, object_name)?);
                 }
                 args.push(formatdoc!(
@@ -627,7 +627,7 @@ impl ContainerConfig {
     }
 
     fn get_service_state_command(hdfs: &HdfsCluster) -> Result<String, Error> {
-        Ok(if hdfs.has_security_enabled() {
+        Ok(if hdfs.has_kerberos_enabled() {
             formatdoc!(
                 r###"
                 PRINCIPAL=$(echo "nn/${{namenode_id}}.$(echo $namenode_id | grep -o '.*[^-0-9]').{namespace}.svc.cluster.local@${{KERBEROS_REALM}}")
@@ -687,7 +687,7 @@ impl ContainerConfig {
         });
 
         // Not only the main containers need Kerberos
-        if hdfs.has_security_enabled() {
+        if hdfs.has_kerberos_enabled() {
             env.push(EnvVar {
                 name: "KRB5_CONFIG".to_string(),
                 value: Some("/stackable/kerberos/krb5.conf".to_string()),
@@ -927,7 +927,7 @@ impl ContainerConfig {
                         "-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={metrics_port}:/stackable/jmx/{role}.yaml",
                     )];
 
-                if hdfs.has_security_enabled() {
+                if hdfs.has_kerberos_enabled() {
                     jvm_args.push(
                         "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
                     );

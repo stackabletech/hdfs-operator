@@ -42,7 +42,7 @@ pub fn build_discovery_configmap(
         )
         .add_data(
             CORE_SITE_XML,
-            build_discovery_core_site_xml(hdfs.name_any()),
+            build_discovery_core_site_xml(hdfs, hdfs.name_any()),
         )
         .build()
 }
@@ -61,8 +61,9 @@ fn build_discovery_hdfs_site_xml(
         .build_as_xml()
 }
 
-fn build_discovery_core_site_xml(logical_name: String) -> String {
+fn build_discovery_core_site_xml(hdfs: &HdfsCluster, logical_name: String) -> String {
     CoreSiteConfigBuilder::new(logical_name)
         .fs_default_fs()
+        .hadoop_security_authentication(hdfs)
         .build_as_xml()
 }

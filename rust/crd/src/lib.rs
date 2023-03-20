@@ -585,7 +585,7 @@ impl HdfsCluster {
         Ok(result)
     }
 
-    pub fn has_security_enabled(&self) -> bool {
+    pub fn has_kerberos_enabled(&self) -> bool {
         self.kerberos_secret_class().is_some()
     }
 

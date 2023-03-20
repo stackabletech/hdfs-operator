@@ -421,7 +421,7 @@ fn rolegroup_config_map(
                     .add("dfs.ha.automatic-failover.enabled", "true")
                     .add("dfs.ha.namenode.id", "${env.POD_NAME}");
 
-                if hdfs.has_security_enabled() {
+                if hdfs.has_kerberos_enabled() {
                     hdfs_site_xml_builder
                         .add("dfs.block.access.token.enable", "true")
                         .add("dfs.data.transfer.protection", "authentication")
@@ -440,7 +440,7 @@ fn rolegroup_config_map(
 
                 core_site_xml_builder.fs_default_fs().ha_zookeeper_quorum();
 
-                if hdfs.has_security_enabled() {
+                if hdfs.has_kerberos_enabled() {
                     // .add("hadoop.security.authentication", "kerberos")
                     // .add("hadoop.security.authorization","true")
                     // .add("hadoop.registry.kerberos.realm","${env.KERBEROS_REALM}")

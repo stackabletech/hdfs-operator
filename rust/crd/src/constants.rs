@@ -55,6 +55,7 @@ pub const DFS_HA_NAMENODES: &str = "dfs.ha.namenodes";
 // core-site.xml
 pub const FS_DEFAULT_FS: &str = "fs.defaultFS";
 pub const HA_ZOOKEEPER_QUORUM: &str = "ha.zookeeper.quorum";
+pub const HADOOP_SECURITY_AUTHENTICATION: &str = "hadoop.security.authentication";
 
 pub const STACKABLE_ROOT_DATA_DIR: &str = "/stackable/data";
 pub const NAMENODE_ROOT_DATA_DIR: &str = "/stackable/data/namenode";
