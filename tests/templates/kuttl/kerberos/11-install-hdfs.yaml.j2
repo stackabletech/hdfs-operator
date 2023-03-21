@@ -26,21 +26,6 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-              containers:
-                hdfs:
-                  loggers:
-                    ROOT:
-                      level: DEBUG
-                  console:
-                    level: DEBUG
-                  file:
-                    level: DEBUG
-                formatNameNodes:
-                  loggers:
-                    ROOT:
-                      level: DEBUG
-                  console:
-                    level: DEBUG
             resources:
               cpu:
                 max: '1'
@@ -57,15 +42,6 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-              containers:
-                hdfs:
-                  loggers:
-                    ROOT:
-                      level: DEBUG
-                  console:
-                    level: DEBUG
-                  file:
-                    level: DEBUG
             resources:
               cpu:
                 max: '1'
@@ -80,15 +56,6 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-              containers:
-                hdfs:
-                  loggers:
-                    ROOT:
-                      level: DEBUG
-                  console:
-                    level: DEBUG
-                  file:
-                    level: DEBUG
             resources:
               cpu:
                 max: '1'
