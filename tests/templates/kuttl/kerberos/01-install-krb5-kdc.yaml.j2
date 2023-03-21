@@ -137,9 +137,15 @@ kind: Secret
 metadata:
   name: secret-operator-keytab
 data:
+  # To create keytab
+  # # when promted enter password asdf
+  # cat | ktutil << 'EOF'
+  # list
+  # add_entry -password -p stackable-secret-operator@CLUSTER.LOCAL -k 1 -e aes256-cts-hmac-sha384-192
+  # wkt /tmp/keytab
+  # EOF
 {% if test_scenario['values']['kerberos-realm'] == 'CLUSTER.LOCAL' %}
   keytab: BQIAAABdAAEADUNMVVNURVIuTE9DQUwAGXN0YWNrYWJsZS1zZWNyZXQtb3BlcmF0b3IAAAABZAYWIgEAFAAgm8MCZ8B//XF1tH92GciD6/usWUNAmBTZnZQxLua2TkgAAAAB
-{% else %}
-# echo "BQIAAABdAAEADUNMVVNURVIuTE9DQUwAGXN0YWNrYWJsZS1zZWNyZXQtb3BlcmF0b3IAAAABZAYWIgEAFAAgm8MCZ8B//XF1tH92GciD6/usWUNAmBTZnZQxLua2TkgAAAAB" | base64 -d | sed 's/CLUSTER.LOCAL/PROD.MYCORP/' | base64 -w 0
-  keytab: BQIAAABdAAEADVBST0QuTVlDT1JQABlzdGFja2FibGUtc2VjcmV0LW9wZXJhdG9yAAAAAWQGFiIBABQAIJvDAmfAf/1xdbR/dhnIg+v7rFlDQJgU2Z2UMS7mtk5IAAAAAQ==
+{% elif test_scenario['values']['kerberos-realm'] == 'PROD.MYCORP' %}
+  keytab: BQIAAABbAAEAC1BST0QuTVlDT1JQABlzdGFja2FibGUtc2VjcmV0LW9wZXJhdG9yAAAAAWQZa0EBABQAIC/EnFNejq/K5lX6tX+B3/tkI13TCzkPB7d2ggCIEzE8AAAAAQ==
 {% endif %}

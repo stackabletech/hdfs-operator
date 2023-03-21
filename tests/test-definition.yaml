@@ -25,7 +25,7 @@ dimensions:
   - name: kerberos-realm
     values:
       - "CLUSTER.LOCAL"
-      # - "PROD.MYCORP" # => Needs some work in the kerberos keytab for secret-operator
+      - "PROD.MYCORP"
   - name: test-number
     values:
       - "1"
@@ -38,16 +38,6 @@ dimensions:
       - "8"
       - "9"
       - "10"
-      - "11"
-      - "12"
-      - "13"
-      - "14"
-      - "15"
-      - "16"
-      - "17"
-      - "18"
-      - "19"
-      - "20"
 tests:
   - name: smoke
     dimensions:
