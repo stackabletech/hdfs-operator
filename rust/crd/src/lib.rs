@@ -329,7 +329,7 @@ impl HdfsRole {
     }
 
     /// Name of the Hadoop process HADOOP_OPTS.
-    pub fn hadoop_opts(&self) -> &'static str {
+    pub fn hadoop_opts_env_var_for_role(&self) -> &'static str {
         match self {
             HdfsRole::NameNode => "HDFS_NAMENODE_OPTS",
             HdfsRole::DataNode => "HDFS_DATANODE_OPTS",

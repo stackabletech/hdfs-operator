@@ -183,9 +183,9 @@ impl ContainerConfig {
 
         if let Some(https_secret_class) = hdfs.https_secret_class() {
             pb.add_volume(
-                VolumeBuilder::new(https_secret_class)
+                VolumeBuilder::new("tls")
                     .ephemeral(
-                        SecretOperatorVolumeSourceBuilder::new("tls")
+                        SecretOperatorVolumeSourceBuilder::new(https_secret_class)
                             .with_pod_scope()
                             .with_node_scope()
                             .build(),
@@ -670,7 +670,7 @@ impl ContainerConfig {
         // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
         if let ContainerConfig::Hdfs { role, .. } = self {
             env.push(EnvVar {
-                name: role.hadoop_opts().to_string(),
+                name: role.hadoop_opts_env_var_for_role().to_string(),
                 value: self.build_hadoop_opts(hdfs, resources).ok(),
                 ..EnvVar::default()
             });
@@ -680,14 +680,13 @@ impl ContainerConfig {
         // This will not only enable the init containers to work, but also the user to run e.g.
         // `bin/hdfs dfs -ls /` without getting `Caused by: java.lang.IllegalArgumentException: KrbException: Cannot locate default realm`
         // because the `-Djava.security.krb5.conf` setting is missing
-        env.push(EnvVar {
-            name: "HADOOP_OPTS".to_string(),
-            value: Some("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string()),
-            ..EnvVar::default()
-        });
-
-        // Not only the main containers need Kerberos
         if hdfs.has_kerberos_enabled() {
+            env.push(EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string()),
+                ..EnvVar::default()
+            });
+
             env.push(EnvVar {
                 name: "KRB5_CONFIG".to_string(),
                 value: Some("/stackable/kerberos/krb5.conf".to_string()),
@@ -825,7 +824,7 @@ impl ContainerConfig {
             volume_mounts.push(VolumeMountBuilder::new("kerberos", "/stackable/kerberos").build());
         }
         if hdfs.https_secret_class().is_some() {
-            // This volume will be propagated by the CreateTlsCertBundle container
+            // This volume will be propagated by the create-tls-cert-bundle container
             volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
         }
 
