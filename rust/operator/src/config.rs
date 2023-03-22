@@ -3,8 +3,8 @@ use stackable_hdfs_crd::constants::{
     DEFAULT_NAME_NODE_RPC_PORT, DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
     DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTPS_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS,
     DFS_NAMENODE_NAME_DIR, DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR,
-    DFS_NAME_SERVICES, DFS_REPLICATION, FS_DEFAULT_FS, HADOOP_SECURITY_AUTHENTICATION,
-    HA_ZOOKEEPER_QUORUM, JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
+    DFS_NAME_SERVICES, DFS_REPLICATION, FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
+    JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
 };
 use stackable_hdfs_crd::storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef};
@@ -185,16 +185,6 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn kerberos_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
-            self.config.insert(
-                "dfs.data.transfer.protection".to_string(),
-                "authentication".to_string(),
-            );
-        }
-        self
-    }
-
     pub fn build_as_xml(&self) -> String {
         let transformed_config = transform_for_product_config(&self.config);
 
@@ -239,16 +229,6 @@ impl CoreSiteConfigBuilder {
             HA_ZOOKEEPER_QUORUM.to_string(),
             "${env.ZOOKEEPER}".to_string(),
         );
-        self
-    }
-
-    pub fn kerberos_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
-            self.config.insert(
-                HADOOP_SECURITY_AUTHENTICATION.to_string(),
-                "kerberos".to_string(),
-            );
-        }
         self
     }
 
