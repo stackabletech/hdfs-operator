@@ -30,7 +30,7 @@ dimensions:
     values:
       - mit
       # Requires manual setup, see create-kerberos-secretclass.yaml
-      - activeDirectory
+      # - activeDirectory
   - name: test-number
     values:
       - "1"
