@@ -28,7 +28,7 @@ commands:
                   - |
                     set -ex
                     klist -k /stackable/kerberos/keytab
-                    kinit -kt /stackable/kerberos/keytab testuser/access-hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}
+                    kinit -kt /stackable/kerberos/keytab testuser/access-hdfs.$NAMESPACE.svc.cluster.local
                     klist
 
                     bin/hdfs dfs -ls /
