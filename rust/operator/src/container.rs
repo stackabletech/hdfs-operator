@@ -11,6 +11,7 @@
 //!
 use crate::{
     hdfs_controller::KEYSTORE_DIR_NAME,
+    kerberos::create_tls_cert_bundle_init_container_and_volumes,
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
         HDFS_LOG4J_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR,
@@ -182,46 +183,11 @@ impl ContainerConfig {
         }
 
         if let Some(https_secret_class) = hdfs.https_secret_class() {
-            pb.add_volume(
-                VolumeBuilder::new("tls")
-                    .ephemeral(
-                        SecretOperatorVolumeSourceBuilder::new(https_secret_class)
-                            .with_pod_scope()
-                            .with_node_scope()
-                            .build(),
-                    )
-                    .build(),
+            create_tls_cert_bundle_init_container_and_volumes(
+                pb,
+                https_secret_class,
+                resolved_product_image,
             );
-
-            pb.add_volume(
-                VolumeBuilder::new("keystore")
-                    .with_empty_dir(Option::<String>::None, None)
-                    .build(),
-            );
-
-            let create_tls_cert_bundle_init_container =
-                ContainerBuilder::new("create-tls-cert-bundle")
-                    .unwrap()
-                    .image_from_product_image(resolved_product_image)
-                    .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-                    .args(vec![formatdoc!(
-                            r###"
-                            echo "Cleaning up truststore - just in case"
-                            rm -f {KEYSTORE_DIR_NAME}/truststore.p12
-                            echo "Creating truststore"
-                            keytool -importcert -file /stackable/tls/ca.crt -keystore {KEYSTORE_DIR_NAME}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass changeit
-                            echo "Creating certificate chain"
-                            cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {KEYSTORE_DIR_NAME}/chain.crt
-                            echo "Cleaning up keystore - just in case"
-                            rm -f {KEYSTORE_DIR_NAME}/keystore.p12
-                            echo "Creating keystore"
-                            openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"###
-                        )])
-                        // Only this init container needs the actual cert (from tls volume) to create the truststore + keystore from
-                        .add_volume_mount("tls", "/stackable/tls")
-                        .add_volume_mount("keystore", KEYSTORE_DIR_NAME)
-                    .build();
-            pb.add_init_container(create_tls_cert_bundle_init_container);
         }
 
         // role specific pod settings configured here
