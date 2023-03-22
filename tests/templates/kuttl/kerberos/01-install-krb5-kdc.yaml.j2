@@ -1,3 +1,4 @@
+{% if test_scenario['values']['kerberos-backend'] == 'mit' %}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -131,21 +132,4 @@ data:
   kadm5.acl: |
     root/admin *e
     stackable-secret-operator *e
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: secret-operator-keytab
-data:
-  # To create keytab
-  # # when promted enter password asdf
-  # cat | ktutil << 'EOF'
-  # list
-  # add_entry -password -p stackable-secret-operator@CLUSTER.LOCAL -k 1 -e aes256-cts-hmac-sha384-192
-  # wkt /tmp/keytab
-  # EOF
-{% if test_scenario['values']['kerberos-realm'] == 'CLUSTER.LOCAL' %}
-  keytab: BQIAAABdAAEADUNMVVNURVIuTE9DQUwAGXN0YWNrYWJsZS1zZWNyZXQtb3BlcmF0b3IAAAABZAYWIgEAFAAgm8MCZ8B//XF1tH92GciD6/usWUNAmBTZnZQxLua2TkgAAAAB
-{% elif test_scenario['values']['kerberos-realm'] == 'PROD.MYCORP' %}
-  keytab: BQIAAABbAAEAC1BST0QuTVlDT1JQABlzdGFja2FibGUtc2VjcmV0LW9wZXJhdG9yAAAAAWQZa0EBABQAIC/EnFNejq/K5lX6tX+B3/tkI13TCzkPB7d2ggCIEzE8AAAAAQ==
 {% endif %}

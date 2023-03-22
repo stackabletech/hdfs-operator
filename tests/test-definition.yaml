@@ -26,6 +26,11 @@ dimensions:
     values:
       - "CLUSTER.LOCAL"
       - "PROD.MYCORP"
+  - name: kerberos-backend
+    values:
+      - mit
+      # Requires manual setup, see create-kerberos-secretclass.yaml
+      - activeDirectory
   - name: test-number
     values:
       - "1"
@@ -50,6 +55,7 @@ tests:
       - hadoop
       - zookeeper-latest
       - kerberos-realm
+      - kerberos-backend
       - test-number
   - name: orphaned-resources
     dimensions:
