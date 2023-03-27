@@ -11,6 +11,7 @@ impl HdfsSiteConfigBuilder {
             self.add("dfs.block.access.token.enable", "true")
                 .add("dfs.data.transfer.protection", "authentication")
                 .add("dfs.http.policy", "HTTPS_ONLY")
+                .add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true")
                 .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
                 .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML);
         }
@@ -19,7 +20,10 @@ impl HdfsSiteConfigBuilder {
 
     pub fn kerberos_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
         if hdfs.has_kerberos_enabled() {
-            self.add("dfs.data.transfer.protection", "authentication");
+            self.add("dfs.data.transfer.protection", "authentication")
+                // We want e.g. hbase to automatically renew the Kerberos tickets.
+                // This shouldn't harm any other consumer.
+                .add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true");
         }
         self
     }
