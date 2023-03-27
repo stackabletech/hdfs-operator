@@ -27,7 +27,6 @@ use stackable_hdfs_crd::{
     storage::DataNodeStorageConfig,
     DataNodeContainer, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
-use stackable_operator::product_logging::spec::LogLevel;
 use stackable_operator::{
     builder::{ContainerBuilder, PodBuilder, VolumeBuilder, VolumeMountBuilder},
     commons::product_image_selection::ResolvedProductImage,
@@ -46,7 +45,7 @@ use stackable_operator::{
         ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
     },
 };
-use std::{cmp, collections::BTreeMap, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -364,24 +363,10 @@ impl ContainerConfig {
                     merged_config.hdfs_logging(),
                 ));
 
-                // If max(root_log_level, console_log_level) is lower (where TRACE is lowest and
-                // NONE is highest) than INFO (e.g. DEBUG, TRACE), add the `--debug` flag to the
-                // start arguments to get additional console output (this is not collected by vector).
-                // This prints startup scripts debug settings like
-                // DEBUG: HADOOP_CONF_DIR=/stackable/config/namenode
-                args.push(
-                    if use_start_up_script_debug(&merged_config.hdfs_logging()) {
-                        format!(
-                            "{hadoop_home}/bin/hdfs --debug {role}",
-                            hadoop_home = Self::HADOOP_HOME,
-                        )
-                    } else {
-                        format!(
-                            "{hadoop_home}/bin/hdfs {role}",
-                            hadoop_home = Self::HADOOP_HOME,
-                        )
-                    },
-                );
+                args.push(format!(
+                    "{hadoop_home}/bin/hdfs {role}",
+                    hadoop_home = Self::HADOOP_HOME,
+                ));
             }
             ContainerConfig::Zkfc { .. } => {
                 if let Some(container_config) = merged_config.zkfc_logging() {
@@ -885,25 +870,6 @@ impl ContainerConfig {
             }
         }
         volumes
-    }
-}
-
-/// Determine if the Hadoop start up scripts should log additional DEBUG information.
-fn use_start_up_script_debug(log_config: &ContainerLogConfig) -> bool {
-    if let ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    } = log_config
-    {
-        let root_log_level = log_config.root_log_level();
-        let console_log_level = log_config
-            .console
-            .as_ref()
-            .and_then(|console| console.level)
-            .unwrap_or_default();
-
-        cmp::max(root_log_level, console_log_level) < LogLevel::INFO
-    } else {
-        false
     }
 }
 

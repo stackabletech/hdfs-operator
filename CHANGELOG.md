@@ -13,7 +13,10 @@ All notable changes to this project will be documented in this file.
 
 - `operator-rs` `0.36.0` -> `0.37.0` ([#326]).
 - [Breaking] Moved top level config option to `clusterConfig` ([#326]).
-- The `--debug` flag for HDFS container arguments now depends on logging settings ([#332]).
+
+### Removed
+
+- Removed the `--debug` flag for HDFS container start up ([#332]).
 
 [#319]: https://github.com/stackabletech/hdfs-operator/pull/319
 [#326]: https://github.com/stackabletech/hdfs-operator/pull/326
