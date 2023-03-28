@@ -99,6 +99,12 @@ pub struct KerberosConfig {
     /// Name of the SecretClass providing the tls certificates for the WebUIs.
     #[serde(default = "default_kerberos_tls_secret_class")]
     tls_secret_class: String,
+    /// Wether a principal including the Kubernetes node name should be requested.
+    /// The principal could e.g. be `HTTP/my-k8s-worker-0.mycorp.lan`.
+    /// This feature is disabled by default, as the resulting principals can already by existent
+    /// e.g. in Active Directory which can cause problems.
+    #[serde(default)]
+    request_node_principals: bool,
 }
 
 fn default_kerberos_tls_secret_class() -> String {
@@ -587,6 +593,14 @@ impl HdfsCluster {
 
     pub fn has_kerberos_enabled(&self) -> bool {
         self.kerberos_secret_class().is_some()
+    }
+
+    pub fn kerberos_request_node_principals(&self) -> Option<bool> {
+        self.spec
+            .cluster_config
+            .kerberos
+            .as_ref()
+            .map(|k| k.request_node_principals)
     }
 
     pub fn kerberos_secret_class(&self) -> Option<&str> {

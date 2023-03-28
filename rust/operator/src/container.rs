@@ -766,16 +766,19 @@ impl ContainerConfig {
                 // Note that we create the volume here, only for the main container.
                 // However, as other containers need this volume as well, it will be also mounted in other containers.
                 if let Some(kerberos_secret_class) = hdfs.kerberos_secret_class() {
+                    let mut kerberos_secret_operator_volume_builder =
+                        SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class);
+                    kerberos_secret_operator_volume_builder
+                        .with_pod_scope()
+                        .with_kerberos_service_name(role.kerberos_service_name())
+                        .with_kerberos_service_name("HTTP");
+                    if let Some(true) = hdfs.kerberos_request_node_principals() {
+                        kerberos_secret_operator_volume_builder.with_node_scope();
+                    }
+
                     volumes.push(
                         VolumeBuilder::new("kerberos")
-                            .ephemeral(
-                                SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class)
-                                    .with_pod_scope()
-                                    .with_node_scope()
-                                    .with_kerberos_service_name(role.kerberos_service_name())
-                                    .with_kerberos_service_name("HTTP")
-                                    .build(),
-                            )
+                            .ephemeral(kerberos_secret_operator_volume_builder.build())
                             .build(),
                     );
                 }
