@@ -37,7 +37,7 @@ tests:
     dimensions:
       - hadoop
       - zookeeper-latest
-  - name: cluster-operations
+  - name: cluster-operation
     dimensions:
       - hadoop-latest
       - zookeeper-latest
