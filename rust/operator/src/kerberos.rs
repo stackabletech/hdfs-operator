@@ -1,29 +1,47 @@
 use stackable_hdfs_crd::{
     constants::{HADOOP_SECURITY_AUTHENTICATION, SSL_CLIENT_XML, SSL_SERVER_XML},
-    HdfsCluster, HdfsRole,
+    HdfsCluster, HdfsRole, KerberosConfig,
 };
 
 use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
 
 impl HdfsSiteConfigBuilder {
     pub fn kerberos_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
+        if let Some(kerberos_config) = hdfs.kerberos_config() {
             self.add("dfs.block.access.token.enable", "true")
-                .add("dfs.data.transfer.protection", "authentication")
                 .add("dfs.http.policy", "HTTPS_ONLY")
                 .add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true")
                 .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
                 .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML);
+            self.add_wire_encryption_settings(kerberos_config);
         }
         self
     }
 
     pub fn kerberos_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
-            self.add("dfs.data.transfer.protection", "authentication")
-                // We want e.g. hbase to automatically renew the Kerberos tickets.
-                // This shouldn't harm any other consumer.
-                .add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true");
+        if let Some(kerberos_config) = hdfs.kerberos_config() {
+            // We want e.g. hbase to automatically renew the Kerberos tickets.
+            // This shouldn't harm any other consumers.
+            self.add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true");
+            self.add_wire_encryption_settings(kerberos_config);
+        }
+        self
+    }
+
+    fn add_wire_encryption_settings(&mut self, kerberos_config: &KerberosConfig) -> &mut Self {
+        match kerberos_config.wire_encryption {
+            stackable_hdfs_crd::WireEncryption::Authentication => {
+                self.add("dfs.data.transfer.protection", "authentication");
+                self.add("dfs.encrypt.data.transfer", "false");
+            }
+            stackable_hdfs_crd::WireEncryption::Integrity => {
+                self.add("dfs.data.transfer.protection", "integrity");
+                self.add("dfs.encrypt.data.transfer", "false");
+            }
+            stackable_hdfs_crd::WireEncryption::Privacy => {
+                self.add("dfs.data.transfer.protection", "privacy");
+                self.add("dfs.encrypt.data.transfer", "true");
+            }
         }
         self
     }
@@ -37,7 +55,7 @@ impl CoreSiteConfigBuilder {
         hdfs_name: &str,
         hdfs_namespace: &str,
     ) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
+        if let Some(kerberos_config) = hdfs.kerberos_config() {
             self
                 .add("hadoop.security.authentication", "kerberos")
                 .add("hadoop.security.authorization", "true")
@@ -90,13 +108,31 @@ impl CoreSiteConfigBuilder {
                     );
                 }
             }
+
+            self.add_wire_encryption_settings(kerberos_config);
         }
         self
     }
 
     pub fn kerberos_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
+        if let Some(kerberos_config) = hdfs.kerberos_config() {
             self.add(HADOOP_SECURITY_AUTHENTICATION, "kerberos");
+            self.add_wire_encryption_settings(kerberos_config);
+        }
+        self
+    }
+
+    fn add_wire_encryption_settings(&mut self, kerberos_config: &KerberosConfig) -> &mut Self {
+        match kerberos_config.wire_encryption {
+            stackable_hdfs_crd::WireEncryption::Authentication => {
+                self.add("hadoop.rpc.protection", "authentication");
+            }
+            stackable_hdfs_crd::WireEncryption::Integrity => {
+                self.add("hadoop.rpc.protection", "integrity");
+            }
+            stackable_hdfs_crd::WireEncryption::Privacy => {
+                self.add("hadoop.rpc.protection", "privacy");
+            }
         }
         self
     }

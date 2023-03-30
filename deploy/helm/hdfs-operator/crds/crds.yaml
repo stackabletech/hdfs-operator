@@ -50,6 +50,23 @@ spec:
                           default: tls
                           description: Name of the SecretClass providing the tls certificates for the WebUIs.
                           type: string
+                        wireEncryption:
+                          default: Privacy
+                          description: |-
+                            Configures how communication between hdfs nodes as well as between hdfs clients and cluster are secured. Possible values are:
+
+                            Authentication: Establishes mutual authentication between the client and the server. Sets `hadoop.rpc.protection` to `authentication`, `hadoop.data.transfer.protection` to `authentication` and `dfs.encrypt.data.transfer` to `false`.
+
+                            Integrity: In addition to authentication, it guarantees that a man-in-the-middle cannot tamper with messages exchanged between the client and the server. Sets `hadoop.rpc.protection` to `integrity`, `hadoop.data.transfer.protection` to `integrity` and `dfs.encrypt.data.transfer` to `false`.
+
+                            Privacy: In addition to the features offered by authentication and integrity, it also fully encrypts the messages exchanged between the client and the server. Sets `hadoop.rpc.protection` to `privacy`, `hadoop.data.transfer.protection` to `privacy` and `dfs.encrypt.data.transfer` to `true`.
+
+                            Defaults to privacy for best security
+                          enum:
+                            - Authentication
+                            - Integrity
+                            - Privacy
+                          type: string
                       type: object
                     vectorAggregatorConfigMapName:
                       description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.

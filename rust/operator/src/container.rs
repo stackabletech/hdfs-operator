@@ -765,14 +765,16 @@ impl ContainerConfig {
 
                 // Note that we create the volume here, only for the main container.
                 // However, as other containers need this volume as well, it will be also mounted in other containers.
-                if let Some(kerberos_secret_class) = hdfs.kerberos_secret_class() {
+                if let Some(kerberos_config) = hdfs.kerberos_config() {
                     let mut kerberos_secret_operator_volume_builder =
-                        SecretOperatorVolumeSourceBuilder::new(kerberos_secret_class);
+                        SecretOperatorVolumeSourceBuilder::new(
+                            &kerberos_config.kerberos_secret_class,
+                        );
                     kerberos_secret_operator_volume_builder
                         .with_pod_scope()
                         .with_kerberos_service_name(role.kerberos_service_name())
                         .with_kerberos_service_name("HTTP");
-                    if let Some(true) = hdfs.kerberos_request_node_principals() {
+                    if kerberos_config.request_node_principals {
                         kerberos_secret_operator_volume_builder.with_node_scope();
                     }
 
@@ -823,7 +825,7 @@ impl ContainerConfig {
         ];
 
         // Adding this for all containers, as not only the main container needs Kerberos or TLS
-        if hdfs.kerberos_secret_class().is_some() {
+        if hdfs.has_kerberos_enabled() {
             volume_mounts.push(VolumeMountBuilder::new("kerberos", "/stackable/kerberos").build());
         }
         if hdfs.https_secret_class().is_some() {

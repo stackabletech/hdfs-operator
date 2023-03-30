@@ -19,6 +19,7 @@ commands:
           kerberos:
             tlsSecretClass: tls
             kerberosSecretClass: kerberos-$NAMESPACE
+            wireEncryption: {{ test_scenario['values']['wire-encryption'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
           vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
