@@ -2,216 +2,23 @@
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
-  name: hdfs-test
+  name: simple-hdfs
 spec:
   image:
     productVersion: 3.3.4
-    stackableVersion: 23.4.0-rc3
+    stackableVersion: 0.3.0
   clusterConfig:
     zookeeperConfigMapName: simple-hdfs-znode
     dfsReplication: 1
-    # TODO discuss CRD structure and present in Arch meeting
-    kerberos:
-      tlsSecretClass: tls
-      kerberosSecretClass: kerberos
   nameNodes:
     roleGroups:
       default:
         replicas: 2
-    config:
-      logging:
-        containers:
-          hdfs:
-            loggers:
-              ROOT:
-                level: DEBUG
-            console:
-              level: DEBUG
-          formatNameNodes:
-            loggers:
-              ROOT:
-                level: DEBUG
-            console:
-              level: DEBUG
   dataNodes:
     roleGroups:
       default:
-        replicas: 2
-    config:
-      logging:
-        containers:
-          hdfs:
-            loggers:
-              ROOT:
-                level: DEBUG
-            console:
-              level: DEBUG
+        replicas: 1
   journalNodes:
     roleGroups:
       default:
-        replicas: 3
-    config:
-      logging:
-        containers:
-          hdfs:
-            loggers:
-              ROOT:
-                level: DEBUG
-            console:
-              level: DEBUG
----
-apiVersion: secrets.stackable.tech/v1alpha1
-kind: SecretClass
-metadata:
-  name: kerberos
-spec:
-  backend:
-    kerberosKeytab:
-      realmName: CLUSTER.LOCAL
-      kdc: krb5-kdc.test.svc.cluster.local
-      adminServer: krb5-kdc.test.svc.cluster.local
-      adminKeytabSecret:
-        namespace: default
-        name: secret-operator-keytab
-      adminPrincipal: stackable-secret-operator
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: krb5-kdc
-spec:
-  selector:
-    matchLabels:
-      app: krb5-kdc
-  template:
-    metadata:
-      labels:
-        app: krb5-kdc
-    spec:
-      initContainers:
-        - name: init
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
-          args:
-            - sh
-            - -euo
-            - pipefail
-            - -c
-            - |
-              test -e /var/kerberos/krb5kdc/principal || kdb5_util create -s -P asdf
-              kadmin.local get_principal -terse root/admin || kadmin.local add_principal -pw asdf root/admin
-              # stackable-secret-operator principal must match the keytab specified in the SecretClass
-              kadmin.local get_principal -terse stackable-secret-operator || kadmin.local add_principal -e aes256-cts-hmac-sha384-192:normal -pw asdf stackable-secret-operator
-          env:
-            - name: KRB5_CONFIG
-              value: /stackable/config/krb5.conf
-          volumeMounts:
-            - mountPath: /stackable/config
-              name: config
-            - mountPath: /var/kerberos/krb5kdc
-              name: data
-      containers:
-        - name: kdc
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
-          args:
-            - krb5kdc
-            - -n
-          env:
-            - name: KRB5_CONFIG
-              value: /stackable/config/krb5.conf
-          volumeMounts:
-            - mountPath: /stackable/config
-              name: config
-            - mountPath: /var/kerberos/krb5kdc
-              name: data
-        - name: kadmind
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
-          args:
-            - kadmind
-            - -nofork
-          env:
-            - name: KRB5_CONFIG
-              value: /stackable/config/krb5.conf
-          volumeMounts:
-            - mountPath: /stackable/config
-              name: config
-            - mountPath: /var/kerberos/krb5kdc
-              name: data
-        - name: client
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
-          tty: true
-          stdin: true
-          env:
-            - name: KRB5_CONFIG
-              value: /stackable/config/krb5.conf
-          volumeMounts:
-            - mountPath: /stackable/config
-              name: config
-      volumes:
-        - name: config
-          configMap:
-            name: krb5-kdc
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 1Gi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: krb5-kdc
-spec:
-  selector:
-    app: krb5-kdc
-  ports:
-    - name: kadmin
-      port: 749
-    - name: kdc
-      port: 88
-    - name: kdc-udp
-      port: 88
-      protocol: UDP
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: krb5-kdc
-data:
-  krb5.conf: |
-    [logging]
-    default = STDERR
-    kdc = STDERR
-    admin_server = STDERR
-    # default = FILE:/var/log/krb5libs.log
-    # kdc = FILE:/var/log/krb5kdc.log
-    # admin_server = FILE:/vaggr/log/kadmind.log
-    [libdefaults]
-    dns_lookup_realm = false
-    ticket_lifetime = 24h
-    renew_lifetime = 7d
-    forwardable = true
-    rdns = false
-    default_realm = CLUSTER.LOCAL
-    spake_preauth_groups = edwards25519
-    [realms]
-    CLUSTER.LOCAL = {
-     acl_file = /stackable/config/kadm5.acl
-     disable_encrypted_timestamp = false
-    }
-    [domain_realm]
-    .cluster.local = CLUSTER.LOCAL
-    cluster.local = CLUSTER.LOCAL
-  kadm5.acl: |
-    root/admin *e
-    stackable-secret-operator *e
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: secret-operator-keytab
-data:
-  keytab: BQIAAABdAAEADUNMVVNURVIuTE9DQUwAGXN0YWNrYWJsZS1zZWNyZXQtb3BlcmF0b3IAAAABZAYWIgEAFAAgm8MCZ8B//XF1tH92GciD6/usWUNAmBTZnZQxLua2TkgAAAAB
+        replicas: 1
