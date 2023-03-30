@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Deploy default and support custom affinities ([#319]).
 - Added OLM bundle files ([#328]).
-- Extend cluster resources for status and cluster operation (paused, stopped) ([#xxx])
+- Extend cluster resources for status and cluster operation (paused, stopped) ([#337])
 
 ### Changed
 
@@ -23,7 +23,7 @@ All notable changes to this project will be documented in this file.
 [#326]: https://github.com/stackabletech/hdfs-operator/pull/326
 [#328]: https://github.com/stackabletech/hdfs-operator/pull/328
 [#332]: https://github.com/stackabletech/hdfs-operator/pull/332
-[#xxx]: https://github.com/stackabletech/hdfs-operator/pull/xxx
+[#337]: https://github.com/stackabletech/hdfs-operator/pull/337
 
 ## [23.1.0] - 2023-01-23
 
