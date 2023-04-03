@@ -13,7 +13,7 @@ use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, Merged
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
-    cluster_resources::ClusterResources,
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::{
@@ -187,6 +187,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         OPERATOR_NAME,
         RESOURCE_MANAGER_HDFS_CONTROLLER,
         &hdfs.object_ref(&()),
+        ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -280,23 +281,26 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
             )?;
 
+            let rg_service_name = rg_service.name_any();
             cluster_resources
-                .add(client, &rg_service)
+                .add(client, rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_service.metadata.name.clone().unwrap_or_default(),
+                    name: rg_service_name,
                 })?;
+            let rg_configmap_name = rg_configmap.name_any();
             cluster_resources
-                .add(client, &rg_configmap)
+                .add(client, rg_configmap.clone())
                 .await
                 .with_context(|_| ApplyRoleGroupConfigMapSnafu {
-                    name: rg_configmap.metadata.name.clone().unwrap_or_default(),
+                    name: rg_configmap_name,
                 })?;
+            let rg_statefulset_name = rg_statefulset.name_any();
             cluster_resources
-                .add(client, &rg_statefulset)
+                .add(client, rg_statefulset.clone())
                 .await
                 .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                    name: rg_statefulset.metadata.name.clone().unwrap_or_default(),
+                    name: rg_statefulset_name,
                 })?;
         }
     }
