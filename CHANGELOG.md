@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.36.0` -> `0.37.0` ([#326]).
+- `operator-rs` `0.36.0` -> `0.39.0` ([#326], [#337]).
 - [Breaking] Moved top level config option to `clusterConfig` ([#326]).
 
 ### Removed
