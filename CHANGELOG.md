@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Deploy default and support custom affinities ([#319]).
 - Added OLM bundle files ([#328]).
-- Extend cluster resources for status and cluster operation (paused, stopped) ([#337])
+- Extend cluster resources for status and cluster operation (paused, stopped) ([#337]).
 
 ### Changed
 
