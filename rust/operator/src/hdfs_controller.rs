@@ -281,23 +281,26 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
             )?;
 
+            let rg_service_name = rg_service.name_any();
             cluster_resources
-                .add(client, rg_service.clone())
+                .add(client, rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_service.metadata.name.clone().unwrap_or_default(),
+                    name: rg_service_name,
                 })?;
+            let rg_configmap_name = rg_configmap.name_any();
             cluster_resources
                 .add(client, rg_configmap.clone())
                 .await
                 .with_context(|_| ApplyRoleGroupConfigMapSnafu {
-                    name: rg_configmap.metadata.name.clone().unwrap_or_default(),
+                    name: rg_configmap_name,
                 })?;
+            let rg_statefulset_name = rg_statefulset.name_any();
             cluster_resources
                 .add(client, rg_statefulset.clone())
                 .await
                 .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                    name: rg_statefulset.metadata.name.clone().unwrap_or_default(),
+                    name: rg_statefulset_name,
                 })?;
         }
     }
