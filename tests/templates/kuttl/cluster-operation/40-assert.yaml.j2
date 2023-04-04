@@ -1,7 +1,7 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 600
+timeout: 300
 commands:
   - script: kubectl -n $NAMESPACE wait --for=condition=reconciliationPaused hdfsclusters.hdfs.stackable.tech/hdfs --timeout 301s
 ---
