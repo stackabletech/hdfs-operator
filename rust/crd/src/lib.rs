@@ -30,6 +30,7 @@ use stackable_operator::{
     product_logging::spec::{ContainerLogConfig, Logging},
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
+    status::condition::{ClusterCondition, HasStatusCondition},
 };
 use std::collections::{BTreeMap, HashMap};
 use storage::{
@@ -57,6 +58,7 @@ pub enum Error {
     kind = "HdfsCluster",
     plural = "hdfsclusters",
     shortname = "hdfs",
+    status = "HdfsClusterStatus",
     namespaced,
     crates(
         kube_core = "stackable_operator::kube::core",
@@ -1058,6 +1060,21 @@ impl Configuration for JournalNodeConfigFragment {
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
+    }
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HdfsClusterStatus {
+    pub conditions: Vec<ClusterCondition>,
+}
+
+impl HasStatusCondition for HdfsCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
     }
 }
 
