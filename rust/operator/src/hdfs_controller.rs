@@ -9,7 +9,9 @@ use crate::{
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
+use stackable_hdfs_crd::{
+    constants::*, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, MergedConfig,
+};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
@@ -32,6 +34,10 @@ use stackable_operator::{
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::RoleGroupRef,
+    status::condition::{
+        compute_conditions, operations::ClusterOperationsConditionBuilder,
+        statefulset::StatefulSetConditionBuilder,
+    },
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -135,6 +141,10 @@ pub enum Error {
     FailedToCreateClusterEvent { source: crate::event::Error },
     #[snafu(display("failed to create container and volume configuration"))]
     FailedToCreateContainerAndVolumeConfiguration { source: crate::container::Error },
+    #[snafu(display("failed to update status"))]
+    ApplyStatus {
+        source: stackable_operator::error::Error,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -230,6 +240,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         })?;
 
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {
@@ -296,19 +307,35 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     name: rg_configmap_name,
                 })?;
             let rg_statefulset_name = rg_statefulset.name_any();
-            cluster_resources
-                .add(client, rg_statefulset.clone())
-                .await
-                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                    name: rg_statefulset_name,
-                })?;
+            ss_cond_builder.add(
+                cluster_resources
+                    .add(client, rg_statefulset.clone())
+                    .await
+                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                        name: rg_statefulset_name,
+                    })?,
+            );
         }
     }
+
+    let cluster_operation_cond_builder =
+        ClusterOperationsConditionBuilder::new(&hdfs.spec.cluster_operation);
+
+    let status = HdfsClusterStatus {
+        conditions: compute_conditions(
+            hdfs.as_ref(),
+            &[&ss_cond_builder, &cluster_operation_cond_builder],
+        ),
+    };
 
     cluster_resources
         .delete_orphaned_resources(client)
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
+    client
+        .apply_patch_status(OPERATOR_NAME, &*hdfs, &status)
+        .await
+        .context(ApplyStatusSnafu)?;
 
     Ok(Action::await_change())
 }
