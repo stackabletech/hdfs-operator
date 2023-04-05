@@ -16,6 +16,7 @@ spec:
   clusterConfig:
     dfsReplication: 1
     zookeeperConfigMapName: hdfs-zk
+    listenerClass: {{ test_scenario['values']['listener-class'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
