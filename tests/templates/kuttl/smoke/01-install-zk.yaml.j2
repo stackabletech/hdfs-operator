@@ -7,8 +7,9 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['zookeeper'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['zookeeper'].split('-stackable')[1] }}"
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
   clusterConfig:
+    listenerClass: {{ test_scenario['values']['listener-class'] }}
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
     logging:
       vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

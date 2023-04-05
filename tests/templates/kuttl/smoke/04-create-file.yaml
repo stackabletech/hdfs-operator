@@ -4,4 +4,4 @@ kind: TestStep
 commands:
   - script: kubectl cp -n $NAMESPACE ./webhdfs.py  webhdfs-0:/tmp
   - script: kubectl cp -n $NAMESPACE ./testdata.txt webhdfs-0:/tmp
-  - script: kubectl exec -n $NAMESPACE webhdfs-0 -- python /tmp/webhdfs.py create
+  - script: kubectl exec -n $NAMESPACE webhdfs-0 -- python /tmp/webhdfs.py $NAMESPACE create

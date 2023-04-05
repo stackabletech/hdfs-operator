@@ -22,6 +22,11 @@ dimensions:
     values:
       - "default"
       - "2hdd-1ssd"
+  # Used for both, zookeeper and hdfs
+  - name: listener-class
+    values:
+      - "cluster-internal"
+      - "external-unstable"
 tests:
   - name: smoke
     dimensions:
@@ -29,6 +34,7 @@ tests:
       - zookeeper
       - number-of-datanodes
       - datanode-pvcs
+      - listener-class
   - name: orphaned-resources
     dimensions:
       - hadoop-latest

@@ -13,8 +13,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.36.0` -> `0.39.0` ([#326], [#337]).
 - [Breaking] Moved top level config option to `clusterConfig` ([#326]).
+- [BREAKING] Support specifying Service type.
+  This enables us to later switch non-breaking to using `ListenerClasses` for the exposure of Services.
+  This change is breaking, because - for security reasons - we default to the `cluster-internal` `ListenerClass`.
+  If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
+  to `external-unstable` ([#340]).
+  - `operator-rs` `0.36.0` -> `0.39.0` ([#326], [#337]).
 
 ### Removed
 
@@ -26,6 +31,8 @@ All notable changes to this project will be documented in this file.
 [#332]: https://github.com/stackabletech/hdfs-operator/pull/332
 [#337]: https://github.com/stackabletech/hdfs-operator/pull/337
 [#339]: https://github.com/stackabletech/hdfs-operator/pull/339
+[#340]: https://github.com/stackabletech/hdfs-operator/pull/340
+
 
 ## [23.1.0] - 2023-01-23
 

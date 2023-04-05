@@ -5,7 +5,8 @@ import logging
 
 def main() -> int:
     result = 0
-    command = sys.argv[1]
+    namespace = sys.argv[1]
+    command = sys.argv[2]
 
     log_level = "DEBUG"
     logging.basicConfig(
@@ -16,7 +17,7 @@ def main() -> int:
 
     if command == "ls":
         http_code = requests.get(
-            "http://hdfs-namenode-default-0:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=LISTSTATUS"
+            f"http://hdfs-namenode-default-0.hdfs-namenode-default.{namespace}.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=LISTSTATUS"
         ).status_code
         if http_code != 200:
             result = 1
@@ -30,7 +31,7 @@ def main() -> int:
             )
         }
         http_code = requests.put(
-            "http://hdfs-namenode-default-0:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE",
+            f"http://hdfs-namenode-default-0.hdfs-namenode-default.{namespace}.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE",
             files=files,
             allow_redirects=True,
         ).status_code
