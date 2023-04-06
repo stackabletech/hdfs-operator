@@ -21,6 +21,11 @@ All notable changes to this project will be documented in this file.
   to `external-unstable` ([#340]).
   - `operator-rs` `0.36.0` -> `0.39.0` ([#326], [#337]).
 
+### Fixed
+
+- Avoid empty log events dated to 1970-01-01 and improve the precision of the
+  log event timestamps ([#341]).
+
 ### Removed
 
 - Removed the `--debug` flag for HDFS container start up ([#332]).
@@ -32,6 +37,7 @@ All notable changes to this project will be documented in this file.
 [#337]: https://github.com/stackabletech/hdfs-operator/pull/337
 [#339]: https://github.com/stackabletech/hdfs-operator/pull/339
 [#340]: https://github.com/stackabletech/hdfs-operator/pull/340
+[#341]: https://github.com/stackabletech/hdfs-operator/pull/341
 
 
 ## [23.1.0] - 2023-01-23
