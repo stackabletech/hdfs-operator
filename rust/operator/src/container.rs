@@ -646,7 +646,7 @@ impl ContainerConfig {
                         .iter()
                         .flatten()
                     {
-                        let pvc_name = pvc.name_unchecked();
+                        let pvc_name = pvc.name_any();
                         volume_mounts.push(VolumeMount {
                             mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
                             name: pvc_name,
