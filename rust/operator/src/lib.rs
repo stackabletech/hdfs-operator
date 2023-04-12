@@ -5,7 +5,6 @@ mod event;
 mod hdfs_controller;
 mod pod_svc_controller;
 mod product_logging;
-mod rbac;
 
 use std::sync::Arc;
 
