@@ -92,9 +92,9 @@ done
 
 echo "Awaiting HDFS rollout finish"
 # tag::watch-hdfs-rollout[]
-kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-datanode-default
-kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-namenode-default
-kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-journalnode-default
+kubectl rollout status --watch --timeout=10m statefulset/simple-hdfs-datanode-default
+kubectl rollout status --watch --timeout=10m statefulset/simple-hdfs-namenode-default
+kubectl rollout status --watch --timeout=10m statefulset/simple-hdfs-journalnode-default
 # end::watch-hdfs-rollout[]
 
 echo "Creating Helper"
