@@ -9,6 +9,7 @@ spec:
     stackableVersion: 0.0.0-dev
   clusterConfig:
     zookeeperConfigMapName: simple-hdfs-znode
+    listenerClass: external-unstable
     dfsReplication: 1
   nameNodes:
     roleGroups:
