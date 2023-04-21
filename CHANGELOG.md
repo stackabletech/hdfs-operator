@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Operator-rs: `0.40.2` -> `0.41.0` ([#349]).
+
+[#349]: https://github.com/stackabletech/hdfs-operator/pull/349
+
 ## [23.4.0] - 2023-04-17
 
 ### Added
