@@ -22,13 +22,16 @@ use stackable_hdfs_crd::{
         CORE_SITE_XML, DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
         DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, HDFS_SITE_XML,
         LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
-        STACKABLE_ROOT_DATA_DIR,
+        STACKABLE_LISTENER_DIR, STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
     DataNodeContainer, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
 use stackable_operator::{
-    builder::{ContainerBuilder, PodBuilder, VolumeBuilder, VolumeMountBuilder},
+    builder::{
+        ContainerBuilder, ListenerOperatorVolumeSourceBuilder, ListenerReference, PodBuilder,
+        VolumeBuilder, VolumeMountBuilder,
+    },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::core::v1::{
@@ -585,6 +588,19 @@ impl ContainerConfig {
                         .build(),
                 );
 
+                volumes.push(
+                    VolumeBuilder::new("listener")
+                        .ephemeral(
+                            ListenerOperatorVolumeSourceBuilder::new(
+                                &ListenerReference::ListenerClass(
+                                    "nodeport".into(), // TODO read from spec.clusterConfig.listenerClass
+                                ),
+                            )
+                            .build(),
+                        )
+                        .build(),
+                );
+
                 Some(merged_config.hdfs_logging())
             }
             ContainerConfig::Zkfc { .. } => merged_config.zkfc_logging(),
@@ -611,6 +627,7 @@ impl ContainerConfig {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
                 .build(),
+            VolumeMountBuilder::new("listener", STACKABLE_LISTENER_DIR).build(),
             VolumeMountBuilder::new(
                 self.volume_mount_dirs().config_mount_name(),
                 self.volume_mount_dirs().config_mount(),

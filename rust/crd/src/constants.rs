@@ -57,3 +57,5 @@ pub const JOURNALNODE_ROOT_DATA_DIR: &str = "/stackable/data/journalnode";
 // ending up with a location of `/stackable/hadoop/data`
 pub const DATANODE_ROOT_DATA_DIR_PREFIX: &str = "/stackable/data/";
 pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/datanode";
+
+pub const STACKABLE_LISTENER_DIR: &str = "/stackable/listener";
