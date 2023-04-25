@@ -469,15 +469,6 @@ impl HdfsCluster {
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
 
-        if self.spec.cluster_config.listener_class
-            == CurrentlySupportedListenerClasses::ExternalUnstable
-        {
-            // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
-            // useful for development purposes.
-
-            group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
-        }
-
         group_labels
     }
 

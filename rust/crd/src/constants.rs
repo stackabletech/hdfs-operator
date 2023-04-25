@@ -7,9 +7,6 @@ pub const FIELD_MANAGER_SCOPE_POD: &str = "pod-service";
 
 pub const APP_NAME: &str = "hdfs";
 
-pub const LABEL_ENABLE: &str = "hdfs.stackable.tech/pod-service";
-pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";
-
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const LOG4J_PROPERTIES: &str = "log4j.properties";
