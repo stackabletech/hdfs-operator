@@ -4,15 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Operator-rs: `0.40.2` -> `0.41.0` ([#349]).
+- Use 0.0.0-dev product images for testing ([#351])
+- Use testing-tools 0.2.0 ([#351])
+
+[#349]: https://github.com/stackabletech/hdfs-operator/pull/349
+[#351]: https://github.com/stackabletech/hdfs-operator/pull/351
+
+## [23.4.0] - 2023-04-17
+
 ### Added
 
 - Deploy default and support custom affinities ([#319]).
 - Added OLM bundle files ([#328]).
+- Extend cluster resources for status and cluster operation (paused, stopped) ([#337]).
+- Cluster status conditions ([#339]).
 
 ### Changed
 
-- `operator-rs` `0.36.0` -> `0.37.0` ([#326]).
 - [Breaking] Moved top level config option to `clusterConfig` ([#326]).
+- [BREAKING] Support specifying Service type.
+  This enables us to later switch non-breaking to using `ListenerClasses` for the exposure of Services.
+  This change is breaking, because - for security reasons - we default to the `cluster-internal` `ListenerClass`.
+  If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
+  to `external-unstable` ([#340]).
+- `operator-rs` `0.36.0` -> `0.40.2` ([#326], [#337], [#341], [#342]).
+- Use `build_rbac_resources` from operator-rs ([#342]).
+
+### Fixed
+
+- Avoid empty log events dated to 1970-01-01 and improve the precision of the
+  log event timestamps ([#341]).
 
 ### Removed
 
@@ -22,6 +46,12 @@ All notable changes to this project will be documented in this file.
 [#326]: https://github.com/stackabletech/hdfs-operator/pull/326
 [#328]: https://github.com/stackabletech/hdfs-operator/pull/328
 [#332]: https://github.com/stackabletech/hdfs-operator/pull/332
+[#337]: https://github.com/stackabletech/hdfs-operator/pull/337
+[#339]: https://github.com/stackabletech/hdfs-operator/pull/339
+[#340]: https://github.com/stackabletech/hdfs-operator/pull/340
+[#341]: https://github.com/stackabletech/hdfs-operator/pull/341
+[#342]: https://github.com/stackabletech/hdfs-operator/pull/342
+
 
 ## [23.1.0] - 2023-01-23
 

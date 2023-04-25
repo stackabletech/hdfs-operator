@@ -5,16 +5,21 @@ use crate::{
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
-    rbac, OPERATOR_NAME,
+    OPERATOR_NAME,
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::*, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig};
+use stackable_hdfs_crd::{
+    constants::*, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, MergedConfig,
+};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
     client::Client,
-    cluster_resources::ClusterResources,
-    commons::product_image_selection::ResolvedProductImage,
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    commons::{
+        product_image_selection::ResolvedProductImage,
+        rbac::{build_rbac_resources, service_account_name},
+    },
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -32,6 +37,10 @@ use stackable_operator::{
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::RoleGroupRef,
+    status::condition::{
+        compute_conditions, operations::ClusterOperationsConditionBuilder,
+        statefulset::StatefulSetConditionBuilder,
+    },
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -105,12 +114,10 @@ pub enum Error {
     #[snafu(display("Failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
-        name: String,
     },
     #[snafu(display("Failed to patch role binding"))]
     ApplyRoleBinding {
         source: stackable_operator::error::Error,
-        name: String,
     },
     #[snafu(display("Failed to create cluster resources"))]
     CreateClusterResources {
@@ -139,6 +146,14 @@ pub enum Error {
     FailedToCreateClusterEvent { source: crate::event::Error },
     #[snafu(display("failed to create container and volume configuration"))]
     FailedToCreateContainerAndVolumeConfiguration { source: crate::container::Error },
+    #[snafu(display("failed to update status"))]
+    ApplyStatus {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to build RBAC resources"))]
+    BuildRbacResources {
+        source: stackable_operator::error::Error,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -191,6 +206,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         OPERATOR_NAME,
         RESOURCE_MANAGER_HDFS_CONTROLLER,
         &hdfs.object_ref(&()),
+        ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -211,28 +227,25 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             name: discovery_cm.metadata.name.clone().unwrap_or_default(),
         })?;
 
-    // The service account and rolebinding will be created per cluster and
-    // deleted if the cluster is removed.
-    // Therefore no cluster / orphaned resources have to be handled here.
-    let (rbac_sa, rbac_rolebinding) = rbac::build_rbac_resources(hdfs.as_ref(), "hdfs-clusterrole")
-        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-            obj_ref: ObjectRef::from_obj(&*hdfs),
-        })?;
+    // The service account and rolebinding will be created per cluster
+    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
+        hdfs.as_ref(),
+        APP_NAME,
+        cluster_resources.get_required_labels(),
+    )
+    .context(BuildRbacResourcesSnafu)?;
 
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_sa, &rbac_sa)
+    cluster_resources
+        .add(client, rbac_sa)
         .await
-        .with_context(|_| ApplyServiceAccountSnafu {
-            name: rbac_sa.name_any(),
-        })?;
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &rbac_rolebinding, &rbac_rolebinding)
+        .context(ApplyServiceAccountSnafu)?;
+    cluster_resources
+        .add(client, rbac_rolebinding)
         .await
-        .with_context(|_| ApplyRoleBindingSnafu {
-            name: rbac_rolebinding.name_any(),
-        })?;
+        .context(ApplyRoleBindingSnafu)?;
 
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     for (role_name, group_config) in validated_config.iter() {
         let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {
@@ -281,35 +294,53 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &resolved_product_image,
                 env_overrides,
                 merged_config.as_ref(),
-                &rbac_sa.name_any(),
                 &namenode_podrefs,
             )?;
 
+            let rg_service_name = rg_service.name_any();
             cluster_resources
-                .add(client, &rg_service)
+                .add(client, rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_service.metadata.name.clone().unwrap_or_default(),
+                    name: rg_service_name,
                 })?;
+            let rg_configmap_name = rg_configmap.name_any();
             cluster_resources
-                .add(client, &rg_configmap)
+                .add(client, rg_configmap.clone())
                 .await
                 .with_context(|_| ApplyRoleGroupConfigMapSnafu {
-                    name: rg_configmap.metadata.name.clone().unwrap_or_default(),
+                    name: rg_configmap_name,
                 })?;
-            cluster_resources
-                .add(client, &rg_statefulset)
-                .await
-                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                    name: rg_statefulset.metadata.name.clone().unwrap_or_default(),
-                })?;
+            let rg_statefulset_name = rg_statefulset.name_any();
+            ss_cond_builder.add(
+                cluster_resources
+                    .add(client, rg_statefulset.clone())
+                    .await
+                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                        name: rg_statefulset_name,
+                    })?,
+            );
         }
     }
+
+    let cluster_operation_cond_builder =
+        ClusterOperationsConditionBuilder::new(&hdfs.spec.cluster_operation);
+
+    let status = HdfsClusterStatus {
+        conditions: compute_conditions(
+            hdfs.as_ref(),
+            &[&ss_cond_builder, &cluster_operation_cond_builder],
+        ),
+    };
 
     cluster_resources
         .delete_orphaned_resources(client)
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
+    client
+        .apply_patch_status(OPERATOR_NAME, &*hdfs, &status)
+        .await
+        .context(ApplyStatusSnafu)?;
 
     Ok(Action::await_change())
 }
@@ -339,6 +370,8 @@ fn rolegroup_service(
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
+            // Internal communication does not need to be exposed
+            type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(
                 hdfs.ports(role)
@@ -546,7 +579,6 @@ fn rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     env_overrides: Option<&BTreeMap<String, String>>,
     merged_config: &(dyn MergedConfig + Send + 'static),
-    rbac_sa: &str,
     namenode_podrefs: &[HdfsPodRef],
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
@@ -560,7 +592,7 @@ fn rolegroup_statefulset(
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
     .affinity(merged_config.affinity())
-    .service_account_name(rbac_sa)
+    .service_account_name(service_account_name(APP_NAME))
     .security_context(
         PodSecurityContextBuilder::new()
             .run_as_user(1000)

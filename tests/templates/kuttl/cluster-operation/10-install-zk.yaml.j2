@@ -5,11 +5,10 @@ metadata:
   name: hdfs-zk
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['zookeeper'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['zookeeper'].split('-stackable')[1] }}"
-  clusterConfig:
-    listenerClass: {{ test_scenario['values']['listener-class'] }}
+    productVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[1] }}"
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  clusterConfig:
     logging:
       vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -17,12 +16,6 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-      resources:
-        cpu:
-          min: '300m'
-          max: '600m'
-        memory:
-          limit: '512Mi'
     roleGroups:
       default:
         replicas: 1

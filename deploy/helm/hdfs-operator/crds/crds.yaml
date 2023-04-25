@@ -68,6 +68,18 @@ spec:
                             - Privacy
                           type: string
                       type: object
+                    listenerClass:
+                      default: cluster-internal
+                      description: |-
+                        In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service. Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services by looking at the ListenerClass name specified, In a future release support for custom ListenerClasses will be introduced without a breaking change:
+
+                        * cluster-internal: Use a ClusterIP service
+
+                        * external-unstable: Use a NodePort service
+                      enum:
+                        - cluster-internal
+                        - external-unstable
+                      type: string
                     vectorAggregatorConfigMapName:
                       description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.
                       nullable: true
@@ -77,6 +89,21 @@ spec:
                       type: string
                   required:
                     - zookeeperConfigMapName
+                  type: object
+                clusterOperation:
+                  default:
+                    stopped: false
+                    reconciliationPaused: false
+                  description: Cluster operations like pause reconciliation or cluster stop.
+                  properties:
+                    reconciliationPaused:
+                      default: false
+                      description: Flag to stop cluster reconciliation by the operator. This means that all changes in the custom resource spec are ignored until this flag is set to false or removed. The operator will however still watch the deployed resources at the time and update the custom resource status field. If applied at the same time with `stopped`, `reconciliationPaused` will take precedence over `stopped` and stop the reconciliation immediately.
+                      type: boolean
+                    stopped:
+                      default: false
+                      description: Flag to stop the cluster. This means all deployed resources (e.g. Services, StatefulSets, ConfigMaps) are kept but all deployed Pods (e.g. replicas from a StatefulSet) are scaled to 0 and therefore stopped and removed. If applied at the same time with `reconciliationPaused`, the latter will pause reconciliation and `stopped` will take no effect until `reconciliationPaused` is set to false or removed.
+                      type: boolean
                   type: object
                 dataNodes:
                   nullable: true
@@ -4231,10 +4258,59 @@ spec:
                 - clusterConfig
                 - image
               type: object
+            status:
+              nullable: true
+              properties:
+                conditions:
+                  items:
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned from one status to another.
+                        format: date-time
+                        nullable: true
+                        type: string
+                      lastUpdateTime:
+                        description: The last time this condition was updated.
+                        format: date-time
+                        nullable: true
+                        type: string
+                      message:
+                        description: A human readable message indicating details about the transition.
+                        nullable: true
+                        type: string
+                      reason:
+                        description: The reason for the condition's last transition.
+                        nullable: true
+                        type: string
+                      status:
+                        description: Status of the condition, one of True, False, Unknown.
+                        enum:
+                          - 'True'
+                          - 'False'
+                          - Unknown
+                        type: string
+                      type:
+                        description: Type of deployment condition.
+                        enum:
+                          - Available
+                          - Degraded
+                          - Progressing
+                          - ReconciliationPaused
+                          - Stopped
+                        type: string
+                    required:
+                      - status
+                      - type
+                    type: object
+                  type: array
+              required:
+                - conditions
+              type: object
           required:
             - spec
           title: HdfsCluster
           type: object
       served: true
       storage: true
-      subresources: {}
+      subresources:
+        status: {}

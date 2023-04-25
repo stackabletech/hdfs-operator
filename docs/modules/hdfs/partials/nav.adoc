@@ -11,3 +11,4 @@
 ** xref:hdfs:usage-guide/scaling.adoc[]
 ** xref:hdfs:usage-guide/configuration-environment-overrides.adoc[]
 ** xref:hdfs:usage-guide/pod_placement.adoc[]
+** xref:hdfs:usage-guide/cluster_operations.adoc[]

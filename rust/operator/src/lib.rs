@@ -6,23 +6,22 @@ mod hdfs_controller;
 mod kerberos;
 mod pod_svc_controller;
 mod product_logging;
-mod rbac;
-
-use std::sync::Arc;
 
 use futures::StreamExt;
-use stackable_hdfs_crd::constants::*;
-use stackable_hdfs_crd::HdfsCluster;
-use stackable_operator::client::Client;
-use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
-use stackable_operator::k8s_openapi::api::core::v1::Pod;
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
-use stackable_operator::kube::api::ListParams;
-use stackable_operator::kube::runtime::Controller;
-use stackable_operator::labels::ObjectLabels;
-use stackable_operator::logging::controller::report_controller_reconciled;
-use stackable_operator::namespace::WatchNamespace;
-use stackable_operator::product_config::ProductConfigManager;
+use stackable_hdfs_crd::{constants::*, HdfsCluster};
+use stackable_operator::{
+    client::Client,
+    k8s_openapi::api::{
+        apps::v1::StatefulSet,
+        core::v1::{ConfigMap, Pod, Service},
+    },
+    kube::runtime::{watcher, Controller},
+    labels::ObjectLabels,
+    logging::controller::report_controller_reconciled,
+    namespace::WatchNamespace,
+    product_config::ProductConfigManager,
+};
+use std::sync::Arc;
 use tracing::info_span;
 use tracing_futures::Instrument;
 
@@ -35,16 +34,19 @@ pub async fn create_controller(
 ) {
     let hdfs_controller = Controller::new(
         namespace.get_api::<HdfsCluster>(&client),
-        ListParams::default(),
+        watcher::Config::default(),
     )
     .owns(
         namespace.get_api::<StatefulSet>(&client),
-        ListParams::default(),
+        watcher::Config::default(),
     )
-    .owns(namespace.get_api::<Service>(&client), ListParams::default())
+    .owns(
+        namespace.get_api::<Service>(&client),
+        watcher::Config::default(),
+    )
     .owns(
         namespace.get_api::<ConfigMap>(&client),
-        ListParams::default(),
+        watcher::Config::default(),
     )
     .shutdown_on_signal()
     .run(
@@ -60,9 +62,12 @@ pub async fn create_controller(
 
     let pod_svc_controller = Controller::new(
         namespace.get_api::<Pod>(&client),
-        ListParams::default().labels(&format!("{}=true", LABEL_ENABLE)),
+        watcher::Config::default().labels(&format!("{}=true", LABEL_ENABLE)),
     )
-    .owns(namespace.get_api::<Pod>(&client), ListParams::default())
+    .owns(
+        namespace.get_api::<Pod>(&client),
+        watcher::Config::default(),
+    )
     .shutdown_on_signal()
     .run(
         pod_svc_controller::reconcile_pod,

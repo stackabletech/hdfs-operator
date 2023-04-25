@@ -9,6 +9,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
+        cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -29,6 +30,7 @@ use stackable_operator::{
     product_logging::spec::{ContainerLogConfig, Logging},
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
+    status::condition::{ClusterCondition, HasStatusCondition},
 };
 use std::collections::{BTreeMap, HashMap};
 use storage::{
@@ -56,6 +58,7 @@ pub enum Error {
     kind = "HdfsCluster",
     plural = "hdfsclusters",
     shortname = "hdfs",
+    status = "HdfsClusterStatus",
     namespaced,
     crates(
         kube_core = "stackable_operator::kube::core",
@@ -73,6 +76,9 @@ pub struct HdfsClusterSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
     pub cluster_config: HdfsClusterConfig,
+    /// Cluster operations like pause reconciliation or cluster stop.
+    #[serde(default)]
+    pub cluster_operation: ClusterOperation,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
@@ -86,8 +92,41 @@ pub struct HdfsClusterConfig {
     pub vector_aggregator_config_map_name: Option<String>,
     /// Name of the ZooKeeper discovery config map.
     pub zookeeper_config_map_name: String,
+    /// In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// will be used to expose the service.
+    /// Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services
+    /// by looking at the ListenerClass name specified,
+    /// In a future release support for custom ListenerClasses will be introduced without a breaking change:
+    ///
+    /// * cluster-internal: Use a ClusterIP service
+    ///
+    /// * external-unstable: Use a NodePort service
+    #[serde(default)]
+    pub listener_class: CurrentlySupportedListenerClasses,
     /// Configuration to set up a cluster secured using Kerberos.
     pub kerberos: Option<KerberosConfig>,
+}
+
+// TODO: Temporary solution until listener-operator is finished
+#[derive(
+    Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
+)]
+#[serde(rename_all = "PascalCase")]
+pub enum CurrentlySupportedListenerClasses {
+    #[default]
+    #[serde(rename = "cluster-internal")]
+    ClusterInternal,
+    #[serde(rename = "external-unstable")]
+    ExternalUnstable,
+}
+
+impl CurrentlySupportedListenerClasses {
+    pub fn k8s_service_type(&self) -> String {
+        match self {
+            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
+            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
@@ -441,9 +480,15 @@ impl HdfsCluster {
         );
         group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
         group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
-        // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
-        // useful for development purposes.
-        group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+
+        if self.spec.cluster_config.listener_class
+            == CurrentlySupportedListenerClasses::ExternalUnstable
+        {
+            // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
+            // useful for development purposes.
+
+            group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+        }
 
         group_labels
     }
@@ -1165,6 +1210,21 @@ impl Configuration for JournalNodeConfigFragment {
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
+    }
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HdfsClusterStatus {
+    pub conditions: Vec<ClusterCondition>,
+}
+
+impl HasStatusCondition for HdfsCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
     }
 }
 

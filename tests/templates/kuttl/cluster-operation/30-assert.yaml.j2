@@ -1,0 +1,30 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  - script: kubectl -n $NAMESPACE wait --for=condition=stopped hdfsclusters.hdfs.stackable.tech/hdfs --timeout 301s
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hdfs-namenode-default
+status:
+  availableReplicas: 0
+  replicas: 0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hdfs-journalnode-default
+status:
+  availableReplicas: 0
+  replicas: 0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hdfs-datanode-default
+status:
+  availableReplicas: 0
+  replicas: 0
