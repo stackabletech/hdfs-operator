@@ -23,7 +23,7 @@ use stackable_operator::{
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, Service, ServicePort, ServiceSpec},
+            core::v1::ConfigMap,
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
@@ -269,8 +269,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service =
-                rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
                 &rolegroup_ref,
@@ -292,13 +290,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
             )?;
 
-            let rg_service_name = rg_service.name_any();
-            cluster_resources
-                .add(client, rg_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_service_name,
-                })?;
             let rg_configmap_name = rg_configmap.name_any();
             cluster_resources
                 .add(client, rg_configmap.clone())
@@ -340,52 +331,55 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     Ok(Action::await_change())
 }
 
-fn rolegroup_service(
-    hdfs: &HdfsCluster,
-    role: &HdfsRole,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    resolved_product_image: &ResolvedProductImage,
-) -> HdfsOperatorResult<Service> {
-    tracing::info!("Setting up Service for {:?}", rolegroup_ref);
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(&rolegroup_ref.object_name())
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(build_recommended_labels(
-                hdfs,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .with_label("prometheus.io/scrape", "true")
-            .build(),
-        spec: Some(ServiceSpec {
-            // Internal communication does not need to be exposed
-            type_: Some("ClusterIP".to_string()),
-            cluster_ip: Some("None".to_string()),
-            ports: Some(
-                role.ports()
-                    .into_iter()
-                    .map(|(name, value)| ServicePort {
-                        name: Some(name),
-                        port: i32::from(value),
-                        protocol: Some("TCP".to_string()),
-                        ..ServicePort::default()
-                    })
-                    .collect(),
-            ),
-            selector: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
-            publish_not_ready_addresses: Some(true),
-            ..ServiceSpec::default()
-        }),
-        status: None,
-    })
-}
+// TODOs:
+// * We must add the label "prometheus.io/scrape=true" to the created Services
+
+// fn rolegroup_service(
+//     hdfs: &HdfsCluster,
+//     role: &HdfsRole,
+//     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+//     resolved_product_image: &ResolvedProductImage,
+// ) -> HdfsOperatorResult<Service> {
+//     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
+//     Ok(Service {
+//         metadata: ObjectMetaBuilder::new()
+//             .name_and_namespace(hdfs)
+//             .name(&rolegroup_ref.object_name())
+//             .ownerreference_from_resource(hdfs, None, Some(true))
+//             .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+//                 obj_ref: ObjectRef::from_obj(hdfs),
+//             })?
+//             .with_recommended_labels(build_recommended_labels(
+//                 hdfs,
+//                 RESOURCE_MANAGER_HDFS_CONTROLLER,
+//                 &resolved_product_image.app_version_label,
+//                 &rolegroup_ref.role,
+//                 &rolegroup_ref.role_group,
+//             ))
+//             .with_label("prometheus.io/scrape", "true")
+//             .build(),
+//         spec: Some(ServiceSpec {
+//             // Internal communication does not need to be exposed
+//             type_: Some("ClusterIP".to_string()),
+//             cluster_ip: Some("None".to_string()),
+//             ports: Some(
+//                 role.ports()
+//                     .into_iter()
+//                     .map(|(name, value)| ServicePort {
+//                         name: Some(name),
+//                         port: i32::from(value),
+//                         protocol: Some("TCP".to_string()),
+//                         ..ServicePort::default()
+//                     })
+//                     .collect(),
+//             ),
+//             selector: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
+//             publish_not_ready_addresses: Some(true),
+//             ..ServiceSpec::default()
+//         }),
+//         status: None,
+//     })
+// }
 
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
