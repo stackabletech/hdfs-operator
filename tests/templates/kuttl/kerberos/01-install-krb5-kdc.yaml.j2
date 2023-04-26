@@ -14,7 +14,7 @@ spec:
     spec:
       initContainers:
         - name: init
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4
           args:
             - sh
             - -euo
@@ -35,7 +35,7 @@ spec:
               name: data
       containers:
         - name: kdc
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4
           args:
             - krb5kdc
             - -n
@@ -48,7 +48,7 @@ spec:
             - mountPath: /var/kerberos/krb5kdc
               name: data
         - name: kadmind
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4
           args:
             - kadmind
             - -nofork
@@ -61,7 +61,7 @@ spec:
             - mountPath: /var/kerberos/krb5kdc
               name: data
         - name: client
-          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4.0-rc1
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable23.4
           tty: true
           stdin: true
           env:

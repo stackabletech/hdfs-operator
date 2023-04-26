@@ -16,6 +16,7 @@ commands:
         clusterConfig:
           zookeeperConfigMapName: hdfs-zk
           dfsReplication: 1
+          listenerClass: {{ test_scenario['values']['listener-class'] }}
           kerberos:
             tlsSecretClass: tls
             kerberosSecretClass: kerberos-$NAMESPACE
