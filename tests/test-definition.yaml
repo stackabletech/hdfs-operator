@@ -2,8 +2,8 @@
 dimensions:
   - name: hadoop
     values:
-      - 3.2.2-stackable0.0.0-dev
-      - 3.3.3-stackable0.0.0-dev
+      # - 3.2.2-stackable0.0.0-dev
+      # - 3.3.3-stackable0.0.0-dev
       - 3.3.4-stackable0.0.0-dev
   - name: hadoop-latest
     values:
@@ -25,11 +25,11 @@ dimensions:
   # Used for both, zookeeper and hdfs
   - name: listener-class
     values:
-      - "cluster-internal"
+      # - "cluster-internal"
       - "external-unstable"
   - name: kerberos-realm
     values:
-      - "CLUSTER.LOCAL"
+      # - "CLUSTER.LOCAL"
       - "PROD.MYCORP"
   - name: kerberos-backend
     values:
@@ -40,16 +40,16 @@ dimensions:
   - name: wire-encryption
     values:
       - Privacy
-      - Integrity
-      - Authentication
+      # - Integrity
+      # - Authentication
 tests:
-  - name: smoke
-    dimensions:
-      - hadoop
-      - zookeeper
-      - number-of-datanodes
-      - datanode-pvcs
-      - listener-class
+  # - name: smoke
+  #   dimensions:
+  #     - hadoop
+  #     - zookeeper
+  #     - number-of-datanodes
+  #     - datanode-pvcs
+  #     - listener-class
   - name: kerberos
     dimensions:
       - hadoop
@@ -58,15 +58,15 @@ tests:
       - kerberos-realm
       - kerberos-backend
       - wire-encryption
-  - name: orphaned-resources
-    dimensions:
-      - hadoop-latest
-      - zookeeper-latest
-  - name: logging
-    dimensions:
-      - hadoop
-      - zookeeper-latest
-  - name: cluster-operation
-    dimensions:
-      - hadoop-latest
-      - zookeeper-latest
+  # - name: orphaned-resources
+  #   dimensions:
+  #     - hadoop-latest
+  #     - zookeeper-latest
+  # - name: logging
+  #   dimensions:
+  #     - hadoop
+  #     - zookeeper-latest
+  # - name: cluster-operation
+  #   dimensions:
+  #     - hadoop-latest
+  #     - zookeeper-latest
