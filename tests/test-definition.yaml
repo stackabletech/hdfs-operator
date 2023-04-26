@@ -49,6 +49,7 @@ tests:
       - zookeeper
       - number-of-datanodes
       - datanode-pvcs
+      - listener-class
   - name: kerberos
     dimensions:
       - hadoop
