@@ -15,6 +15,7 @@ bundle-clean() {
 
 build-bundle() {
 	opm alpha bundle generate --directory manifests --package "${OPERATOR_NAME}-package" --output-dir bundle --channels stable --default stable
+  cp metadata/*.yaml bundle/metadata/
   docker build -t "docker.stackable.tech/stackable/${OPERATOR_NAME}-bundle:${VERSION}" -f bundle.Dockerfile .
   docker push "docker.stackable.tech/stackable/${OPERATOR_NAME}-bundle:${VERSION}"
   opm alpha bundle validate --tag "docker.stackable.tech/stackable/${OPERATOR_NAME}-bundle:${VERSION}" --image-builder docker
