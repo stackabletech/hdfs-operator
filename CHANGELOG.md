@@ -13,10 +13,12 @@ All notable changes to this project will be documented in this file.
 - Operator-rs: `0.40.2` -> `0.41.0` ([#349]).
 - Use 0.0.0-dev product images for testing ([#351])
 - Use testing-tools 0.2.0 ([#351])
+- Run as root group ([#353]).
 
 [#349]: https://github.com/stackabletech/hdfs-operator/pull/349
 [#350]: https://github.com/stackabletech/hdfs-operator/pull/350
 [#351]: https://github.com/stackabletech/hdfs-operator/pull/351
+[#353]: https://github.com/stackabletech/hdfs-operator/pull/353
 
 ## [23.4.0] - 2023-04-17
 

@@ -521,8 +521,8 @@ fn rolegroup_statefulset(
     .service_account_name(service_account_name(APP_NAME))
     .security_context(
         PodSecurityContextBuilder::new()
-            .run_as_user(1000)
-            .run_as_group(1000)
+            .run_as_user(HDFS_UID)
+            .run_as_group(0)
             .fs_group(1000)
             .build(),
     );
