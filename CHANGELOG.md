@@ -6,11 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ## [23.4.1] - 2023-05-17
 
+### Added
+
+- Missing CRD defaults for `status.conditions` field ([#354]).
+
 ### Changed
 
 - Run as root group ([#353]).
 
 [#353]: https://github.com/stackabletech/hdfs-operator/pull/353
+[#354]: https://github.com/stackabletech/hdfs-operator/pull/354
 
 ## [23.4.0] - 2023-04-17
 
