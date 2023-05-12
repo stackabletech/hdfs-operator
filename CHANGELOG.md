@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [23.4.1] - 2023-05-17
+
+### Changed
+
+- Run as root group ([#353]).
+
+[#353]: https://github.com/stackabletech/hdfs-operator/pull/353
+
 ## [23.4.0] - 2023-04-17
 
 ### Added
