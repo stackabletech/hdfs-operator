@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Generate OLM bundle for Release 23.4.0 ([#350]).
+- Missing CRD defaults for `status.conditions` field ([#354]).
 
 ### Changed
 
@@ -19,6 +20,7 @@ All notable changes to this project will be documented in this file.
 [#350]: https://github.com/stackabletech/hdfs-operator/pull/350
 [#351]: https://github.com/stackabletech/hdfs-operator/pull/351
 [#353]: https://github.com/stackabletech/hdfs-operator/pull/353
+[#354]: https://github.com/stackabletech/hdfs-operator/pull/354
 
 ## [23.4.0] - 2023-04-17
 
