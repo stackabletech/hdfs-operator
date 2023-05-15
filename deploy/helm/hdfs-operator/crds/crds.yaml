@@ -4228,6 +4228,7 @@ spec:
               nullable: true
               properties:
                 conditions:
+                  default: []
                   items:
                     properties:
                       lastTransitionTime:
@@ -4269,8 +4270,6 @@ spec:
                       - type
                     type: object
                   type: array
-              required:
-                - conditions
               type: object
           required:
             - spec
