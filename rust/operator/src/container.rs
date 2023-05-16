@@ -937,8 +937,8 @@ impl ContainerConfig {
                     );
                 }
 
-                if let Some(Some(Some(memory_limit))) =
-                    resources.map(|r| r.limits.as_ref().map(|limits| limits.get("memory")))
+                if let Some(memory_limit) =
+                    resources.and_then(|r| r.limits.as_ref()?.get("memory"))
                 {
                     let memory_limit =
                         MemoryQuantity::try_from(memory_limit).with_context(|_| {
