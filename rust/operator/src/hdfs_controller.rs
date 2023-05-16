@@ -466,24 +466,6 @@ fn rolegroup_config_map(
                     .extend(config)
                     .build_as_xml();
             }
-            // PropertyNameKind::File(file_name) if file_name == HADOOP_POLICY_XML => {
-            //     let mut config_opts = BTreeMap::new();
-            //     // When a NN connects to a JN, due to some reverse-dns roulette we have a (pretty low) chance of running into the follow error
-            //     // (found in the logs of hdfs-journalnode-default-0 container journalnode):
-            //     //
-            //     // WARN  authorize.ServiceAuthorizationManager (ServiceAuthorizationManager.java:authorize(122)) - Authorization failed for jn/hdfs-journalnode-default-2.hdfs-journalnode-default.kuttl-test-expert-killdeer.svc.cluster.local@CLUSTER.LOCAL (auth:KERBEROS) for protocol=interface org.apache.hadoop.hdfs.qjournal.protocol.InterQJournalProtocol: this service is only accessible by jn/10-244-0-178.hdfs-journalnode-default-2.kuttl-test-expert-killdeer.svc.cluster.local@CLUSTER.LOCAL
-            //     // Note: 10.244.0.178 belongs to hdfs-journalnode-default-2 in this case
-            //     // So everything is right, but the JN does seem to make a reverse lookup and gets multiple dns names and get's misguided here
-            //     //
-            //     // An similar error that ocurred as well is
-            //     //
-            //     // User nn/hdfs-test-namenode-default-0.hdfs-test-namenode-default.test.svc.cluster.local@CLUSTER.LOCAL (auth:KERBEROS) is not authorized for protocol interface org.apache.hadoop.hdfs.qjournal.protocol.QJournalProtocol: this service is only accessible by nn/10-244-0-65.hdfs-test-namenode-default-0.test.svc.cluster.local@CLUSTER.LOCAL
-            //     config_opts
-            //         .extend([("security.qjournal.service.protocol.acl".to_string(), Some())]);
-            //     config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-            //     ssl_server_xml =
-            //         stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
-            // }
             PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
                 let mut config_opts = BTreeMap::new();
                 config_opts.extend([
