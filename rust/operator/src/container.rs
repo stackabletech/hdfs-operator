@@ -828,7 +828,7 @@ impl ContainerConfig {
         if hdfs.has_kerberos_enabled() {
             volume_mounts.push(VolumeMountBuilder::new("kerberos", "/stackable/kerberos").build());
         }
-        if hdfs.https_secret_class().is_some() {
+        if hdfs.has_https_enabled() {
             // This volume will be propagated by the create-tls-cert-bundle container
             volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
         }
