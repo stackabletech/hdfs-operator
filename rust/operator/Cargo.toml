@@ -5,7 +5,7 @@ edition = "2021"
 license = "OSL-3.0"
 name = "stackable-hdfs-operator"
 repository = "https://github.com/stackabletech/hdfs-operator"
-version = "23.4.0"
+version = "23.4.1"
 publish = false
 
 [dependencies]
