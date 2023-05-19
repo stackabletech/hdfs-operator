@@ -1,0 +1,109 @@
+= Security
+
+== Authentication
+Currently the only authentication mechanism support is Kerberos, which is disabled by default.
+For Kerberos to work a Kerberos server is needed, which the users needs to provide.
+The xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
+Our integration tests use a mit krb5 server which is installed on Kubernetes, but is not production ready, e.g. because no high availability is configured.
+
+=== 1. Prepare Kerberos server
+To configure HDFS to use Kerberos you first need to collect information about your Kerberos server, e.g. hostname and port.
+Additionally you need a service-user, which the secret-operator uses to create create principals for the HDFS services.
+
+=== 2. Create SecretClass
+Afterwards you need to enter all the needed information into a SecretClass, as described in  xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
+The following guide assumes you have named your SecretClass `kerberos-hdfs`.
+
+=== 3. Configure HDFS to use SecretClass
+The last step is to configure your HdfsCluster to use the newly created SecretClass.
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    kerberos:
+      tlsSecretClass: tls # Optional, defaults to "tls"
+      kerberosSecretClass: kerberos-hdfs # Put your SecretClass name in here
+----
+
+The `kerberosSecretClass` is used to give HDFS the possibility to request keytabs from the secret-operator.
+
+The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
+
+As an alternative you can
+
+=== 4. Verify Kerberos is used
+One option is to use `stackablectl services list --all-namespaces` to get the endpoint the HDFS namenodes are reachable.
+Open the link (note that the namenode is now using https).
+You should see a Web UI similar to the following:
+
+image:hdfs_webui_kerberos.png[]
+
+The important part is
+
+> Security is on.
+
+An alternative is to shell into the namenode and try to access the file system.
+`kubectl exec -it hdfs-namenode-default-0 -c namenode -- bash -c 'bin/hdfs dfs -ls /'`
+
+You should get a `org.apache.hadoop.security.AccessControlException: Client cannot authenticate via:[TOKEN, KERBEROS]`.
+
+=== 5. Access HDFS
+In case you want to access your HDFS it is recommended to start up a client Pod that connects to HDFS over shelling into the namenode.
+We have an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/20-access-hdfs.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
+
+== Authorization
+We currently don't support authorization yet.
+In the future support will be added by writing an opa-authorizer to match our general xref:home:concepts:opa.adoc[] mechanisms.
+
+In the meantime a very basic level of authorization can be reached by using `configOverrides` to set the `hadoop.user.group.static.mapping.overrides` property.
+In thew following example the `dr.who=;nn=;nm=;jn=;` part is needed for HDFS internal operations and the user `testuser` is granted admin permissions.
+
+[source,yaml]
+----
+spec:
+  nameNodes:
+    configOverrides: &configOverrides
+      core-site.xml:
+        hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+  dataNodes:
+    configOverrides: *configOverrides
+  journalNodes:
+    configOverrides: *configOverrides
+----
+
+== Wire encryption
+IMPORTANT: Wire encryption can only be enabled in combination with Kerberos
+
+The following modes are supported:
+
+[cols="1,4"]
+|===
+|Wire encryption mode|Description
+
+|Authentication
+|Establishes mutual authentication between the client and the server.
+ Sets `hadoop.rpc.protection` to `authentication`, `hadoop.data.transfer.protection` to `authentication` and `dfs.encrypt.data.transfer` to `false`.
+
+|Integrity
+|In addition to Authentication, it guarantees that a man-in-the-middle cannot tamper with messages exchanged between the client and the server.
+Sets `hadoop.rpc.protection` to `integrity`, `hadoop.data.transfer.protection` to `integrity` and `dfs.encrypt.data.transfer` to `false`.
+
+|Privacy
+|In addition to the features offered by Authentication and Integrity, it also fully encrypts the messages exchanged between the client and the server.
+Sets `hadoop.rpc.protection` to `privacy`, `hadoop.data.transfer.protection` to `privacy` and `dfs.encrypt.data.transfer` to `true`.
+|===
+
+In case kerberos is enabled, the default value is `Privacy` for best security.
+The security comes with a cost of a potentially degraded performance, thus wire encryption can be disabled but is recommend to be enabled for security reasons.
+
+You can specify the wire encryption mode to use as follows:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    kerberos:
+      # kerberosSecretClass: kerberos
+      wireEncryption: Privacy
+----
