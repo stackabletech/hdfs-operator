@@ -1,9 +1,11 @@
 pub mod affinity;
 pub mod constants;
+pub mod kerberos;
 pub mod storage;
 
 use affinity::get_affinity;
 use constants::*;
+use kerberos::KerberosConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -127,64 +129,6 @@ impl CurrentlySupportedListenerClasses {
             CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
         }
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct KerberosConfig {
-    /// Name of the SecretClass providing the keytab for the HDFS services.
-    #[serde(default = "default_kerberos_kerberos_secret_class")]
-    pub kerberos_secret_class: String,
-    /// Name of the SecretClass providing the tls certificates for the WebUIs.
-    #[serde(default = "default_kerberos_tls_secret_class")]
-    pub tls_secret_class: String,
-    /// Wether a principal including the Kubernetes node name should be requested.
-    /// The principal could e.g. be `HTTP/my-k8s-worker-0.mycorp.lan`.
-    /// This feature is disabled by default, as the resulting principals can already by existent
-    /// e.g. in Active Directory which can cause problems.
-    #[serde(default)]
-    pub request_node_principals: bool,
-    /// Configures how communication between hdfs nodes as well as between hdfs clients and cluster are secured.
-    /// Possible values are:
-    ///
-    /// Authentication:
-    /// Establishes mutual authentication between the client and the server.
-    /// Sets `hadoop.rpc.protection` to `authentication`, `hadoop.data.transfer.protection` to `authentication` and `dfs.encrypt.data.transfer` to `false`.
-    ///
-    /// Integrity:
-    /// In addition to authentication, it guarantees that a man-in-the-middle cannot tamper with messages exchanged between the client and the server.
-    /// Sets `hadoop.rpc.protection` to `integrity`, `hadoop.data.transfer.protection` to `integrity` and `dfs.encrypt.data.transfer` to `false`.
-    ///
-    /// Privacy:
-    /// In addition to the features offered by authentication and integrity, it also fully encrypts the messages exchanged between the client and the server.
-    /// Sets `hadoop.rpc.protection` to `privacy`, `hadoop.data.transfer.protection` to `privacy` and `dfs.encrypt.data.transfer` to `true`.
-    ///
-    /// Defaults to privacy for best security
-    #[serde(default)]
-    pub wire_encryption: WireEncryption,
-}
-
-fn default_kerberos_tls_secret_class() -> String {
-    "tls".to_string()
-}
-
-fn default_kerberos_kerberos_secret_class() -> String {
-    "kerberos".to_string()
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum WireEncryption {
-    /// Establishes mutual authentication between the client and the server.
-    /// Sets `hadoop.rpc.protection` to `authentication`, `hadoop.data.transfer.protection` to `authentication` and `dfs.encrypt.data.transfer` to `false`.
-    Authentication,
-    /// In addition to authentication, it guarantees that a man-in-the-middle cannot tamper with messages exchanged between the client and the server.
-    /// Sets `hadoop.rpc.protection` to `integrity`, `hadoop.data.transfer.protection` to `integrity` and `dfs.encrypt.data.transfer` to `false`.
-    Integrity,
-    /// In addition to the features offered by authentication and integrity, it also fully encrypts the messages exchanged between the client and the server.
-    /// Sets `hadoop.rpc.protection` to `privacy`, `hadoop.data.transfer.protection` to `privacy` and `dfs.encrypt.data.transfer` to `true`.
-    #[default]
-    Privacy,
 }
 
 /// This is a shared trait for all role/role-group config structs to avoid duplication

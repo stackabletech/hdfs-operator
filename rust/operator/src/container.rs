@@ -772,11 +772,11 @@ impl ContainerConfig {
                         );
                     kerberos_secret_operator_volume_builder
                         .with_pod_scope()
+                        // FIXME We always add the node scope here, as some customers access their datanodes from outside of k8s
+                        // In the future listener-op will work together with secret-op, so that the scope automatically matches however the services are exposed
+                        .with_node_scope()
                         .with_kerberos_service_name(role.kerberos_service_name())
                         .with_kerberos_service_name("HTTP");
-                    if kerberos_config.request_node_principals {
-                        kerberos_secret_operator_volume_builder.with_node_scope();
-                    }
 
                     volumes.push(
                         VolumeBuilder::new("kerberos")

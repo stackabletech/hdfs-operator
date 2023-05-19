@@ -1,6 +1,7 @@
 use stackable_hdfs_crd::{
     constants::{HADOOP_SECURITY_AUTHENTICATION, SSL_CLIENT_XML, SSL_SERVER_XML},
-    HdfsCluster, HdfsRole, KerberosConfig,
+    kerberos::{KerberosConfig, WireEncryption},
+    HdfsCluster, HdfsRole,
 };
 
 use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
@@ -30,15 +31,15 @@ impl HdfsSiteConfigBuilder {
 
     fn add_wire_encryption_settings(&mut self, kerberos_config: &KerberosConfig) -> &mut Self {
         match kerberos_config.wire_encryption {
-            stackable_hdfs_crd::WireEncryption::Authentication => {
+            WireEncryption::Authentication => {
                 self.add("dfs.data.transfer.protection", "authentication");
                 self.add("dfs.encrypt.data.transfer", "false");
             }
-            stackable_hdfs_crd::WireEncryption::Integrity => {
+            WireEncryption::Integrity => {
                 self.add("dfs.data.transfer.protection", "integrity");
                 self.add("dfs.encrypt.data.transfer", "false");
             }
-            stackable_hdfs_crd::WireEncryption::Privacy => {
+            WireEncryption::Privacy => {
                 self.add("dfs.data.transfer.protection", "privacy");
                 self.add("dfs.encrypt.data.transfer", "true");
             }
@@ -124,13 +125,13 @@ impl CoreSiteConfigBuilder {
 
     fn add_wire_encryption_settings(&mut self, kerberos_config: &KerberosConfig) -> &mut Self {
         match kerberos_config.wire_encryption {
-            stackable_hdfs_crd::WireEncryption::Authentication => {
+            WireEncryption::Authentication => {
                 self.add("hadoop.rpc.protection", "authentication");
             }
-            stackable_hdfs_crd::WireEncryption::Integrity => {
+            WireEncryption::Integrity => {
                 self.add("hadoop.rpc.protection", "integrity");
             }
-            stackable_hdfs_crd::WireEncryption::Privacy => {
+            WireEncryption::Privacy => {
                 self.add("hadoop.rpc.protection", "privacy");
             }
         }

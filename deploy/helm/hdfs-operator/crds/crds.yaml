@@ -39,13 +39,8 @@ spec:
                       nullable: true
                       properties:
                         kerberosSecretClass:
-                          default: kerberos
                           description: Name of the SecretClass providing the keytab for the HDFS services.
                           type: string
-                        requestNodePrincipals:
-                          default: false
-                          description: Wether a principal including the Kubernetes node name should be requested. The principal could e.g. be `HTTP/my-k8s-worker-0.mycorp.lan`. This feature is disabled by default, as the resulting principals can already by existent e.g. in Active Directory which can cause problems.
-                          type: boolean
                         tlsSecretClass:
                           default: tls
                           description: Name of the SecretClass providing the tls certificates for the WebUIs.
@@ -67,6 +62,8 @@ spec:
                             - Integrity
                             - Privacy
                           type: string
+                      required:
+                        - kerberosSecretClass
                       type: object
                     listenerClass:
                       default: cluster-internal
