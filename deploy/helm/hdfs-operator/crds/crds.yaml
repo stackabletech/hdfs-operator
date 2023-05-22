@@ -53,11 +53,11 @@ spec:
                         kerberos:
                           description: Kerberos configuration
                           properties:
-                            kerberosSecretClass:
+                            secretClass:
                               description: Name of the SecretClass providing the keytab for the HDFS services.
                               type: string
                           required:
-                            - kerberosSecretClass
+                            - secretClass
                           type: object
                         tlsSecretClass:
                           default: tls

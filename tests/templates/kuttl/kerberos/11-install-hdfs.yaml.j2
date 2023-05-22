@@ -19,7 +19,7 @@ commands:
           listenerClass: {{ test_scenario['values']['listener-class'] }}
           kerberos:
             tlsSecretClass: tls
-            kerberosSecretClass: kerberos-$NAMESPACE
+            secretClass: kerberos-$NAMESPACE
             wireEncryption: {{ test_scenario['values']['wire-encryption'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
           vectorAggregatorConfigMapName: vector-aggregator-discovery

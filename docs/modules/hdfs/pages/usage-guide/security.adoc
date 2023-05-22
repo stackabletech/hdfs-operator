@@ -23,10 +23,10 @@ spec:
     security:
       tlsSecretClass: tls # Optional, defaults to "tls"
       kerberos:
-        kerberosSecretClass: kerberos-hdfs # Put your SecretClass name in here
+        secretClass: kerberos-hdfs # Put your SecretClass name in here
 ----
 
-The `kerberosSecretClass` is used to give HDFS the possibility to request keytabs from the secret-operator.
+The `kerberos.secretClass` is used to give HDFS the possibility to request keytabs from the secret-operator.
 
 The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
 
@@ -104,6 +104,6 @@ spec:
   clusterConfig:
     security:
       kerberos:
-        # kerberosSecretClass: kerberos
+        # secretClass: kerberos
       wireEncryption: Privacy
 ----

@@ -37,7 +37,7 @@ fn default_kerberos_tls_secret_class() -> String {
 #[serde(rename_all = "camelCase")]
 pub struct KerberosConfig {
     /// Name of the SecretClass providing the keytab for the HDFS services.
-    pub kerberos_secret_class: String,
+    pub secret_class: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]

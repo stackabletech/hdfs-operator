@@ -767,9 +767,7 @@ impl ContainerConfig {
                 // However, as other containers need this volume as well, it will be also mounted in other containers.
                 if let Some(kerberos_config) = hdfs.kerberos_config() {
                     let mut kerberos_secret_operator_volume_builder =
-                        SecretOperatorVolumeSourceBuilder::new(
-                            &kerberos_config.kerberos_secret_class,
-                        );
+                        SecretOperatorVolumeSourceBuilder::new(&kerberos_config.secret_class);
                     kerberos_secret_operator_volume_builder
                         .with_pod_scope()
                         // FIXME We always add the node scope here, as some customers access their datanodes from outside of k8s
