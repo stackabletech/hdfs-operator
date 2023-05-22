@@ -30,10 +30,9 @@ The `kerberosSecretClass` is used to give HDFS the possibility to request keytab
 
 The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
 
-As an alternative you can
 
-=== 4. Verify Kerberos is used
-One option is to use `stackablectl services list --all-namespaces` to get the endpoint the HDFS namenodes are reachable.
+=== 4. Verify that Kerberos is used
+Use `stackablectl services list --all-namespaces` to get the endpoints where the HDFS namenodes are reachable.
 Open the link (note that the namenode is now using https).
 You should see a Web UI similar to the following:
 
@@ -46,10 +45,10 @@ The important part is
 An alternative is to shell into the namenode and try to access the file system.
 `kubectl exec -it hdfs-namenode-default-0 -c namenode -- bash -c 'bin/hdfs dfs -ls /'`
 
-You should get a `org.apache.hadoop.security.AccessControlException: Client cannot authenticate via:[TOKEN, KERBEROS]`.
+You should get the error message `org.apache.hadoop.security.AccessControlException: Client cannot authenticate via:[TOKEN, KERBEROS]`.
 
 === 5. Access HDFS
-In case you want to access your HDFS it is recommended to start up a client Pod that connects to HDFS over shelling into the namenode.
+In case you want to access your HDFS it is recommended to start up a client Pod that connects to HDFS, rather than shelling into the namenode.
 We have an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/20-access-hdfs.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
 
 == Authorization
@@ -89,7 +88,7 @@ The following modes are supported:
 |In addition to Authentication, it guarantees that a man-in-the-middle cannot tamper with messages exchanged between the client and the server.
 Sets `hadoop.rpc.protection` to `integrity`, `hadoop.data.transfer.protection` to `integrity` and `dfs.encrypt.data.transfer` to `false`.
 
-|Privacy
+|Privacy (default)
 |In addition to the features offered by Authentication and Integrity, it also fully encrypts the messages exchanged between the client and the server.
 Sets `hadoop.rpc.protection` to `privacy`, `hadoop.data.transfer.protection` to `privacy` and `dfs.encrypt.data.transfer` to `true`.
 |===
