@@ -58,13 +58,13 @@ fn build_discovery_hdfs_site_xml(
         .dfs_namenode_rpc_address_ha(namenode_podrefs)
         .dfs_namenode_http_address_ha(hdfs, namenode_podrefs)
         .dfs_client_failover_proxy_provider()
-        .kerberos_discovery_config(hdfs)
+        .security_discovery_config(hdfs)
         .build_as_xml()
 }
 
 fn build_discovery_core_site_xml(hdfs: &HdfsCluster, logical_name: String) -> String {
     CoreSiteConfigBuilder::new(logical_name)
         .fs_default_fs()
-        .kerberos_discovery_config(hdfs)
+        .security_discovery_config(hdfs)
         .build_as_xml()
 }

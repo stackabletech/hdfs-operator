@@ -448,7 +448,7 @@ fn rolegroup_config_map(
                     .dfs_namenode_rpc_address_ha(namenode_podrefs)
                     .dfs_namenode_http_address_ha(hdfs, namenode_podrefs)
                     .dfs_client_failover_proxy_provider()
-                    .kerberos_config(hdfs)
+                    .security_config(hdfs)
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
                     .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                     .add("dfs.ha.automatic-failover.enabled", "true")

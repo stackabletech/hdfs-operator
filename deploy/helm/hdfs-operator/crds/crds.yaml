@@ -34,13 +34,31 @@ spec:
                       minimum: 0.0
                       nullable: true
                       type: integer
-                    kerberos:
+                    listenerClass:
+                      default: cluster-internal
+                      description: |-
+                        In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service. Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services by looking at the ListenerClass name specified, In a future release support for custom ListenerClasses will be introduced without a breaking change:
+
+                        * cluster-internal: Use a ClusterIP service
+
+                        * external-unstable: Use a NodePort service
+                      enum:
+                        - cluster-internal
+                        - external-unstable
+                      type: string
+                    security:
                       description: Configuration to set up a cluster secured using Kerberos.
                       nullable: true
                       properties:
-                        kerberosSecretClass:
-                          description: Name of the SecretClass providing the keytab for the HDFS services.
-                          type: string
+                        kerberos:
+                          description: Kerberos configuration
+                          properties:
+                            kerberosSecretClass:
+                              description: Name of the SecretClass providing the keytab for the HDFS services.
+                              type: string
+                          required:
+                            - kerberosSecretClass
+                          type: object
                         tlsSecretClass:
                           default: tls
                           description: Name of the SecretClass providing the tls certificates for the WebUIs.
@@ -63,20 +81,8 @@ spec:
                             - Privacy
                           type: string
                       required:
-                        - kerberosSecretClass
+                        - kerberos
                       type: object
-                    listenerClass:
-                      default: cluster-internal
-                      description: |-
-                        In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service. Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services by looking at the ListenerClass name specified, In a future release support for custom ListenerClasses will be introduced without a breaking change:
-
-                        * cluster-internal: Use a ClusterIP service
-
-                        * external-unstable: Use a NodePort service
-                      enum:
-                        - cluster-internal
-                        - external-unstable
-                      type: string
                     vectorAggregatorConfigMapName:
                       description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.
                       nullable: true

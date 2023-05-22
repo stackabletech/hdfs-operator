@@ -1,11 +1,11 @@
 pub mod affinity;
 pub mod constants;
-pub mod kerberos;
+pub mod security;
 pub mod storage;
 
 use affinity::get_affinity;
 use constants::*;
-use kerberos::KerberosConfig;
+use security::{KerberosConfig, SecurityConfig};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -106,7 +106,7 @@ pub struct HdfsClusterConfig {
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
     /// Configuration to set up a cluster secured using Kerberos.
-    pub kerberos: Option<KerberosConfig>,
+    pub security: Option<SecurityConfig>,
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -613,12 +613,20 @@ impl HdfsCluster {
         Ok(result)
     }
 
+    pub fn security_config(&self) -> Option<&SecurityConfig> {
+        self.spec.cluster_config.security.as_ref()
+    }
+
     pub fn has_kerberos_enabled(&self) -> bool {
-        self.spec.cluster_config.kerberos.is_some()
+        self.spec.cluster_config.security.is_some()
     }
 
     pub fn kerberos_config(&self) -> Option<&KerberosConfig> {
-        self.spec.cluster_config.kerberos.as_ref()
+        self.spec
+            .cluster_config
+            .security
+            .as_ref()
+            .map(|s| &s.kerberos)
     }
 
     pub fn has_https_enabled(&self) -> bool {
@@ -628,7 +636,7 @@ impl HdfsCluster {
     pub fn https_secret_class(&self) -> Option<&str> {
         self.spec
             .cluster_config
-            .kerberos
+            .security
             .as_ref()
             .map(|k| k.tls_secret_class.as_str())
     }

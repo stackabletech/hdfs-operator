@@ -20,9 +20,10 @@ The last step is to configure your HdfsCluster to use the newly created SecretCl
 ----
 spec:
   clusterConfig:
-    kerberos:
+    security:
       tlsSecretClass: tls # Optional, defaults to "tls"
-      kerberosSecretClass: kerberos-hdfs # Put your SecretClass name in here
+      kerberos:
+        kerberosSecretClass: kerberos-hdfs # Put your SecretClass name in here
 ----
 
 The `kerberosSecretClass` is used to give HDFS the possibility to request keytabs from the secret-operator.
@@ -101,7 +102,8 @@ You can specify the wire encryption mode to use as follows:
 ----
 spec:
   clusterConfig:
-    kerberos:
-      # kerberosSecretClass: kerberos
+    security:
+      kerberos:
+        # kerberosSecretClass: kerberos
       wireEncryption: Privacy
 ----
