@@ -2,7 +2,7 @@
 
 == Authentication
 Currently the only supported authentication mechanism is Kerberos, which is disabled by default.
-For Kerberos to work a Kerberos server is needed, which the users needs to provide.
+For Kerberos to work a Kerberos KDC is needed, which the users needs to provide.
 The xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
 Our integration tests use a mit krb5 server which is installed on Kubernetes, but is not production ready, e.g. because no high availability is configured.
 
