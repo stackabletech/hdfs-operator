@@ -42,7 +42,7 @@ The important part is
 
 > Security is on.
 
-An alternative is to shell into the namenode and try to access the file system.
+You can also shell into the namenode and try to access the file system:
 `kubectl exec -it hdfs-namenode-default-0 -c namenode -- bash -c 'bin/hdfs dfs -ls /'`
 
 You should get the error message `org.apache.hadoop.security.AccessControlException: Client cannot authenticate via:[TOKEN, KERBEROS]`.
