@@ -13,6 +13,7 @@ impl HdfsSiteConfigBuilder {
                 .add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true")
                 .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
                 .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML);
+            self.add_wire_encryption_settings();
         }
         self
     }
@@ -22,7 +23,14 @@ impl HdfsSiteConfigBuilder {
             // We want e.g. hbase to automatically renew the Kerberos tickets.
             // This shouldn't harm any other consumers.
             self.add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true");
+            self.add_wire_encryption_settings();
         }
+        self
+    }
+
+    fn add_wire_encryption_settings(&mut self) -> &mut Self {
+        self.add("dfs.data.transfer.protection", "privacy");
+        self.add("dfs.encrypt.data.transfer", "true");
         self
     }
 }
@@ -88,6 +96,8 @@ impl CoreSiteConfigBuilder {
                     );
                 }
             }
+
+            self.add_wire_encryption_settings();
         }
         self
     }
@@ -95,7 +105,13 @@ impl CoreSiteConfigBuilder {
     pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
         if hdfs.has_kerberos_enabled() {
             self.add(HADOOP_SECURITY_AUTHENTICATION, "kerberos");
+            self.add_wire_encryption_settings();
         }
+        self
+    }
+
+    fn add_wire_encryption_settings(&mut self) -> &mut Self {
+        self.add("hadoop.rpc.protection", "authentication");
         self
     }
 }
