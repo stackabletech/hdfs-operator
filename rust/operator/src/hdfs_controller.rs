@@ -461,7 +461,7 @@ fn rolegroup_config_map(
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
-                    .kerberos_config(hdfs, role, hdfs_name, &hdfs_namespace)
+                    .security_config(hdfs, role, hdfs_name, &hdfs_namespace)
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();

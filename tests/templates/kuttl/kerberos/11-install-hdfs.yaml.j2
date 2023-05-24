@@ -17,10 +17,10 @@ commands:
           zookeeperConfigMapName: hdfs-zk
           dfsReplication: 1
           listenerClass: {{ test_scenario['values']['listener-class'] }}
-          kerberos:
+          authentication:
             tlsSecretClass: tls
-            secretClass: kerberos-$NAMESPACE
-            wireEncryption: {{ test_scenario['values']['wire-encryption'] }}
+            kerberos:
+              secretClass: kerberos-$NAMESPACE
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
           vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

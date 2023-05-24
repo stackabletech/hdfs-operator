@@ -36,11 +36,6 @@ dimensions:
       # Requires manual setup, see create-kerberos-secretclass.yaml
       # This will *not* respect the kerberos-realm test attribute, but instead use a hard-coded realm
       # - activeDirectory
-  - name: wire-encryption
-    values:
-      - Privacy
-      # - Integrity
-      # - Authentication
 tests:
   - name: smoke
     dimensions:
@@ -56,7 +51,6 @@ tests:
       - listener-class
       - kerberos-realm
       - kerberos-backend
-      - wire-encryption
   - name: orphaned-resources
     dimensions:
       - hadoop-latest

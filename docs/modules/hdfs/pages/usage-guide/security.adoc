@@ -20,7 +20,7 @@ The last step is to configure your HdfsCluster to use the newly created SecretCl
 ----
 spec:
   clusterConfig:
-    security:
+    authentication:
       tlsSecretClass: tls # Optional, defaults to "tls"
       kerberos:
         secretClass: kerberos-hdfs # Put your SecretClass name in here
@@ -72,38 +72,5 @@ spec:
 ----
 
 == Wire encryption
-IMPORTANT: Wire encryption can only be enabled in combination with Kerberos
-
-The following modes are supported:
-
-[cols="1,4"]
-|===
-|Wire encryption mode|Description
-
-|Authentication
-|Establishes mutual authentication between the client and the server.
- Sets `hadoop.rpc.protection` to `authentication`, `hadoop.data.transfer.protection` to `authentication` and `dfs.encrypt.data.transfer` to `false`.
-
-|Integrity
-|In addition to Authentication, it guarantees that a man-in-the-middle cannot tamper with messages exchanged between the client and the server.
-Sets `hadoop.rpc.protection` to `integrity`, `hadoop.data.transfer.protection` to `integrity` and `dfs.encrypt.data.transfer` to `false`.
-
-|Privacy (default)
-|In addition to the features offered by Authentication and Integrity, it also fully encrypts the messages exchanged between the client and the server.
-Sets `hadoop.rpc.protection` to `privacy`, `hadoop.data.transfer.protection` to `privacy` and `dfs.encrypt.data.transfer` to `true`.
-|===
-
-In case kerberos is enabled, the default value is `Privacy` for best security.
-The security comes with a cost of a potentially degraded performance, thus wire encryption can be disabled but is recommend to be enabled for security reasons.
-
-You can specify the wire encryption mode to use as follows:
-
-[source,yaml]
-----
-spec:
-  clusterConfig:
-    security:
-      kerberos:
-        # secretClass: kerberos
-      wireEncryption: Privacy
-----
+In case kerberos is enabled, `Privacy` mode is used for best security.
+Wire encryption without kerberos as well as https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Data_confidentiality[other wire encryption modes] are *not* supported.

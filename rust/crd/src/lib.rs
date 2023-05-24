@@ -5,7 +5,7 @@ pub mod storage;
 
 use affinity::get_affinity;
 use constants::*;
-use security::{KerberosConfig, SecurityConfig};
+use security::{AuthenticationConfig, KerberosConfig};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -77,6 +77,7 @@ pub struct HdfsClusterSpec {
     pub data_nodes: Option<Role<DataNodeConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
+    // Cluster wide configuration
     pub cluster_config: HdfsClusterConfig,
     /// Cluster operations like pause reconciliation or cluster stop.
     #[serde(default)]
@@ -106,7 +107,7 @@ pub struct HdfsClusterConfig {
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
     /// Configuration to set up a cluster secured using Kerberos.
-    pub security: Option<SecurityConfig>,
+    pub authentication: Option<AuthenticationConfig>,
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -613,18 +614,23 @@ impl HdfsCluster {
         Ok(result)
     }
 
-    pub fn security_config(&self) -> Option<&SecurityConfig> {
-        self.spec.cluster_config.security.as_ref()
+    pub fn authentication_config(&self) -> Option<&AuthenticationConfig> {
+        self.spec.cluster_config.authentication.as_ref()
     }
 
     pub fn has_kerberos_enabled(&self) -> bool {
-        self.spec.cluster_config.security.is_some()
+        self.spec
+            .cluster_config
+            .authentication
+            .as_ref()
+            .map(|auth| &auth.kerberos)
+            .is_some()
     }
 
     pub fn kerberos_config(&self) -> Option<&KerberosConfig> {
         self.spec
             .cluster_config
-            .security
+            .authentication
             .as_ref()
             .map(|s| &s.kerberos)
     }
@@ -636,7 +642,7 @@ impl HdfsCluster {
     pub fn https_secret_class(&self) -> Option<&str> {
         self.spec
             .cluster_config
-            .security
+            .authentication
             .as_ref()
             .map(|k| k.tls_secret_class.as_str())
     }
