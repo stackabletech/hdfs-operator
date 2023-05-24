@@ -24,11 +24,11 @@ dimensions:
   # Used for both, zookeeper and hdfs
   - name: listener-class
     values:
-      # - "cluster-internal"
+      - "cluster-internal"
       - "external-unstable"
   - name: kerberos-realm
     values:
-      # - "CLUSTER.LOCAL"
+      - "CLUSTER.LOCAL"
       - "PROD.MYCORP"
   - name: kerberos-backend
     values:
