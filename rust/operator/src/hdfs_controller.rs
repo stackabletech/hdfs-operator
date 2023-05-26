@@ -468,40 +468,44 @@ fn rolegroup_config_map(
             }
             PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
                 let mut config_opts = BTreeMap::new();
-                config_opts.extend([
-                    (
-                        "ssl.server.keystore.location".to_string(),
-                        Some(format!("{KEYSTORE_DIR_NAME}/keystore.p12")),
-                    ),
-                    (
-                        "ssl.server.keystore.password".to_string(),
-                        Some("changeit".to_string()),
-                    ),
-                    (
-                        "ssl.server.keystore.type".to_string(),
-                        Some("pkcs12".to_string()),
-                    ),
-                ]);
+                if hdfs.has_https_enabled() {
+                    config_opts.extend([
+                        (
+                            "ssl.server.keystore.location".to_string(),
+                            Some(format!("{KEYSTORE_DIR_NAME}/keystore.p12")),
+                        ),
+                        (
+                            "ssl.server.keystore.password".to_string(),
+                            Some("changeit".to_string()),
+                        ),
+                        (
+                            "ssl.server.keystore.type".to_string(),
+                            Some("pkcs12".to_string()),
+                        ),
+                    ]);
+                }
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
                 ssl_server_xml =
                     stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
             }
             PropertyNameKind::File(file_name) if file_name == SSL_CLIENT_XML => {
                 let mut config_opts = BTreeMap::new();
-                config_opts.extend([
-                    (
-                        "ssl.client.truststore.location".to_string(),
-                        Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
-                    ),
-                    (
-                        "ssl.client.truststore.password".to_string(),
-                        Some("changeit".to_string()),
-                    ),
-                    (
-                        "ssl.client.truststore.type".to_string(),
-                        Some("pkcs12".to_string()),
-                    ),
-                ]);
+                if hdfs.has_https_enabled() {
+                    config_opts.extend([
+                        (
+                            "ssl.client.truststore.location".to_string(),
+                            Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
+                        ),
+                        (
+                            "ssl.client.truststore.password".to_string(),
+                            Some("changeit".to_string()),
+                        ),
+                        (
+                            "ssl.client.truststore.type".to_string(),
+                            Some("pkcs12".to_string()),
+                        ),
+                    ]);
+                }
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
                 ssl_client_xml =
                     stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
