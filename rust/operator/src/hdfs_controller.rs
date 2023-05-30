@@ -471,6 +471,10 @@ fn rolegroup_config_map(
                 if hdfs.has_https_enabled() {
                     config_opts.extend([
                         (
+                            "ssl.server.truststore.location".to_string(),
+                            Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
+                        ),
+                        (
                             "ssl.server.keystore.location".to_string(),
                             Some(format!("{KEYSTORE_DIR_NAME}/keystore.p12")),
                         ),
