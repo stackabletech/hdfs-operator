@@ -14,7 +14,7 @@ commands:
 
   # Also delete the last pod of every HDFS service
   # Should trigger failover of the namenode back to 0
-  - script: kubectl -n $NAMESPACE delete pod hdfs-journalnode-default-2 hdfs-namenode-default-1 hdfs-datanode-default-1
+  - script: kubectl -n $NAMESPACE delete pod hdfs-namenode-default-1 hdfs-datanode-default-1
     timeout: 600
   - script: sleep 10
   - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
