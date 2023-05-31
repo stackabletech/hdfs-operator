@@ -4,6 +4,7 @@ use crate::{
     container::ContainerConfig,
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
+    kerberos,
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
@@ -154,6 +155,10 @@ pub enum Error {
     BuildRbacResources {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display(
+        "kerberos not supported for HDFS versions < 3.3.x. Please use at least version 3.3.x"
+    ))]
+    KerberosNotSupported {},
 }
 
 impl ReconcilerError for Error {
@@ -174,6 +179,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let client = &ctx.client;
 
     let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+    kerberos::check_if_supported(&resolved_product_image)?;
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
         .await

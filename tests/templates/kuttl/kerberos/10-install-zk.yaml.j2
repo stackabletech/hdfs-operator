@@ -8,7 +8,6 @@ spec:
     productVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[1] }}"
   clusterConfig:
-    listenerClass: {{ test_scenario['values']['listener-class'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     logging:
       vectorAggregatorConfigMapName: vector-aggregator-discovery

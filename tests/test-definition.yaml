@@ -46,9 +46,8 @@ tests:
       - listener-class
   - name: kerberos
     dimensions:
-      - hadoop
+      - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
       - zookeeper-latest
-      - listener-class
       - kerberos-realm
       - kerberos-backend
   - name: orphaned-resources
