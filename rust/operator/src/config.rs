@@ -24,8 +24,8 @@ impl HdfsSiteConfigBuilder {
         }
     }
 
-    pub fn add(&mut self, property: &str, value: &str) -> &mut Self {
-        self.config.insert(property.to_string(), value.to_string());
+    pub fn add(&mut self, property: impl Into<String>, value: impl Into<String>) -> &mut Self {
+        self.config.insert(property.into(), value.into());
         self
     }
 
@@ -206,8 +206,8 @@ impl CoreSiteConfigBuilder {
         }
     }
 
-    pub fn add(&mut self, property: &str, value: &str) -> &mut Self {
-        self.config.insert(property.to_string(), value.to_string());
+    pub fn add(&mut self, property: impl Into<String>, value: impl Into<String>) -> &mut Self {
+        self.config.insert(property.into(), value.into());
         self
     }
 

@@ -73,34 +73,34 @@ impl CoreSiteConfigBuilder {
                 .add("hadoop.registry.kerberos.realm", "${env.KERBEROS_REALM}")
                 .add(
                     "dfs.journalnode.kerberos.principal",
-                    &format!("jn/{principal_host_part}"),
+                    format!("jn/{principal_host_part}"),
                 )
                 .add(
                     "dfs.journalnode.kerberos.internal.spnego.principal",
-                    &format!("jn/{principal_host_part}"),
+                    format!("jn/{principal_host_part}"),
                 )
                 .add(
                     "dfs.namenode.kerberos.principal",
-                    &format!("nn/{principal_host_part}"),
+                    format!("nn/{principal_host_part}"),
                 )
                 .add(
                     "dfs.datanode.kerberos.principal",
-                    &format!("dn/{principal_host_part}"),
+                    format!("dn/{principal_host_part}"),
                 )
                 .add(
                     "dfs.web.authentication.kerberos.principal",
-                    &format!("HTTP/{principal_host_part}"),
+                    format!("HTTP/{principal_host_part}"),
                 )
                 .add("dfs.journalnode.keytab.file", "/stackable/kerberos/keytab")
                 .add("dfs.namenode.keytab.file", "/stackable/kerberos/keytab")
                 .add("dfs.datanode.keytab.file", "/stackable/kerberos/keytab")
                 .add(
                     "dfs.journalnode.kerberos.principal.pattern",
-                    &format!("jn/{principal_host_part}"),
+                    format!("jn/{principal_host_part}"),
                 )
                 .add(
                     "dfs.namenode.kerberos.principal.pattern",
-                    &format!("nn/{principal_host_part}"),
+                    format!("nn/{principal_host_part}"),
                 )
                 // Otherwise we fail with `java.io.IOException: No groups found for user nn`
                 // Default value is `dr.who=`, so we include that here
