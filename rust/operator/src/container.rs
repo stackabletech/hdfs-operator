@@ -96,8 +96,6 @@ pub enum ContainerConfig {
         volume_mounts: ContainerVolumeDirs,
     },
     FormatNameNodes {
-        /// HDFS role (name-, data-, journal-node) which will be the container_name.
-        role: HdfsRole,
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
@@ -110,8 +108,6 @@ pub enum ContainerConfig {
         volume_mounts: ContainerVolumeDirs,
     },
     WaitForNameNodes {
-        /// HDFS role (name-, data-, journal-node) which will be the container_name.
-        role: HdfsRole,
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
@@ -1109,7 +1105,6 @@ impl TryFrom<String> for ContainerConfig {
                 // namenode init containers
                 name if name == NameNodeContainer::FormatNameNodes.to_string() => {
                     Ok(Self::FormatNameNodes {
-                        role: HdfsRole::NameNode,
                         volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                         container_name: name,
                     })
@@ -1123,7 +1118,6 @@ impl TryFrom<String> for ContainerConfig {
                 // datanode init containers
                 name if name == DataNodeContainer::WaitForNameNodes.to_string() => {
                     Ok(Self::WaitForNameNodes {
-                        role: HdfsRole::DataNode,
                         volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                         container_name: name,
                     })
