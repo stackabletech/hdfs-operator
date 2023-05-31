@@ -620,12 +620,7 @@ impl HdfsCluster {
     }
 
     pub fn has_kerberos_enabled(&self) -> bool {
-        self.spec
-            .cluster_config
-            .authentication
-            .as_ref()
-            .map(|auth| &auth.kerberos)
-            .is_some()
+        self.kerberos_config().is_some()
     }
 
     pub fn kerberos_config(&self) -> Option<&KerberosConfig> {
