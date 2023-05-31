@@ -571,7 +571,7 @@ impl ContainerConfig {
                       for namenode_id in {pod_names}
                       do
                         echo -n "Checking pod $namenode_id... "
-                          {get_service_state_command}
+                        {get_service_state_command}
                         if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
                         then
                           echo "$SERVICE_STATE"
