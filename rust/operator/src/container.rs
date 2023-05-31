@@ -515,7 +515,6 @@ impl ContainerConfig {
                       echo ""
                     done
 
-                    set -e
                     if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
                     then
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
@@ -529,7 +528,8 @@ impl ContainerConfig {
                     else
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
-                    fi"###,
+                    fi
+                    "###,
                     get_service_state_command = Self::get_service_state_command(hdfs)?,
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
