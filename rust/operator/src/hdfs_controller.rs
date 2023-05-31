@@ -277,7 +277,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
-                &role,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
@@ -395,7 +394,6 @@ fn rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
-    role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
@@ -420,6 +418,7 @@ fn rolegroup_config_map(
 
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
+    let mut hadoop_policy_xml = String::new();
     let mut ssl_server_xml = String::new();
     let mut ssl_client_xml = String::new();
 
@@ -461,10 +460,17 @@ fn rolegroup_config_map(
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
-                    .security_config(hdfs, role, hdfs_name, &hdfs_namespace)
+                    .security_config(hdfs, hdfs_name, &hdfs_namespace)
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
+            }
+            PropertyNameKind::File(file_name) if file_name == HADOOP_POLICY_XML => {
+                // We don't add any settings here, the main purpose is to have a configOverride for users.
+                let mut config_opts: BTreeMap<String, Option<String>> = BTreeMap::new();
+                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
+                hadoop_policy_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
             }
             PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
                 let mut config_opts = BTreeMap::new();
@@ -540,6 +546,7 @@ fn rolegroup_config_map(
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
+        .add_data(HADOOP_POLICY_XML.to_string(), hadoop_policy_xml)
         .add_data(SSL_SERVER_XML, ssl_server_xml)
         .add_data(SSL_CLIENT_XML, ssl_client_xml);
 

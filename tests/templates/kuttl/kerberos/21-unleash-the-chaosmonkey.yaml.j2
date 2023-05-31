@@ -1,0 +1,51 @@
+# Tribute to https://github.com/Netflix/chaosmonkey
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+timeout: 3600
+commands:
+  # First, let's delete the first pod of every HDFS service
+  # Should trigger failover of the namenode to 1
+  - script: kubectl -n $NAMESPACE delete pod hdfs-journalnode-default-0 hdfs-namenode-default-0 hdfs-datanode-default-0
+    timeout: 600
+  - script: kubectl -n $NAMESPACE delete pod -l app.kubernetes.io/name=zookeeper
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
+    timeout: 600
+
+  # Also delete the last pod of every HDFS service
+  # Should trigger failover of the namenode back to 0
+  - script: kubectl -n $NAMESPACE delete pod hdfs-journalnode-default-2 hdfs-namenode-default-1 hdfs-datanode-default-1
+    timeout: 600
+  - script: kubectl -n $NAMESPACE delete pod -l app.kubernetes.io/name=zookeeper
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
+    timeout: 600
+
+  # Also delete the Zookeeper
+  - script: kubectl -n $NAMESPACE delete pod hdfs-zk-server-default-0
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available zookeepercluster hdfs-zk --timeout 10m
+    timeout: 600
+
+  # And now everything
+{% for n in range(3) %}
+  - script: kubectl -n $NAMESPACE delete pod -l app.kubernetes.io/name=hdfs
+    timeout: 600
+  - script: kubectl -n $NAMESPACE delete pod -l app.kubernetes.io/name=zookeeper
+    timeout: 600
+  - script: sleep 10
+  # Delete just after they have started up again, just to make things worse
+  - script: kubectl -n $NAMESPACE delete pod -l app.kubernetes.io/name=hdfs
+    timeout: 600
+  - script: kubectl -n $NAMESPACE delete pod -l app.kubernetes.io/name=zookeeper
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available zookeepercluster hdfs-zk --timeout 10m
+    timeout: 600
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
+    timeout: 600
+{% endfor %}

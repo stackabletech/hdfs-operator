@@ -12,6 +12,7 @@ pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";
 
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
+pub const HADOOP_POLICY_XML: &str = "hadoop-policy.xml";
 pub const SSL_SERVER_XML: &str = "ssl-server.xml";
 pub const SSL_CLIENT_XML: &str = "ssl-client.xml";
 pub const LOG4J_PROPERTIES: &str = "log4j.properties";

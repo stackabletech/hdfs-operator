@@ -573,6 +573,7 @@ impl HdfsCluster {
         let pnk = vec![
             PropertyNameKind::File(HDFS_SITE_XML.to_string()),
             PropertyNameKind::File(CORE_SITE_XML.to_string()),
+            PropertyNameKind::File(HADOOP_POLICY_XML.to_string()),
             PropertyNameKind::File(SSL_SERVER_XML.to_string()),
             PropertyNameKind::File(SSL_CLIENT_XML.to_string()),
             PropertyNameKind::Env,
