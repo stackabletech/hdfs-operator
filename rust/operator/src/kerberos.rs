@@ -123,7 +123,7 @@ impl CoreSiteConfigBuilder {
     }
 
     fn add_wire_encryption_settings(&mut self) -> &mut Self {
-        self.add("hadoop.rpc.protection", "authentication");
+        self.add("hadoop.rpc.protection", "privacy");
         self
     }
 }
