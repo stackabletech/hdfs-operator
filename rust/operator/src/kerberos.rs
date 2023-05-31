@@ -1,5 +1,5 @@
 use stackable_hdfs_crd::{
-    constants::{HADOOP_SECURITY_AUTHENTICATION, SSL_CLIENT_XML, SSL_SERVER_XML},
+    constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
     HdfsCluster,
 };
 use stackable_operator::commons::product_image_selection::ResolvedProductImage;
@@ -116,7 +116,7 @@ impl CoreSiteConfigBuilder {
 
     pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
         if hdfs.has_kerberos_enabled() {
-            self.add(HADOOP_SECURITY_AUTHENTICATION, "kerberos");
+            self.add("hadoop.security.authentication", "kerberos");
             self.add_wire_encryption_settings();
         }
         self
