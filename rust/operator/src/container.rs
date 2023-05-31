@@ -546,7 +546,19 @@ impl ContainerConfig {
                     r###"
                     echo "Attempt to format ZooKeeper..."
                     if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
-                      {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive || true
+                      set +e
+                      {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive
+                      EXITCODE=$?
+                      set -e
+                      if [[ $EXITCODE -eq 0 ]]; then
+                        echo "Successfully formatted"
+                      elif [[ $EXITCODE -eq 2 ]]; then
+                        echo "ZNode already existed, did nothing"
+                      else
+                        echo "Zookeeper format failed with exit code $EXITCODE"
+                        exit $EXITCODE
+                      fi
+
                     else
                       echo "ZooKeeper already formatted!"
                     fi
