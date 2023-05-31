@@ -179,7 +179,9 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let client = &ctx.client;
 
     let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
-    kerberos::check_if_supported(&resolved_product_image)?;
+    if hdfs.has_kerberos_enabled() {
+        kerberos::check_if_supported(&resolved_product_image)?;
+    }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
         .await
