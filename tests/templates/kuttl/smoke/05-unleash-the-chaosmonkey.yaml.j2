@@ -1,4 +1,8 @@
 # Tribute to https://github.com/Netflix/chaosmonkey
+
+# We need to reduce the number of monkeys, otherwise the tests literally take days
+# We only run them on some hand-picked test cases
+{% if test_scenario['values']['number-of-datanodes'] == '2' and test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' and test_scenario['values']['listener-class'] == 'cluster-internal' and test_scenario['values']['zookeeper'] == test_scenario['values']['zookeeper-latest'] %}
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
@@ -45,3 +49,4 @@ commands:
   - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
     timeout: 600
 {% endfor %}
+{% endif %}

@@ -41,6 +41,7 @@ tests:
     dimensions:
       - hadoop
       - zookeeper
+      - zookeeper-latest # Needed for smoke test to detect if zk versions is the latest we support
       - number-of-datanodes
       - datanode-pvcs
       - listener-class
