@@ -150,6 +150,10 @@ pub enum Error {
     BuildRbacResources {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("failed to build pod template"))]
+    BuildPodTemplate {
+        source: stackable_operator::error::Error,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -569,7 +573,7 @@ fn rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: object_name,
-            template: pb.build_template(),
+            template: pb.build_template().context(BuildPodTemplateSnafu),
 
             volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
             ..StatefulSetSpec::default()
