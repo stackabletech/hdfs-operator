@@ -20,3 +20,10 @@ spec:
           image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
           stdin: true
           tty: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "64m"
+            limits:
+              memory: "128Mi"
+              cpu: "64m"

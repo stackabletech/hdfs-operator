@@ -5,7 +5,7 @@ metadata:
   name: hdfs-smoke-quota
 spec:
   hard:
-    requests.cpu: "4"
-    requests.memory: 4Gi
-    limits.cpu: "4"
-    limits.memory: 4Gi
+    requests.cpu: "2"
+    requests.memory: 1Gi
+    limits.cpu: "10"
+    limits.memory: 5Gi
