@@ -512,7 +512,7 @@ impl ContainerConfig {
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi
                     "###,
-                    get_service_state_command = Self::get_service_state_command(hdfs)?,
+                    get_service_state_command = Self::get_namenode_service_state_command(),
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
@@ -588,7 +588,7 @@ impl ContainerConfig {
                       sleep 5
                     done
                     "###,
-                    get_service_state_command = Self::get_service_state_command(hdfs)?,
+                    get_service_state_command = Self::get_namenode_service_state_command(),
                     pod_names = namenode_podrefs
                         .iter()
                         .map(|pod_ref| pod_ref.pod_name.as_ref())
@@ -640,23 +640,12 @@ impl ContainerConfig {
         ))
     }
 
-    fn get_service_state_command(hdfs: &HdfsCluster) -> Result<String, Error> {
-        Ok(if hdfs.has_kerberos_enabled() {
-            formatdoc!(
-                r###"
-                  PRINCIPAL=$(echo "nn/{hdfs_name}.{hdfs_namespace}.svc.cluster.local@${{KERBEROS_REALM}}")
-                  SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -D dfs.namenode.kerberos.principal=$PRINCIPAL -getServiceState $namenode_id | tail -n1 || true)"###,
-                hadoop_home = Self::HADOOP_HOME,
-                hdfs_name = hdfs.name_any(),
-                hdfs_namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
-            )
-        } else {
-            formatdoc!(
-                r###"
+    fn get_namenode_service_state_command() -> String {
+        formatdoc!(
+            r###"
                   SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $namenode_id | tail -n1 || true)"###,
-                hadoop_home = Self::HADOOP_HOME
-            )
-        })
+            hadoop_home = Self::HADOOP_HOME,
+        )
     }
 
     /// Returns the container env variables.
