@@ -160,18 +160,12 @@ impl ContainerConfig {
         pb.add_volumes(main_container_config.volumes(merged_config, object_name));
         pb.add_container(main_container_config.main_container(
             hdfs,
+            role,
             resolved_product_image,
             zk_config_map_name,
             env_overrides,
             merged_config,
         )?);
-
-        // We need to share `/tmp` between all containers, e.g. for Kerberos ticket cache
-        pb.add_volume(
-            VolumeBuilder::new("tmp")
-                .with_empty_dir(Option::<String>::None, None)
-                .build(),
-        );
 
         // Vector side container
         if merged_config.vector_logging_enabled() {
@@ -217,12 +211,6 @@ impl ContainerConfig {
                     .build(),
             );
 
-            let principal = format!(
-                "{service_name}/{hdfs_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
-                service_name = role.kerberos_service_name(),
-                hdfs_name = hdfs.name_any(),
-                namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
-            );
             let create_tls_cert_bundle_init_container =
                 ContainerBuilder::new("create-tls-cert-bundle")
                     .unwrap()
@@ -230,13 +218,6 @@ impl ContainerConfig {
                     .command(Self::command())
                     .args(vec![formatdoc!(
                             r###"
-                            # We need get the kerberos ticket first, as other containers wait for the truststore to be available.
-                            # This way it is guaranteed that the ticket is already there when the truststore is there.
-                            export KRB5_CONFIG=/stackable/kerberos/krb5.conf
-                            {export_kerberos_real_env_var_command}
-                            echo "Getting ticket for {principal} from /stackable/kerberos/keytab"
-                            kinit "{principal}" -kt /stackable/kerberos/keytab
-
                             echo "Cleaning up truststore - just in case"
                             rm -f {KEYSTORE_DIR_NAME}/truststore.p12
                             echo "Creating truststore"
@@ -246,14 +227,11 @@ impl ContainerConfig {
                             echo "Cleaning up keystore - just in case"
                             rm -f {KEYSTORE_DIR_NAME}/keystore.p12
                             echo "Creating keystore"
-                            openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"###,
-                            export_kerberos_real_env_var_command = Self::export_kerberos_real_env_var_command(),
+                            openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"###
                         )])
                         // Only this init container needs the actual cert (from tls volume) to create the truststore + keystore from
-                        .add_volume_mount("tmp", "/tmp")
                         .add_volume_mount("tls", "/stackable/tls")
                         .add_volume_mount("keystore", KEYSTORE_DIR_NAME)
-                        .add_volume_mount("kerberos", "/stackable/kerberos")
                     .build();
             pb.add_init_container(create_tls_cert_bundle_init_container);
         }
@@ -266,6 +244,7 @@ impl ContainerConfig {
                 pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
+                    role,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -280,6 +259,7 @@ impl ContainerConfig {
                 );
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
+                    role,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -295,6 +275,7 @@ impl ContainerConfig {
                 );
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
+                    role,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -311,6 +292,7 @@ impl ContainerConfig {
                 );
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
+                    role,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -350,6 +332,7 @@ impl ContainerConfig {
     fn main_container(
         &self,
         hdfs: &HdfsCluster,
+        role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -364,7 +347,7 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
-            .args(self.args(hdfs, merged_config, &[])?)
+            .args(self.args(hdfs, role, merged_config, &[])?)
             .add_env_vars(self.env(
                 hdfs,
                 zookeeper_config_map_name,
@@ -389,9 +372,11 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
+    #[allow(clippy::too_many_arguments)]
     fn init_container(
         &self,
         hdfs: &HdfsCluster,
+        role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -402,7 +387,7 @@ impl ContainerConfig {
             .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
             .image_from_product_image(resolved_product_image)
             .command(Self::command())
-            .args(self.args(hdfs, merged_config, namenode_podrefs)?)
+            .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
             .build())
@@ -445,6 +430,7 @@ impl ContainerConfig {
     fn args(
         &self,
         hdfs: &HdfsCluster,
+        role: &HdfsRole,
         merged_config: &(dyn MergedConfig + Send + 'static),
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<Vec<String>, Error> {
@@ -455,7 +441,7 @@ impl ContainerConfig {
         // We can't influence the order of the init containers.
         // Some init containers - such as format-namenodes - need the tls certs or kerberos tickets, so let's wait for them to be properly set up
         if hdfs.authentication_config().is_some() {
-            args.push_str(&Self::export_kerberos_real_env_var_command());
+            args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
             args.push_str(&Self::wait_for_trust_and_keystore_command());
         }
 
@@ -635,6 +621,25 @@ impl ContainerConfig {
             .to_string()
     }
 
+    /// Command to `kinit` a ticket using the principal created for the specified hdfs role
+    /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
+    fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole) -> Result<String, Error> {
+        let principal = format!(
+            "{service_name}/{hdfs_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
+            service_name = role.kerberos_service_name(),
+            hdfs_name = hdfs.name_any(),
+            namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
+        );
+        Ok(formatdoc!(
+            r###"
+            {export_kerberos_real_env_var_command}
+            echo "Getting ticket for {principal}" from /stackable/kerberos/keytab
+            kinit "{principal}" -kt /stackable/kerberos/keytab
+            "###,
+            export_kerberos_real_env_var_command = Self::export_kerberos_real_env_var_command(),
+        ))
+    }
+
     fn get_service_state_command(hdfs: &HdfsCluster) -> Result<String, Error> {
         Ok(if hdfs.has_kerberos_enabled() {
             formatdoc!(
@@ -797,7 +802,6 @@ impl ContainerConfig {
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Vec<VolumeMount> {
         let mut volume_mounts = vec![
-            VolumeMountBuilder::new("tmp", "/tmp").build(),
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
                 .build(),
             VolumeMountBuilder::new(
