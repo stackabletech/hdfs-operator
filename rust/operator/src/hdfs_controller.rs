@@ -573,7 +573,7 @@ fn rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: object_name,
-            template: pb.build_template().context(BuildPodTemplateSnafu),
+            template: pb.build_template().context(BuildPodTemplateSnafu)?,
 
             volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
             ..StatefulSetSpec::default()

@@ -19,8 +19,8 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
         cpu:
-          min: '300m'
-          max: '600m'
+          min: '100m'
+          max: '500m'
         memory:
           limit: '512Mi'
     roleGroups:

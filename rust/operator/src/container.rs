@@ -27,6 +27,7 @@ use stackable_hdfs_crd::{
     storage::DataNodeStorageConfig,
     DataNodeContainer, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
+use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::{
     builder::{ContainerBuilder, PodBuilder, VolumeBuilder, VolumeMountBuilder},
     commons::product_image_selection::ResolvedProductImage,
@@ -86,24 +87,36 @@ pub enum ContainerConfig {
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
+        /// Resource requests for this (side) container. There is no possibility for the user to
+        /// configure these using the CRD. They are initialized in the Self::try_from().
+        resources: ResourceRequirements,
     },
     FormatNameNodes {
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
+        /// Resource requests for this (side) container. There is no possibility for the user to
+        /// configure these using the CRD. They are initialized in the Self::try_from().
+        resources: ResourceRequirements,
     },
     FormatZooKeeper {
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
+        /// Resource requests for this (side) container. There is no possibility for the user to
+        /// configure these using the CRD. They are initialized in the Self::try_from().
+        resources: ResourceRequirements,
     },
     WaitForNameNodes {
         /// The provided custom container name.
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
+        /// Resource requests for this (side) container. There is no possibility for the user to
+        /// configure these using the CRD. They are initialized in the Self::try_from().
+        resources: ResourceRequirements,
     },
 }
 
@@ -158,11 +171,18 @@ impl ContainerConfig {
 
         // Vector side container
         if merged_config.vector_logging_enabled() {
+            let resources = ResourceRequirementsBuilder::new()
+                .with_cpu_limit("500m")
+                .with_cpu_request("100m")
+                .with_memory_limit("40Mi")
+                .with_memory_request("8Mi")
+                .build();
             pb.add_container(product_logging::framework::vector_container(
                 resolved_product_image,
                 ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                 ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
                 Some(&merged_config.vector_logging()),
+                resources,
             ));
         }
 
@@ -273,7 +293,7 @@ impl ContainerConfig {
             .add_container_ports(self.container_ports());
 
         if let Some(resources) = resources {
-            cb.resources(resources);
+            cb.with_resources(resources);
         }
 
         if let Some(probe) = self.tcp_socket_action_probe(10, 10) {
@@ -295,14 +315,18 @@ impl ContainerConfig {
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Result<Container, Error> {
-        Ok(ContainerBuilder::new(self.name())
-            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
+        let mut binding = ContainerBuilder::new(self.name())
+            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?;
+        let cb = binding
             .image_from_product_image(resolved_product_image)
             .command(self.command())
             .args(self.args(merged_config, namenode_podrefs))
             .add_env_vars(self.env(zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(merged_config))
-            .build())
+            .add_volume_mounts(self.volume_mounts(merged_config));
+        if let Some(res) = self.resources(merged_config) {
+            cb.with_resources(res);
+        }
+        Ok(cb.build())
     }
 
     /// Return the container name.
@@ -535,6 +559,10 @@ impl ContainerConfig {
             ContainerConfig::Hdfs { role, .. } if role == &HdfsRole::DataNode => {
                 merged_config.data_node_resources().map(|c| c.into())
             }
+            ContainerConfig::Zkfc { resources, .. } => Some(resources.clone()),
+            ContainerConfig::FormatNameNodes { resources, .. } => Some(resources.clone()),
+            ContainerConfig::FormatZooKeeper { resources, .. } => Some(resources.clone()),
+            ContainerConfig::WaitForNameNodes { resources, .. } => Some(resources.clone()),
             _ => None,
         }
     }
@@ -913,18 +941,36 @@ impl TryFrom<String> for ContainerConfig {
                 name if name == NameNodeContainer::Zkfc.to_string() => Ok(Self::Zkfc {
                     volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                     container_name: name,
+                    resources: ResourceRequirementsBuilder::new()
+                        .with_cpu_limit("500m")
+                        .with_cpu_request("100m")
+                        .with_memory_limit("128Mi")
+                        .with_memory_request("128Mi")
+                        .build(),
                 }),
                 // namenode init containers
                 name if name == NameNodeContainer::FormatNameNodes.to_string() => {
                     Ok(Self::FormatNameNodes {
                         volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                         container_name: name,
+                        resources: ResourceRequirementsBuilder::new()
+                            .with_cpu_limit("500m")
+                            .with_cpu_request("100m")
+                            .with_memory_limit("128Mi")
+                            .with_memory_request("128Mi")
+                            .build(),
                     })
                 }
                 name if name == NameNodeContainer::FormatZooKeeper.to_string() => {
                     Ok(Self::FormatZooKeeper {
                         volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                         container_name: name,
+                        resources: ResourceRequirementsBuilder::new()
+                            .with_cpu_limit("500m")
+                            .with_cpu_request("100m")
+                            .with_memory_limit("128Mi")
+                            .with_memory_request("128Mi")
+                            .build(),
                     })
                 }
                 // datanode init containers
@@ -932,6 +978,12 @@ impl TryFrom<String> for ContainerConfig {
                     Ok(Self::WaitForNameNodes {
                         volume_mounts: ContainerVolumeDirs::try_from(name.as_str())?,
                         container_name: name,
+                        resources: ResourceRequirementsBuilder::new()
+                            .with_cpu_limit("500m")
+                            .with_cpu_request("100m")
+                            .with_memory_limit("128Mi")
+                            .with_memory_request("128Mi")
+                            .build(),
                     })
                 }
                 _ => Err(Error::UnrecognizedContainerName { container_name }),
