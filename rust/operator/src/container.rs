@@ -483,11 +483,12 @@ impl ContainerConfig {
                 // $NAMENODE_DIR/current/VERSION. Then we don't do anything.
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
+                if hdfs.has_kerberos_enabled() {
+                    args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
+                }
                 args.push_str(&formatdoc!(
                     r###"
                     echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
-                    {get_kerberos_ticket}
-
                     for namenode_id in {pod_names}
                     do
                       echo -n "Checking pod $namenode_id... "
@@ -516,7 +517,6 @@ impl ContainerConfig {
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi
                     "###,
-                    get_kerberos_ticket = Self::get_kerberos_ticket(hdfs, role)?,
                     get_service_state_command = Self::get_namenode_service_state_command(),
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
@@ -564,11 +564,12 @@ impl ContainerConfig {
                         container_config,
                     ));
                 }
+                if hdfs.has_kerberos_enabled() {
+                    args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
+                }
                 args.push_str(&formatdoc!(
                     r###"
                     echo "Waiting for namenodes to get ready:"
-                    {get_kerberos_ticket}
-
                     n=0
                     while [ ${{n}} -lt 12 ];
                     do
@@ -595,7 +596,6 @@ impl ContainerConfig {
                       sleep 5
                     done
                     "###,
-                    get_kerberos_ticket = Self::get_kerberos_ticket(hdfs, role)?,
                     get_service_state_command = Self::get_namenode_service_state_command(),
                     pod_names = namenode_podrefs
                         .iter()
