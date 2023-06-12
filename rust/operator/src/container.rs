@@ -443,6 +443,9 @@ impl ContainerConfig {
         if hdfs.has_https_enabled() {
             args.push_str(&Self::wait_for_trust_and_keystore_command());
         }
+        if hdfs.has_kerberos_enabled() {
+            args.push_str(&Self::export_kerberos_real_env_var_command());
+        }
 
         match self {
             ContainerConfig::Hdfs { role, .. } => {
@@ -627,6 +630,7 @@ impl ContainerConfig {
     }
 
     /// Command to `kinit` a ticket using the principal created for the specified hdfs role
+    /// Needs the KERBEROS_REALM env var, which will be written with `export_kerberos_real_env_var_command`
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
     fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole) -> Result<String, Error> {
         let principal = format!(
@@ -637,11 +641,9 @@ impl ContainerConfig {
         );
         Ok(formatdoc!(
             r###"
-            {export_kerberos_real_env_var_command}
             echo "Getting ticket for {principal}" from /stackable/kerberos/keytab
             kinit "{principal}" -kt /stackable/kerberos/keytab
             "###,
-            export_kerberos_real_env_var_command = Self::export_kerberos_real_env_var_command(),
         ))
     }
 
