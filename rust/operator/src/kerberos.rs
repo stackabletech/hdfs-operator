@@ -10,6 +10,10 @@ use crate::{
 };
 
 pub fn check_if_supported(resolved_product_image: &ResolvedProductImage) -> Result<(), Error> {
+    // We only support Kerberos for HDFS >= 3.3.x
+    // With HDFS 3.2.2 we got weird errors, which *might* be caused by DNS lookup issues
+    // The Stacktrace is documented in rust/operator/src/kerberos_hdfs_3.2_stacktrace.txt
+
     if resolved_product_image.product_version.starts_with("3.2.") {
         Err(Error::KerberosNotSupported {})
     } else {
@@ -127,82 +131,3 @@ impl CoreSiteConfigBuilder {
         self
     }
 }
-
-// IMPORTANT: We only support Kerberos for HDFS >= 3.3.x
-// With HDFS 3.2.2 we got weird errors, which *might* be caused by DNS lookup issues
-//
-// 2023-05-31 12:34:18,319 ERROR namenode.EditLogInputStream (EditLogFileInputStream.java:nextOpImpl(220)) - caught exception initializing https://hdfs-journalnode-default-2.hdfs-journalnode-default.kuttl-test-nice-eft.svc.cluster.local:8481/getJournal?jid=hdfs&segmentTxId=1&storageInfo=-65%3A1740831343%3A1685535647411%3ACID-5bb822a0-549e-41ce-9997-ee657b6fc23f&inProgressOk=true
-// java.io.IOException: org.apache.hadoop.security.authentication.client.AuthenticationException: Error while authenticating with endpoint: https://hdfs-journalnode-default-2.hdfs-journalnode-default.kuttl-test-nice-eft.svc.cluster.local:8481/getJournal?jid=hdfs&segmentTxId=1&storageInfo=-65%3A1740831343%3A1685535647411%3ACID-5bb822a0-549e-41ce-9997-ee657b6fc23f&inProgressOk=true
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream$URLLog$1.run(EditLogFileInputStream.java:482)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream$URLLog$1.run(EditLogFileInputStream.java:474)
-//         at java.base/java.security.AccessController.doPrivileged(Native Method)
-//         at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
-//         at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1762)
-//         at org.apache.hadoop.security.SecurityUtil.doAsUser(SecurityUtil.java:535)
-//         at org.apache.hadoop.security.SecurityUtil.doAsCurrentUser(SecurityUtil.java:529)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream$URLLog.getInputStream(EditLogFileInputStream.java:473)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream.init(EditLogFileInputStream.java:157)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream.nextOpImpl(EditLogFileInputStream.java:218)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream.nextOp(EditLogFileInputStream.java:276)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogInputStream.readOp(EditLogInputStream.java:85)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogInputStream.skipUntil(EditLogInputStream.java:151)
-//         at org.apache.hadoop.hdfs.server.namenode.RedundantEditLogInputStream.nextOp(RedundantEditLogInputStream.java:190)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogInputStream.readOp(EditLogInputStream.java:85)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogInputStream.skipUntil(EditLogInputStream.java:151)
-//         at org.apache.hadoop.hdfs.server.namenode.RedundantEditLogInputStream.nextOp(RedundantEditLogInputStream.java:190)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogInputStream.readOp(EditLogInputStream.java:85)
-//         at org.apache.hadoop.hdfs.server.namenode.FSEditLogLoader.loadEditRecords(FSEditLogLoader.java:243)
-//         at org.apache.hadoop.hdfs.server.namenode.FSEditLogLoader.loadFSEdits(FSEditLogLoader.java:182)
-//         at org.apache.hadoop.hdfs.server.namenode.FSImage.loadEdits(FSImage.java:914)
-//         at org.apache.hadoop.hdfs.server.namenode.FSImage.loadFSImage(FSImage.java:761)
-//         at org.apache.hadoop.hdfs.server.namenode.FSImage.recoverTransitionRead(FSImage.java:338)
-//         at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.loadFSImage(FSNamesystem.java:1135)
-//         at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.loadFromDisk(FSNamesystem.java:750)
-//         at org.apache.hadoop.hdfs.server.namenode.NameNode.loadNamesystem(NameNode.java:658)
-//         at org.apache.hadoop.hdfs.server.namenode.NameNode.initialize(NameNode.java:734)
-//         at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:977)
-//         at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:950)
-//         at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1716)
-//         at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1783)
-// Caused by: org.apache.hadoop.security.authentication.client.AuthenticationException: Error while authenticating with endpoint: https://hdfs-journalnode-default-2.hdfs-journalnode-default.kuttl-test-nice-eft.svc.cluster.local:8481/getJournal?jid=hdfs&segmentTxId=1&storageInfo=-65%3A1740831343%3A1685535647411%3ACID-5bb822a0-549e-41ce-9997-ee657b6fc23f&inProgressOk=true
-//         at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
-//         at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
-//         at java.base/jdk.internal.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
-//         at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:490)
-//         at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.wrapExceptionWithMessage(KerberosAuthenticator.java:232)
-//         at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.authenticate(KerberosAuthenticator.java:219)
-//         at org.apache.hadoop.security.authentication.client.AuthenticatedURL.openConnection(AuthenticatedURL.java:348)
-//         at org.apache.hadoop.hdfs.web.URLConnectionFactory.openConnection(URLConnectionFactory.java:186)
-//         at org.apache.hadoop.hdfs.server.namenode.EditLogFileInputStream$URLLog$1.run(EditLogFileInputStream.java:480)
-//         ... 30 more
-// Caused by: org.apache.hadoop.security.authentication.client.AuthenticationException: GSSException: No valid credentials provided (Mechanism level: Server not found in Kerberos database (7) - LOOKING_UP_SERVER)
-//         at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.doSpnegoSequence(KerberosAuthenticator.java:360)
-//         at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.authenticate(KerberosAuthenticator.java:204)
-//         ... 33 more
-// Caused by: GSSException: No valid credentials provided (Mechanism level: Server not found in Kerberos database (7) - LOOKING_UP_SERVER)
-//         at java.security.jgss/sun.security.jgss.krb5.Krb5Context.initSecContext(Krb5Context.java:773)
-//         at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(GSSContextImpl.java:266)
-//         at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(GSSContextImpl.java:196)
-//         at org.apache.hadoop.security.authentication.client.KerberosAuthenticator$1.run(KerberosAuthenticator.java:336)
-//         at org.apache.hadoop.security.authentication.client.KerberosAuthenticator$1.run(KerberosAuthenticator.java:310)
-//         at java.base/java.security.AccessController.doPrivileged(Native Method)
-//         at java.base/javax.security.auth.Subject.doAs(Subject.java:423)
-//         at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.doSpnegoSequence(KerberosAuthenticator.java:310)
-//         ... 34 more
-// Caused by: KrbException: Server not found in Kerberos database (7) - LOOKING_UP_SERVER
-//         at java.security.jgss/sun.security.krb5.KrbTgsRep.<init>(KrbTgsRep.java:73)
-//         at java.security.jgss/sun.security.krb5.KrbTgsReq.getReply(KrbTgsReq.java:226)
-//         at java.security.jgss/sun.security.krb5.KrbTgsReq.sendAndGetCreds(KrbTgsReq.java:237)
-//         at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCredsSingle(CredentialsUtil.java:477)
-//         at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(CredentialsUtil.java:340)
-//         at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(CredentialsUtil.java:314)
-//         at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.acquireServiceCreds(CredentialsUtil.java:169)
-//         at java.security.jgss/sun.security.krb5.Credentials.acquireServiceCreds(Credentials.java:490)
-//         at java.security.jgss/sun.security.jgss.krb5.Krb5Context.initSecContext(Krb5Context.java:697)
-//         ... 41 more
-// Caused by: KrbException: Identifier doesn't match expected value (906)
-//         at java.security.jgss/sun.security.krb5.internal.KDCRep.init(KDCRep.java:140)
-//         at java.security.jgss/sun.security.krb5.internal.TGSRep.init(TGSRep.java:65)
-//         at java.security.jgss/sun.security.krb5.internal.TGSRep.<init>(TGSRep.java:60)
-//         at java.security.jgss/sun.security.krb5.KrbTgsRep.<init>(KrbTgsRep.java:55)
-//         ... 49 more
