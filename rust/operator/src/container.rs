@@ -440,8 +440,7 @@ impl ContainerConfig {
 
         // We can't influence the order of the init containers.
         // Some init containers - such as format-namenodes - need the tls certs or kerberos tickets, so let's wait for them to be properly set up
-        if hdfs.authentication_config().is_some() {
-            args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
+        if hdfs.has_https_enabled() {
             args.push_str(&Self::wait_for_trust_and_keystore_command());
         }
 
@@ -484,6 +483,8 @@ impl ContainerConfig {
                 args.push_str(&formatdoc!(
                     r###"
                     echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
+                    {get_kerberos_ticket}
+
                     for namenode_id in {pod_names}
                     do
                       echo -n "Checking pod $namenode_id... "
@@ -512,6 +513,7 @@ impl ContainerConfig {
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi
                     "###,
+                    get_kerberos_ticket = Self::get_kerberos_ticket(hdfs, role)?,
                     get_service_state_command = Self::get_namenode_service_state_command(),
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
@@ -562,6 +564,8 @@ impl ContainerConfig {
                 args.push_str(&formatdoc!(
                     r###"
                     echo "Waiting for namenodes to get ready:"
+                    {get_kerberos_ticket}
+
                     n=0
                     while [ ${{n}} -lt 12 ];
                     do
@@ -588,6 +592,7 @@ impl ContainerConfig {
                       sleep 5
                     done
                     "###,
+                    get_kerberos_ticket = Self::get_kerberos_ticket(hdfs, role)?,
                     get_service_state_command = Self::get_namenode_service_state_command(),
                     pod_names = namenode_podrefs
                         .iter()
@@ -694,6 +699,11 @@ impl ContainerConfig {
             env.push(EnvVar {
                 name: "KRB5_CONFIG".to_string(),
                 value: Some("/stackable/kerberos/krb5.conf".to_string()),
+                ..EnvVar::default()
+            });
+            env.push(EnvVar {
+                name: "KRB5_CLIENT_KTNAME".to_string(),
+                value: Some("/stackable/kerberos/keytab".to_string()),
                 ..EnvVar::default()
             });
         }
