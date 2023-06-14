@@ -4,6 +4,7 @@ use crate::{
     container::ContainerConfig,
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
+    kerberos,
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
@@ -54,6 +55,8 @@ const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
+pub(crate) const KEYSTORE_DIR_NAME: &str = "/stackable/keystore";
+
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
@@ -97,6 +100,8 @@ pub enum Error {
     },
     #[snafu(display("Object has no name"))]
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
+    #[snafu(display("Object has no namespace"))]
+    ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
     #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
     BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,
@@ -150,6 +155,10 @@ pub enum Error {
     BuildRbacResources {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display(
+        "kerberos not supported for HDFS versions < 3.3.x. Please use at least version 3.3.x"
+    ))]
+    KerberosNotSupported {},
 }
 
 impl ReconcilerError for Error {
@@ -170,6 +179,9 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let client = &ctx.client;
 
     let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+    if hdfs.has_kerberos_enabled() {
+        kerberos::check_if_supported(&resolved_product_image)?;
+    }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
         .await
@@ -369,7 +381,7 @@ fn rolegroup_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(
-                role.ports()
+                hdfs.ports(role)
                     .into_iter()
                     .map(|(name, value)| ServicePort {
                         name: Some(name),
@@ -399,7 +411,6 @@ fn rolegroup_config_map(
     vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
-
     let hdfs_name = hdfs
         .metadata
         .name
@@ -407,17 +418,25 @@ fn rolegroup_config_map(
         .with_context(|| ObjectHasNoNameSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
+    let hdfs_namespace = hdfs
+        .namespace()
+        .with_context(|| ObjectHasNoNamespaceSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?;
 
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
+    let mut hadoop_policy_xml = String::new();
+    let mut ssl_server_xml = String::new();
+    let mut ssl_client_xml = String::new();
 
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
+                // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
+                // be formatted by the namenode, or used by the other services.
+                // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
                 hdfs_site_xml = HdfsSiteConfigBuilder::new(hdfs_name.to_string())
-                    // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
-                    // be formatted by the namenode, or used by the other services.
-                    // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
                     .dfs_namenode_name_dir()
                     .dfs_datanode_data_dir(merged_config.data_node_resources().map(|r| r.storage))
                     .dfs_journalnode_edits_dir()
@@ -434,8 +453,9 @@ fn rolegroup_config_map(
                     .dfs_namenode_shared_edits_dir(journalnode_podrefs)
                     .dfs_namenode_name_dir_ha(namenode_podrefs)
                     .dfs_namenode_rpc_address_ha(namenode_podrefs)
-                    .dfs_namenode_http_address_ha(namenode_podrefs)
+                    .dfs_namenode_http_address_ha(hdfs, namenode_podrefs)
                     .dfs_client_failover_proxy_provider()
+                    .security_config(hdfs)
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
                     .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                     .add("dfs.ha.automatic-failover.enabled", "true")
@@ -448,9 +468,65 @@ fn rolegroup_config_map(
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
+                    .security_config(hdfs, hdfs_name, &hdfs_namespace)
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
+            }
+            PropertyNameKind::File(file_name) if file_name == HADOOP_POLICY_XML => {
+                // We don't add any settings here, the main purpose is to have a configOverride for users.
+                let mut config_opts: BTreeMap<String, Option<String>> = BTreeMap::new();
+                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
+                hadoop_policy_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+            }
+            PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
+                let mut config_opts = BTreeMap::new();
+                if hdfs.has_https_enabled() {
+                    config_opts.extend([
+                        (
+                            "ssl.server.truststore.location".to_string(),
+                            Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
+                        ),
+                        (
+                            "ssl.server.keystore.location".to_string(),
+                            Some(format!("{KEYSTORE_DIR_NAME}/keystore.p12")),
+                        ),
+                        (
+                            "ssl.server.keystore.password".to_string(),
+                            Some("changeit".to_string()),
+                        ),
+                        (
+                            "ssl.server.keystore.type".to_string(),
+                            Some("pkcs12".to_string()),
+                        ),
+                    ]);
+                }
+                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
+                ssl_server_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+            }
+            PropertyNameKind::File(file_name) if file_name == SSL_CLIENT_XML => {
+                let mut config_opts = BTreeMap::new();
+                if hdfs.has_https_enabled() {
+                    config_opts.extend([
+                        (
+                            "ssl.client.truststore.location".to_string(),
+                            Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
+                        ),
+                        (
+                            "ssl.client.truststore.password".to_string(),
+                            Some("changeit".to_string()),
+                        ),
+                        (
+                            "ssl.client.truststore.type".to_string(),
+                            Some("pkcs12".to_string()),
+                        ),
+                    ]);
+                }
+                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
+                ssl_client_xml =
+                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
             }
             _ => {}
         }
@@ -477,7 +553,10 @@ fn rolegroup_config_map(
                 .build(),
         )
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
-        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml);
+        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
+        .add_data(HADOOP_POLICY_XML.to_string(), hadoop_policy_xml)
+        .add_data(SSL_SERVER_XML, ssl_server_xml)
+        .add_data(SSL_CLIENT_XML, ssl_client_xml);
 
     extend_role_group_config_map(
         rolegroup_ref,
@@ -530,6 +609,7 @@ fn rolegroup_statefulset(
     // Adds all containers and volumes to the pod builder
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
+        hdfs,
         role,
         resolved_product_image,
         merged_config,

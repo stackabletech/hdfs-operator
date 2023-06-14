@@ -1,0 +1,70 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n $NAMESPACE -f - <<EOF
+      ---
+      apiVersion: hdfs.stackable.tech/v1alpha1
+      kind: HdfsCluster
+      metadata:
+        name: hdfs
+      spec:
+        image:
+          productVersion: "{{ test_scenario['values']['hadoop-latest'].split('-stackable')[0] }}"
+          stackableVersion: "{{ test_scenario['values']['hadoop-latest'].split('-stackable')[1] }}"
+        clusterConfig:
+          zookeeperConfigMapName: hdfs-zk
+          dfsReplication: 1
+          authentication:
+            tlsSecretClass: tls
+            kerberos:
+              secretClass: kerberos-$NAMESPACE
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+          vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+        nameNodes:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+            resources:
+              cpu:
+                max: '1'
+                min: '300m'
+              memory:
+                limit: '512Mi'
+          configOverrides: &configOverrides
+            core-site.xml:
+              hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+          roleGroups:
+            default:
+              replicas: 2
+        dataNodes:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+            resources:
+              cpu:
+                max: '1'
+                min: '300m'
+              memory:
+                limit: '512Mi'
+          configOverrides: *configOverrides
+          roleGroups:
+            default:
+              replicas: 2
+        journalNodes:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+            resources:
+              cpu:
+                max: '1'
+                min: '300m'
+              memory:
+                limit: '512Mi'
+          configOverrides: *configOverrides
+          roleGroups:
+            default:
+              replicas: 3
+      EOF

@@ -3,6 +3,7 @@ mod container;
 mod discovery;
 mod event;
 mod hdfs_controller;
+mod kerberos;
 mod pod_svc_controller;
 mod product_logging;
 

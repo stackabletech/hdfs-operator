@@ -1,9 +1,11 @@
 pub mod affinity;
 pub mod constants;
+pub mod security;
 pub mod storage;
 
 use affinity::get_affinity;
 use constants::*;
+use security::{AuthenticationConfig, KerberosConfig};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -75,6 +77,7 @@ pub struct HdfsClusterSpec {
     pub data_nodes: Option<Role<DataNodeConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
+    // Cluster wide configuration
     pub cluster_config: HdfsClusterConfig,
     /// Cluster operations like pause reconciliation or cluster stop.
     #[serde(default)]
@@ -103,6 +106,8 @@ pub struct HdfsClusterConfig {
     /// * external-unstable: Use a NodePort service
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
+    /// Configuration to set up a cluster secured using Kerberos.
+    pub authentication: Option<AuthenticationConfig>,
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -214,62 +219,6 @@ impl HdfsRole {
             HdfsRole::NameNode => false,
             HdfsRole::DataNode => true,
             HdfsRole::JournalNode => false,
-        }
-    }
-
-    /// Returns required port name and port number tuples depending on the role.
-    pub fn ports(&self) -> Vec<(String, u16)> {
-        match self {
-            HdfsRole::NameNode => vec![
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_NAME_NODE_METRICS_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_HTTP),
-                    DEFAULT_NAME_NODE_HTTP_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_RPC),
-                    DEFAULT_NAME_NODE_RPC_PORT,
-                ),
-            ],
-            HdfsRole::DataNode => vec![
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_DATA_NODE_METRICS_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_DATA),
-                    DEFAULT_DATA_NODE_DATA_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_HTTP),
-                    DEFAULT_DATA_NODE_HTTP_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_IPC),
-                    DEFAULT_DATA_NODE_IPC_PORT,
-                ),
-            ],
-            HdfsRole::JournalNode => vec![
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_JOURNAL_NODE_METRICS_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_HTTP),
-                    DEFAULT_JOURNAL_NODE_HTTP_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_HTTPS),
-                    DEFAULT_JOURNAL_NODE_HTTPS_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_RPC),
-                    DEFAULT_JOURNAL_NODE_RPC_PORT,
-                ),
-            ],
         }
     }
 
@@ -403,11 +352,19 @@ impl HdfsRole {
     }
 
     /// Name of the Hadoop process HADOOP_OPTS.
-    pub fn hadoop_opts(&self) -> &'static str {
+    pub fn hadoop_opts_env_var_for_role(&self) -> &'static str {
         match self {
             HdfsRole::NameNode => "HDFS_NAMENODE_OPTS",
             HdfsRole::DataNode => "HDFS_DATANODE_OPTS",
             HdfsRole::JournalNode => "HDFS_JOURNALNODE_OPTS",
+        }
+    }
+
+    pub fn kerberos_service_name(&self) -> &'static str {
+        match self {
+            HdfsRole::NameNode => "nn",
+            HdfsRole::DataNode => "dn",
+            HdfsRole::JournalNode => "jn",
         }
     }
 
@@ -537,7 +494,11 @@ impl HdfsCluster {
                     namespace: ns.clone(),
                     role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                    ports: role.ports().iter().map(|(n, p)| (n.clone(), *p)).collect(),
+                    ports: self
+                        .ports(role)
+                        .iter()
+                        .map(|(n, p)| (n.clone(), *p))
+                        .collect(),
                 })
             })
             .collect())
@@ -612,6 +573,9 @@ impl HdfsCluster {
         let pnk = vec![
             PropertyNameKind::File(HDFS_SITE_XML.to_string()),
             PropertyNameKind::File(CORE_SITE_XML.to_string()),
+            PropertyNameKind::File(HADOOP_POLICY_XML.to_string()),
+            PropertyNameKind::File(SSL_SERVER_XML.to_string()),
+            PropertyNameKind::File(SSL_CLIENT_XML.to_string()),
             PropertyNameKind::Env,
         ];
 
@@ -649,6 +613,107 @@ impl HdfsCluster {
         }
 
         Ok(result)
+    }
+
+    pub fn authentication_config(&self) -> Option<&AuthenticationConfig> {
+        self.spec.cluster_config.authentication.as_ref()
+    }
+
+    pub fn has_kerberos_enabled(&self) -> bool {
+        self.kerberos_config().is_some()
+    }
+
+    pub fn kerberos_config(&self) -> Option<&KerberosConfig> {
+        self.spec
+            .cluster_config
+            .authentication
+            .as_ref()
+            .map(|s| &s.kerberos)
+    }
+
+    pub fn has_https_enabled(&self) -> bool {
+        self.https_secret_class().is_some()
+    }
+
+    pub fn https_secret_class(&self) -> Option<&str> {
+        self.spec
+            .cluster_config
+            .authentication
+            .as_ref()
+            .map(|k| k.tls_secret_class.as_str())
+    }
+
+    /// Returns required port name and port number tuples depending on the role.
+    pub fn ports(&self, role: &HdfsRole) -> Vec<(String, u16)> {
+        match role {
+            HdfsRole::NameNode => vec![
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_NAME_NODE_METRICS_PORT,
+                ),
+                (
+                    String::from(SERVICE_PORT_NAME_RPC),
+                    DEFAULT_NAME_NODE_RPC_PORT,
+                ),
+                if self.has_https_enabled() {
+                    (
+                        String::from(SERVICE_PORT_NAME_HTTPS),
+                        DEFAULT_NAME_NODE_HTTPS_PORT,
+                    )
+                } else {
+                    (
+                        String::from(SERVICE_PORT_NAME_HTTP),
+                        DEFAULT_NAME_NODE_HTTP_PORT,
+                    )
+                },
+            ],
+            HdfsRole::DataNode => vec![
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_DATA_NODE_METRICS_PORT,
+                ),
+                (
+                    String::from(SERVICE_PORT_NAME_DATA),
+                    DEFAULT_DATA_NODE_DATA_PORT,
+                ),
+                (
+                    String::from(SERVICE_PORT_NAME_IPC),
+                    DEFAULT_DATA_NODE_IPC_PORT,
+                ),
+                if self.has_https_enabled() {
+                    (
+                        String::from(SERVICE_PORT_NAME_HTTPS),
+                        DEFAULT_DATA_NODE_HTTPS_PORT,
+                    )
+                } else {
+                    (
+                        String::from(SERVICE_PORT_NAME_HTTP),
+                        DEFAULT_DATA_NODE_HTTP_PORT,
+                    )
+                },
+            ],
+            HdfsRole::JournalNode => vec![
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_JOURNAL_NODE_METRICS_PORT,
+                ),
+                (
+                    String::from(SERVICE_PORT_NAME_RPC),
+                    DEFAULT_JOURNAL_NODE_RPC_PORT,
+                ),
+                if self.has_https_enabled() {
+                    (
+                        String::from(SERVICE_PORT_NAME_HTTPS),
+                        DEFAULT_JOURNAL_NODE_HTTPS_PORT,
+                    )
+                } else {
+                    (
+                        String::from(SERVICE_PORT_NAME_HTTP),
+                        DEFAULT_JOURNAL_NODE_HTTP_PORT,
+                    )
+                },
+            ],
+        }
     }
 }
 /// Reference to a single `Pod` that is a component of a [`HdfsCluster`]
