@@ -26,6 +26,26 @@ spec:
               properties:
                 clusterConfig:
                   properties:
+                    authentication:
+                      description: Configuration to set up a cluster secured using Kerberos.
+                      nullable: true
+                      properties:
+                        kerberos:
+                          description: Kerberos configuration
+                          properties:
+                            secretClass:
+                              description: Name of the SecretClass providing the keytab for the HDFS services.
+                              type: string
+                          required:
+                            - secretClass
+                          type: object
+                        tlsSecretClass:
+                          default: tls
+                          description: Name of the SecretClass providing the tls certificates for the WebUIs.
+                          type: string
+                      required:
+                        - kerberos
+                      type: object
                     autoFormatFs:
                       nullable: true
                       type: boolean

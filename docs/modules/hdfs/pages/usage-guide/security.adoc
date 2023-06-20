@@ -1,0 +1,78 @@
+= Security
+
+== Authentication
+Currently the only supported authentication mechanism is Kerberos, which is disabled by default.
+For Kerberos to work a Kerberos KDC is needed, which the users needs to provide.
+The xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
+
+IMPORTANT: Kerberos is supported staring from HDFS version 3.3.x
+
+=== 1. Prepare Kerberos server
+To configure HDFS to use Kerberos you first need to collect information about your Kerberos server, e.g. hostname and port.
+Additionally you need a service-user, which the secret-operator uses to create create principals for the HDFS services.
+
+=== 2. Create Kerberos SecretClass
+Afterwards you need to enter all the needed information into a SecretClass, as described in  xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
+The following guide assumes you have named your SecretClass `kerberos-hdfs`.
+
+=== 3. Configure HDFS to use SecretClass
+The last step is to configure your HdfsCluster to use the newly created SecretClass.
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    authentication:
+      tlsSecretClass: tls # Optional, defaults to "tls"
+      kerberos:
+        secretClass: kerberos-hdfs # Put your SecretClass name in here
+----
+
+The `kerberos.secretClass` is used to give HDFS the possibility to request keytabs from the secret-operator.
+
+The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
+
+
+=== 4. Verify that Kerberos is used
+Use `stackablectl services list --all-namespaces` to get the endpoints where the HDFS namenodes are reachable.
+Open the link (note that the namenode is now using https).
+You should see a Web UI similar to the following:
+
+image:hdfs_webui_kerberos.png[]
+
+The important part is
+
+> Security is on.
+
+You can also shell into the namenode and try to access the file system:
+`kubectl exec -it hdfs-namenode-default-0 -c namenode -- bash -c 'kdestroy && bin/hdfs dfs -ls /'`
+
+You should get the error message `org.apache.hadoop.security.AccessControlException: Client cannot authenticate via:[TOKEN, KERBEROS]`.
+
+=== 5. Access HDFS
+In case you want to access your HDFS it is recommended to start up a client Pod that connects to HDFS, rather than shelling into the namenode.
+We have an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/20-access-hdfs.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
+
+== Authorization
+We currently don't support authorization yet.
+In the future support will be added by writing an opa-authorizer to match our general xref:home:concepts:opa.adoc[] mechanisms.
+
+In the meantime a very basic level of authorization can be reached by using `configOverrides` to set the `hadoop.user.group.static.mapping.overrides` property.
+In thew following example the `dr.who=;nn=;nm=;jn=;` part is needed for HDFS internal operations and the user `testuser` is granted admin permissions.
+
+[source,yaml]
+----
+spec:
+  nameNodes:
+    configOverrides: &configOverrides
+      core-site.xml:
+        hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+  dataNodes:
+    configOverrides: *configOverrides
+  journalNodes:
+    configOverrides: *configOverrides
+----
+
+== Wire encryption
+In case kerberos is enabled, `Privacy` mode is used for best security.
+Wire encryption without kerberos as well as https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Data_confidentiality[other wire encryption modes] are *not* supported.

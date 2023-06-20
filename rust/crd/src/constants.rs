@@ -12,6 +12,9 @@ pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";
 
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
+pub const HADOOP_POLICY_XML: &str = "hadoop-policy.xml";
+pub const SSL_SERVER_XML: &str = "ssl-server.xml";
+pub const SSL_CLIENT_XML: &str = "ssl-client.xml";
 pub const LOG4J_PROPERTIES: &str = "log4j.properties";
 
 pub const SERVICE_PORT_NAME_RPC: &str = "rpc";
@@ -23,10 +26,12 @@ pub const SERVICE_PORT_NAME_METRICS: &str = "metrics";
 
 pub const DEFAULT_NAME_NODE_METRICS_PORT: u16 = 8183;
 pub const DEFAULT_NAME_NODE_HTTP_PORT: u16 = 9870;
+pub const DEFAULT_NAME_NODE_HTTPS_PORT: u16 = 9871;
 pub const DEFAULT_NAME_NODE_RPC_PORT: u16 = 8020;
 
 pub const DEFAULT_DATA_NODE_METRICS_PORT: u16 = 8082;
 pub const DEFAULT_DATA_NODE_HTTP_PORT: u16 = 9864;
+pub const DEFAULT_DATA_NODE_HTTPS_PORT: u16 = 9865;
 pub const DEFAULT_DATA_NODE_DATA_PORT: u16 = 9866;
 pub const DEFAULT_DATA_NODE_IPC_PORT: u16 = 9867;
 
@@ -40,6 +45,7 @@ pub const DFS_NAMENODE_NAME_DIR: &str = "dfs.namenode.name.dir";
 pub const DFS_NAMENODE_SHARED_EDITS_DIR: &str = "dfs.namenode.shared.edits.dir";
 pub const DFS_NAMENODE_RPC_ADDRESS: &str = "dfs.namenode.rpc-address";
 pub const DFS_NAMENODE_HTTP_ADDRESS: &str = "dfs.namenode.http-address";
+pub const DFS_NAMENODE_HTTPS_ADDRESS: &str = "dfs.namenode.https-address";
 pub const DFS_DATANODE_DATA_DIR: &str = "dfs.datanode.data.dir";
 pub const DFS_JOURNALNODE_EDITS_DIR: &str = "dfs.journalnode.edits.dir";
 pub const DFS_JOURNALNODE_RPC_ADDRESS: &str = "dfs.journalnode.rpc-address";

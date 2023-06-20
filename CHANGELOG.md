@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add support for enabling secure mode with Kerberos ([#334]).
 - Generate OLM bundle for Release 23.4.0 ([#350]).
 - Missing CRD defaults for `status.conditions` field ([#354]).
 
@@ -16,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Use testing-tools 0.2.0 ([#351])
 - Run as root group ([#353]).
 
+[#334]: https://github.com/stackabletech/hdfs-operator/pull/334
 [#349]: https://github.com/stackabletech/hdfs-operator/pull/349
 [#350]: https://github.com/stackabletech/hdfs-operator/pull/350
 [#351]: https://github.com/stackabletech/hdfs-operator/pull/351

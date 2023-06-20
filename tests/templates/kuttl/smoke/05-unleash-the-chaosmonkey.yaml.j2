@@ -1,0 +1,54 @@
+# Tribute to https://github.com/Netflix/chaosmonkey
+
+# We need to reduce the number of monkeys, otherwise the tests literally take days
+# We only run them on some hand-picked test cases
+{% if test_scenario['values']['number-of-datanodes'] == '2' and test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' and test_scenario['values']['listener-class'] == 'cluster-internal' and test_scenario['values']['zookeeper'] == test_scenario['values']['zookeeper-latest'] %}
+
+# We need to force-delete the Pods, because IONOS is sometimes unable to delete the pod (it's stuck in Terminating for > 20 minutes)
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+timeout: 3600
+commands:
+  # First, let's delete the first pod of every HDFS service
+  # Should trigger failover of the namenode to 1
+  - script: kubectl -n $NAMESPACE delete pod --force hdfs-journalnode-default-0 hdfs-namenode-default-0 hdfs-datanode-default-0
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
+    timeout: 600
+
+  # Also delete the last pod of every HDFS service
+  # Should trigger failover of the namenode back to 0
+  - script: kubectl -n $NAMESPACE delete pod --force hdfs-namenode-default-1 hdfs-datanode-default-1
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
+    timeout: 600
+
+  # Also delete the Zookeeper
+  - script: kubectl -n $NAMESPACE delete pod --force hdfs-zk-server-default-0
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available zookeepercluster hdfs-zk --timeout 10m
+    timeout: 600
+
+  # And now everything
+{% for n in range(3) %}
+  - script: kubectl -n $NAMESPACE delete pod --force -l app.kubernetes.io/name=hdfs
+    timeout: 600
+  - script: kubectl -n $NAMESPACE delete pod --force -l app.kubernetes.io/name=zookeeper
+    timeout: 600
+  - script: sleep 10
+  # Delete just after they have started up again, just to make things worse
+  - script: kubectl -n $NAMESPACE delete pod --force -l app.kubernetes.io/name=hdfs
+    timeout: 600
+  - script: kubectl -n $NAMESPACE delete pod --force -l app.kubernetes.io/name=zookeeper
+    timeout: 600
+  - script: sleep 10
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available zookeepercluster hdfs-zk --timeout 10m
+    timeout: 600
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available hdfs hdfs --timeout 10m
+    timeout: 600
+{% endfor %}
+{% endif %}

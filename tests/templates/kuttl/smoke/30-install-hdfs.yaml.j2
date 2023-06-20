@@ -14,8 +14,8 @@ spec:
     productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
   clusterConfig:
-    dfsReplication: 1
     zookeeperConfigMapName: hdfs-zk
+    dfsReplication: 1
     listenerClass: {{ test_scenario['values']['listener-class'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery

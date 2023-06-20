@@ -1,12 +1,13 @@
 use stackable_hdfs_crd::constants::{
-    DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_RPC_PORT,
-    DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
-    DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_NAME_DIR,
-    DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_NAME_SERVICES, DFS_REPLICATION,
-    FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM, JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
+    DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_HTTP_PORT,
+    DEFAULT_NAME_NODE_RPC_PORT, DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
+    DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTPS_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS,
+    DFS_NAMENODE_NAME_DIR, DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR,
+    DFS_NAME_SERVICES, DFS_REPLICATION, FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
+    JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
 };
 use stackable_hdfs_crd::storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType};
-use stackable_hdfs_crd::HdfsPodRef;
+use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef};
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
@@ -23,8 +24,8 @@ impl HdfsSiteConfigBuilder {
         }
     }
 
-    pub fn add(&mut self, property: &str, value: &str) -> &mut Self {
-        self.config.insert(property.to_string(), value.to_string());
+    pub fn add(&mut self, property: impl Into<String>, value: impl Into<String>) -> &mut Self {
+        self.config.insert(property.into(), value.into());
         self
     }
 
@@ -144,12 +145,24 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn dfs_namenode_http_address_ha(&mut self, namenode_podrefs: &[HdfsPodRef]) -> &mut Self {
-        self.dfs_namenode_address_ha(
-            namenode_podrefs,
-            DFS_NAMENODE_HTTP_ADDRESS,
-            DEFAULT_NAME_NODE_HTTP_PORT,
-        );
+    pub fn dfs_namenode_http_address_ha(
+        &mut self,
+        hdfs: &HdfsCluster,
+        namenode_podrefs: &[HdfsPodRef],
+    ) -> &mut Self {
+        if hdfs.has_https_enabled() {
+            self.dfs_namenode_address_ha(
+                namenode_podrefs,
+                DFS_NAMENODE_HTTPS_ADDRESS,
+                DEFAULT_NAME_NODE_HTTPS_PORT,
+            );
+        } else {
+            self.dfs_namenode_address_ha(
+                namenode_podrefs,
+                DFS_NAMENODE_HTTP_ADDRESS,
+                DEFAULT_NAME_NODE_HTTP_PORT,
+            );
+        }
         self
     }
 
@@ -193,6 +206,16 @@ impl CoreSiteConfigBuilder {
         }
     }
 
+    pub fn add(&mut self, property: impl Into<String>, value: impl Into<String>) -> &mut Self {
+        self.config.insert(property.into(), value.into());
+        self
+    }
+
+    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
+        self.config.extend(properties.clone());
+        self
+    }
+
     pub fn fs_default_fs(&mut self) -> &mut Self {
         self.config.insert(
             FS_DEFAULT_FS.to_string(),
@@ -206,11 +229,6 @@ impl CoreSiteConfigBuilder {
             HA_ZOOKEEPER_QUORUM.to_string(),
             "${env.ZOOKEEPER}".to_string(),
         );
-        self
-    }
-
-    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
-        self.config.extend(properties.clone());
         self
     }
 
