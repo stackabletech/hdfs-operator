@@ -389,14 +389,20 @@ impl ContainerConfig {
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Result<Container, Error> {
-        Ok(ContainerBuilder::new(self.name())
-            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
-            .image_from_product_image(resolved_product_image)
+        let mut cb = ContainerBuilder::new(self.name())
+            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?;
+
+        cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
             .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
-            .build())
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config));
+
+        if let Some(resources) = self.resources(merged_config) {
+            cb.resources(resources);
+        }
+
+        Ok(cb.build())
     }
 
     /// Return the container name.
@@ -728,12 +734,15 @@ impl ContainerConfig {
     ) -> Option<ResourceRequirements> {
         // See resource collection https://docs.google.com/spreadsheets/d/1iWX1g4HaY3sFN9846BYd8kXZDU6FQkwSPmILsWMClE0/edit#gid=379007403
         match self {
+            // name node and journal node resources
             ContainerConfig::Hdfs { role, .. } if role != &HdfsRole::DataNode => {
                 merged_config.resources().map(|c| c.into())
             }
+            // data node resources
             ContainerConfig::Hdfs { role, .. } if role == &HdfsRole::DataNode => {
                 merged_config.data_node_resources().map(|c| c.into())
             }
+            // name node side car zk failover
             ContainerConfig::Zkfc { .. } => Some(
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("100m")
@@ -742,6 +751,30 @@ impl ContainerConfig {
                     .with_memory_limit("500Mi")
                     .build(),
             ),
+            // name node init containers inherit their respective main (app) container resources
+            ContainerConfig::FormatNameNodes { .. } | ContainerConfig::FormatZooKeeper { .. } => {
+                merged_config.resources().map(|c| c.into())
+                // Some(
+                //     ResourceRequirementsBuilder::new()
+                //         .with_cpu_request("500m")
+                //         .with_cpu_limit("500m")
+                //         .with_memory_request("500Mi")
+                //         .with_memory_limit("500Mi")
+                //         .build(),
+                // )
+            }
+            // data node init container inherit their respective main (app) container resources
+            ContainerConfig::WaitForNameNodes { .. } => {
+                merged_config.data_node_resources().map(|c| c.into())
+                // Some(
+                //     ResourceRequirementsBuilder::new()
+                //         .with_cpu_request("500m")
+                //         .with_cpu_limit("500m")
+                //         .with_memory_request("500Mi")
+                //         .with_memory_limit("500Mi")
+                //         .build(),
+                // )
+            }
             _ => None,
         }
     }
