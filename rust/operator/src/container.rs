@@ -32,8 +32,8 @@ use stackable_hdfs_crd::{
 };
 use stackable_operator::{
     builder::{
-        ContainerBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
-        VolumeMountBuilder,
+        resources::ResourceRequirementsBuilder, ContainerBuilder, PodBuilder,
+        SecretOperatorVolumeSourceBuilder, VolumeBuilder, VolumeMountBuilder,
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
@@ -174,6 +174,12 @@ impl ContainerConfig {
                 ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                 ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
                 Some(&merged_config.vector_logging()),
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
             ));
         }
 
