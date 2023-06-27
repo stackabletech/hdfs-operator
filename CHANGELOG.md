@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Use 0.0.0-dev product images for testing ([#351])
 - Use testing-tools 0.2.0 ([#351])
 - Run as root group ([#353]).
+- Added kuttl test suites ([#364])
 
 [#334]: https://github.com/stackabletech/hdfs-operator/pull/334
 [#349]: https://github.com/stackabletech/hdfs-operator/pull/349
@@ -25,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#353]: https://github.com/stackabletech/hdfs-operator/pull/353
 [#354]: https://github.com/stackabletech/hdfs-operator/pull/354
 [#359]: https://github.com/stackabletech/hdfs-operator/pull/359
+[#364]: https://github.com/stackabletech/hdfs-operator/pull/364
 
 ## [23.4.0] - 2023-04-17
 
