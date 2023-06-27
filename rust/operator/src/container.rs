@@ -732,17 +732,16 @@ impl ContainerConfig {
         &self,
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Option<ResourceRequirements> {
-        // See resource collection https://docs.google.com/spreadsheets/d/1iWX1g4HaY3sFN9846BYd8kXZDU6FQkwSPmILsWMClE0/edit#gid=379007403
         match self {
             // name node and journal node resources
             ContainerConfig::Hdfs { role, .. } if role != &HdfsRole::DataNode => {
                 merged_config.resources().map(|c| c.into())
             }
-            // data node resources
-            ContainerConfig::Hdfs { role, .. } if role == &HdfsRole::DataNode => {
-                merged_config.data_node_resources().map(|c| c.into())
+            // init containers inherit their respective main (app) container resources
+            ContainerConfig::FormatNameNodes { .. } | ContainerConfig::FormatZooKeeper { .. } => {
+                merged_config.resources().map(|c| c.into())
             }
-            // name node side car zk failover
+            // name node side car zk failover (see https://docs.google.com/spreadsheets/d/1iWX1g4HaY3sFN9846BYd8kXZDU6FQkwSPmILsWMClE0/edit#gid=379007403)
             ContainerConfig::Zkfc { .. } => Some(
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("100m")
@@ -751,29 +750,13 @@ impl ContainerConfig {
                     .with_memory_limit("500Mi")
                     .build(),
             ),
-            // name node init containers inherit their respective main (app) container resources
-            ContainerConfig::FormatNameNodes { .. } | ContainerConfig::FormatZooKeeper { .. } => {
-                merged_config.resources().map(|c| c.into())
-                // Some(
-                //     ResourceRequirementsBuilder::new()
-                //         .with_cpu_request("500m")
-                //         .with_cpu_limit("500m")
-                //         .with_memory_request("500Mi")
-                //         .with_memory_limit("500Mi")
-                //         .build(),
-                // )
+            // data node resources
+            ContainerConfig::Hdfs { role, .. } if role == &HdfsRole::DataNode => {
+                merged_config.data_node_resources().map(|c| c.into())
             }
             // data node init container inherit their respective main (app) container resources
             ContainerConfig::WaitForNameNodes { .. } => {
                 merged_config.data_node_resources().map(|c| c.into())
-                // Some(
-                //     ResourceRequirementsBuilder::new()
-                //         .with_cpu_request("500m")
-                //         .with_cpu_limit("500m")
-                //         .with_memory_request("500Mi")
-                //         .with_memory_limit("500Mi")
-                //         .build(),
-                // )
             }
             _ => None,
         }
