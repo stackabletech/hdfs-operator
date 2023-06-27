@@ -726,7 +726,7 @@ impl ContainerConfig {
         &self,
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Option<ResourceRequirements> {
-        // Only the Hadoop main containers will get resources
+        // See resource collection https://docs.google.com/spreadsheets/d/1iWX1g4HaY3sFN9846BYd8kXZDU6FQkwSPmILsWMClE0/edit#gid=379007403
         match self {
             ContainerConfig::Hdfs { role, .. } if role != &HdfsRole::DataNode => {
                 merged_config.resources().map(|c| c.into())
@@ -734,6 +734,14 @@ impl ContainerConfig {
             ContainerConfig::Hdfs { role, .. } if role == &HdfsRole::DataNode => {
                 merged_config.data_node_resources().map(|c| c.into())
             }
+            ContainerConfig::Zkfc { .. } => Some(
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("100m")
+                    .with_cpu_limit("400m")
+                    .with_memory_request("500Mi")
+                    .with_memory_limit("500Mi")
+                    .build(),
+            ),
             _ => None,
         }
     }
