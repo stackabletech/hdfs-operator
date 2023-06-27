@@ -217,9 +217,10 @@ impl ContainerConfig {
                     .build(),
             );
 
-            let create_tls_cert_bundle_init_container =
-                ContainerBuilder::new("create-tls-cert-bundle")
-                    .unwrap()
+            let mut create_tls_cert_bundle_init_cb =
+                ContainerBuilder::new("create-tls-cert-bundle").unwrap();
+
+            create_tls_cert_bundle_init_cb
                     .image_from_product_image(resolved_product_image)
                     .command(Self::command())
                     .args(vec![formatdoc!(
@@ -236,10 +237,14 @@ impl ContainerConfig {
                             openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"###
                         )])
                         // Only this init container needs the actual cert (from tls volume) to create the truststore + keystore from
-                        .add_volume_mount("tls", "/stackable/tls")
-                        .add_volume_mount("keystore", KEYSTORE_DIR_NAME)
-                    .build();
-            pb.add_init_container(create_tls_cert_bundle_init_container);
+                    .add_volume_mount("tls", "/stackable/tls")
+                    .add_volume_mount("keystore", KEYSTORE_DIR_NAME);
+
+            if let Some(resources) = merged_config.resources() {
+                create_tls_cert_bundle_init_cb.resources(resources.into());
+            }
+
+            pb.add_init_container(create_tls_cert_bundle_init_cb.build());
         }
 
         // role specific pod settings configured here
