@@ -1313,7 +1313,7 @@ spec:
 
         assert_eq!(pvc.count, 1);
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
-        assert_eq!(pvc.pvc.capacity, Some(Quantity("5Gi".to_string())));
+        assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
     }
 
     #[test]
