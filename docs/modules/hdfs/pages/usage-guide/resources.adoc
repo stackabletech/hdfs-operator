@@ -73,17 +73,32 @@ If no resource requests are configured explicitly, the HDFS operator uses the fo
 
 [source,yaml]
 ----
-dataNodes:
-  roleGroups:
-    default:
-      config:
-        resources:
-          cpu:
-            max: '2'
-            min: '500m'
-          storage:
-            data:
-              capacity: 2Gi
+spec:
+  journalNodes:
+    config:
+      resources:
+        cpu:
+          min: 100m
+          max: 400m
+        storage:
+          data:
+            capacity: 512Mi
+  nameNodes:
+    config:
+      resources:
+        cpu:
+          min: 250m
+          max: 1000m
+        storage:
+          data:
+            capacity: 2048Mi
+  dataNodes:
+    config:
+      resources:
+        cpu:
+          min: 100m
+          max: 400m
+        storage:
+          data:
+            capacity: 10Gi
 ----
-
-For data nodes the `data` capacity is 5Gi.

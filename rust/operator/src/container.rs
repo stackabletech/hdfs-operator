@@ -757,8 +757,8 @@ impl ContainerConfig {
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("100m")
                     .with_cpu_limit("400m")
-                    .with_memory_request("500Mi")
-                    .with_memory_limit("500Mi")
+                    .with_memory_request("512Mi")
+                    .with_memory_limit("512Mi")
                     .build(),
             ),
             // data node resources
