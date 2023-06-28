@@ -746,7 +746,7 @@ impl ContainerConfig {
             ContainerConfig::FormatNameNodes { .. } | ContainerConfig::FormatZooKeeper { .. } => {
                 merged_config.resources().map(|c| c.into())
             }
-            // name node side car zk failover (see https://docs.google.com/spreadsheets/d/1iWX1g4HaY3sFN9846BYd8kXZDU6FQkwSPmILsWMClE0/edit#gid=379007403)
+            // name node side car zk failover
             ContainerConfig::Zkfc { .. } => Some(
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("100m")
