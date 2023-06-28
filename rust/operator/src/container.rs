@@ -768,7 +768,6 @@ impl ContainerConfig {
                 merged_config.data_node_resources().map(|c| c.into())
             }
         }
-        }
     }
 
     /// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
