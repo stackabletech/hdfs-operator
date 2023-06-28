@@ -19,6 +19,9 @@ spec:
           requests:
             cpu: 300m
             memory: 512Mi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+      - name: vector
+{% endif %}
       - name: zkfc
         resources:
           limits:
@@ -27,9 +30,6 @@ spec:
           requests:
             cpu: 100m
             memory: 500Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-      - name: vector
-{% endif %}
       initContainers:
       - name: format-namenodes
         resources:
