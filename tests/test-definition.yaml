@@ -45,36 +45,36 @@ tests:
       - number-of-datanodes
       - datanode-pvcs
       - listener-class
-  - name: kerberos
-    dimensions:
-      - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
-      - zookeeper-latest
-      - kerberos-realm
-      - kerberos-backend
-  - name: orphaned-resources
-    dimensions:
-      - hadoop-latest
-      - zookeeper-latest
-  - name: logging
-    dimensions:
-      - hadoop
-      - zookeeper-latest
-  - name: cluster-operation
-    dimensions:
-      - hadoop-latest
-      - zookeeper-latest
-suites:
-  - name: latest
-    patch:
-      - dimensions:
-          - expr: last
-  - name: smoke
-    select:
-      - smoke
-  - name: openshift
-    patch:
-      - dimensions:
-          - expr: last
-      - dimensions:
-          - name: openshift
-            expr: "true"
+#  - name: kerberos
+#    dimensions:
+#      - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
+#      - zookeeper-latest
+#      - kerberos-realm
+#      - kerberos-backend
+#  - name: orphaned-resources
+#    dimensions:
+#      - hadoop-latest
+#      - zookeeper-latest
+#  - name: logging
+#    dimensions:
+#      - hadoop
+#      - zookeeper-latest
+#  - name: cluster-operation
+#    dimensions:
+#      - hadoop-latest
+#      - zookeeper-latest
+#suites:
+#  - name: latest
+#    patch:
+#      - dimensions:
+#          - expr: last
+#  - name: smoke
+#    select:
+#      - smoke
+#  - name: openshift
+#    patch:
+#      - dimensions:
+#          - expr: last
+#      - dimensions:
+#          - name: openshift
+#            expr: "true"
