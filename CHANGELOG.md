@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Add support for enabling secure mode with Kerberos ([#334]).
 - Generate OLM bundle for Release 23.4.0 ([#350]).
 - Missing CRD defaults for `status.conditions` field ([#354]).
+- Set explicit resources on all containers ([#359]).
 
 ### Changed
 
@@ -24,6 +25,7 @@ All notable changes to this project will be documented in this file.
 [#351]: https://github.com/stackabletech/hdfs-operator/pull/351
 [#353]: https://github.com/stackabletech/hdfs-operator/pull/353
 [#354]: https://github.com/stackabletech/hdfs-operator/pull/354
+[#359]: https://github.com/stackabletech/hdfs-operator/pull/359
 [#364]: https://github.com/stackabletech/hdfs-operator/pull/364
 
 ## [23.4.0] - 2023-04-17

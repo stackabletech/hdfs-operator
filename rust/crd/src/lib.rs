@@ -735,47 +735,6 @@ impl HdfsPodRef {
     }
 }
 
-fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntimeLimits> {
-    ResourcesFragment {
-        cpu: CpuLimitsFragment {
-            min: Some(Quantity("100m".to_owned())),
-            max: Some(Quantity("4".to_owned())),
-        },
-        memory: MemoryLimitsFragment {
-            limit: Some(Quantity("1Gi".to_owned())),
-            runtime_limits: NoRuntimeLimitsFragment {},
-        },
-        storage: HdfsStorageConfigFragment {
-            data: PvcConfigFragment {
-                capacity: Some(Quantity("2Gi".to_owned())),
-                storage_class: None,
-                selectors: None,
-            },
-        },
-    }
-}
-
-pub fn default_data_node_resources_fragment(
-) -> ResourcesFragment<DataNodeStorageConfigInnerType, NoRuntimeLimits> {
-    let default_resources_fragment = default_resources_fragment();
-    ResourcesFragment {
-        cpu: default_resources_fragment.cpu,
-        memory: default_resources_fragment.memory,
-        storage: BTreeMap::from([(
-            "data".to_string(),
-            DataNodePvcFragment {
-                pvc: PvcConfigFragment {
-                    capacity: Some(Quantity("5Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-                count: Some(1),
-                hdfs_storage_type: Some(HdfsStorageType::default()),
-            },
-        )]),
-    }
-}
-
 #[derive(
     Clone,
     Debug,
@@ -880,7 +839,23 @@ impl MergedConfig for NameNodeConfig {
 impl NameNodeConfigFragment {
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
-            resources: default_resources_fragment(),
+            resources: ResourcesFragment {
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1000m".to_owned())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("1024Mi".to_owned())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
+                },
+                storage: HdfsStorageConfigFragment {
+                    data: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                },
+            },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
         }
@@ -1011,7 +986,28 @@ impl MergedConfig for DataNodeConfig {
 impl DataNodeConfigFragment {
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
-            resources: default_data_node_resources_fragment(),
+            resources: ResourcesFragment {
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("100m".to_owned())),
+                    max: Some(Quantity("400m".to_owned())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("512Mi".to_owned())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
+                },
+                storage: BTreeMap::from([(
+                    "data".to_string(),
+                    DataNodePvcFragment {
+                        pvc: PvcConfigFragment {
+                            capacity: Some(Quantity("10Gi".to_owned())),
+                            storage_class: None,
+                            selectors: None,
+                        },
+                        count: Some(1),
+                        hdfs_storage_type: Some(HdfsStorageType::default()),
+                    },
+                )]),
+            },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
         }
@@ -1131,7 +1127,23 @@ impl MergedConfig for JournalNodeConfig {
 impl JournalNodeConfigFragment {
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
-            resources: default_resources_fragment(),
+            resources: ResourcesFragment {
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("100m".to_owned())),
+                    max: Some(Quantity("400m".to_owned())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("512Mi".to_owned())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
+                },
+                storage: HdfsStorageConfigFragment {
+                    data: PvcConfigFragment {
+                        capacity: Some(Quantity("512Mi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                },
+            },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
         }
@@ -1301,7 +1313,7 @@ spec:
 
         assert_eq!(pvc.count, 1);
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
-        assert_eq!(pvc.pvc.capacity, Some(Quantity("5Gi".to_string())));
+        assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
     }
 
     #[test]

@@ -32,8 +32,8 @@ use stackable_hdfs_crd::{
 };
 use stackable_operator::{
     builder::{
-        ContainerBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
-        VolumeMountBuilder,
+        resources::ResourceRequirementsBuilder, ContainerBuilder, PodBuilder,
+        SecretOperatorVolumeSourceBuilder, VolumeBuilder, VolumeMountBuilder,
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
@@ -174,6 +174,12 @@ impl ContainerConfig {
                 ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                 ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
                 Some(&merged_config.vector_logging()),
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
             ));
         }
 
@@ -211,9 +217,10 @@ impl ContainerConfig {
                     .build(),
             );
 
-            let create_tls_cert_bundle_init_container =
-                ContainerBuilder::new("create-tls-cert-bundle")
-                    .unwrap()
+            let mut create_tls_cert_bundle_init_cb =
+                ContainerBuilder::new("create-tls-cert-bundle").unwrap();
+
+            create_tls_cert_bundle_init_cb
                     .image_from_product_image(resolved_product_image)
                     .command(Self::command())
                     .args(vec![formatdoc!(
@@ -230,10 +237,17 @@ impl ContainerConfig {
                             openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"###
                         )])
                         // Only this init container needs the actual cert (from tls volume) to create the truststore + keystore from
-                        .add_volume_mount("tls", "/stackable/tls")
-                        .add_volume_mount("keystore", KEYSTORE_DIR_NAME)
-                    .build();
-            pb.add_init_container(create_tls_cert_bundle_init_container);
+                    .add_volume_mount("tls", "/stackable/tls")
+                    .add_volume_mount("keystore", KEYSTORE_DIR_NAME);
+
+            // We use the main app container resources here in contrast to several operators (which use
+            // hardcoded resources) due to the different code structure.
+            // Going forward this should be replaced by calculating init container resources in the pod builder.
+            if let Some(resources) = merged_config.resources() {
+                create_tls_cert_bundle_init_cb.resources(resources.into());
+            }
+
+            pb.add_init_container(create_tls_cert_bundle_init_cb.build());
         }
 
         // role specific pod settings configured here
@@ -383,14 +397,23 @@ impl ContainerConfig {
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Result<Container, Error> {
-        Ok(ContainerBuilder::new(self.name())
-            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?
-            .image_from_product_image(resolved_product_image)
+        let mut cb = ContainerBuilder::new(self.name())
+            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?;
+
+        cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
             .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
-            .build())
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config));
+
+        // We use the main app container resources here in contrast to several operators (which use
+        // hardcoded resources) due to the different code structure.
+        // Going forward this should be replaced by calculating init container resources in the pod builder.
+        if let Some(resources) = self.resources(merged_config) {
+            cb.resources(resources);
+        }
+
+        Ok(cb.build())
     }
 
     /// Return the container name.
@@ -720,15 +743,30 @@ impl ContainerConfig {
         &self,
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Option<ResourceRequirements> {
-        // Only the Hadoop main containers will get resources
         match self {
+            // name node and journal node resources
             ContainerConfig::Hdfs { role, .. } if role != &HdfsRole::DataNode => {
                 merged_config.resources().map(|c| c.into())
             }
-            ContainerConfig::Hdfs { role, .. } if role == &HdfsRole::DataNode => {
+            // data node resources
+            ContainerConfig::Hdfs { .. } => merged_config.data_node_resources().map(|c| c.into()),
+            // init containers inherit their respective main (app) container resources
+            ContainerConfig::FormatNameNodes { .. } | ContainerConfig::FormatZooKeeper { .. } => {
+                merged_config.resources().map(|c| c.into())
+            }
+            // name node side car zk failover
+            ContainerConfig::Zkfc { .. } => Some(
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("100m")
+                    .with_cpu_limit("400m")
+                    .with_memory_request("512Mi")
+                    .with_memory_limit("512Mi")
+                    .build(),
+            ),
+            // data node init container inherit their respective main (app) container resources
+            ContainerConfig::WaitForNameNodes { .. } => {
                 merged_config.data_node_resources().map(|c| c.into())
             }
-            _ => None,
         }
     }
 
