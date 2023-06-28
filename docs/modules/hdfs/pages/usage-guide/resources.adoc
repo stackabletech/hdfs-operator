@@ -80,6 +80,8 @@ spec:
         cpu:
           min: 100m
           max: 400m
+        memory:
+          limit: 512Mi
         storage:
           data:
             capacity: 512Mi
@@ -89,6 +91,8 @@ spec:
         cpu:
           min: 250m
           max: 1000m
+        memory:
+          limit: 1024Mi
         storage:
           data:
             capacity: 2048Mi
@@ -98,6 +102,8 @@ spec:
         cpu:
           min: 100m
           max: 400m
+        memory:
+          limit: 512Mi
         storage:
           data:
             capacity: 10Gi
