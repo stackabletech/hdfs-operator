@@ -240,6 +240,9 @@ impl ContainerConfig {
                     .add_volume_mount("tls", "/stackable/tls")
                     .add_volume_mount("keystore", KEYSTORE_DIR_NAME);
 
+            // We use the main app container resources here in contrast to several operators (which use
+            // hardcoded resources) due to the different code structure.
+            // Going forward this should be replaced by calculating init container resources in the pod builder.
             if let Some(resources) = merged_config.resources() {
                 create_tls_cert_bundle_init_cb.resources(resources.into());
             }
@@ -403,6 +406,9 @@ impl ContainerConfig {
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config));
 
+        // We use the main app container resources here in contrast to several operators (which use
+        // hardcoded resources) due to the different code structure.
+        // Going forward this should be replaced by calculating init container resources in the pod builder.
         if let Some(resources) = self.resources(merged_config) {
             cb.resources(resources);
         }
