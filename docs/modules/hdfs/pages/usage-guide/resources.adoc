@@ -79,9 +79,11 @@ dataNodes:
       config:
         resources:
           cpu:
-            max: '4'
-            min: '100m'
+            max: '2'
+            min: '500m'
           storage:
             data:
               capacity: 2Gi
 ----
+
+For data nodes the `data` capacity is 5Gi.

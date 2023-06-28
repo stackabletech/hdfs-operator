@@ -738,8 +738,8 @@ impl HdfsPodRef {
 fn default_resources_fragment() -> ResourcesFragment<HdfsStorageConfig, NoRuntimeLimits> {
     ResourcesFragment {
         cpu: CpuLimitsFragment {
-            min: Some(Quantity("100m".to_owned())),
-            max: Some(Quantity("4".to_owned())),
+            min: Some(Quantity("500m".to_owned())),
+            max: Some(Quantity("2".to_owned())),
         },
         memory: MemoryLimitsFragment {
             limit: Some(Quantity("1Gi".to_owned())),
