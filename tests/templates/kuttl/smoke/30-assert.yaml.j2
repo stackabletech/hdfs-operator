@@ -11,42 +11,42 @@ spec:
   template:
     spec:
       containers:
-        - name: namenode
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-            requests:
-              cpu: 300m
-              memory: 512Mi
-        - name: zkfc
-          resources:
-            limits:
-              cpu: 400m
-              memory: 500Mi
-            requests:
-              cpu: 100m
-              memory: 500Mi
+      - name: namenode
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 300m
+            memory: 512Mi
+      - name: zkfc
+        resources:
+          limits:
+            cpu: 400m
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 500Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - name: vector
 {% endif %}
       initContainers:
-        - name: format-namenodes
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-            requests:
-              cpu: 300m
-              memory: 512Mi
-        - name: format-zookeeper
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-            requests:
-              cpu: 300m
-              memory: 512Mi
+      - name: format-namenodes
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 300m
+            memory: 512Mi
+      - name: format-zookeeper
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 300m
+            memory: 512Mi
 status:
   readyReplicas: 2
   replicas: 2
@@ -59,16 +59,16 @@ spec:
   template:
     spec:
       containers:
-        - name: journalnode
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-            requests:
-              cpu: 300m
-              memory: 512Mi
+      - name: journalnode
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 300m
+            memory: 512Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - name: vector
 {% endif %}
 status:
   readyReplicas: 1
@@ -82,26 +82,26 @@ spec:
   template:
     spec:
       containers:
-        - name: datanode
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-            requests:
-              cpu: 400m
-              memory: 512Mi
+      - name: datanode
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 400m
+            memory: 512Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - name: vector
 {% endif %}
       initContainers:
-        - name: wait-for-namenodes
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-            requests:
-              cpu: 400m
-              memory: 512Mi
+      - name: wait-for-namenodes
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 400m
+            memory: 512Mi
 status:
   readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
   replicas: {{ test_scenario['values']['number-of-datanodes'] }}
