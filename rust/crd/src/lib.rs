@@ -1138,7 +1138,7 @@ impl JournalNodeConfigFragment {
                 },
                 storage: HdfsStorageConfigFragment {
                     data: PvcConfigFragment {
-                        capacity: Some(Quantity("512Mi".to_owned())),
+                        capacity: Some(Quantity("1Gi".to_owned())),
                         storage_class: None,
                         selectors: None,
                     },
