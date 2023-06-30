@@ -7,46 +7,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: hdfs-namenode-default
-spec:
-  template:
-    spec:
-      containers:
-      - name: namenode
-        resources:
-          limits:
-            cpu: "1"
-            memory: 512Mi
-          requests:
-            cpu: 300m
-            memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-      - name: vector
-{% endif %}
-      - name: zkfc
-        resources:
-          limits:
-            cpu: 400m
-            memory: 512Mi
-          requests:
-            cpu: 100m
-            memory: 512Mi
-      initContainers:
-      - name: format-namenodes
-        resources:
-          limits:
-            cpu: "1"
-            memory: 512Mi
-          requests:
-            cpu: 300m
-            memory: 512Mi
-      - name: format-zookeeper
-        resources:
-          limits:
-            cpu: "1"
-            memory: 512Mi
-          requests:
-            cpu: 300m
-            memory: 512Mi
 status:
   readyReplicas: 2
   replicas: 2
@@ -55,21 +15,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: hdfs-journalnode-default
-spec:
-  template:
-    spec:
-      containers:
-      - name: journalnode
-        resources:
-          limits:
-            cpu: "1"
-            memory: 512Mi
-          requests:
-            cpu: 300m
-            memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-      - name: vector
-{% endif %}
 status:
   readyReplicas: 1
   replicas: 1
@@ -78,48 +23,9 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: hdfs-datanode-default
-spec:
-  template:
-    spec:
-      containers:
-      - name: datanode
-        resources:
-          limits:
-            cpu: "1"
-            memory: 512Mi
-          requests:
-            cpu: 400m
-            memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-      - name: vector
-{% endif %}
-      initContainers:
-      - name: wait-for-namenodes
-        resources:
-          limits:
-            cpu: "1"
-            memory: 512Mi
-          requests:
-            cpu: 400m
-            memory: 512Mi
 status:
   readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
   replicas: {{ test_scenario['values']['number-of-datanodes'] }}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hdfs-namenode-default
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hdfs-datanode-default
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hdfs-journalnode-default
 {% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
 ---
 apiVersion: v1

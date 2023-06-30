@@ -764,17 +764,16 @@ impl ContainerConfig {
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Option<ResourceRequirements> {
         match self {
-            // name node and journal node resources
-            ContainerConfig::Hdfs { role, .. } if role != &HdfsRole::DataNode => {
-                merged_config.data_node_resources().map(|c| c.into())
-            }
-            // data node resources
-            ContainerConfig::Hdfs { .. } => merged_config.data_node_resources().map(|c| c.into()),
-            // init containers inherit their respective main (app) container resources
+            ContainerConfig::Hdfs { role, .. } => match role {
+                HdfsRole::NameNode => merged_config.name_node_resources().map(|r| r.into()),
+                HdfsRole::DataNode => merged_config.data_node_resources().map(|r| r.into()),
+                HdfsRole::JournalNode => merged_config.journal_node_resources().map(|r| r.into()),
+            },
+            // Namenode init containers
             ContainerConfig::FormatNameNodes { .. } | ContainerConfig::FormatZooKeeper { .. } => {
                 merged_config.name_node_resources().map(|c| c.into())
             }
-            // name node side car zk failover
+            // Namenode sidecar containers
             ContainerConfig::Zkfc { .. } => Some(
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("100m")
@@ -783,7 +782,7 @@ impl ContainerConfig {
                     .with_memory_limit("512Mi")
                     .build(),
             ),
-            // data node init container inherit their respective main (app) container resources
+            // Datanode init containers
             ContainerConfig::WaitForNameNodes { .. } => {
                 merged_config.data_node_resources().map(|c| c.into())
             }
