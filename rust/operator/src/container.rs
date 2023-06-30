@@ -238,7 +238,14 @@ impl ContainerConfig {
                         )])
                         // Only this init container needs the actual cert (from tls volume) to create the truststore + keystore from
                     .add_volume_mount("tls", "/stackable/tls")
-                    .add_volume_mount("keystore", KEYSTORE_DIR_NAME);
+                    .add_volume_mount("keystore", KEYSTORE_DIR_NAME)
+                    .resources(ResourceRequirementsBuilder::new()
+                        .with_cpu_request("100m")
+                        .with_cpu_limit("400m")
+                        .with_memory_request("512Mi")
+                        .with_memory_limit("512Mi")
+                        .build()
+                    );
 
             // We use the main app container resources here in contrast to several operators (which use
             // hardcoded resources) due to the different code structure.
