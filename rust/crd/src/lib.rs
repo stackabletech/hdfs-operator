@@ -23,7 +23,10 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+    k8s_openapi::{
+        api::core::v1::PodTemplateSpec,
+        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+    },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     labels::role_group_selector_labels,
     product_config::types::PropertyNameKind,
@@ -463,6 +466,44 @@ impl HdfsCluster {
             .as_ref()?
             .role_groups
             .get(role_group)
+    }
+
+    pub fn pod_overrides_for_role(&self, role: &HdfsRole) -> Option<&PodTemplateSpec> {
+        match role {
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .map(|n| &n.config.pod_overrides),
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .map(|n| &n.config.pod_overrides),
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .map(|n| &n.config.pod_overrides),
+        }
+    }
+
+    pub fn pod_overrides_for_role_group(
+        &self,
+        role: &HdfsRole,
+        role_group: &str,
+    ) -> Option<&PodTemplateSpec> {
+        match role {
+            HdfsRole::NameNode => self
+                .namenode_rolegroup(role_group)
+                .map(|r| &r.config.pod_overrides),
+            HdfsRole::DataNode => self
+                .datanode_rolegroup(role_group)
+                .map(|r| &r.config.pod_overrides),
+            HdfsRole::JournalNode => self
+                .journalnode_rolegroup(role_group)
+                .map(|r| &r.config.pod_overrides),
+        }
     }
 
     pub fn rolegroup_ref(
