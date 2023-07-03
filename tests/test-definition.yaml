@@ -64,13 +64,21 @@ tests:
       - hadoop-latest
       - zookeeper-latest
 suites:
-  - name: latest
+  - name: nightly
+    patch:
+      - dimensions:
+          - name: hadoop
+            expr: last
+          - name: number-of-datanodes
+            expr: "2"
+          - name: datanode-pvcs
+            expr: "2hdd-1ssd"
+  - name: smoke-latest
+    select:
+      - smoke
     patch:
       - dimensions:
           - expr: last
-  - name: smoke
-    select:
-      - smoke
   - name: openshift
     patch:
       - dimensions:
@@ -78,3 +86,9 @@ suites:
       - dimensions:
           - name: openshift
             expr: "true"
+          - name: hadoop
+            expr: last
+          - name: number-of-datanodes
+            expr: "2"
+          - name: datanode-pvcs
+            expr: "2hdd-1ssd"
