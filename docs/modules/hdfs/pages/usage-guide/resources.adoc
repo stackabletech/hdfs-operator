@@ -69,7 +69,14 @@ The hdfs-operator will re-create the StatefulSet automatically.
 
 include::home:concepts:stackable_resource_requests.adoc[]
 
-If no resource requests are configured explicitly, the HDFS operator uses the following defaults:
+A minimal HA setup consisting of 3 journalnodes, 2 namenodes and 2 datanodes has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
+
+* `2950m` CPU request
+* `8300m` CPU limit
+* `6528m` memory request and limit
+* `27648Mi` persistent storage
+
+Corresponding to the values above, the operator uses the following resource defaults:
 
 [source,yaml]
 ----
@@ -84,7 +91,7 @@ spec:
           limit: 512Mi
         storage:
           data:
-            capacity: 512Mi
+            capacity: 1Gi
   nameNodes:
     config:
       resources:
@@ -95,7 +102,7 @@ spec:
           limit: 1024Mi
         storage:
           data:
-            capacity: 2048Mi
+            capacity: 2Gi
   dataNodes:
     config:
       resources:

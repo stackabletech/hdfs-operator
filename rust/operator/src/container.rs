@@ -243,9 +243,23 @@ impl ContainerConfig {
             // We use the main app container resources here in contrast to several operators (which use
             // hardcoded resources) due to the different code structure.
             // Going forward this should be replaced by calculating init container resources in the pod builder.
-            if let Some(resources) = merged_config.resources() {
-                create_tls_cert_bundle_init_cb.resources(resources.into());
-            }
+            match role {
+                HdfsRole::NameNode => {
+                    if let Some(resources) = merged_config.name_node_resources() {
+                        create_tls_cert_bundle_init_cb.resources(resources.into());
+                    }
+                }
+                HdfsRole::DataNode => {
+                    if let Some(resources) = merged_config.data_node_resources() {
+                        create_tls_cert_bundle_init_cb.resources(resources.into());
+                    }
+                }
+                HdfsRole::JournalNode => {
+                    if let Some(resources) = merged_config.journal_node_resources() {
+                        create_tls_cert_bundle_init_cb.resources(resources.into());
+                    }
+                }
+            };
 
             pb.add_init_container(create_tls_cert_bundle_init_cb.build());
         }
@@ -325,7 +339,13 @@ impl ContainerConfig {
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Option<Vec<PersistentVolumeClaim>> {
         match role {
-            HdfsRole::NameNode | HdfsRole::JournalNode => merged_config.resources().map(|r| {
+            HdfsRole::NameNode => merged_config.name_node_resources().map(|r| {
+                vec![r.storage.data.build_pvc(
+                    ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+                    Some(vec!["ReadWriteOnce"]),
+                )]
+            }),
+            HdfsRole::JournalNode => merged_config.journal_node_resources().map(|r| {
                 vec![r.storage.data.build_pvc(
                     ContainerConfig::DATA_VOLUME_MOUNT_NAME,
                     Some(vec!["ReadWriteOnce"]),
@@ -744,17 +764,16 @@ impl ContainerConfig {
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Option<ResourceRequirements> {
         match self {
-            // name node and journal node resources
-            ContainerConfig::Hdfs { role, .. } if role != &HdfsRole::DataNode => {
-                merged_config.resources().map(|c| c.into())
-            }
-            // data node resources
-            ContainerConfig::Hdfs { .. } => merged_config.data_node_resources().map(|c| c.into()),
-            // init containers inherit their respective main (app) container resources
+            ContainerConfig::Hdfs { role, .. } => match role {
+                HdfsRole::NameNode => merged_config.name_node_resources().map(|r| r.into()),
+                HdfsRole::DataNode => merged_config.data_node_resources().map(|r| r.into()),
+                HdfsRole::JournalNode => merged_config.journal_node_resources().map(|r| r.into()),
+            },
+            // Namenode init containers
             ContainerConfig::FormatNameNodes { .. } | ContainerConfig::FormatZooKeeper { .. } => {
-                merged_config.resources().map(|c| c.into())
+                merged_config.name_node_resources().map(|c| c.into())
             }
-            // name node side car zk failover
+            // Namenode sidecar containers
             ContainerConfig::Zkfc { .. } => Some(
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("100m")
@@ -763,7 +782,7 @@ impl ContainerConfig {
                     .with_memory_limit("512Mi")
                     .build(),
             ),
-            // data node init container inherit their respective main (app) container resources
+            // Datanode init containers
             ContainerConfig::WaitForNameNodes { .. } => {
                 merged_config.data_node_resources().map(|c| c.into())
             }

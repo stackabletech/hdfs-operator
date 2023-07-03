@@ -24,12 +24,6 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-      resources:
-        cpu:
-          max: '1'
-          min: '300m'
-        memory:
-          limit: '512Mi'
     roleGroups:
       default:
         replicas: 2
@@ -37,13 +31,8 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-      resources:
-        cpu:
-          max: '1'
-          min: '400m'
-        memory:
-          limit: '512Mi'
 {% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+      resources:
         storage:
           data: # We need to overwrite the data pvcs coming from the default value
             count: 0
@@ -64,12 +53,6 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-      resources:
-        cpu:
-          max: '1'
-          min: '300m'
-        memory:
-          limit: '512Mi'
     roleGroups:
       default:
         replicas: 1

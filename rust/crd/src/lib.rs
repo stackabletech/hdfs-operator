@@ -135,13 +135,12 @@ impl CurrentlySupportedListenerClasses {
 /// This is a shared trait for all role/role-group config structs to avoid duplication
 /// when extracting role specific configuration structs like resources or logging.
 pub trait MergedConfig {
-    /// Resources shared by all roles (except datanodes).
-    /// DataNodes must use `data_node_resources`
-    fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
+    fn name_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
         None
     }
-    /// Resources for datanodes.
-    /// Other roles must use `resources`.
+    fn journal_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
+        None
+    }
     fn data_node_resources(
         &self,
     ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
@@ -786,7 +785,7 @@ pub struct NameNodeConfig {
 }
 
 impl MergedConfig for NameNodeConfig {
-    fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
+    fn name_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
         Some(self.resources.clone())
     }
 
@@ -1095,7 +1094,7 @@ pub struct JournalNodeConfig {
 }
 
 impl MergedConfig for JournalNodeConfig {
-    fn resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
+    fn journal_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
         Some(self.resources.clone())
     }
 
@@ -1138,7 +1137,7 @@ impl JournalNodeConfigFragment {
                 },
                 storage: HdfsStorageConfigFragment {
                     data: PvcConfigFragment {
-                        capacity: Some(Quantity("512Mi".to_owned())),
+                        capacity: Some(Quantity("1Gi".to_owned())),
                         storage_class: None,
                         selectors: None,
                     },
