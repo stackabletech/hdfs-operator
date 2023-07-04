@@ -56,3 +56,12 @@ spec:
     roleGroups:
       default:
         replicas: 1
+        podOverrides:
+          spec:
+            containers:
+              - name: journalnode
+                resources:
+                  requests:
+                    cpu: 110m
+                  limits:
+                    cpu: 410m
