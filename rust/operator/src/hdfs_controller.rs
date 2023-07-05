@@ -27,6 +27,7 @@ use stackable_operator::{
             core::v1::{ConfigMap, Service, ServicePort, ServiceSpec},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
+        DeepMerge,
     },
     kube::{
         api::ObjectMeta,
@@ -620,6 +621,15 @@ fn rolegroup_statefulset(
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
+    let mut pod_template = pb.build_template();
+    if let Some(pod_overrides) = hdfs.pod_overrides_for_role(role) {
+        pod_template.merge_from(pod_overrides.clone());
+    }
+    if let Some(pod_overrides) = hdfs.pod_overrides_for_role_group(role, &rolegroup_ref.role_group)
+    {
+        pod_template.merge_from(pod_overrides.clone());
+    }
+
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(hdfs)
@@ -649,7 +659,7 @@ fn rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: object_name,
-            template: pb.build_template(),
+            template: pod_template,
 
             volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
             ..StatefulSetSpec::default()

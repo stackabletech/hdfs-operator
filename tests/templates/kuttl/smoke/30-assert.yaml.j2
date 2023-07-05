@@ -7,6 +7,22 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: hdfs-namenode-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: namenode
+          resources:
+            requests:
+              cpu: 250m # From defaults
+              memory: 1Gi
+            limits:
+              cpu: "1" # From defaults
+              memory: 1Gi
+        - name: zkfc
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
 status:
   readyReplicas: 2
   replicas: 2
@@ -15,6 +31,21 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: hdfs-journalnode-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: journalnode
+          resources:
+            requests:
+              cpu: 110m # From podOverrides
+              memory: 512Mi
+            limits:
+              cpu: 410m # From podOverrides
+              memory: 512Mi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
 status:
   readyReplicas: 1
   replicas: 1
@@ -23,6 +54,21 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: hdfs-datanode-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: datanode
+          resources:
+            requests:
+              cpu: 100m # From defaults
+              memory: 512Mi
+            limits:
+              cpu: 400m # From defaults
+              memory: 512Mi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
 status:
   readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
   replicas: {{ test_scenario['values']['number-of-datanodes'] }}

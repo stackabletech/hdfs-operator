@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Generate OLM bundle for Release 23.4.0 ([#350]).
 - Missing CRD defaults for `status.conditions` field ([#354]).
 - Set explicit resources on all containers ([#359]).
+- Support podOverrides ([#368]).
 
 ### Changed
 
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 [#354]: https://github.com/stackabletech/hdfs-operator/pull/354
 [#359]: https://github.com/stackabletech/hdfs-operator/pull/359
 [#364]: https://github.com/stackabletech/hdfs-operator/pull/364
+[#368]: https://github.com/stackabletech/hdfs-operator/pull/368
 
 ## [23.4.0] - 2023-04-17
 
