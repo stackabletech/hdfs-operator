@@ -13,7 +13,9 @@ use crate::{
     hdfs_controller::KEYSTORE_DIR_NAME,
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        HDFS_LOG4J_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, STACKABLE_LOG_DIR,
+        HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
+        MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
     },
 };
@@ -42,7 +44,7 @@ use stackable_operator::{
             EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim,
             Probe, ResourceRequirements, TCPSocketAction, Volume, VolumeMount,
         },
-        apimachinery::pkg::{api::resource::Quantity, util::intstr::IntOrString},
+        apimachinery::pkg::util::intstr::IntOrString,
     },
     kube::ResourceExt,
     memory::{BinaryMultiple, MemoryQuantity},
@@ -133,14 +135,6 @@ impl ContainerConfig {
 
     const JVM_HEAP_FACTOR: f32 = 0.8;
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
-
-    // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
-    // require less. We add another 1MB as buffer for each possible logging file.
-    // - name node main container
-    // - zkfc side container
-    // - format namenode init container
-    // - format zookeeper init container
-    const LOG_VOLUME_SIZE_IN_MIB: u32 = 4 * (MAX_LOG_FILES_SIZE_IN_MIB + 1);
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
     #[allow(clippy::too_many_arguments)]
@@ -827,10 +821,15 @@ impl ContainerConfig {
                     VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
                         .empty_dir(EmptyDirVolumeSource {
                             medium: None,
-                            size_limit: Some(Quantity(format!(
-                                "{volume_size_in_mb}Mi",
-                                volume_size_in_mb = Self::LOG_VOLUME_SIZE_IN_MIB
-                            ))),
+                            size_limit: Some(
+                                product_logging::framework::calculate_log_volume_size_limit(&[
+                                    MAX_HDFS_LOG_FILE_SIZE,
+                                    MAX_ZKFC_LOG_FILE_SIZE,
+                                    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+                                    MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+                                    MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+                                ]),
+                            ),
                         })
                         .build(),
                 );
