@@ -48,7 +48,7 @@ pub const MAX_ZKFC_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
     value: 10.0,
     unit: BinaryMultiple::Mebi,
 };
-pub const MAX_NAMENODE_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
+pub const MAX_FORMAT_NAMENODE_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
     value: 10.0,
     unit: BinaryMultiple::Mebi,
 };
@@ -170,7 +170,7 @@ pub fn extend_role_group_config_map(
                     container_name = NameNodeContainer::FormatNameNodes
                 ),
                 FORMAT_NAMENODES_LOG_FILE,
-                MAX_NAMENODE_LOG_FILE_SIZE
+                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE
                     .scale_to(BinaryMultiple::Mebi)
                     .floor()
                     .value as u32,

@@ -13,7 +13,8 @@ use crate::{
     hdfs_controller::KEYSTORE_DIR_NAME,
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        HDFS_LOG4J_CONFIG_FILE, MAX_HDFS_LOG_FILE_SIZE, MAX_NAMENODE_LOG_FILE_SIZE,
+        HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
         MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
     },
@@ -822,10 +823,11 @@ impl ContainerConfig {
                             medium: None,
                             size_limit: Some(
                                 product_logging::framework::calculate_log_volume_size_limit(&[
-                                    MAX_HDFS_LOG_FILE_SIZE
-                                        + MAX_ZKFC_LOG_FILE_SIZE
-                                        + MAX_NAMENODE_LOG_FILE_SIZE
-                                        + MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+                                    MAX_HDFS_LOG_FILE_SIZE,
+                                    MAX_ZKFC_LOG_FILE_SIZE,
+                                    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+                                    MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+                                    MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
                                 ]),
                             ),
                         })
