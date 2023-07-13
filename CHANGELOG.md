@@ -14,12 +14,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Operator-rs: `0.40.2` -> `0.41.0` ([#349]).
+- Operator-rs: `0.40.2` -> `0.44.0` ([#349]), ([#372]).
 - Use 0.0.0-dev product images for testing ([#351])
 - Use testing-tools 0.2.0 ([#351])
 - Run as root group ([#353]).
 - Added kuttl test suites ([#364])
-- Increase the size limit of the log volumes ([#xxx])
+- Increase the size limit of the log volumes ([#372])
 
 [#334]: https://github.com/stackabletech/hdfs-operator/pull/334
 [#349]: https://github.com/stackabletech/hdfs-operator/pull/349
@@ -30,7 +30,7 @@ All notable changes to this project will be documented in this file.
 [#359]: https://github.com/stackabletech/hdfs-operator/pull/359
 [#364]: https://github.com/stackabletech/hdfs-operator/pull/364
 [#368]: https://github.com/stackabletech/hdfs-operator/pull/368
-[#xxx]: https://github.com/stackabletech/hdfs-operator/pull/xxx
+[#372]: https://github.com/stackabletech/hdfs-operator/pull/372
 
 ## [23.4.0] - 2023-04-17
 
