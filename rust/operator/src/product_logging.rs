@@ -5,6 +5,7 @@ use stackable_operator::{
     client::Client,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::ResourceExt,
+    memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         spec::{ContainerLogConfig, ContainerLogConfigChoice},
@@ -33,7 +34,32 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
-pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+// We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
+// require less.
+// - name node main container
+// - zkfc side container
+// - format namenode init container
+// - format zookeeper init container
+pub const MAX_HDFS_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
+pub const MAX_ZKFC_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
+pub const MAX_NAMENODE_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
+pub const MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
+pub const MAX_WAIT_NAMENODES_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
 
 pub const HDFS_LOG4J_CONFIG_FILE: &str = "hdfs.log4j.properties";
 pub const ZKFC_LOG4J_CONFIG_FILE: &str = "zkfc.log4j.properties";
@@ -100,7 +126,10 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_log4j_config(
                 &format!("{STACKABLE_LOG_DIR}/hdfs"),
                 HDFS_LOG_FILE,
-                MAX_LOG_FILES_SIZE_IN_MIB,
+                MAX_HDFS_LOG_FILE_SIZE
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 &log_config,
             ),
@@ -119,7 +148,10 @@ pub fn extend_role_group_config_map(
                     container_name = NameNodeContainer::Zkfc
                 ),
                 ZKFC_LOG_FILE,
-                MAX_LOG_FILES_SIZE_IN_MIB,
+                MAX_ZKFC_LOG_FILE_SIZE
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 &log_config,
             ),
@@ -138,7 +170,10 @@ pub fn extend_role_group_config_map(
                     container_name = NameNodeContainer::FormatNameNodes
                 ),
                 FORMAT_NAMENODES_LOG_FILE,
-                MAX_LOG_FILES_SIZE_IN_MIB,
+                MAX_NAMENODE_LOG_FILE_SIZE
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 &log_config,
             ),
@@ -157,7 +192,10 @@ pub fn extend_role_group_config_map(
                     container_name = NameNodeContainer::FormatZooKeeper
                 ),
                 FORMAT_ZOOKEEPER_LOG_FILE,
-                MAX_LOG_FILES_SIZE_IN_MIB,
+                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 &log_config,
             ),
@@ -176,7 +214,10 @@ pub fn extend_role_group_config_map(
                     container_name = DataNodeContainer::WaitForNameNodes
                 ),
                 WAIT_FOR_NAMENODES_LOG_FILE,
-                MAX_LOG_FILES_SIZE_IN_MIB,
+                MAX_WAIT_NAMENODES_LOG_FILE_SIZE
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 &log_config,
             ),

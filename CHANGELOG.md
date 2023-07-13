@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - Use testing-tools 0.2.0 ([#351])
 - Run as root group ([#353]).
 - Added kuttl test suites ([#364])
+- Increase the size limit of the log volumes ([#xxx])
 
 [#334]: https://github.com/stackabletech/hdfs-operator/pull/334
 [#349]: https://github.com/stackabletech/hdfs-operator/pull/349
@@ -29,6 +30,7 @@ All notable changes to this project will be documented in this file.
 [#359]: https://github.com/stackabletech/hdfs-operator/pull/359
 [#364]: https://github.com/stackabletech/hdfs-operator/pull/364
 [#368]: https://github.com/stackabletech/hdfs-operator/pull/368
+[#xxx]: https://github.com/stackabletech/hdfs-operator/pull/xxx
 
 ## [23.4.0] - 2023-04-17
 
