@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Operator-rs: `0.40.2` -> `0.44.0` ([#349]), ([#372]).
+- Operator-rs: `0.40.2` -> `0.44.0` ([#349], [#372]).
 - Use 0.0.0-dev product images for testing ([#351])
 - Use testing-tools 0.2.0 ([#351])
 - Run as root group ([#353]).
