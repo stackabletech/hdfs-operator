@@ -2,17 +2,17 @@
 dimensions:
   - name: hadoop
     values:
-      - 3.2.2-stackable0.0.0-dev
-      - 3.3.4-stackable0.0.0-dev
+      - 3.2.2-stackable23.7
+      - 3.3.4-stackable23.7
   - name: hadoop-latest
     values:
-      - 3.3.4-stackable0.0.0-dev
+      - 3.3.4-stackable23.7
   - name: zookeeper
     values:
-      - 3.8.0-stackable0.0.0-dev
+      - 3.8.0-stackable23.7
   - name: zookeeper-latest
     values:
-      - 3.8.0-stackable0.0.0-dev
+      - 3.8.0-stackable23.7
   - name: number-of-datanodes
     values:
       - "1"
