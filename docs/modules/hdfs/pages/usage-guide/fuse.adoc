@@ -41,7 +41,25 @@ spec:
 <1> Ideally use the same version your HDFS is using. FUSE is baked in to our images as of SDP 23.11.
 <2> This needs to be a reference to a discovery ConfigMap as written by our HDFS operator.
 
-Inside that Pod you can get a shell (e.g. using `kubectl exec --stdin --tty hdfs-fuse -- /bin/bash`) to get access to a script called `fuse_dfs_wrapper` (it is in the `PATH` of our Hadoop images).
+[TIP]
+.Privileged Pods
+====
+Instead of `privileged` it might work to only add the capability `SYS_ADMIN`, our tests showed that this sometimes works and sometimes doesn't, depending on the environment.
+
+.Example
+[source,yaml]
+----
+securityContext:
+  capabilities:
+    add:
+      - SYS_ADMIN
+----
+
+Unfortunately, there is no way around some extra privileges.
+In Kubernetes the Pods usually share the Kernel with the host running the Kubelet, which means a Pod wanting to use FUSE will need access to the underlying Kernel modules.
+====
+
+Inside this Pod you can get a shell (e.g. using `kubectl exec --stdin --tty hdfs-fuse -- /bin/bash`) to get access to a script called `fuse_dfs_wrapper` (it is in the `PATH` of our Hadoop images).
 
 To see the available options, call the script without any parameters.
 
