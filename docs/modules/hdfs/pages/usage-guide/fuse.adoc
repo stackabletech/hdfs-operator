@@ -1,0 +1,64 @@
+= FUSE
+
+Our images of Apache Hadoop do contain the necessary binaries and libraries to use the HDFS FUSE driver.
+
+FUSE is short for _Filesystem in Userspace_ and allows a user to export a filesystem into the Linux kernel, which can then be mounted.
+HDFS contains a native FUSE driver/application, which means that an existing HDFS filesystem can be mounted into a Linux environment.
+
+To use the FUSE driver you can either copy the required files out of the image and run it on a host outside of Kubernetes or you can run it in a Pod.
+This pod, however, will need some extra capabilities.
+
+This is an example pod that will work _as long as the host system that is running the kubelet does support FUSE_:
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hdfs-fuse
+spec:
+  containers:
+    - name: hdfs-fuse
+      env:
+        - name: HADOOP_CONF_DIR
+          value: /stackable/conf/hdfs
+      image: docker.stackable.tech/stackable/hadoop:<version> <1>
+      imagePullPolicy: Always
+      securityContext:
+        privileged: true
+      command:
+        - tail
+        - -f
+        - /dev/null
+      volumeMounts:
+        - mountPath: /stackable/conf/hdfs
+          name: hdfs-config
+  volumes:
+    - name: hdfs-config
+      configMap:
+        name: <your hdfs here> <2>
+----
+<1> Ideally use the same version your HDFS is using. FUSE is baked in to our images as of SDP 23.11.
+<2> This needs to be a reference to a discovery ConfigMap as written by our HDFS operator.
+
+Inside that Pod you can get a shell (e.g. using `kubectl exec --stdin --tty hdfs-fuse -- /bin/bash`) to get access to a script called `fuse_dfs_wrapper` (it is in the `PATH` of our Hadoop images).
+
+To see the available options, call the script without any parameters.
+
+To mount HDFS call the script like this:
+
+[source,bash]
+----
+fuse_dfs_wrapper.sh dfs://<your hdfs> <target> <1> <2>
+
+# This will run in debug mode and stay in the foreground
+fuse_dfs_wrapper.sh -odebug dfs://<your hdfs> <target>
+
+# Example:
+mkdir simple-hdfs
+fuse_dfs_wrapper.sh dfs://simple-hdfs simple-hdfs
+cd simple -hdfs
+# Any operations in this directory will now happen in HDFS
+----
+<1> Again, use the name of the HDFS service as above
+<2> `target` is the directory in which HDFS will be mounted, it must exist otherwise this command will fail
