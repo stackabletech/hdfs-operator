@@ -24,10 +24,5 @@ stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git",
 stackable-hdfs-crd = { path = "../crd" }
 
 [[bin]]
-name = "hello-world"
-path = "src/hello-world.rs"
-
-
-[[bin]]
 name = "stackable-hdfs-operator"
 path = "src/stackable-hdfs-operator.rs"
