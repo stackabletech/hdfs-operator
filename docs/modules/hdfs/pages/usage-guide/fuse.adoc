@@ -67,15 +67,15 @@ To mount HDFS call the script like this:
 
 [source,bash]
 ----
-fuse_dfs_wrapper.sh dfs://<your hdfs> <target> <1> <2>
+fuse_dfs_wrapper dfs://<your hdfs> <target> <1> <2>
 
 # This will run in debug mode and stay in the foreground
-fuse_dfs_wrapper.sh -odebug dfs://<your hdfs> <target>
+fuse_dfs_wrapper -odebug dfs://<your hdfs> <target>
 
 # Example:
 mkdir simple-hdfs
-fuse_dfs_wrapper.sh dfs://simple-hdfs simple-hdfs
-cd simple -hdfs
+fuse_dfs_wrapper dfs://simple-hdfs simple-hdfs
+cd simple-hdfs
 # Any operations in this directory will now happen in HDFS
 ----
 <1> Again, use the name of the HDFS service as above
