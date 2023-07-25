@@ -1,6 +1,6 @@
 [package]
-authors = ["Stackable GmbH info@stackable.de"]
-description = "Contains the Apache HDFS CRD structs and utilities"
+authors = ["Stackable GmbH info@stackable.tech"]
+description = "Contains the Apache Hadoop HDFS CRD structs and utilities"
 edition = "2021"
 license = "OSL-3.0"
 name = "stackable-hdfs-crd"

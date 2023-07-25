@@ -975,6 +975,14 @@ impl ContainerConfig {
             ContainerConfig::Hdfs {
                 role, metrics_port, ..
             } => {
+                // This currently points at 0.16.1 for historic reasons.
+                // We used to (and actually still do) hardcode the version number of JMX Exporter
+                // Newer Docker Images (anything after 23.7) do upgrade the version however and they do
+                // expose the JMX Exporter using a symlink under the name jmx_prometheus_javaagent.jar
+                // But to make sure that newer operators work with older images we keep this reference to 0.16.1 in here for now
+                // To still get a new version of JMX exporter we actually symlink the newer version to this older one
+                // In other words: The actual version of JMX Exporter might _not_ be 0.16.1 anymore
+                // We can fix this properly by pointing at the versionless JAR in one of our upcoming releases (e.g. 24.x)
                 let mut jvm_args = vec![
                     format!(
                         "-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={metrics_port}:/stackable/jmx/{role}.yaml",

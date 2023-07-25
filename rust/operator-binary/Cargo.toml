@@ -1,6 +1,6 @@
 [package]
-authors = ["Stackable GmbH info@stackable.de"]
-description = "Stackable Operator for Apache HDFS"
+authors = ["Stackable GmbH info@stackable.tech"]
+description = "Stackable Operator for Apache Hadoop HDFS"
 edition = "2021"
 license = "OSL-3.0"
 name = "stackable-hdfs-operator-binary"
