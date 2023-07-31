@@ -12,8 +12,8 @@ def check_processed_events():
                         nodes {
                             componentId
                             metrics {
-                                processedEventsTotal {
-                                    processedEventsTotal
+                                receivedEventsTotal {
+                                    receivedEventsTotal
                                 }
                             }
                         }
@@ -31,14 +31,14 @@ def check_processed_events():
     transforms = result['data']['transforms']['nodes']
     for transform in transforms:
         componentId = transform['componentId']
-        processedEvents = transform['metrics']['processedEventsTotal']
+        receivedEvents = transform['metrics']['receivedEventsTotal']
         if componentId == 'filteredInvalidEvents':
-            assert processedEvents is None or \
-                processedEvents['processedEventsTotal'] == 0, \
+            assert receivedEvents is None or \
+                receivedEvents['receivedEventsTotal'] == 0, \
                 'Invalid log events were processed.'
         else:
-            assert processedEvents is not None and \
-                processedEvents['processedEventsTotal'] > 0, \
+            assert receivedEvents is not None and \
+                receivedEvents['receivedEventsTotal'] > 0, \
                 f'No events were processed in "{componentId}".'
 
 

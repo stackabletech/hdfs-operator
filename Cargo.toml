@@ -7,3 +7,6 @@ members = [
 #[patch."https://github.com/stackabletech/operator-rs.git"]
 #stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "calc-log-vol-size-limit" }
 #stackable-operator = { path = "/home/sbernauer/stackabletech/operator-rs" }
+
+[patch."https://github.com/stackabletech/operator-rs.git"]
+stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "upgrade-vector"}
