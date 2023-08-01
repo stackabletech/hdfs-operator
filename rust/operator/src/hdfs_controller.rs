@@ -170,6 +170,10 @@ impl ReconcilerError for Error {
 
 pub type HdfsOperatorResult<T> = Result<T, Error>;
 
+mod built_info {
+    pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+}
+
 pub struct Ctx {
     pub client: Client,
     pub product_config: ProductConfigManager,
@@ -179,7 +183,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
 
-    let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+    let resolved_product_image = hdfs
+        .spec
+        .image
+        .resolve(DOCKER_IMAGE_BASE_NAME, built_info::CARGO_PKG_VERSION);
     if hdfs.has_kerberos_enabled() {
         kerberos::check_if_supported(&resolved_product_image)?;
     }

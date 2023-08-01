@@ -4,10 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Default stackableVersion to operator version ([#378]).
+
 ### Changed
 
 - `vector` `0.26.0` -> `0.31.0` ([#378]).
-- `operator-rs` `0.44.0` -> `0.45.0` ([#378]).
+- `operator-rs` `0.44.0` -> `0.45.1` ([#378]).
 
 [#378]: https://github.com/stackabletech/hdfs-operator/pull/378
 
