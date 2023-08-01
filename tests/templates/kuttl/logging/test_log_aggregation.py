@@ -2,7 +2,7 @@
 import requests
 
 
-def check_processed_events():
+def check_sent_events():
     response = requests.post(
         'http://hdfs-vector-aggregator:8686/graphql',
         json={
@@ -12,8 +12,8 @@ def check_processed_events():
                         nodes {
                             componentId
                             metrics {
-                                receivedEventsTotal {
-                                    receivedEventsTotal
+                                sentEventsTotal {
+                                    sentEventsTotal
                                 }
                             }
                         }
@@ -30,18 +30,19 @@ def check_processed_events():
 
     transforms = result['data']['transforms']['nodes']
     for transform in transforms:
+        sentEvents = transform['metrics']['sentEventsTotal']
         componentId = transform['componentId']
-        receivedEvents = transform['metrics']['receivedEventsTotal']
+
         if componentId == 'filteredInvalidEvents':
-            assert receivedEvents is None or \
-                receivedEvents['receivedEventsTotal'] == 0, \
-                'Invalid log events were processed.'
+            assert sentEvents is None or \
+                   sentEvents['sentEventsTotal'] == 0, \
+                'Invalid log events were sent.'
         else:
-            assert receivedEvents is not None and \
-                receivedEvents['receivedEventsTotal'] > 0, \
-                f'No events were processed in "{componentId}".'
+            assert sentEvents is not None and \
+                   sentEvents['sentEventsTotal'] > 0, \
+                f'No events were sent in "{componentId}".'
 
 
 if __name__ == '__main__':
-    check_processed_events()
+    check_sent_events()
     print('Test successful!')
