@@ -321,6 +321,7 @@ jobs:
       - id: printtag
         name: Output image name and tag
         run: echo "IMAGE_TAG=$(make -e print-docker-tag)" >> $GITHUB_OUTPUT
+
   openshift_preflight:
     name: Run the OpenShift Preflight check on the published images
     needs:
@@ -337,15 +338,3 @@ jobs:
         run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out
       - name: "Passed?"
         run: '[ "$(./preflight-linux-amd64 check container "$IMAGE_TAG" | jq -r .passed)" == true ]'
-
-  dive:
-    runs-on: ubuntu-latest
-    name: Analyze image efficiency
-    needs:
-      - package_and_publish
-    steps:
-      - name: Dive
-        uses: stackabletech/dive-action@0.0.1
-        with:
-          image: ${{ needs.package_and_publish.outputs.IMAGE_TAG }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
