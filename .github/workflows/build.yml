@@ -316,6 +316,7 @@ jobs:
         # This step checks if the current run was triggered by a push to a pr (or a pr being created).
         # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
         # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
+        # TODO! cargo install
       - name: Update version if PR
         if: ${{ github.event_name == 'pull_request' }}
         run: |
@@ -358,7 +359,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dive
-        uses: stackabletech/dive-action@0.0.1
+        uses: stackabletech/dive-action@384ad2de12482048e4d935f9ff771fe065419cbd
         with:
           image: ${{ needs.package_and_publish.outputs.IMAGE_TAG }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
