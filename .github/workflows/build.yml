@@ -350,3 +350,15 @@ jobs:
         run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out
       - name: "Passed?"
         run: '[ "$(./preflight-linux-amd64 check container "$IMAGE_TAG" | jq -r .passed)" == true ]'
+
+  dive:
+    name: Analyze image efficiency
+    needs:
+      - package_and_publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dive
+        uses: stackabletech/dive-action@0.0.1
+        with:
+          image: ${{ needs.package_and_publish.outputs.IMAGE_TAG }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
