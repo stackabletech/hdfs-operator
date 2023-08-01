@@ -305,7 +305,6 @@ jobs:
         # This step checks if the current run was triggered by a push to a pr (or a pr being created).
         # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
         # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
-      - uses: stackabletech/cargo-install-action@cargo-set-version
       - name: Update version if PR
         if: ${{ github.event_name == 'pull_request' }}
         run: cargo set-version --offline --workspace 0.0.0-pr${{ github.event.pull_request.number }}
@@ -338,3 +337,15 @@ jobs:
         run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out
       - name: "Passed?"
         run: '[ "$(./preflight-linux-amd64 check container "$IMAGE_TAG" | jq -r .passed)" == true ]'
+
+  dive:
+    runs-on: ubuntu-latest
+    name: Analyze image efficiency
+    needs:
+      - package_and_publish
+    steps:
+      - name: Dive
+        uses: stackabletech/dive-action@0.0.1
+        with:
+          image: ${{ needs.package_and_publish.outputs.IMAGE_TAG }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
