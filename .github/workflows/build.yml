@@ -33,9 +33,10 @@ jobs:
       RUSTC_BOOTSTRAP: 1
     steps:
       - name: Install host dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+          version: 1.0
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
@@ -127,9 +128,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install host dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+          version: 1.0
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
@@ -160,9 +162,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install host dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+          version: 1.0
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
@@ -180,9 +183,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install host dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
+          version: 1.0
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
@@ -235,7 +239,8 @@ jobs:
     name: Check if committed Helm charts are up to date
     runs-on: ubuntu-latest
     steps:
-      - uses: awalsh128/cache-apt-pkgs-action@latest
+      - name: Install host dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
           version: 1.0
@@ -296,7 +301,8 @@ jobs:
     outputs:
       IMAGE_TAG: ${{ steps.printtag.outputs.IMAGE_TAG }}
     steps:
-      - uses: awalsh128/cache-apt-pkgs-action@latest
+      - name: Install host dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
           version: 1.0
