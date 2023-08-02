@@ -6,7 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Default stackableVersion to operator version ([#XXX]).
+- Default stackableVersion to operator version ([#381]).
+
+[#381]: https://github.com/stackabletech/hdfs-operator/pull/381
 
 ## [23.7.0] - 2023-07-14
 
