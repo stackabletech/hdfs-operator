@@ -11,8 +11,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
+    productVersion: "{{ test_scenario['values']['hadoop'] }}"
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     dfsReplication: 1

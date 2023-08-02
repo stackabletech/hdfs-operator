@@ -60,8 +60,7 @@ metadata:
   name: test-hdfs-custom-log
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
+    productVersion: "{{ test_scenario['values']['hadoop'] }}"
   clusterConfig:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
     zookeeperConfigMapName: test-hdfs-custom-log-znode

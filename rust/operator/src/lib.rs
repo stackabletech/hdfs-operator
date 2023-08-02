@@ -27,6 +27,10 @@ use tracing_futures::Instrument;
 
 pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
 
+mod built_info {
+    pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+}
+
 pub async fn create_controller(
     client: Client,
     product_config: ProductConfigManager,
