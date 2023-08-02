@@ -179,7 +179,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
 
-    let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+    let resolved_product_image = hdfs
+        .spec
+        .image
+        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
     if hdfs.has_kerberos_enabled() {
         kerberos::check_if_supported(&resolved_product_image)?;
     }
