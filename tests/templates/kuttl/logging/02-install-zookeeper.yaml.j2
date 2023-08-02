@@ -5,8 +5,7 @@ metadata:
   name: test-zk
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[1] }}"
+    productVersion: "{{ test_scenario['values']['zookeeper-latest'] }}"
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   clusterConfig:
     logging:
