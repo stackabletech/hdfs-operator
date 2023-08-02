@@ -11,8 +11,7 @@ commands:
         name: hdfs
       spec:
         image:
-          productVersion: "{{ test_scenario['values']['hadoop-latest'].split('-stackable')[0] }}"
-          stackableVersion: "{{ test_scenario['values']['hadoop-latest'].split('-stackable')[1] }}"
+          productVersion: "{{ test_scenario['values']['hadoop-latest'] }}"
         clusterConfig:
           zookeeperConfigMapName: hdfs-zk
           dfsReplication: 1
