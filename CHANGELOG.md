@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Default stackableVersion to operator version ([#381]).
+- Configuration overrides for the JVM security properties, such as DNS caching ([#384]).
 
 ### Changed
 
@@ -15,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#378]: https://github.com/stackabletech/hdfs-operator/pull/378
 [#381]: https://github.com/stackabletech/hdfs-operator/pull/381
+[#384]: https://github.com/stackabletech/hdfs-operator/pull/384
 
 ## [23.7.0] - 2023-07-14
 
@@ -84,7 +86,6 @@ All notable changes to this project will be documented in this file.
 [#340]: https://github.com/stackabletech/hdfs-operator/pull/340
 [#341]: https://github.com/stackabletech/hdfs-operator/pull/341
 [#342]: https://github.com/stackabletech/hdfs-operator/pull/342
-
 
 ## [23.1.0] - 2023-01-23
 

@@ -20,7 +20,7 @@ properties:
         min: "0"
       recommendedValues:
         - fromVersion: "0.0.0"
-          value: "5"
+          value: "30"
       roles:
         - name: "namenode"
           required: true
@@ -39,7 +39,7 @@ properties:
         min: "0"
       recommendedValues:
         - fromVersion: "0.0.0"
-          value: "5"
+          value: "30"
       roles:
         - name: "datanode"
           required: true
@@ -58,7 +58,7 @@ properties:
         min: "0"
       recommendedValues:
         - fromVersion: "0.0.0"
-          value: "5"
+          value: "30"
       roles:
         - name: "journalnode"
           required: true
@@ -278,4 +278,3 @@ properties:
           required: false
       asOfVersion: "0.0.0"
       description: "The address and port the JournalNode HTTPS server listens on. If the port is 0 then the server will start on a free port."
-
