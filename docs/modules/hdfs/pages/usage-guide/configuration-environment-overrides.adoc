@@ -7,7 +7,7 @@ IMPORTANT: Overriding certain properties can lead to faulty clusters. In general
 
 == Configuration Properties
 
-For a role or role group, at the same level of `config`, you can specify `configOverrides` for the the following files:
+For a role or role group, at the same level of `config`, you can specify `configOverrides` for the following files:
 
 - `hdfs-site.xml`
 - `core-site.xml`
