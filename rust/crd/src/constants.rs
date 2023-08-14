@@ -16,6 +16,7 @@ pub const HADOOP_POLICY_XML: &str = "hadoop-policy.xml";
 pub const SSL_SERVER_XML: &str = "ssl-server.xml";
 pub const SSL_CLIENT_XML: &str = "ssl-client.xml";
 pub const LOG4J_PROPERTIES: &str = "log4j.properties";
+pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
 pub const SERVICE_PORT_NAME_RPC: &str = "rpc";
 pub const SERVICE_PORT_NAME_IPC: &str = "ipc";

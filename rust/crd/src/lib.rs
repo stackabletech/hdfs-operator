@@ -616,6 +616,7 @@ impl HdfsCluster {
             PropertyNameKind::File(HADOOP_POLICY_XML.to_string()),
             PropertyNameKind::File(SSL_SERVER_XML.to_string()),
             PropertyNameKind::File(SSL_CLIENT_XML.to_string()),
+            PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
             PropertyNameKind::Env,
         ];
 
