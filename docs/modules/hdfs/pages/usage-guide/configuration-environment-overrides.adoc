@@ -11,6 +11,9 @@ For a role or role group, at the same level of `config`, you can specify `config
 
 - `hdfs-site.xml`
 - `core-site.xml`
+- `hadoop-policy.xml`
+- `ssl-server.xml`
+- `ssl-client.xml`
 - `security.properties`
 
 
