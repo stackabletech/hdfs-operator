@@ -36,7 +36,9 @@ use stackable_operator::{
     },
     labels::role_group_selector_labels,
     logging::controller::ReconcilerError,
-    product_config::{types::PropertyNameKind, ProductConfigManager},
+    product_config::{
+        types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
+    },
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::RoleGroupRef,
     status::condition::{
@@ -160,6 +162,14 @@ pub enum Error {
         "kerberos not supported for HDFS versions < 3.3.x. Please use at least version 3.3.x"
     ))]
     KerberosNotSupported {},
+    #[snafu(display(
+        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
+        rolegroup
+    ))]
+    JvmSecurityPoperties {
+        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        rolegroup: String,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -538,6 +548,16 @@ fn rolegroup_config_map(
 
     let mut builder = ConfigMapBuilder::new();
 
+    let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
+        .get(&PropertyNameKind::File(
+            JVM_SECURITY_PROPERTIES_FILE.to_string(),
+        ))
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(k, v)| (k, Some(v)))
+        .collect();
+
     builder
         .metadata(
             ObjectMetaBuilder::new()
@@ -560,7 +580,15 @@ fn rolegroup_config_map(
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
         .add_data(HADOOP_POLICY_XML.to_string(), hadoop_policy_xml)
         .add_data(SSL_SERVER_XML, ssl_server_xml)
-        .add_data(SSL_CLIENT_XML, ssl_client_xml);
+        .add_data(SSL_CLIENT_XML, ssl_client_xml)
+        .add_data(
+            JVM_SECURITY_PROPERTIES_FILE,
+            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+                JvmSecurityPopertiesSnafu {
+                    rolegroup: rolegroup_ref.role_group.clone(),
+                }
+            })?,
+        );
 
     extend_role_group_config_map(
         rolegroup_ref,

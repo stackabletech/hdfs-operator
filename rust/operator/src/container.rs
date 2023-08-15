@@ -25,9 +25,9 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{
         DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
-        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LOG4J_PROPERTIES,
-        NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
-        STACKABLE_ROOT_DATA_DIR,
+        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
+        JVM_SECURITY_PROPERTIES_FILE, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
+        SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
     DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
@@ -975,6 +975,8 @@ impl ContainerConfig {
             ContainerConfig::Hdfs {
                 role, metrics_port, ..
             } => {
+                let cvd = ContainerVolumeDirs::from(role);
+                let config_dir = cvd.final_config();
                 // This currently points at 0.16.1 for historic reasons.
                 // We used to (and actually still do) hardcode the version number of JMX Exporter
                 // Newer Docker Images (anything after 23.7) do upgrade the version however and they do
@@ -985,7 +987,7 @@ impl ContainerConfig {
                 // We can fix this properly by pointing at the versionless JAR in one of our upcoming releases (e.g. 24.x)
                 let mut jvm_args = vec![
                     format!(
-                        "-javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={metrics_port}:/stackable/jmx/{role}.yaml",
+                        "-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE} -javaagent:/stackable/jmx/jmx_prometheus_javaagent-0.16.1.jar={metrics_port}:/stackable/jmx/{role}.yaml",
                     )];
 
                 if hdfs.has_kerberos_enabled() {
@@ -1249,6 +1251,18 @@ impl ContainerVolumeDirs {
 
 impl From<HdfsRole> for ContainerVolumeDirs {
     fn from(role: HdfsRole) -> Self {
+        ContainerVolumeDirs {
+            final_config_dir: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR),
+            config_mount: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR_MOUNT),
+            config_mount_name: ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME.to_string(),
+            log_mount: format!("{base}/{role}", base = Self::NODE_BASE_LOG_DIR_MOUNT),
+            log_mount_name: ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME.to_string(),
+        }
+    }
+}
+
+impl From<&HdfsRole> for ContainerVolumeDirs {
+    fn from(role: &HdfsRole) -> Self {
         ContainerVolumeDirs {
             final_config_dir: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR),
             config_mount: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR_MOUNT),

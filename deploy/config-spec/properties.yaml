@@ -11,6 +11,120 @@ spec:
 properties:
   - property:
       propertyNames:
+        - name: "networkaddress.cache.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "30"
+      roles:
+        - name: "namenode"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "TTL for successfully resolved domain names."
+      description: "TTL for successfully resolved domain names."
+
+  - property:
+      propertyNames:
+        - name: "networkaddress.cache.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "30"
+      roles:
+        - name: "datanode"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "TTL for successfully resolved domain names."
+      description: "TTL for successfully resolved domain names."
+
+  - property:
+      propertyNames:
+        - name: "networkaddress.cache.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "30"
+      roles:
+        - name: "journalnode"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "TTL for successfully resolved domain names."
+      description: "TTL for successfully resolved domain names."
+
+  - property:
+      propertyNames:
+        - name: "networkaddress.cache.negative.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "0"
+      roles:
+        - name: "namenode"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "TTL for domain names that cannot be resolved."
+      description: "TTL for domain names that cannot be resolved."
+
+  - property:
+      propertyNames:
+        - name: "networkaddress.cache.negative.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "0"
+      roles:
+        - name: "datanode"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "TTL for domain names that cannot be resolved."
+      description: "TTL for domain names that cannot be resolved."
+
+  - property:
+      propertyNames:
+        - name: "networkaddress.cache.negative.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "0"
+      roles:
+        - name: "journalnode"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "TTL for domain names that cannot be resolved."
+      description: "TTL for domain names that cannot be resolved."
+
+  - property:
+      propertyNames:
         - name: "dfs.namenode.name.dir"
           kind:
             type: "file"
@@ -164,4 +278,3 @@ properties:
           required: false
       asOfVersion: "0.0.0"
       description: "The address and port the JournalNode HTTPS server listens on. If the port is 0 then the server will start on a free port."
-
