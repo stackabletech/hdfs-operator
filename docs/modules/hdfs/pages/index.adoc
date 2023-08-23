@@ -2,8 +2,6 @@
 
 The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] is used to set up HFDS in high-availability mode. It depends on the xref:zookeeper:ROOT:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby NameNodes.
 
-NOTE: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop[Stackable] repository
-
 == Roles
 
 Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster are implemented:
@@ -33,10 +31,3 @@ In the custom resource you can specify the number of replicas per role group (Na
 The Stackable Operator for Apache HDFS currently supports the following versions of HDFS:
 
 include::partial$supported-versions.adoc[]
-
-== Docker image
-
-[source]
-----
-docker pull docker.stackable.tech/stackable/hadoop:<version>
-----
