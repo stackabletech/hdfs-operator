@@ -45,7 +45,7 @@ HDFS depends on ZooKeeper for coordination between nodes. You can run a ZooKeepe
 
 Two demos that use HDFS are available.
 
-**xref:stackablectl::demos/hbase-hdfs-load-cycling-data.adoc[]** loads a dataset of cycling data from S3 into HDFS and then uses HBase to analyse the data.
+**xref:stackablectl::demos/hbase-hdfs-load-cycling-data.adoc[]** loads a dataset of cycling data from S3 into HDFS and then uses HBase to analyze the data.
 
 **xref:stackablectl::demos/jupyterhub-pyspark-hdfs-anomaly-detection-taxi-data.adoc[]** showcases the integration between HDFS and Jupyter. New York Taxi data is stored in HDFS and analyzed in a Jupyter notebook.
 
