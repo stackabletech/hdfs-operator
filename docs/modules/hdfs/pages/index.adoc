@@ -2,7 +2,15 @@
 
 The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] (Hadoop Distributed File System) is used to set up HFDS in high-availability mode. HDFS is a distributed file system designed to store and manage massive amounts of data across multiple machines in a fault-tolerant manner. The Operator depends on the xref:zookeeper:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby NameNodes.
 
-== Roles
+== Getting started
+
+Follow the xref:getting_started/index.adoc[Getting started guide] which will guide you through installing the Stackable HDFS and ZooKeeper Operators, setting up ZooKeeper and HDFS and writing a file to HDFS to verify that everything is set up correctly.
+
+Afterwards you can consult the xref:usage-guide/index.adoc[] to learn more about tailoring your HDFS configuration to your needs, or have a look at the <<demos, demos>> for some example setups.
+
+== Operator model
+
+=== Roles
 
 Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster are implemented:
 
@@ -10,7 +18,7 @@ Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster a
 * JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
 * NameNode - responsible for keeping track of HDFS blocks and providing access to the data.
 
-== Kubernetes objects
+=== Kubernetes objects
 
 The operator creates the following K8S objects per role group defined in the custom resource.
 
@@ -25,6 +33,10 @@ In the custom resource you can specify the number of replicas per role group (Na
 * 2 NameNodes (HA)
 * 1 JournalNode
 * 1 DataNode (should match at least the `clusterConfig.dfsReplication` factor)
+
+== [[demos]]Demos
+
+TODO
 
 == Supported Versions
 
