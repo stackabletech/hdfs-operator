@@ -1,6 +1,6 @@
 = Stackable Operator for Apache HDFS
 
-The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] is used to set up HFDS in high-availability mode. It depends on the xref:zookeeper:ROOT:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby NameNodes.
+The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS] (Hadoop Distributed File System) is used to set up HFDS in high-availability mode. HDFS is a distributed file system designed to store and manage massive amounts of data across multiple machines in a fault-tolerant manner. The Operator depends on the xref:zookeeper:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby NameNodes.
 
 == Roles
 
