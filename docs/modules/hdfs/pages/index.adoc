@@ -35,7 +35,7 @@ In the custom resource you can specify the number of replicas per role group (Na
 * 1 JournalNode
 * 1 DataNode (should match at least the `clusterConfig.dfsReplication` factor)
 
-The Operator creates a xref:concepts:service_discovery.adoc[service discovery ConfigMap] for the HDFS instance. The discovery ConfigMaps contains the `core-site.xml` file and the `hdfs-site.xml` file.
+The Operator creates a xref:concepts:service_discovery.adoc[service discovery ConfigMap] for the HDFS instance. The discovery ConfigMap contains the `core-site.xml` file and the `hdfs-site.xml` file.
 
 == Dependencies
 
