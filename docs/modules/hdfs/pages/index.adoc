@@ -39,7 +39,7 @@ The Operator creates a xref:concepts:service_discovery.adoc[service discovery Co
 
 == Dependencies
 
-HDFS depends on ZooKeeper for coordination between nodes. You can run a ZooKeeper cluster with the xref:zookeeper:index.adoc[]. Additionally the xref:commons-operator:index.adoc[] and xref:secret-operator:index.adoc[] are needed.
+HDFS depends on ZooKeeper for coordination between nodes. You can run a ZooKeeper cluster with the xref:zookeeper:index.adoc[]. Additionally, the xref:commons-operator:index.adoc[] and xref:secret-operator:index.adoc[] are needed.
 
 == [[demos]]Demos
 
