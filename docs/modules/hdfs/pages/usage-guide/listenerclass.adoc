@@ -1,0 +1,15 @@
+= Service exposition with ListenerClasses
+
+The Operator deploys a service called `<name>-<role>-<rolegroup>` (where `<name>` is the name of the HdfsCluster, `<role>` is the role and `<rolegroup>` the name of the role group) through which The different HDFS processes can be accessed. Unlike many other Stackable Operators, the HDFS Operator does not deploy role-level Services.
+
+These services can have either the `cluster-internal` or `external-unstable` type. `external-stable` is not supported for HDFS at the moment. Read more about the types in the xref:concepts:service-exposition.adoc[service exposition] documentation at platform level.
+
+This is how the listener class is configured:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    listenerClass: cluster-internal  # <1>
+----
+<1> The default `cluster-internal` setting. 
