@@ -9,15 +9,11 @@
 //! - Set resources
 //! - Add tcp probes and container ports (to the main containers)
 //!
-use crate::{
-    hdfs_controller::KEYSTORE_DIR_NAME,
-    product_logging::{
-        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-        MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
-        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
-    },
+use crate::product_logging::{
+    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE, HDFS_LOG4J_CONFIG_FILE,
+    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE, MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
+    MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
+    WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
 };
 
 use indoc::formatdoc;
@@ -56,6 +52,10 @@ use stackable_operator::{
 };
 use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
+
+pub(crate) const KEYSTORE_DIR: &str = "/stackable/keystore";
+pub(crate) const KEYSTORE_VOLUME_NAME: &str = "keystore";
+pub(crate) const KEYSTORE_PASSWORD: &str = "changeit";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -180,7 +180,7 @@ impl ContainerConfig {
 
         if let Some(authentication_config) = hdfs.authentication_config() {
             pb.add_volume(
-                VolumeBuilder::new("keystore")
+                VolumeBuilder::new(KEYSTORE_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.tls_secret_class,
@@ -188,6 +188,7 @@ impl ContainerConfig {
                         .with_pod_scope()
                         .with_node_scope()
                         .with_format(SecretFormat::TlsPkcs12)
+                        .with_tls_pkcs12_password(KEYSTORE_PASSWORD)
                         .build(),
                     )
                     .build(),
@@ -810,7 +811,7 @@ impl ContainerConfig {
         }
         if hdfs.has_https_enabled() {
             // This volume will be propagated by the create-tls-cert-bundle container
-            volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
+            volume_mounts.push(VolumeMountBuilder::new(KEYSTORE_VOLUME_NAME, KEYSTORE_DIR).build());
         }
 
         match self {
