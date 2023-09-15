@@ -12,13 +12,13 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `vector` `0.26.0` -> `0.31.0` ([#378]).
-- `operator-rs` `0.44.0` -> `0.49.0` ([#381], [#xxx]).
-- Let secret-operator handle certificate conversion ([#xxx]).
+- `operator-rs` `0.44.0` -> `0.49.0` ([#381], [#392]).
+- Let secret-operator handle certificate conversion ([#392]).
 
 [#378]: https://github.com/stackabletech/hdfs-operator/pull/378
 [#381]: https://github.com/stackabletech/hdfs-operator/pull/381
 [#384]: https://github.com/stackabletech/hdfs-operator/pull/384
-[#xxx]: https://github.com/stackabletech/hdfs-operator/pull/xxx
+[#392]: https://github.com/stackabletech/hdfs-operator/pull/392
 
 ## [23.7.0] - 2023-07-14
 
