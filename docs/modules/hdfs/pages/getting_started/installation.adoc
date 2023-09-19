@@ -7,9 +7,8 @@ commons and secret operators which are required by all Stackable operators.
 
 There are 2 ways to run Stackable Operators
 
-1. Using xref:stackablectl::index.adoc[]
-
-2. Using Helm
+. Using xref:management:stackablectl:index.adoc[]
+. Using Helm
 
 === stackablectl
 
