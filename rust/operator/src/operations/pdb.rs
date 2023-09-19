@@ -4,7 +4,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{constants::APP_NAME, HdfsCluster, HdfsRole};
 use stackable_operator::{
     builder::pdb::PdbBuilder, client::Client, cluster_resources::ClusterResources,
-    kube::ResourceExt,
+    commons::pdb::Pdb, kube::ResourceExt,
 };
 
 use crate::{hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER, OPERATOR_NAME};
@@ -24,20 +24,23 @@ pub enum Error {
 }
 
 pub async fn add_pdbs(
+    pdb: &Pdb,
     hdfs: &HdfsCluster,
     role: &HdfsRole,
     client: &Client,
     cluster_resources: &mut ClusterResources,
 ) -> Result<(), Error> {
-    let max_unavailable = match role {
+    if !pdb.enabled {
+        return Ok(());
+    }
+    let max_unavailable = pdb.max_unavailable.unwrap_or(match role {
         HdfsRole::NameNode => max_unavailable_name_nodes(),
         HdfsRole::DataNode => max_unavailable_data_nodes(
             hdfs.num_datanodes(),
-            // FIXME extract to const
             hdfs.spec.cluster_config.dfs_replication as u16,
         ),
         HdfsRole::JournalNode => max_unavailable_journal_nodes(),
-    };
+    });
     let pdb = PdbBuilder::new_for_role(
         hdfs,
         APP_NAME,

@@ -346,8 +346,15 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                         name: rg_statefulset_name,
                     })?,
             );
+        }
 
-            add_pdbs(&hdfs, &role, client, &mut cluster_resources)
+        let pdb = match role {
+            HdfsRole::NameNode => hdfs.spec.name_nodes.as_ref().map(|nn| &nn.pdb),
+            HdfsRole::DataNode => hdfs.spec.data_nodes.as_ref().map(|nn| &nn.pdb),
+            HdfsRole::JournalNode => hdfs.spec.journal_nodes.as_ref().map(|nn| &nn.pdb),
+        };
+        if let Some(pdb) = pdb {
+            add_pdbs(pdb, &hdfs, &role, client, &mut cluster_resources)
                 .await
                 .context(FailedToCreatePdbSnafu)?;
         }
