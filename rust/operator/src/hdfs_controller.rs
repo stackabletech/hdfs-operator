@@ -5,6 +5,7 @@ use crate::{
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
     kerberos,
+    operations::pdb::add_pdbs,
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
@@ -54,7 +55,7 @@ use std::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
+pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
@@ -150,6 +151,10 @@ pub enum Error {
     FailedToCreateClusterEvent { source: crate::event::Error },
     #[snafu(display("failed to create container and volume configuration"))]
     FailedToCreateContainerAndVolumeConfiguration { source: crate::container::Error },
+    #[snafu(display("failed to create PodDisruptionBudget"))]
+    FailedToCreatePdb {
+        source: crate::operations::pdb::Error,
+    },
     #[snafu(display("failed to update status"))]
     ApplyStatus {
         source: stackable_operator::error::Error,
@@ -341,6 +346,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                         name: rg_statefulset_name,
                     })?,
             );
+
+            add_pdbs(&hdfs, &role, client, &mut cluster_resources)
+                .await
+                .context(FailedToCreatePdbSnafu)?;
         }
     }
 
@@ -454,14 +463,7 @@ fn rolegroup_config_map(
                     .dfs_namenode_name_dir()
                     .dfs_datanode_data_dir(merged_config.data_node_resources().map(|r| r.storage))
                     .dfs_journalnode_edits_dir()
-                    .dfs_replication(
-                        *hdfs
-                            .spec
-                            .cluster_config
-                            .dfs_replication
-                            .as_ref()
-                            .unwrap_or(&DEFAULT_DFS_REPLICATION_FACTOR),
-                    )
+                    .dfs_replication(hdfs.spec.cluster_config.dfs_replication)
                     .dfs_name_services()
                     .dfs_ha_namenodes(namenode_podrefs)
                     .dfs_namenode_shared_edits_dir(journalnode_podrefs)
