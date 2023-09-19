@@ -58,6 +58,7 @@ rules:
       - jobs
     verbs:
       - create
+      - delete
       - get
       - list
       - patch
@@ -69,6 +70,7 @@ rules:
       - poddisruptionbudgets
     verbs:
       - create
+      - delete
       - get
       - list
       - patch
