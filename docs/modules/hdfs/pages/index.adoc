@@ -9,7 +9,8 @@ NOTE: This operator only works with images from the https://repo.stackable.tech/
 Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster are implemented:
 
 * DataNode - responsible for storing the actual data.
-* JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
+* JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode
+  fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
 * NameNode - responsible for keeping track of HDFS blocks and providing access to the data.
 
 == Kubernetes objects
@@ -17,12 +18,15 @@ Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster a
 The operator creates the following K8S objects per role group defined in the custom resource.
 
 * Service - ClusterIP used for intra-cluster communication.
-* ConfigMap - HDFS configuration files like `core-site.xml`, `hdfs-site.xml` and `log4j.properties` are defined here and mounted in the pods.
+* ConfigMap - HDFS configuration files like `core-site.xml`, `hdfs-site.xml` and `log4j.properties` are defined here and
+  mounted in the pods.
 * StatefulSet - where the replica count, volume mounts and more for each role group is defined.
 
-In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that exposes all container ports to the outside world (from the perspective of K8S).
+In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that
+exposes all container ports to the outside world (from the perspective of K8S).
 
-In the custom resource you can specify the number of replicas per role group (NameNode, DataNode or JournalNode). A minimal working configuration requires:
+In the custom resource you can specify the number of replicas per role group (NameNode, DataNode or JournalNode). A
+minimal working configuration requires:
 
 * 2 NameNodes (HA)
 * 1 JournalNode
