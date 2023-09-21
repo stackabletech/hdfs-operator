@@ -16,10 +16,10 @@ For datanodes the questions how many instances can be offline at the same time i
 
 HDFS stores you in blocks on the datanodes.
 Every block can be replicated multiple times (to multiple datanodes) to ensure maximum availability.
-The default setting is a replication of `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However it is also possible to change the replication factor for a specific file or directory to something else than the cluster default.
+The default setting is a replication of `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However, it is also possible to change the replication factor for a specific file or directory to something else than the cluster default.
 
 When you have a replication of `3`, you can safely can take down 2 datanodes, as there will always be a third one holding the blocks of the two down datanodes.
-However you need to be aware that you are now down to a single point of failure - the last of the three replicas!
+However, you need to be aware that you are now down to a single point of failure - the last of the three replicas!
 
 Taking this into consideration, our operator uses the following algorithm to determine the maximum number of datanodes allowed to be offline.
 
