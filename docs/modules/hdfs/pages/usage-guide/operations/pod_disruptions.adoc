@@ -15,14 +15,15 @@ We only allow a single namenode to be offline at a given time, regardless of the
 For datanodes the questions how many instances can be offline at the same time is a bit harder:
 HDFS stores your blocks on the datanodes.
 Every block can be replicated multiple times (to multiple datanodes) to ensure maximum availability.
-The default setting is a replication of `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However, it is also possible to change the replication factor for a specific file or directory to something else than the cluster default.
+The default setting is a replication factor of `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However, it is also possible to change the replication factor for a specific file or directory to something else than the cluster default.
 
-When you have a replication of `3`, you can safely can take down 2 datanodes, as there will always be a third one holding the blocks of the two down datanodes.
+When you have a replication of `3`, you can safely can take down 2 datanodes, as there will always be a third datanode one holding a copy of the block on the two unavailable datanodes.
 However, you need to be aware that you are now down to a single point of failure - the last of the three replicas!
 
-Taking this into consideration, our operator uses the following algorithm to determine the maximum number of datanodes allowed to be offline.
+Taking this into consideration, our operator uses the following algorithm to determine the maximum number of datanodes allowed to be offline:
 
 `num_datanodes` is the number of datanodes in the HDFS cluster, summed over all roleGroups.
+
 `dfs_replication` is default replication factor of the cluster.
 
 [source,rust]
@@ -36,7 +37,7 @@ let max_unavailable = dfs_replication.saturating_sub(2);
 let max_unavailable = min(max_unavailable, num_datanodes.saturating_sub(2));
 // Clamp to at least a single datanode allowed to being, to not block Kubernetes nodes
 // from being not able to drain.
-max(max_unavailable, 1)
+let max_unavailable = max(max_unavailable, 1)
 ----
 
 This results e.g. in the following numbers:
