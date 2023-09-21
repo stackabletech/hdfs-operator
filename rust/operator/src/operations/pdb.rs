@@ -72,10 +72,14 @@ fn max_unavailable_journal_nodes() -> u16 {
 
 fn max_unavailable_data_nodes(num_datanodes: u16, dfs_replication: u16) -> u16 {
     // There must always be a datanode to serve the block.
-    let max_unavailable = dfs_replication.saturating_sub(1);
-    // There is no point of having a bigger `max_unavailable` than even datanodes in the cluster.
+    // If we would simply subtract one from the `dfs_replication`, we would end up
+    // with a single point of failure, so we subtract two instead.
+    let max_unavailable = dfs_replication.saturating_sub(2);
+    // We need to make sure at least one datanode remains by having at max
+    // n - 1 datanodes unavailable.
     let max_unavailable = min(max_unavailable, num_datanodes.saturating_sub(1));
-    // Clamp to at least a single datanode can be offline, to not render the k8s cluster helpless.
+    // Clamp to at least a single datanode allowed to being, to not block Kubernetes nodes
+    // from being not able to drain.
     max(max_unavailable, 1)
 }
 
@@ -89,26 +93,32 @@ mod test {
     #[case(0, 1, 1)]
     #[case(0, 2, 1)]
     #[case(0, 3, 1)]
+    #[case(0, 5, 1)]
     #[case(1, 0, 1)]
     #[case(1, 1, 1)]
     #[case(1, 2, 1)]
     #[case(1, 3, 1)]
+    #[case(1, 5, 1)]
     #[case(2, 0, 1)]
     #[case(2, 1, 1)]
     #[case(2, 2, 1)]
-    #[case(2, 3, 1)] // Attention: This needs to be 1, not 2
+    #[case(2, 3, 1)]
+    #[case(2, 5, 1)]
     #[case(3, 0, 1)]
     #[case(3, 1, 1)]
     #[case(3, 2, 1)]
-    #[case(3, 3, 2)]
+    #[case(3, 3, 1)]
+    #[case(3, 5, 2)]
     #[case(4, 0, 1)]
     #[case(4, 1, 1)]
     #[case(4, 2, 1)]
-    #[case(4, 3, 2)]
+    #[case(4, 3, 1)]
+    #[case(4, 5, 3)]
     #[case(100, 0, 1)]
     #[case(100, 1, 1)]
     #[case(100, 2, 1)]
-    #[case(100, 3, 2)]
+    #[case(100, 3, 1)]
+    #[case(100, 5, 3)]
     fn test_max_unavailable_data_nodes(
         #[case] num_datanodes: u16,
         #[case] dfs_replication: u16,
