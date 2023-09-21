@@ -76,8 +76,8 @@ fn max_unavailable_data_nodes(num_datanodes: u16, dfs_replication: u16) -> u16 {
     // with a single point of failure, so we subtract two instead.
     let max_unavailable = dfs_replication.saturating_sub(2);
     // We need to make sure at least one datanode remains by having at max
-    // n - 1 datanodes unavailable.
-    let max_unavailable = min(max_unavailable, num_datanodes.saturating_sub(1));
+    // n - 1 datanodes unavailable. We subtract two to avoid a single point of failure.
+    let max_unavailable = min(max_unavailable, num_datanodes.saturating_sub(2));
     // Clamp to at least a single datanode allowed to being, to not block Kubernetes nodes
     // from being not able to drain.
     max(max_unavailable, 1)
@@ -93,32 +93,46 @@ mod test {
     #[case(0, 1, 1)]
     #[case(0, 2, 1)]
     #[case(0, 3, 1)]
+    #[case(0, 4, 1)]
     #[case(0, 5, 1)]
     #[case(1, 0, 1)]
     #[case(1, 1, 1)]
     #[case(1, 2, 1)]
     #[case(1, 3, 1)]
+    #[case(1, 4, 1)]
     #[case(1, 5, 1)]
     #[case(2, 0, 1)]
     #[case(2, 1, 1)]
     #[case(2, 2, 1)]
     #[case(2, 3, 1)]
+    #[case(2, 4, 1)]
     #[case(2, 5, 1)]
     #[case(3, 0, 1)]
     #[case(3, 1, 1)]
     #[case(3, 2, 1)]
     #[case(3, 3, 1)]
-    #[case(3, 5, 2)]
+    #[case(3, 4, 1)]
+    #[case(3, 5, 1)]
     #[case(4, 0, 1)]
     #[case(4, 1, 1)]
     #[case(4, 2, 1)]
     #[case(4, 3, 1)]
-    #[case(4, 5, 3)]
+    #[case(4, 4, 2)]
+    #[case(4, 5, 2)]
+    #[case(5, 0, 1)]
+    #[case(5, 1, 1)]
+    #[case(5, 2, 1)]
+    #[case(5, 3, 1)]
+    #[case(5, 4, 2)]
+    #[case(5, 5, 3)]
     #[case(100, 0, 1)]
     #[case(100, 1, 1)]
     #[case(100, 2, 1)]
     #[case(100, 3, 1)]
+    #[case(100, 4, 2)]
     #[case(100, 5, 3)]
+    #[case(100, 10, 8)]
+    #[case(100, 100, 98)]
     fn test_max_unavailable_data_nodes(
         #[case] num_datanodes: u16,
         #[case] dfs_replication: u16,
