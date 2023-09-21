@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Default stackableVersion to operator version ([#381]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#384]).
+- Support PodDisruptionBudgets ([#394]).
 
 ### Changed
 
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 [#378]: https://github.com/stackabletech/hdfs-operator/pull/378
 [#381]: https://github.com/stackabletech/hdfs-operator/pull/381
 [#384]: https://github.com/stackabletech/hdfs-operator/pull/384
+[#394]: https://github.com/stackabletech/hdfs-operator/pull/394
 
 ## [23.7.0] - 2023-07-14
 
