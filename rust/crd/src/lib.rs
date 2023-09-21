@@ -33,7 +33,7 @@ use stackable_operator::{
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
-    role_utils::{Role, RoleGroup, RoleGroupRef},
+    role_utils::{Role, RoleConfig, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
@@ -472,6 +472,14 @@ impl HdfsCluster {
             .as_ref()?
             .role_groups
             .get(role_group)
+    }
+
+    pub fn role_config(&self, role: &HdfsRole) -> Option<&RoleConfig> {
+        match role {
+            HdfsRole::NameNode => self.spec.name_nodes.as_ref().map(|nn| &nn.role_config),
+            HdfsRole::DataNode => self.spec.data_nodes.as_ref().map(|nn| &nn.role_config),
+            HdfsRole::JournalNode => self.spec.journal_nodes.as_ref().map(|nn| &nn.role_config),
+        }
     }
 
     pub fn pod_overrides_for_role(&self, role: &HdfsRole) -> Option<&PodTemplateSpec> {

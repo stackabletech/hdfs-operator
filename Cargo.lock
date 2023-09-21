@@ -31,9 +31,9 @@ dependencies = [
 
 [[package]]
 name = "aho-corasick"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f2135563fb5c609d2b2b87c1e8ce7bc41b0b45430fa9661f457981503dd5bf0"
+checksum = "ea5d730647d4fadd988536d06fecce94b7b4f2a7efdae548f1cf4b63205518ab"
 dependencies = [
  "memchr",
 ]
@@ -667,9 +667,9 @@ checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "hermit-abi"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
+checksum = "d77f7ec81a6d05a3abb01ab6eb7590f6083d08449fe5a1c8b1e620283546ccb7"
 
 [[package]]
 name = "home"
@@ -1784,9 +1784,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.11.0"
+version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
+checksum = "942b4a808e05215192e39f4ab80813e599068285906cc91aa64f923db842bd5a"
 
 [[package]]
 name = "snafu"
@@ -1886,7 +1886,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator"
 version = "0.50.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#b44bcfe086356738ad701d9d09bdd1b9f4b42e08"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#0b93a36f9e6f055595873afb8318465fb4ceb087"
 dependencies = [
  "chrono",
  "clap",
@@ -1920,7 +1920,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.50.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#b44bcfe086356738ad701d9d09bdd1b9f4b42e08"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#0b93a36f9e6f055595873afb8318465fb4ceb087"
 dependencies = [
  "darling 0.20.3",
  "proc-macro2",
@@ -2108,9 +2108,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.8"
+version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "806fe8c2c87eccc8b3267cbae29ed3ab2d0bd37fca70ab622e46aaa9375ddb7d"
+checksum = "1d68074620f57a0b21594d9735eb2e98ab38b17f80d3fcb189fca266771ca60d"
 dependencies = [
  "bytes",
  "futures-core",

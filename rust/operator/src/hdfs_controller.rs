@@ -41,7 +41,7 @@ use stackable_operator::{
         types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
     },
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
-    role_utils::RoleGroupRef,
+    role_utils::{RoleConfig, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -348,12 +348,11 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             );
         }
 
-        let pdb = match role {
-            HdfsRole::NameNode => hdfs.spec.name_nodes.as_ref().map(|nn| &nn.pdb),
-            HdfsRole::DataNode => hdfs.spec.data_nodes.as_ref().map(|nn| &nn.pdb),
-            HdfsRole::JournalNode => hdfs.spec.journal_nodes.as_ref().map(|nn| &nn.pdb),
-        };
-        if let Some(pdb) = pdb {
+        let role_config = hdfs.role_config(&role);
+        if let Some(RoleConfig {
+            pod_disruption_budget: pdb,
+        }) = role_config
+        {
             add_pdbs(pdb, &hdfs, &role, client, &mut cluster_resources)
                 .await
                 .context(FailedToCreatePdbSnafu)?;
