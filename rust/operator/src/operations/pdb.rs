@@ -75,7 +75,7 @@ fn max_unavailable_data_nodes(num_datanodes: u16, dfs_replication: u16) -> u16 {
     // If we would simply subtract one from the `dfs_replication`, we would end up
     // with a single point of failure, so we subtract two instead.
     let max_unavailable = dfs_replication.saturating_sub(2);
-    // We need to make sure at least one datanode remains by having at max
+    // We need to make sure at least one datanode remains by having at most
     // n - 1 datanodes unavailable. We subtract two to avoid a single point of failure.
     let max_unavailable = min(max_unavailable, num_datanodes.saturating_sub(2));
     // Clamp to at least a single datanode allowed to being, to not block Kubernetes nodes
