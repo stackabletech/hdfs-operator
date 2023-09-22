@@ -5,24 +5,24 @@ You can configure Pod disruptions for HDFS nodes as described in xref:concepts:o
 
 Unless you configure something else or disable our PodDisruptionBudgets (PDBs), we write the following PDBs:
 
-== Journalnodes
-We only allow a single journalnode to be offline at a given time, regardless of the number of replicas or roleGroups.
+== JournalNodes
+We only allow a single JournalNode to be offline at any given time, regardless of the number of replicas or `roleGroups`.
 
-== Namenodes
-We only allow a single namenode to be offline at a given time, regardless of the number of replicas or roleGroups.
+== NameNodes
+We only allow a single NameNode to be offline at any given time, regardless of the number of replicas or `roleGroups`.
 
-== Datanode
-For datanodes the questions how many instances can be offline at the same time is a bit harder:
+== DataNodes
+For DataNodes the question how many instances can be unavailable at the same time is a bit harder:
 HDFS stores your blocks on the datanodes.
 Every block can be replicated multiple times (to multiple datanodes) to ensure maximum availability.
-The default setting is a replication factor of `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However, it is also possible to change the replication factor for a specific file or directory to something else than the cluster default.
+The default replication factor is `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However, it is also possible to change the replication factor for a specific file or directory to something other than the cluster default.
 
-When you have a replication of `3`, you can safely can take down 2 datanodes, as there will always be a third datanode one holding a copy of the block on the two unavailable datanodes.
-However, you need to be aware that you are now down to a single point of failure - the last of the three replicas!
+When you have a replication of `3`, you can safely can take down 2 DataNodes, as there will always be a third DataNode holding a copy of each block currently assigned to one of the unavailable DataNodes.
+However, you need to be aware that you are now down to a single point of failure - the last of three replicas!
 
-Taking this into consideration, our operator uses the following algorithm to determine the maximum number of datanodes allowed to be offline:
+Taking this into consideration, our operator uses the following algorithm to determine the maximum number of DataNodes allowed to be unavailable at the same time:
 
-`num_datanodes` is the number of datanodes in the HDFS cluster, summed over all roleGroups.
+`num_datanodes` is the number of datanodes in the HDFS cluster, summed over all `roleGroups`.
 
 `dfs_replication` is default replication factor of the cluster.
 
@@ -97,7 +97,7 @@ This results e.g. in the following numbers:
 
 == Reduce rolling redeployment durations
 The default PDBs we write out are pessimistic and will cause the rolling redeployment to take a considerable amount of time.
-As an example, when you have 100 datanodes and a replication factor of `3`, we can safely only take a single datanode down at a time. Assuming a datanode takes 1 minute to properly restart, the whole re-deployment would take 100 minutes.
+As an example, when you have 100 DataNodes and a replication factor of `3`, we can safely only take a single datanode down at a time. Assuming a DataNode takes 1 minute to properly restart, the whole re-deployment would take 100 minutes.
 
 You can use the following measures to speed this up:
 
