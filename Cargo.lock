@@ -1569,9 +1569,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.101.5"
+version = "0.101.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a27e3b59326c16e23d30aeb7a36a24cc0d29e71d68ff611cdfb4a01d013bed"
+checksum = "3c7d5dece342910d9ba34d259310cae3e0154b873b35408b787b59bce53d34fe"
 dependencies = [
  "ring",
  "untrusted",
@@ -1886,7 +1886,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator"
 version = "0.50.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#0b93a36f9e6f055595873afb8318465fb4ceb087"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#87e5308574ae0ca1112586d8df57f537ca6b8121"
 dependencies = [
  "chrono",
  "clap",
@@ -1920,7 +1920,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.50.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#0b93a36f9e6f055595873afb8318465fb4ceb087"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#87e5308574ae0ca1112586d8df57f537ca6b8121"
 dependencies = [
  "darling 0.20.3",
  "proc-macro2",

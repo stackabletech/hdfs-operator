@@ -3,8 +3,8 @@ use std::cmp::{max, min};
 use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{constants::APP_NAME, HdfsCluster, HdfsRole};
 use stackable_operator::{
-    builder::pdb::PdbBuilder, client::Client, cluster_resources::ClusterResources,
-    commons::pdb::Pdb, kube::ResourceExt,
+    builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
+    commons::pdb::PdbConfig, kube::ResourceExt,
 };
 
 use crate::{hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER, OPERATOR_NAME};
@@ -24,7 +24,7 @@ pub enum Error {
 }
 
 pub async fn add_pdbs(
-    pdb: &Pdb,
+    pdb: &PdbConfig,
     hdfs: &HdfsCluster,
     role: &HdfsRole,
     client: &Client,
@@ -41,7 +41,7 @@ pub async fn add_pdbs(
         ),
         HdfsRole::JournalNode => max_unavailable_journal_nodes(),
     });
-    let pdb = PdbBuilder::new_for_role(
+    let pdb = PodDisruptionBudgetBuilder::new_with_role(
         hdfs,
         APP_NAME,
         &role.to_string(),
@@ -51,7 +51,7 @@ pub async fn add_pdbs(
     .with_context(|_| CreatePdbSnafu {
         role_group: role.to_string(),
     })?
-    .max_unavailable(max_unavailable)
+    .with_max_unavailable(max_unavailable)
     .build();
     let pdb_name = pdb.name_any();
     cluster_resources
