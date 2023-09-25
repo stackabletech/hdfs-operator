@@ -90,8 +90,6 @@ This results e.g. in the following numbers:
 |100
 |5 - 100
 |<replication factor> - 2
-
-
 |===
 
 == Reduce rolling redeployment durations
