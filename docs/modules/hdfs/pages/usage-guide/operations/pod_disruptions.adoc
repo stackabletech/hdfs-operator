@@ -1,7 +1,7 @@
 
 = Allowed Pod disruptions
 
-You can configure Pod disruptions for HDFS nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
+You can configure the allowed Pod disruptions for HDFS nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
 
 Unless you configure something else or disable our PodDisruptionBudgets (PDBs), we write the following PDBs:
 
