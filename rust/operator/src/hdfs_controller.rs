@@ -506,6 +506,10 @@ fn rolegroup_config_map(
                             Some("pkcs12".to_string()),
                         ),
                         (
+                            "ssl.server.truststore.password".to_string(),
+                            Some(KEYSTORE_PASSWORD.to_string()),
+                        ),
+                        (
                             "ssl.server.keystore.location".to_string(),
                             Some(format!("{KEYSTORE_DIR}/keystore.p12")),
                         ),
@@ -534,6 +538,10 @@ fn rolegroup_config_map(
                         (
                             "ssl.client.truststore.type".to_string(),
                             Some("pkcs12".to_string()),
+                        ),
+                        (
+                            "ssl.client.truststore.password".to_string(),
+                            Some(KEYSTORE_PASSWORD.to_string()),
                         ),
                     ]);
                 }
