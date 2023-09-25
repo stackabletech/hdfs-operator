@@ -1673,9 +1673,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.18"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0293b4b29daaf487284529cc2f5675b8e57c61f70167ba415a463651fd6a918"
+checksum = "ad977052201c6de01a8ef2aa3378c4bd23217a056337d1d6da40468d267a4fb0"
 dependencies = [
  "serde",
 ]
@@ -1885,8 +1885,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.50.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#87e5308574ae0ca1112586d8df57f537ca6b8121"
+version = "0.51.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.51.0#b3531bc2922f71f691807053e174404db95f1fb7"
 dependencies = [
  "chrono",
  "clap",
@@ -1919,8 +1919,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator-derive"
-version = "0.50.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/support-pdb#87e5308574ae0ca1112586d8df57f537ca6b8121"
+version = "0.51.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.51.0#b3531bc2922f71f691807053e174404db95f1fb7"
 dependencies = [
  "darling 0.20.3",
  "proc-macro2",
@@ -2578,9 +2578,9 @@ dependencies = [
 
 [[package]]
 name = "xml-rs"
-version = "0.8.18"
+version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bab77e97b50aee93da431f2cee7cd0f43b4d1da3c408042f2d7d164187774f0a"
+checksum = "0fcb9cbac069e033553e8bb871be2fbdffcab578eb25bd0f7c508cedc6dcd75a"
 
 [[package]]
 name = "zeroize"
