@@ -1,5 +1,5 @@
 
-= Pod disruptions
+= Allowed Pod disruptions
 
 You can configure Pod disruptions for HDFS nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
 
