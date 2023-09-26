@@ -53,9 +53,9 @@ use stackable_operator::{
 use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
-pub(crate) const KEYSTORE_DIR: &str = "/stackable/keystore";
-pub(crate) const KEYSTORE_VOLUME_NAME: &str = "keystore";
-pub(crate) const KEYSTORE_PASSWORD: &str = "changeit";
+pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls_store";
+pub(crate) const TLS_STORE_VOLUME_NAME: &str = "tls-store";
+pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -180,7 +180,7 @@ impl ContainerConfig {
 
         if let Some(authentication_config) = hdfs.authentication_config() {
             pb.add_volume(
-                VolumeBuilder::new(KEYSTORE_VOLUME_NAME)
+                VolumeBuilder::new(TLS_STORE_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.tls_secret_class,
@@ -188,7 +188,7 @@ impl ContainerConfig {
                         .with_pod_scope()
                         .with_node_scope()
                         .with_format(SecretFormat::TlsPkcs12)
-                        .with_tls_pkcs12_password(KEYSTORE_PASSWORD)
+                        .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
                         .build(),
                     )
                     .build(),
@@ -811,7 +811,8 @@ impl ContainerConfig {
         }
         if hdfs.has_https_enabled() {
             // This volume will be propagated by the create-tls-cert-bundle container
-            volume_mounts.push(VolumeMountBuilder::new(KEYSTORE_VOLUME_NAME, KEYSTORE_DIR).build());
+            volume_mounts
+                .push(VolumeMountBuilder::new(TLS_STORE_VOLUME_NAME, TLS_STORE_DIR).build());
         }
 
         match self {

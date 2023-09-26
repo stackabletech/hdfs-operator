@@ -2,7 +2,7 @@ use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::ContainerConfig,
-    container::{KEYSTORE_DIR, KEYSTORE_PASSWORD},
+    container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
     kerberos,
@@ -507,7 +507,7 @@ fn rolegroup_config_map(
                     config_opts.extend([
                         (
                             "ssl.server.truststore.location".to_string(),
-                            Some(format!("{KEYSTORE_DIR}/truststore.p12")),
+                            Some(format!("{TLS_STORE_DIR}/truststore.p12")),
                         ),
                         (
                             "ssl.server.truststore.type".to_string(),
@@ -515,11 +515,11 @@ fn rolegroup_config_map(
                         ),
                         (
                             "ssl.server.truststore.password".to_string(),
-                            Some(KEYSTORE_PASSWORD.to_string()),
+                            Some(TLS_STORE_PASSWORD.to_string()),
                         ),
                         (
                             "ssl.server.keystore.location".to_string(),
-                            Some(format!("{KEYSTORE_DIR}/keystore.p12")),
+                            Some(format!("{TLS_STORE_DIR}/keystore.p12")),
                         ),
                         (
                             "ssl.server.keystore.type".to_string(),
@@ -527,7 +527,7 @@ fn rolegroup_config_map(
                         ),
                         (
                             "ssl.server.keystore.password".to_string(),
-                            Some(KEYSTORE_PASSWORD.to_string()),
+                            Some(TLS_STORE_PASSWORD.to_string()),
                         ),
                     ]);
                 }
@@ -541,7 +541,7 @@ fn rolegroup_config_map(
                     config_opts.extend([
                         (
                             "ssl.client.truststore.location".to_string(),
-                            Some(format!("{KEYSTORE_DIR}/truststore.p12")),
+                            Some(format!("{TLS_STORE_DIR}/truststore.p12")),
                         ),
                         (
                             "ssl.client.truststore.type".to_string(),
@@ -549,7 +549,7 @@ fn rolegroup_config_map(
                         ),
                         (
                             "ssl.client.truststore.password".to_string(),
-                            Some(KEYSTORE_PASSWORD.to_string()),
+                            Some(TLS_STORE_PASSWORD.to_string()),
                         ),
                     ]);
                 }
