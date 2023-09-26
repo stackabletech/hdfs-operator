@@ -14,7 +14,8 @@
 ** xref:hdfs:usage-guide/monitoring.adoc[]
 ** xref:hdfs:usage-guide/configuration-environment-overrides.adoc[]
 ** xref:hdfs:usage-guide/fuse.adoc[]
-** Operations
-*** xref:hdfs:usage-guide/operations/cluster_operations.adoc[]
-*** xref:hdfs:usage-guide/operations/pod_placement.adoc[]
-*** xref:hdfs:usage-guide/operations/pod_disruptions.adoc[]
+** xref:hdfs:usage-guide/operations/index.adoc[]
+*** xref:hdfs:usage-guide/operations/cluster-operations.adoc[]
+*** xref:hdfs:usage-guide/operations/pod-placement.adoc[]
+*** xref:hdfs:usage-guide/operations/pod-disruptions.adoc[]
+*** xref:hdfs:usage-guide/operations/graceful-shutdown.adoc[]

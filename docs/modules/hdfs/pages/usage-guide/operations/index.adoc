@@ -1,0 +1,1 @@
+include:concepts:operations/index.adoc
