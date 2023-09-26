@@ -2,6 +2,7 @@ use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::ContainerConfig,
+    container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
     kerberos,
@@ -58,8 +59,6 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
-
-pub(crate) const KEYSTORE_DIR_NAME: &str = "/stackable/keystore";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -508,19 +507,27 @@ fn rolegroup_config_map(
                     config_opts.extend([
                         (
                             "ssl.server.truststore.location".to_string(),
-                            Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
+                            Some(format!("{TLS_STORE_DIR}/truststore.p12")),
+                        ),
+                        (
+                            "ssl.server.truststore.type".to_string(),
+                            Some("pkcs12".to_string()),
+                        ),
+                        (
+                            "ssl.server.truststore.password".to_string(),
+                            Some(TLS_STORE_PASSWORD.to_string()),
                         ),
                         (
                             "ssl.server.keystore.location".to_string(),
-                            Some(format!("{KEYSTORE_DIR_NAME}/keystore.p12")),
-                        ),
-                        (
-                            "ssl.server.keystore.password".to_string(),
-                            Some("changeit".to_string()),
+                            Some(format!("{TLS_STORE_DIR}/keystore.p12")),
                         ),
                         (
                             "ssl.server.keystore.type".to_string(),
                             Some("pkcs12".to_string()),
+                        ),
+                        (
+                            "ssl.server.keystore.password".to_string(),
+                            Some(TLS_STORE_PASSWORD.to_string()),
                         ),
                     ]);
                 }
@@ -534,15 +541,15 @@ fn rolegroup_config_map(
                     config_opts.extend([
                         (
                             "ssl.client.truststore.location".to_string(),
-                            Some(format!("{KEYSTORE_DIR_NAME}/truststore.p12")),
-                        ),
-                        (
-                            "ssl.client.truststore.password".to_string(),
-                            Some("changeit".to_string()),
+                            Some(format!("{TLS_STORE_DIR}/truststore.p12")),
                         ),
                         (
                             "ssl.client.truststore.type".to_string(),
                             Some("pkcs12".to_string()),
+                        ),
+                        (
+                            "ssl.client.truststore.password".to_string(),
+                            Some(TLS_STORE_PASSWORD.to_string()),
                         ),
                     ]);
                 }

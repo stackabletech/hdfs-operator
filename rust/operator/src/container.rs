@@ -9,15 +9,11 @@
 //! - Set resources
 //! - Add tcp probes and container ports (to the main containers)
 //!
-use crate::{
-    hdfs_controller::KEYSTORE_DIR_NAME,
-    product_logging::{
-        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-        MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
-        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
-    },
+use crate::product_logging::{
+    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE, HDFS_LOG4J_CONFIG_FILE,
+    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE, MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
+    MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
+    WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
 };
 
 use indoc::formatdoc;
@@ -32,6 +28,7 @@ use stackable_hdfs_crd::{
     storage::DataNodeStorageConfig,
     DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
+use stackable_operator::builder::SecretFormat;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ContainerBuilder, PodBuilder,
@@ -55,6 +52,10 @@ use stackable_operator::{
 };
 use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
+
+pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
+pub(crate) const TLS_STORE_VOLUME_NAME: &str = "tls";
+pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -179,21 +180,17 @@ impl ContainerConfig {
 
         if let Some(authentication_config) = hdfs.authentication_config() {
             pb.add_volume(
-                VolumeBuilder::new("tls")
+                VolumeBuilder::new(TLS_STORE_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.tls_secret_class,
                         )
                         .with_pod_scope()
                         .with_node_scope()
+                        .with_format(SecretFormat::TlsPkcs12)
+                        .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
                         .build(),
                     )
-                    .build(),
-            );
-
-            pb.add_volume(
-                VolumeBuilder::new("keystore")
-                    .with_empty_dir(Option::<String>::None, None)
                     .build(),
             );
 
@@ -210,52 +207,6 @@ impl ContainerConfig {
                     )
                     .build(),
             );
-
-            let mut create_tls_cert_bundle_init_cb =
-                ContainerBuilder::new("create-tls-cert-bundle").unwrap();
-
-            create_tls_cert_bundle_init_cb
-                    .image_from_product_image(resolved_product_image)
-                    .command(Self::command())
-                    .args(vec![formatdoc!(
-                            r###"
-                            echo "Cleaning up truststore - just in case"
-                            rm -f {KEYSTORE_DIR_NAME}/truststore.p12
-                            echo "Creating truststore"
-                            keytool -importcert -file /stackable/tls/ca.crt -keystore {KEYSTORE_DIR_NAME}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass changeit
-                            echo "Creating certificate chain"
-                            cat /stackable/tls/ca.crt /stackable/tls/tls.crt > {KEYSTORE_DIR_NAME}/chain.crt
-                            echo "Cleaning up keystore - just in case"
-                            rm -f {KEYSTORE_DIR_NAME}/keystore.p12
-                            echo "Creating keystore"
-                            openssl pkcs12 -export -in {KEYSTORE_DIR_NAME}/chain.crt -inkey /stackable/tls/tls.key -out {KEYSTORE_DIR_NAME}/keystore.p12 --passout pass:changeit"###
-                        )])
-                        // Only this init container needs the actual cert (from tls volume) to create the truststore + keystore from
-                    .add_volume_mount("tls", "/stackable/tls")
-                    .add_volume_mount("keystore", KEYSTORE_DIR_NAME);
-
-            // We use the main app container resources here in contrast to several operators (which use
-            // hardcoded resources) due to the different code structure.
-            // Going forward this should be replaced by calculating init container resources in the pod builder.
-            match role {
-                HdfsRole::NameNode => {
-                    if let Some(resources) = merged_config.name_node_resources() {
-                        create_tls_cert_bundle_init_cb.resources(resources.into());
-                    }
-                }
-                HdfsRole::DataNode => {
-                    if let Some(resources) = merged_config.data_node_resources() {
-                        create_tls_cert_bundle_init_cb.resources(resources.into());
-                    }
-                }
-                HdfsRole::JournalNode => {
-                    if let Some(resources) = merged_config.journal_node_resources() {
-                        create_tls_cert_bundle_init_cb.resources(resources.into());
-                    }
-                }
-            };
-
-            pb.add_init_container(create_tls_cert_bundle_init_cb.build());
         }
 
         // role specific pod settings configured here
@@ -475,11 +426,7 @@ impl ContainerConfig {
         args.push_str(&self.create_config_directory_cmd());
         args.push_str(&self.copy_config_xml_cmd());
 
-        // We can't influence the order of the init containers.
-        // Some init containers - such as format-namenodes - need the tls certs or kerberos tickets, so let's wait for them to be properly set up
-        if hdfs.has_https_enabled() {
-            args.push_str(&Self::wait_for_trust_and_keystore_command());
-        }
+        // This env var is required for reading the core-site.xml
         if hdfs.has_kerberos_enabled() {
             args.push_str(&Self::export_kerberos_real_env_var_command());
         }
@@ -643,21 +590,6 @@ impl ContainerConfig {
             }
         }
         Ok(vec![args])
-    }
-
-    /// Wait until the init container has created global trust and keystore shared between all containers
-    fn wait_for_trust_and_keystore_command() -> String {
-        formatdoc!(
-            r###"until [ -f {KEYSTORE_DIR_NAME}/truststore.p12 ]; do
-                echo 'Waiting for truststore to be created'
-                sleep 1
-            done
-            until [ -f {KEYSTORE_DIR_NAME}/keystore.p12 ]; do
-                echo 'Waiting for keystore to be created'
-                sleep 1
-            done
-            "###
-        )
     }
 
     // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`
@@ -879,7 +811,8 @@ impl ContainerConfig {
         }
         if hdfs.has_https_enabled() {
             // This volume will be propagated by the create-tls-cert-bundle container
-            volume_mounts.push(VolumeMountBuilder::new("keystore", KEYSTORE_DIR_NAME).build());
+            volume_mounts
+                .push(VolumeMountBuilder::new(TLS_STORE_VOLUME_NAME, TLS_STORE_DIR).build());
         }
 
         match self {
