@@ -1,6 +1,6 @@
-= Pod Placement
+= Pod placement
 
-You can configure Pod placement for HDFS nodes as described in xref:concepts:pod_placement.adoc[].
+You can configure Pod placement for HDFS nodes as described in xref:concepts:operations/pod_placement.adoc[].
 
 Default Pod placement constraints for name nodes:
 

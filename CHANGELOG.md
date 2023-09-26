@@ -8,17 +8,19 @@ All notable changes to this project will be documented in this file.
 
 - Default stackableVersion to operator version ([#381]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#384]).
+- Support PodDisruptionBudgets ([#394]).
 
 ### Changed
 
 - `vector` `0.26.0` -> `0.31.0` ([#378]).
-- `operator-rs` `0.44.0` -> `0.49.0` ([#381], [#392]).
 - Let secret-operator handle certificate conversion ([#392]).
+- `operator-rs` `0.44.0` -> `0.51.1` ([#381], [#394]).
 
 [#378]: https://github.com/stackabletech/hdfs-operator/pull/378
 [#381]: https://github.com/stackabletech/hdfs-operator/pull/381
 [#384]: https://github.com/stackabletech/hdfs-operator/pull/384
 [#392]: https://github.com/stackabletech/hdfs-operator/pull/392
+[#394]: https://github.com/stackabletech/hdfs-operator/pull/394
 
 ## [23.7.0] - 2023-07-14
 

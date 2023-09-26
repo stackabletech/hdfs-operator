@@ -33,7 +33,7 @@ use stackable_operator::{
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
-    role_utils::{Role, RoleGroup, RoleGroupRef},
+    role_utils::{Role, RoleConfig, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
@@ -90,8 +90,10 @@ pub struct HdfsClusterSpec {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterConfig {
+    // FIXME: This attribute does not seem to be read anywhere.
     pub auto_format_fs: Option<bool>,
-    pub dfs_replication: Option<u8>,
+    #[serde(default = "default_dfs_replication_factor")]
+    pub dfs_replication: u8,
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -111,6 +113,10 @@ pub struct HdfsClusterConfig {
     pub listener_class: CurrentlySupportedListenerClasses,
     /// Configuration to set up a cluster secured using Kerberos.
     pub authentication: Option<AuthenticationConfig>,
+}
+
+fn default_dfs_replication_factor() -> u8 {
+    DEFAULT_DFS_REPLICATION_FACTOR
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -468,6 +474,14 @@ impl HdfsCluster {
             .get(role_group)
     }
 
+    pub fn role_config(&self, role: &HdfsRole) -> Option<&RoleConfig> {
+        match role {
+            HdfsRole::NameNode => self.spec.name_nodes.as_ref().map(|nn| &nn.role_config),
+            HdfsRole::DataNode => self.spec.data_nodes.as_ref().map(|dn| &dn.role_config),
+            HdfsRole::JournalNode => self.spec.journal_nodes.as_ref().map(|jn| &jn.role_config),
+        }
+    }
+
     pub fn pod_overrides_for_role(&self, role: &HdfsRole) -> Option<&PodTemplateSpec> {
         match role {
             HdfsRole::NameNode => self
@@ -682,6 +696,15 @@ impl HdfsCluster {
             .authentication
             .as_ref()
             .map(|k| k.tls_secret_class.as_str())
+    }
+
+    pub fn num_datanodes(&self) -> u16 {
+        self.spec
+            .data_nodes
+            .iter()
+            .flat_map(|dn| dn.role_groups.values())
+            .map(|rg| rg.replicas.unwrap_or(1))
+            .sum()
     }
 
     /// Returns required port name and port number tuples depending on the role.
@@ -930,9 +953,10 @@ impl Configuration for NameNodeConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
         if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.cluster_config.dfs_replication {
-                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
-            }
+            config.insert(
+                DFS_REPLICATION.to_string(),
+                Some(resource.spec.cluster_config.dfs_replication.to_string()),
+            );
         }
 
         Ok(config)
@@ -1082,9 +1106,10 @@ impl Configuration for DataNodeConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
         if file == HDFS_SITE_XML {
-            if let Some(replication) = &resource.spec.cluster_config.dfs_replication {
-                config.insert(DFS_REPLICATION.to_string(), Some(replication.to_string()));
-            }
+            config.insert(
+                DFS_REPLICATION.to_string(),
+                Some(resource.spec.cluster_config.dfs_replication.to_string()),
+            );
         }
 
         Ok(config)
@@ -1524,5 +1549,32 @@ spec:
             ..ResourceRequirements::default()
         };
         assert_eq!(expected, rr);
+    }
+
+    #[test]
+    pub fn test_num_datanodes() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+    productVersion: 3.3.4
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+  dataNodes:
+    roleGroups:
+      default: {}
+      second:
+        replicas: 2
+      third:
+        replicas: 42
+";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+
+        assert_eq!(hdfs.num_datanodes(), 45);
     }
 }

@@ -107,3 +107,30 @@ status:
     storage: 1Gi
   phase: Bound
 {% endif %}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-journalnode
+status:
+  expectedPods: 1
+  currentHealthy: 1
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-namenode
+status:
+  expectedPods: 2
+  currentHealthy: 2
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-datanode
+status:
+  expectedPods: {{ test_scenario['values']['number-of-datanodes'] }}
+  currentHealthy: {{ test_scenario['values']['number-of-datanodes'] }}
+  disruptionsAllowed: 1
