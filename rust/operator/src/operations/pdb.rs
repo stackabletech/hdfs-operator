@@ -11,10 +11,10 @@ use crate::{hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER, OPERATOR_NAME};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Cannot create PodDisruptionBudget for role group [{role_group}]"))]
+    #[snafu(display("Cannot create PodDisruptionBudget for role [{role}]"))]
     CreatePdb {
         source: stackable_operator::error::Error,
-        role_group: String,
+        role: String,
     },
     #[snafu(display("Cannot apply role group PodDisruptionBudget [{name}]"))]
     ApplyPdb {
@@ -49,7 +49,7 @@ pub async fn add_pdbs(
         RESOURCE_MANAGER_HDFS_CONTROLLER,
     )
     .with_context(|_| CreatePdbSnafu {
-        role_group: role.to_string(),
+        role: role.to_string(),
     })?
     .with_max_unavailable(max_unavailable)
     .build();
