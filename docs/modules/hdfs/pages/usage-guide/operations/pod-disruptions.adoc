@@ -35,7 +35,7 @@ let max_unavailable = dfs_replication.saturating_sub(2);
 // We need to make sure at least one datanode remains by having at most
 // n - 1 datanodes unavailable. We subtract two to avoid a single point of failure.
 let max_unavailable = min(max_unavailable, num_datanodes.saturating_sub(2));
-// Clamp to at least a single node allowed to being, to not block Kubernetes nodes from draining.
+// Clamp to at least a single node allowed to be offline, so we don't block Kubernetes nodes from draining.
 let max_unavailable = max(max_unavailable, 1)
 ----
 
