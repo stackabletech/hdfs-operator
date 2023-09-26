@@ -426,7 +426,7 @@ impl ContainerConfig {
         args.push_str(&self.create_config_directory_cmd());
         args.push_str(&self.copy_config_xml_cmd());
 
-        // Some init containers - such as format-namenodes - need the kerberos tickets, so let's wait for them to be properly set up
+        // This env var is required for reading the core-site.xml
         if hdfs.has_kerberos_enabled() {
             args.push_str(&Self::export_kerberos_real_env_var_command());
         }
