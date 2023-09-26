@@ -477,8 +477,8 @@ impl HdfsCluster {
     pub fn role_config(&self, role: &HdfsRole) -> Option<&RoleConfig> {
         match role {
             HdfsRole::NameNode => self.spec.name_nodes.as_ref().map(|nn| &nn.role_config),
-            HdfsRole::DataNode => self.spec.data_nodes.as_ref().map(|nn| &nn.role_config),
-            HdfsRole::JournalNode => self.spec.journal_nodes.as_ref().map(|nn| &nn.role_config),
+            HdfsRole::DataNode => self.spec.data_nodes.as_ref().map(|dn| &dn.role_config),
+            HdfsRole::JournalNode => self.spec.journal_nodes.as_ref().map(|jn| &jn.role_config),
         }
     }
 
