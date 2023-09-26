@@ -1,0 +1,105 @@
+
+= Allowed Pod disruptions
+
+You can configure the allowed Pod disruptions for HDFS nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
+
+Unless you configure something else or disable our PodDisruptionBudgets (PDBs), we write the following PDBs:
+
+== JournalNodes
+We only allow a single JournalNode to be offline at any given time, regardless of the number of replicas or `roleGroups`.
+
+== NameNodes
+We only allow a single NameNode to be offline at any given time, regardless of the number of replicas or `roleGroups`.
+
+== DataNodes
+For DataNodes the question of how many instances can be unavailable at the same time is a bit harder:
+HDFS stores your blocks on the DataNodes.
+Every block can be replicated multiple times (to multiple DataNodes) to ensure maximum availability.
+The default replication factor is `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However, it is also possible to change the replication factor for a specific file or directory to something other than the cluster default.
+
+When you have a replication of `3`, you can safely take down 2 DataNodes, as there will always be a third DataNode holding a copy of each block currently assigned to one of the unavailable DataNodes.
+However, you need to be aware that you are now down to a single point of failure - the last of three replicas!
+
+Taking this into consideration, our operator uses the following algorithm to determine the maximum number of DataNodes allowed to be unavailable at the same time:
+
+`num_datanodes` is the number of DataNodes in the HDFS cluster, summed over all `roleGroups`.
+
+`dfs_replication` is default replication factor of the cluster.
+
+[source,rust]
+----
+// There must always be a datanode to serve the block.
+// If we would simply subtract one from the `dfs_replication`, we would end up
+// with a single point of failure, so we subtract two instead.
+let max_unavailable = dfs_replication.saturating_sub(2);
+// We need to make sure at least one datanode remains by having at most
+// n - 1 datanodes unavailable. We subtract two to avoid a single point of failure.
+let max_unavailable = min(max_unavailable, num_datanodes.saturating_sub(2));
+// Clamp to at least a single node allowed to be offline, so we don't block Kubernetes nodes from draining.
+let max_unavailable = max(max_unavailable, 1)
+----
+
+This results e.g. in the following numbers:
+
+[cols="1,1,1"]
+|===
+|Number of DataNodes
+|Replication factor
+|Maximum unavailable DataNodes
+
+|1
+|<any factor>
+|1
+
+|2
+|<any factor>
+|1
+
+|3
+|<any factor>
+|1
+
+|4
+|1, 2, 3
+|1
+
+|4
+|4, 5 or higher
+|2
+
+|5
+|1, 2, 3
+|1
+
+|5
+|4
+|2
+
+|5
+|5 or higher
+|3
+
+|100
+|1, 2, 3
+|1
+
+|100
+|4
+|2
+
+|100
+|5 - 100
+|<replication factor> - 2
+|===
+
+== Reduce rolling redeployment durations
+The default PDBs we write out are pessimistic and will cause the rolling redeployment to take a considerable amount of time.
+As an example, when you have 100 DataNodes and a replication factor of `3`, we can safely only take a single DataNode down at a time. Assuming a DataNode takes 1 minute to properly restart, the whole re-deployment would take 100 minutes.
+
+You can use the following measures to speed this up:
+
+1. Increase the replication factor, e.g. from `3` to `5`. In this case the number of allowed disruptions triples from `1` to `3` (assuming >= 5 DataNodes), reducing the time it takes by 66%.
+2. Increase `maxUnavailable` using the `spec.dataNodes.roleConfig.podDisruptionBudget.maxUnavailable` field as described in xref:concepts:operations/pod_disruptions.adoc[].
+3. Write your own PDBs as described in xref:concepts:operations/pod_disruptions.adoc#_using_you_own_custom_pdbs[Using you own custom PDBs].
+
+WARNING: In cases you modify or disable the default PDBs, it's your responsibility to either make sure there are enough DataNodes available or accept the risk of blocks not being available!

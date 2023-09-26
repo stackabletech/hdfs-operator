@@ -5,8 +5,6 @@
 * Concepts
 ** xref:hdfs:discovery.adoc[]
 * xref:hdfs:usage-guide/index.adoc[]
-** xref:hdfs:usage-guide/cluster_operations.adoc[]
-** xref:hdfs:usage-guide/pod_placement.adoc[]
 ** xref:hdfs:usage-guide/listenerclass.adoc[]
 ** xref:hdfs:usage-guide/security.adoc[]
 ** xref:hdfs:usage-guide/resources.adoc[]
@@ -16,3 +14,8 @@
 ** xref:hdfs:usage-guide/monitoring.adoc[]
 ** xref:hdfs:usage-guide/configuration-environment-overrides.adoc[]
 ** xref:hdfs:usage-guide/fuse.adoc[]
+** xref:hdfs:usage-guide/operations/index.adoc[]
+*** xref:hdfs:usage-guide/operations/cluster-operations.adoc[]
+*** xref:hdfs:usage-guide/operations/pod-placement.adoc[]
+*** xref:hdfs:usage-guide/operations/pod-disruptions.adoc[]
+*** xref:hdfs:usage-guide/operations/graceful-shutdown.adoc[]
