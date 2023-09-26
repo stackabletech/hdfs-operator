@@ -53,8 +53,8 @@ use stackable_operator::{
 use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
-pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls_store";
-pub(crate) const TLS_STORE_VOLUME_NAME: &str = "tls-store";
+pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
+pub(crate) const TLS_STORE_VOLUME_NAME: &str = "tls";
 pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
