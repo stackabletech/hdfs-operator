@@ -694,7 +694,9 @@ fn rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("OrderedReady".to_string()),
-            replicas: Some(role.role_group_replicas(hdfs, &rolegroup_ref.role_group)),
+            replicas: role
+                .role_group_replicas(hdfs, &rolegroup_ref.role_group)
+                .map(i32::from),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
                     hdfs,
