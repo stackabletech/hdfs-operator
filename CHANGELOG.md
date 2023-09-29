@@ -16,11 +16,16 @@ All notable changes to this project will be documented in this file.
 - Let secret-operator handle certificate conversion ([#392]).
 - `operator-rs` `0.44.0` -> `0.51.1` ([#381], [#394]).
 
+### Fixed
+
+- Don't default roleGroup replicas to zero when not specified ([#402]).
+
 [#378]: https://github.com/stackabletech/hdfs-operator/pull/378
 [#381]: https://github.com/stackabletech/hdfs-operator/pull/381
 [#384]: https://github.com/stackabletech/hdfs-operator/pull/384
 [#392]: https://github.com/stackabletech/hdfs-operator/pull/392
 [#394]: https://github.com/stackabletech/hdfs-operator/pull/394
+[#402]: https://github.com/stackabletech/hdfs-operator/pull/402
 
 ## [23.7.0] - 2023-07-14
 
