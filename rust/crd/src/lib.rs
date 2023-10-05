@@ -33,7 +33,7 @@ use stackable_operator::{
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
-    role_utils::{Role, RoleConfig, RoleGroup, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
@@ -474,7 +474,7 @@ impl HdfsCluster {
             .get(role_group)
     }
 
-    pub fn role_config(&self, role: &HdfsRole) -> Option<&RoleConfig> {
+    pub fn role_config(&self, role: &HdfsRole) -> Option<&GenericRoleConfig> {
         match role {
             HdfsRole::NameNode => self.spec.name_nodes.as_ref().map(|nn| &nn.role_config),
             HdfsRole::DataNode => self.spec.data_nodes.as_ref().map(|dn| &dn.role_config),
