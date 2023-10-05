@@ -3,5 +3,4 @@
 Graceful shutdown of HDFS nodes is either not supported by the product itself
 or we have not implemented it yet.
 
-The efforts of implementing graceful shutdown for all products that have this functionality is tracked in
-https://github.com/stackabletech/issues/issues/357
+Outstanding implementation work for the graceful shutdowns of all products where this functionality is relevant is tracked in https://github.com/stackabletech/issues/issues/357
