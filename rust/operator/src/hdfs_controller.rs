@@ -42,7 +42,7 @@ use stackable_operator::{
         types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
     },
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
-    role_utils::{RoleConfig, RoleGroupRef},
+    role_utils::{GenericRoleConfig, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -348,7 +348,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         }
 
         let role_config = hdfs.role_config(&role);
-        if let Some(RoleConfig {
+        if let Some(GenericRoleConfig {
             pod_disruption_budget: pdb,
         }) = role_config
         {
