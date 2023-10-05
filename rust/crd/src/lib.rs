@@ -377,23 +377,17 @@ impl HdfsRole {
     }
 
     /// Return replicas for a certain rolegroup.
-    pub fn role_group_replicas(&self, hdfs: &HdfsCluster, role_group: &str) -> i32 {
+    pub fn role_group_replicas(&self, hdfs: &HdfsCluster, role_group: &str) -> Option<u16> {
         match self {
             HdfsRole::NameNode => hdfs
                 .namenode_rolegroup(role_group)
-                .and_then(|rg| rg.replicas)
-                .unwrap_or_default()
-                .into(),
+                .and_then(|rg| rg.replicas),
             HdfsRole::DataNode => hdfs
                 .datanode_rolegroup(role_group)
-                .and_then(|rg| rg.replicas)
-                .unwrap_or_default()
-                .into(),
+                .and_then(|rg| rg.replicas),
             HdfsRole::JournalNode => hdfs
                 .journalnode_rolegroup(role_group)
-                .and_then(|rg| rg.replicas)
-                .unwrap_or_default()
-                .into(),
+                .and_then(|rg| rg.replicas),
         }
     }
 
