@@ -6,7 +6,7 @@ You can configure the graceful shutdown as described in xref:concepts:operations
 
 As a default, JournalNodes have `15` minutes to terminate gracefully.
 
-In case they are requested to shut down, they will receive a `SIGTERM` and shut down gracefully.
+In case they are requested to shut down, they will receive a `SIGTERM`, log the received signal as follows and shut down gracefully.
 
 [source,text]
 ----
@@ -21,28 +21,10 @@ SHUTDOWN_MSG: Shutting down JournalNode at hdfs-journalnode-default-0/10.244.0.3
 
 As a default, NameNodes have `15` minutes to terminate gracefully.
 
-In case they are requested to shut down, they will receive a `SIGTERM` and shut down gracefully.
-
-[source,text]
-----
-2023-10-10 13:35:16,857 ERROR namenode.NameNode (LogAdapter.java:error(75)) - RECEIVED SIGNAL 15: SIGTERM
-2023-10-10 13:35:16,859 INFO  namenode.NameNode (LogAdapter.java:info(51)) - SHUTDOWN_MSG:
-/************************************************************
-SHUTDOWN_MSG: Shutting down NameNode at hdfs-namenode-default-0/10.244.0.37
-************************************************************/
-----
+In case they are requested to shut down, they will receive a `SIGTERM`, log the received signal and shut down gracefully.
 
 == DataNodes
 
 As a default, DataNodes have `15` minutes to terminate gracefully.
 
-In case they are requested to shut down, they will receive a `SIGTERM` and shut down gracefully.
-
-[source,text]
-----
-2023-10-10 13:37:15,525 ERROR datanode.DataNode (LogAdapter.java:error(75)) - RECEIVED SIGNAL 15: SIGTERM
-2023-10-10 13:37:15,527 INFO  datanode.DataNode (LogAdapter.java:info(51)) - SHUTDOWN_MSG:
-/************************************************************
-SHUTDOWN_MSG: Shutting down DataNode at hdfs-datanode-default-0/10.244.0.36
-************************************************************/
-----
+In case they are requested to shut down, they will receive a `SIGTERM`, log the received signal and shut down gracefully.
