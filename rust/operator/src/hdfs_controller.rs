@@ -6,7 +6,7 @@ use crate::{
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
     kerberos,
-    operations::pdb::add_pdbs,
+    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
@@ -666,6 +666,8 @@ fn rolegroup_statefulset(
         namenode_podrefs,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
+
+    add_graceful_shutdown_config(merged_config, &mut pb);
 
     let mut pod_template = pb.build_template();
     if let Some(pod_overrides) = hdfs.pod_overrides_for_role(role) {

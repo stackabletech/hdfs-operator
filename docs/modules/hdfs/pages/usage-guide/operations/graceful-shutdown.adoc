@@ -1,6 +1,11 @@
 = Graceful shutdown
 
-Graceful shutdown of HDFS nodes is either not supported by the product itself
-or we have not implemented it yet.
 
-Outstanding implementation work for the graceful shutdowns of all products where this functionality is relevant is tracked in https://github.com/stackabletech/issues/issues/357
+[source,text]
+----
+2023-10-10 12:35:16,857 ERROR namenode.NameNode (LogAdapter.java:error(75)) - RECEIVED SIGNAL 15: SIGTERM
+2023-10-10 12:35:16,859 INFO  namenode.NameNode (LogAdapter.java:info(51)) - SHUTDOWN_MSG:
+/************************************************************
+SHUTDOWN_MSG: Shutting down NameNode at hdfs-namenode-default-0/10.244.0.37
+************************************************************/
+----
