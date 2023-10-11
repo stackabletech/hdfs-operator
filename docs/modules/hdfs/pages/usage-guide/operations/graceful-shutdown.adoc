@@ -7,6 +7,7 @@ You can configure the graceful shutdown as described in xref:concepts:operations
 As a default, JournalNodes have `15` minutes to terminate gracefully.
 
 In case they are requested to shut down, they will receive a `SIGTERM`, log the received signal as follows and shut down gracefully.
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/datanode/DataNode.java#L2004[This] is the relevant code as of version `3.3.4`.
 
 [source,text]
 ----
@@ -22,9 +23,12 @@ SHUTDOWN_MSG: Shutting down JournalNode at hdfs-journalnode-default-0/10.244.0.3
 As a default, NameNodes have `15` minutes to terminate gracefully.
 
 In case they are requested to shut down, they will receive a `SIGTERM`, log the received signal and shut down gracefully.
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNode.java#L1080[This] is the relevant code as of version `3.3.4`.
+
 
 == DataNodes
 
 As a default, DataNodes have `15` minutes to terminate gracefully.
 
 In case they are requested to shut down, they will receive a `SIGTERM`, log the received signal and shut down gracefully.
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/qjournal/server/JournalNode.java#L272[This] is the relevant code as of version `3.3.4`.
