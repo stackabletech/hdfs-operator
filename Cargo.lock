@@ -1886,7 +1886,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator"
 version = "0.54.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.54.0#76b8b18089bda1d0ab5c399b4f165019a37f24e0"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=refactor/pod-graceful-duration#d36fe79f94c86949176d7b2f4f4193b9f4673058"
 dependencies = [
  "chrono",
  "clap",
@@ -1920,7 +1920,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.54.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.54.0#76b8b18089bda1d0ab5c399b4f165019a37f24e0"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=refactor/pod-graceful-duration#d36fe79f94c86949176d7b2f4f4193b9f4673058"
 dependencies = [
  "darling 0.20.3",
  "proc-macro2",

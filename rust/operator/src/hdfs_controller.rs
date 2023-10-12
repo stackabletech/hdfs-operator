@@ -6,7 +6,7 @@ use crate::{
     discovery::build_discovery_configmap,
     event::{build_invalid_replica_message, publish_event},
     kerberos,
-    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
+    operations::{self, graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
@@ -166,13 +166,14 @@ pub enum Error {
         "kerberos not supported for HDFS versions < 3.3.x. Please use at least version 3.3.x"
     ))]
     KerberosNotSupported {},
-    #[snafu(display(
-        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
-        rolegroup
-    ))]
-    JvmSecurityPoperties {
+    #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {rolegroup}",))]
+    JvmSecurityProperties {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
         rolegroup: String,
+    },
+    #[snafu(display("failed to configure graceful shutdown"), context(false))]
+    GracefulShutdown {
+        source: operations::graceful_shutdown::Error,
     },
 }
 
@@ -599,7 +600,7 @@ fn rolegroup_config_map(
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPopertiesSnafu {
+                JvmSecurityPropertiesSnafu {
                     rolegroup: rolegroup_ref.role_group.clone(),
                 }
             })?,
@@ -667,7 +668,7 @@ fn rolegroup_statefulset(
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
-    add_graceful_shutdown_config(merged_config, &mut pb);
+    add_graceful_shutdown_config(merged_config, &mut pb)?;
 
     let mut pod_template = pb.build_template();
     if let Some(pod_overrides) = hdfs.pod_overrides_for_role(role) {
