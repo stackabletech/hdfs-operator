@@ -1090,7 +1090,7 @@ impl DataNodeConfigFragment {
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
-            graceful_shutdown_timeout: Some(Duration::from_minutes_unchecked(15)),
+            graceful_shutdown_timeout: Some(Duration::from_minutes_unchecked(30)),
         }
     }
 }
