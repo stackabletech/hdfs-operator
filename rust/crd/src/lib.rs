@@ -844,9 +844,7 @@ pub struct NameNodeConfig {
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
     #[fragment_attrs(serde(default))]
-    #[fragment_attrs(schemars(
-        description = "Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details."
-    ))]
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     pub graceful_shutdown_timeout: Option<Duration>,
 }
 
@@ -1014,9 +1012,7 @@ pub struct DataNodeConfig {
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
     #[fragment_attrs(serde(default))]
-    #[fragment_attrs(schemars(
-        description = "Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details."
-    ))]
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     pub graceful_shutdown_timeout: Option<Duration>,
 }
 
@@ -1175,9 +1171,7 @@ pub struct JournalNodeConfig {
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
     #[fragment_attrs(serde(default))]
-    #[fragment_attrs(schemars(
-        description = "Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details."
-    ))]
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     pub graceful_shutdown_timeout: Option<Duration>,
 }
 
