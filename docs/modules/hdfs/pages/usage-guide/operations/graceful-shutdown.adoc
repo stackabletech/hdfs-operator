@@ -1,6 +1,6 @@
 = Graceful shutdown
 
-You can configure the graceful shutdown as described in xref:concepts:operations/pod_placement.adoc[].
+You can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 
 == JournalNodes
 
