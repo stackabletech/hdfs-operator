@@ -6,10 +6,10 @@ use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::HdfsRole;
 use stackable_operator::{
     builder::ObjectMetaBuilder,
-    duration::Duration,
     k8s_openapi::api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
     kube::runtime::controller::Action,
     logging::controller::ReconcilerError,
+    time::Duration,
 };
 use std::sync::Arc;
 use strum::{EnumDiscriminants, IntoStaticStr};
