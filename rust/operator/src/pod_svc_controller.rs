@@ -6,11 +6,12 @@ use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::HdfsRole;
 use stackable_operator::{
     builder::ObjectMetaBuilder,
+    duration::Duration,
     k8s_openapi::api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
     kube::runtime::controller::Action,
     logging::controller::ReconcilerError,
 };
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -117,5 +118,5 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error
 }
 
 pub fn error_policy(_obj: Arc<Pod>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(Duration::from_secs(5))
+    Action::requeue(*Duration::from_secs(5))
 }
