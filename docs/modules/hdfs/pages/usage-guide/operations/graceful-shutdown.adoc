@@ -1,5 +1,9 @@
 = Graceful shutdown
 
+Graceful shutdown refers to the managed, controlled shutdown of service instances in the manner intended by the software authors. Typically, an instance will receive a signal indicating the intent for the server to shut down, and it will initiate a controlled shutdown. This could include closing open file handles, updating the instance state in the cluster and emitting a message that the server is closing down. This contrasts with an uncontrolled shutdown where a process is terminated immediately and is unable to perform any of its normal shutdown activities.
+
+In the event that a service instance is unable to shut down in a reasonable amount of time, a timeout is set after which the process will be forcibly terminated to prevent a stuck server from remaining in the shutting down state indefinitely.
+
 You can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 
 == JournalNodes
