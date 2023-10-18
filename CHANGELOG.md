@@ -9,16 +9,21 @@ All notable changes to this project will be documented in this file.
 - Default stackableVersion to operator version ([#381]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#384]).
 - Support PodDisruptionBudgets ([#394]).
+- Added support for 3.2.4, 3.3.6 ([#409]).
 
 ### Changed
 
-- `vector` `0.26.0` -> `0.31.0` ([#378]).
+- `vector` `0.26.0` -> `0.33.0` ([#378], [#409]).
 - Let secret-operator handle certificate conversion ([#392]).
-- `operator-rs` `0.44.0` -> `0.52.1` ([#381], [#394], [#404], [#405]).
+- `operator-rs` `0.44.0` -> `0.55.0` ([#381], [#394], [#404], [#405], [#409]).
 
 ### Fixed
 
 - Don't default roleGroup replicas to zero when not specified ([#402]).
+
+### Removed
+
+- Removed support for 3.3.1, 3.3.3 ([#409]).
 
 [#378]: https://github.com/stackabletech/hdfs-operator/pull/378
 [#381]: https://github.com/stackabletech/hdfs-operator/pull/381
@@ -28,6 +33,7 @@ All notable changes to this project will be documented in this file.
 [#402]: https://github.com/stackabletech/hdfs-operator/pull/402
 [#404]: https://github.com/stackabletech/hdfs-operator/pull/404
 [#405]: https://github.com/stackabletech/hdfs-operator/pull/405
+[#409]: https://github.com/stackabletech/hdfs-operator/pull/409
 
 ## [23.7.0] - 2023-07-14
 
