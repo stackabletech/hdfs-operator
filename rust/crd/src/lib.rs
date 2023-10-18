@@ -23,7 +23,6 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    duration::Duration,
     k8s_openapi::{
         api::core::v1::PodTemplateSpec,
         apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
@@ -37,6 +36,7 @@ use stackable_operator::{
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
+    time::Duration,
 };
 use std::collections::{BTreeMap, HashMap};
 use storage::{
