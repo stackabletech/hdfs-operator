@@ -843,8 +843,8 @@ pub struct NameNodeConfig {
     pub logging: Logging<NameNodeContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
-    #[fragment_attrs(serde(default))]
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
 }
 
@@ -1011,8 +1011,8 @@ pub struct DataNodeConfig {
     pub logging: Logging<DataNodeContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
-    #[fragment_attrs(serde(default))]
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
 }
 
@@ -1170,8 +1170,8 @@ pub struct JournalNodeConfig {
     pub logging: Logging<JournalNodeContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
-    #[fragment_attrs(serde(default))]
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
 }
 
