@@ -171,6 +171,7 @@ pub enum Error {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
         rolegroup: String,
     },
+
     #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown {
         source: operations::graceful_shutdown::Error,
