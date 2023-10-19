@@ -171,7 +171,7 @@ pub enum Error {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
         rolegroup: String,
     },
-    #[snafu(display("failed to configure graceful shutdown"), context(false))]
+    #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown {
         source: operations::graceful_shutdown::Error,
     },
@@ -668,7 +668,7 @@ fn rolegroup_statefulset(
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
-    add_graceful_shutdown_config(merged_config, &mut pb)?;
+    add_graceful_shutdown_config(merged_config, &mut pb).context(GracefulShutdownSnafu)?;
 
     let mut pod_template = pb.build_template();
     if let Some(pod_overrides) = hdfs.pod_overrides_for_role(role) {
