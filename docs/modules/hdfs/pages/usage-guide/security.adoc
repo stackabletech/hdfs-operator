@@ -5,7 +5,7 @@ Currently the only supported authentication mechanism is Kerberos, which is disa
 For Kerberos to work a Kerberos KDC is needed, which the users needs to provide.
 The xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
 
-IMPORTANT: Kerberos is supported staring from HDFS version 3.3.x
+IMPORTANT: Kerberos is supported starting from HDFS version 3.3.x
 
 === 1. Prepare Kerberos server
 To configure HDFS to use Kerberos you first need to collect information about your Kerberos server, e.g. hostname and port.
