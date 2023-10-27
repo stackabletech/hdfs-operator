@@ -28,7 +28,13 @@ use stackable_hdfs_crd::{
     storage::DataNodeStorageConfig,
     DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
-use stackable_operator::builder::SecretFormat;
+use stackable_operator::{
+    builder::SecretFormat,
+    product_logging::framework::{
+        create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
+    },
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
+};
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ContainerBuilder, PodBuilder,
@@ -45,9 +51,12 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_logging,
-    product_logging::spec::{
-        ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
+    product_logging::{
+        self,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig,
+        },
     },
 };
 use std::{collections::BTreeMap, str::FromStr};
@@ -437,9 +446,19 @@ impl ContainerConfig {
                     HDFS_LOG4J_CONFIG_FILE,
                     merged_config.hdfs_logging(),
                 ));
+
                 args.push_str(&format!(
-                    "{hadoop_home}/bin/hdfs {role}\n",
+                    "{COMMON_BASH_TRAP_FUNCTIONS}
+                    {remove_vector_shutdown_file_command}
+                    prepare_signal_handlers
+                    {hadoop_home}/bin/hdfs {role} &
+                    wait_for_termination
+                    {create_vector_shutdown_file_command}\n",
                     hadoop_home = Self::HADOOP_HOME,
+                    remove_vector_shutdown_file_command =
+                        remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+                    create_vector_shutdown_file_command =
+                        create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
                 ));
             }
             ContainerConfig::Zkfc { .. } => {
