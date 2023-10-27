@@ -448,12 +448,14 @@ impl ContainerConfig {
                 ));
 
                 args.push_str(&format!(
-                    "{COMMON_BASH_TRAP_FUNCTIONS}
-                    {remove_vector_shutdown_file_command}
-                    prepare_signal_handlers
-                    {hadoop_home}/bin/hdfs {role} &
-                    wait_for_termination
-                    {create_vector_shutdown_file_command}\n",
+                    "\
+{COMMON_BASH_TRAP_FUNCTIONS}
+{remove_vector_shutdown_file_command}
+prepare_signal_handlers
+{hadoop_home}/bin/hdfs {role} &
+wait_for_termination
+{create_vector_shutdown_file_command}
+",
                     hadoop_home = Self::HADOOP_HOME,
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
