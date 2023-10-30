@@ -10,7 +10,8 @@ The JournalNode process will always run as PID `1` and will receive a `SIGTERM` 
 It will log the received signal as show in the log below and initiate a graceful shutdown.
 After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes will issue a `SIGKILL` signal.
 
-https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/datanode/DataNode.java#L2004[This] is the relevant code that gets executed in the JournalNodes as of HDFS version `3.3.4`.
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/qjournal/server/JournalNode.java#L272[This] is the relevant code that gets executed in the JournalNodes as of HDFS version `3.3.4`.
+
 
 [source,text]
 ----
@@ -33,4 +34,4 @@ https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/h
 As a default, DataNodes have `30 minutes` to shut down gracefully.
 They use the same mechanism described above.
 
-https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/qjournal/server/JournalNode.java#L272[This] is the relevant code that gets executed in the DataNodes as of HDFS version `3.3.4`.
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/datanode/DataNode.java#L2004[This] is the relevant code that gets executed in the DataNodes as of HDFS version `3.3.4`.
