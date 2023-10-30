@@ -48,6 +48,25 @@ spec:
     roleGroups:
       default:
         replicas: {{ test_scenario['values']['number-of-datanodes'] }}
+        config:
+          logging:
+            containers:
+              hdfs:
+                console:
+                  level: DEBUG
+                file:
+                  level: DEBUG
+                loggers:
+                  ROOT:
+                    level: DEBUG
+              vector:
+                console:
+                  level: DEBUG
+                file:
+                  level: DEBUG
+                loggers:
+                  ROOT:
+                    level: DEBUG
   journalNodes:
     config:
       logging:
