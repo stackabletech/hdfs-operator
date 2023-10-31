@@ -1,11 +1,6 @@
-pub mod affinity;
-pub mod constants;
-pub mod security;
-pub mod storage;
+use std::collections::{BTreeMap, HashMap};
 
-use affinity::get_affinity;
-use constants::*;
-use security::{AuthenticationConfig, KerberosConfig};
+use product_config::types::PropertyNameKind;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -29,7 +24,6 @@ use stackable_operator::{
     },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     labels::role_group_selector_labels,
-    product_config::types::PropertyNameKind,
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
@@ -38,12 +32,22 @@ use stackable_operator::{
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
 };
-use std::collections::{BTreeMap, HashMap};
-use storage::{
-    DataNodePvcFragment, DataNodeStorageConfigInnerType, HdfsStorageConfig,
-    HdfsStorageConfigFragment, HdfsStorageType,
-};
 use strum::{Display, EnumIter, EnumString};
+
+use crate::{
+    affinity::get_affinity,
+    constants::*,
+    security::{AuthenticationConfig, KerberosConfig},
+    storage::{
+        DataNodePvcFragment, DataNodeStorageConfigInnerType, HdfsStorageConfig,
+        HdfsStorageConfigFragment, HdfsStorageType,
+    },
+};
+
+pub mod affinity;
+pub mod constants;
+pub mod security;
+pub mod storage;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
