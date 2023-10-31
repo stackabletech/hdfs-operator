@@ -5,7 +5,6 @@ pub mod storage;
 
 use affinity::get_affinity;
 use constants::*;
-use product_config::types::PropertyNameKind;
 use security::{AuthenticationConfig, KerberosConfig};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -30,6 +29,7 @@ use stackable_operator::{
     },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     labels::role_group_selector_labels,
+    product_config::types::PropertyNameKind,
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},

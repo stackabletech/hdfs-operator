@@ -188,7 +188,7 @@ impl HdfsSiteConfigBuilder {
     pub fn build_as_xml(&self) -> String {
         let transformed_config = transform_for_product_config(&self.config);
 
-        product_config::writer::to_hadoop_xml(transformed_config.iter())
+        stackable_operator::product_config::writer::to_hadoop_xml(transformed_config.iter())
     }
 }
 
@@ -234,7 +234,7 @@ impl CoreSiteConfigBuilder {
 
     pub fn build_as_xml(&self) -> String {
         let transformed_config = transform_for_product_config(&self.config);
-        product_config::writer::to_hadoop_xml(transformed_config.iter())
+        stackable_operator::product_config::writer::to_hadoop_xml(transformed_config.iter())
     }
 }
 
