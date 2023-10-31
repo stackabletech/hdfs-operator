@@ -1,3 +1,4 @@
+use product_config::writer::to_hadoop_xml;
 use stackable_hdfs_crd::constants::{
     DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_HTTP_PORT,
     DEFAULT_NAME_NODE_RPC_PORT, DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR,
@@ -188,7 +189,7 @@ impl HdfsSiteConfigBuilder {
     pub fn build_as_xml(&self) -> String {
         let transformed_config = transform_for_product_config(&self.config);
 
-        stackable_operator::product_config::writer::to_hadoop_xml(transformed_config.iter())
+        to_hadoop_xml(transformed_config.iter())
     }
 }
 
@@ -234,7 +235,7 @@ impl CoreSiteConfigBuilder {
 
     pub fn build_as_xml(&self) -> String {
         let transformed_config = transform_for_product_config(&self.config);
-        stackable_operator::product_config::writer::to_hadoop_xml(transformed_config.iter())
+        to_hadoop_xml(transformed_config.iter())
     }
 }
 
