@@ -9,6 +9,7 @@ mod pod_svc_controller;
 mod product_logging;
 
 use futures::StreamExt;
+use product_config::ProductConfigManager;
 use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::{
     client::Client,
@@ -20,7 +21,6 @@ use stackable_operator::{
     labels::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
-    product_config::ProductConfigManager,
 };
 use std::sync::Arc;
 use tracing::info_span;

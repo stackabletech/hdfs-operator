@@ -11,6 +11,9 @@ use crate::{
     OPERATOR_NAME,
 };
 
+use product_config::{
+    types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::*, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, MergedConfig,
@@ -38,9 +41,6 @@ use stackable_operator::{
     },
     labels::role_group_selector_labels,
     logging::controller::ReconcilerError,
-    product_config::{
-        types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
-    },
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
     status::condition::{
@@ -168,7 +168,7 @@ pub enum Error {
     KerberosNotSupported {},
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {rolegroup}",))]
     JvmSecurityProperties {
-        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        source: product_config::writer::PropertiesWriterError,
         rolegroup: String,
     },
 
@@ -500,8 +500,7 @@ fn rolegroup_config_map(
                 // We don't add any settings here, the main purpose is to have a configOverride for users.
                 let mut config_opts: BTreeMap<String, Option<String>> = BTreeMap::new();
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                hadoop_policy_xml =
-                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+                hadoop_policy_xml = product_config::writer::to_hadoop_xml(config_opts.iter());
             }
             PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
                 let mut config_opts = BTreeMap::new();
@@ -534,8 +533,7 @@ fn rolegroup_config_map(
                     ]);
                 }
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                ssl_server_xml =
-                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+                ssl_server_xml = product_config::writer::to_hadoop_xml(config_opts.iter());
             }
             PropertyNameKind::File(file_name) if file_name == SSL_CLIENT_XML => {
                 let mut config_opts = BTreeMap::new();
@@ -556,8 +554,7 @@ fn rolegroup_config_map(
                     ]);
                 }
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                ssl_client_xml =
-                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+                ssl_client_xml = product_config::writer::to_hadoop_xml(config_opts.iter());
             }
             _ => {}
         }
