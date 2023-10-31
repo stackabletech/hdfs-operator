@@ -453,7 +453,7 @@ impl ContainerConfig {
 {remove_vector_shutdown_file_command}
 prepare_signal_handlers
 {hadoop_home}/bin/hdfs {role} &
-wait_for_termination
+wait_for_termination $!
 {create_vector_shutdown_file_command}
 ",
                     hadoop_home = Self::HADOOP_HOME,
