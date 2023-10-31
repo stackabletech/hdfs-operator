@@ -1,14 +1,7 @@
-mod config;
-mod container;
-mod discovery;
-mod event;
-mod hdfs_controller;
-mod kerberos;
-mod operations;
-mod pod_svc_controller;
-mod product_logging;
+use std::sync::Arc;
 
 use futures::StreamExt;
+use product_config::ProductConfigManager;
 use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::{
     client::Client,
@@ -20,17 +13,25 @@ use stackable_operator::{
     labels::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
-    product_config::ProductConfigManager,
 };
-use std::sync::Arc;
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
+mod config;
+mod container;
+mod discovery;
+mod event;
+mod hdfs_controller;
+mod kerberos;
+mod operations;
+mod pod_svc_controller;
+mod product_logging;
 
 mod built_info {
     pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 }
+
+pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
 
 pub async fn create_controller(
     client: Client,

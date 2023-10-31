@@ -1,16 +1,14 @@
-use crate::{
-    build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    container::ContainerConfig,
-    container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    discovery::build_discovery_configmap,
-    event::{build_invalid_replica_message, publish_event},
-    kerberos,
-    operations::pdb::add_pdbs,
-    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
-    OPERATOR_NAME,
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+    sync::Arc,
 };
 
+use product_config::{
+    types::PropertyNameKind,
+    writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
+    ProductConfigManager,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::*, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, MergedConfig,
@@ -38,9 +36,6 @@ use stackable_operator::{
     },
     labels::role_group_selector_labels,
     logging::controller::ReconcilerError,
-    product_config::{
-        types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
-    },
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
     status::condition::{
@@ -49,12 +44,20 @@ use stackable_operator::{
     },
     time::Duration,
 };
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-    sync::Arc,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::{
+    build_recommended_labels,
+    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    container::ContainerConfig,
+    container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
+    discovery::build_discovery_configmap,
+    event::{build_invalid_replica_message, publish_event},
+    kerberos,
+    operations::pdb::add_pdbs,
+    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    OPERATOR_NAME,
+};
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
@@ -67,111 +70,138 @@ pub enum Error {
     InvalidRoleConfig {
         source: stackable_operator::product_config_utils::ConfigError,
     },
+
     #[snafu(display("Invalid product configuration"))]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("Cannot create rolegroup service [{name}]"))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
         name: String,
     },
+
     #[snafu(display("Cannot create role group config map [{name}]"))]
     ApplyRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
+
     #[snafu(display("Cannot create role group stateful set [{name}]"))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         name: String,
     },
+
     #[snafu(display("Cannot create discovery config map [{name}]"))]
     ApplyDiscoveryConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
+
     #[snafu(display("No metadata for [{obj_ref}]"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<HdfsCluster>,
     },
+
     #[snafu(display("Invalid role [{role}]"))]
     InvalidRole {
         source: strum::ParseError,
         role: String,
     },
+
     #[snafu(display("Object has no name"))]
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
+
     #[snafu(display("Object has no namespace"))]
     ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
+
     #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
     BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         role: String,
         role_group: String,
     },
+
     #[snafu(display("Cannot build config discovery config map"))]
     BuildDiscoveryConfigMap {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("Failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("Failed to patch role binding"))]
     ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("Failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("Failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("Failed to create pod references"))]
     CreatePodReferences { source: stackable_hdfs_crd::Error },
+
     #[snafu(display("Failed to build role properties"))]
     BuildRoleProperties { source: stackable_hdfs_crd::Error },
+
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress {
         source: crate::product_logging::Error,
     },
+
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
     },
+
     #[snafu(display("failed to merge config"))]
     ConfigMerge { source: stackable_hdfs_crd::Error },
+
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
+
     #[snafu(display("failed to create container and volume configuration"))]
     FailedToCreateContainerAndVolumeConfiguration { source: crate::container::Error },
+
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::operations::pdb::Error,
     },
+
     #[snafu(display("failed to update status"))]
     ApplyStatus {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display(
         "kerberos not supported for HDFS versions < 3.3.x. Please use at least version 3.3.x"
     ))]
-    KerberosNotSupported {},
+    KerberosNotSupported,
+
     #[snafu(display(
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
         rolegroup
     ))]
-    JvmSecurityPoperties {
-        source: stackable_operator::product_config::writer::PropertiesWriterError,
+    JvmSecurityProperties {
+        source: PropertiesWriterError,
         rolegroup: String,
     },
 }
@@ -498,8 +528,7 @@ fn rolegroup_config_map(
                 // We don't add any settings here, the main purpose is to have a configOverride for users.
                 let mut config_opts: BTreeMap<String, Option<String>> = BTreeMap::new();
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                hadoop_policy_xml =
-                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+                hadoop_policy_xml = to_hadoop_xml(config_opts.iter());
             }
             PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
                 let mut config_opts = BTreeMap::new();
@@ -532,8 +561,7 @@ fn rolegroup_config_map(
                     ]);
                 }
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                ssl_server_xml =
-                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+                ssl_server_xml = to_hadoop_xml(config_opts.iter());
             }
             PropertyNameKind::File(file_name) if file_name == SSL_CLIENT_XML => {
                 let mut config_opts = BTreeMap::new();
@@ -554,8 +582,7 @@ fn rolegroup_config_map(
                     ]);
                 }
                 config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                ssl_client_xml =
-                    stackable_operator::product_config::writer::to_hadoop_xml(config_opts.iter());
+                ssl_client_xml = to_hadoop_xml(config_opts.iter());
             }
             _ => {}
         }
@@ -599,7 +626,7 @@ fn rolegroup_config_map(
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPopertiesSnafu {
+                JvmSecurityPropertiesSnafu {
                     rolegroup: rolegroup_ref.role_group.clone(),
                 }
             })?,
