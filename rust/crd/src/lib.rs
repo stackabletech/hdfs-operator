@@ -99,12 +99,15 @@ pub struct HdfsClusterConfig {
     pub auto_format_fs: Option<bool>,
     #[serde(default = "default_dfs_replication_factor")]
     pub dfs_replication: u8,
+
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
+
     /// Name of the ZooKeeper discovery config map.
     pub zookeeper_config_map_name: String,
+
     /// This field controls which type of Service the Operator creates for this HdfsCluster:
     ///
     /// * cluster-internal: Use a ClusterIP service
@@ -116,8 +119,28 @@ pub struct HdfsClusterConfig {
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
+
     /// Configuration to set up a cluster secured using Kerberos.
     pub authentication: Option<AuthenticationConfig>,
+
+    /// Configuration to control HDFS topology (rack) awareness feature
+    pub topologyAwareness: Option<TopologyAwarenessConfig>,
+}
+
+#[derive(
+Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
+)]
+#[serde(rename_all = "PascalCase")]
+pub enum TopologyAwarenessConfig {
+    NodeLabels {
+        labels: Vec<String>,
+    },
+    PodLabels {
+        labels: Vec<String>,
+    },
+    ConfigMap {
+        configMapName: String,
+    }
 }
 
 fn default_dfs_replication_factor() -> u8 {
