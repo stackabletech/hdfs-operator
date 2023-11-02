@@ -30,6 +30,7 @@ use stackable_operator::{
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
+    time::Duration,
 };
 use strum::{Display, EnumIter, EnumString};
 
@@ -160,6 +161,7 @@ pub trait MergedConfig {
         None
     }
     fn affinity(&self) -> &StackableAffinity;
+    fn graceful_shutdown_timeout(&self) -> Option<&Duration>;
     /// Main container shared by all roles
     fn hdfs_logging(&self) -> ContainerLogConfig;
     /// Vector container shared by all roles
@@ -845,6 +847,9 @@ pub struct NameNodeConfig {
     pub logging: Logging<NameNodeContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
+    pub graceful_shutdown_timeout: Option<Duration>,
 }
 
 impl MergedConfig for NameNodeConfig {
@@ -854,6 +859,10 @@ impl MergedConfig for NameNodeConfig {
 
     fn affinity(&self) -> &StackableAffinity {
         &self.affinity
+    }
+
+    fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
+        self.graceful_shutdown_timeout.as_ref()
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -920,6 +929,7 @@ impl NameNodeConfigFragment {
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
+            graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
     }
 }
@@ -1005,6 +1015,9 @@ pub struct DataNodeConfig {
     pub logging: Logging<DataNodeContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
+    pub graceful_shutdown_timeout: Option<Duration>,
 }
 
 impl MergedConfig for DataNodeConfig {
@@ -1016,6 +1029,10 @@ impl MergedConfig for DataNodeConfig {
 
     fn affinity(&self) -> &StackableAffinity {
         &self.affinity
+    }
+
+    fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
+        self.graceful_shutdown_timeout.as_ref()
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -1073,6 +1090,7 @@ impl DataNodeConfigFragment {
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
+            graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
     }
 }
@@ -1156,6 +1174,9 @@ pub struct JournalNodeConfig {
     pub logging: Logging<JournalNodeContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
+    pub graceful_shutdown_timeout: Option<Duration>,
 }
 
 impl MergedConfig for JournalNodeConfig {
@@ -1165,6 +1186,10 @@ impl MergedConfig for JournalNodeConfig {
 
     fn affinity(&self) -> &StackableAffinity {
         &self.affinity
+    }
+
+    fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
+        self.graceful_shutdown_timeout.as_ref()
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -1210,6 +1235,7 @@ impl JournalNodeConfigFragment {
             },
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
+            graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
     }
 }

@@ -23,6 +23,7 @@ spec:
         - name: vector
 {% endif %}
         - name: zkfc
+      terminationGracePeriodSeconds: 900
 status:
   readyReplicas: 2
   replicas: 2
@@ -46,6 +47,7 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
         - name: vector
 {% endif %}
+      terminationGracePeriodSeconds: 900
 status:
   readyReplicas: 1
   replicas: 1
@@ -69,6 +71,7 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
         - name: vector
 {% endif %}
+      terminationGracePeriodSeconds: 1800
 status:
   readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
   replicas: {{ test_scenario['values']['number-of-datanodes'] }}

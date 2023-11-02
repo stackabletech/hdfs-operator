@@ -1,3 +1,5 @@
+use stackable_operator::time::Duration;
+
 pub const DEFAULT_DFS_REPLICATION_FACTOR: u8 = 3;
 
 pub const CONTROLLER_NAME: &str = "hdfsclusters.hdfs.stackable.tech";
@@ -40,6 +42,13 @@ pub const DEFAULT_JOURNAL_NODE_METRICS_PORT: u16 = 8081;
 pub const DEFAULT_JOURNAL_NODE_HTTP_PORT: u16 = 8480;
 pub const DEFAULT_JOURNAL_NODE_HTTPS_PORT: u16 = 8481;
 pub const DEFAULT_JOURNAL_NODE_RPC_PORT: u16 = 8485;
+
+pub const DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
+    Duration::from_minutes_unchecked(15);
+pub const DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
+    Duration::from_minutes_unchecked(15);
+pub const DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
+    Duration::from_minutes_unchecked(30);
 
 // hdfs-site.xml
 pub const DFS_NAMENODE_NAME_DIR: &str = "dfs.namenode.name.dir";

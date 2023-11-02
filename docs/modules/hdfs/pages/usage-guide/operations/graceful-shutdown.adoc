@@ -1,6 +1,37 @@
 = Graceful shutdown
 
-Graceful shutdown of HDFS nodes is either not supported by the product itself
-or we have not implemented it yet.
+You can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 
-Outstanding implementation work for the graceful shutdowns of all products where this functionality is relevant is tracked in https://github.com/stackabletech/issues/issues/357
+== JournalNodes
+
+As a default, JournalNodes have `15 minutes` to shut down gracefully.
+
+The JournalNode process will always run as PID `1` and will receive a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
+It will log the received signal as shown in the log below and initiate a graceful shutdown.
+After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes will issue a `SIGKILL` signal.
+
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/qjournal/server/JournalNode.java#L272[This] is the relevant code that gets executed in the JournalNodes as of HDFS version `3.3.4`.
+
+
+[source,text]
+----
+2023-10-10 13:37:41,525 ERROR server.JournalNode (LogAdapter.java:error(75)) - RECEIVED SIGNAL 15: SIGTERM
+2023-10-10 13:37:41,526 INFO  server.JournalNode (LogAdapter.java:info(51)) - SHUTDOWN_MSG:
+/************************************************************
+SHUTDOWN_MSG: Shutting down JournalNode at hdfs-journalnode-default-0/10.244.0.38
+************************************************************/
+----
+
+== NameNodes
+
+As a default, NameNodes have `15 minutes` to shut down gracefully.
+They use the same mechanism described above.
+
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNode.java#L1080[This] is the relevant code that gets executed in the NameNodes as of HDFS version `3.3.4`.
+
+== DataNodes
+
+As a default, DataNodes have `30 minutes` to shut down gracefully.
+They use the same mechanism described above.
+
+https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/datanode/DataNode.java#L2004[This] is the relevant code that gets executed in the DataNodes as of HDFS version `3.3.4`.
