@@ -6,7 +6,7 @@ You can configure the graceful shutdown as described in xref:concepts:operations
 
 As a default, JournalNodes have `15 minutes` to shut down gracefully.
 
-The JournalNode process will always run as PID `1` and will receive a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
+The JournalNode process will receive a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
 It will log the received signal as shown in the log below and initiate a graceful shutdown.
 After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes will issue a `SIGKILL` signal.
 
