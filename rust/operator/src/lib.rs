@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use futures::StreamExt;
+use futures::{future, StreamExt};
+use futures::FutureExt;
 use product_config::ProductConfigManager;
 use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::{
@@ -9,12 +10,13 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Pod, Service},
     },
-    kube::runtime::{watcher, Controller},
+    kube::runtime::{watcher, Controller,reflector::{self, ObjectRef, Store},},
     labels::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
 };
 use tracing::info_span;
+use tracing::{info, warn, error};
 use tracing_futures::Instrument;
 
 mod config;
@@ -38,6 +40,42 @@ pub async fn create_controller(
     product_config: ProductConfigManager,
     namespace: WatchNamespace,
 ) {
+    let (store, store_w) = reflector::store();
+
+    let reflector = std::pin::pin!(reflector::reflector(
+        store_w,
+        watcher(
+            stackable_operator::kube::Api::<HdfsCluster>::all(client.as_kube_client()),
+            watcher::Config::default(),
+        ),
+    )
+    .for_each(|ev| async {
+        match ev {
+            Ok(watcher::Event::Applied(o)) => {
+                info!(object = %ObjectRef::from_obj(&o), "saw updated object")
+            }
+            Ok(watcher::Event::Deleted(o)) => {
+                info!(object = %ObjectRef::from_obj(&o), "saw deleted object")
+            }
+            Ok(watcher::Event::Restarted(os)) => {
+                let objects = os
+                    .iter()
+                    .map(ObjectRef::from_obj)
+                    .map(|o| o.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                info!(objects, "restarted reflector")
+            }
+            Err(error) => {
+                error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to update reflector"
+                )
+            }
+        }
+       patch_rolebinding(store.clone());
+    }).map(Ok));
+
     let hdfs_controller = Controller::new(
         namespace.get_api::<HdfsCluster>(&client),
         watcher::Config::default(),
@@ -85,7 +123,7 @@ pub async fn create_controller(
     .map(|res| report_controller_reconciled(&client, &format!("pod-svc.{OPERATOR_NAME}"), &res))
     .instrument(info_span!("pod_svc_controller"));
 
-    futures::stream::select(hdfs_controller, pod_svc_controller)
+    futures::stream::select(hdfs_controller,  reflector)
         .collect::<()>()
         .await;
 }
@@ -106,5 +144,11 @@ pub fn build_recommended_labels<'a, T>(
         controller_name,
         role,
         role_group,
+    }
+}
+
+pub async fn patch_rolebinding(store: Store<HdfsCluster>) {
+    for cluster in store.state() {
+        warn!(" {:?}", cluster);
     }
 }

@@ -44,7 +44,6 @@ use stackable_operator::{
     },
     time::Duration,
 };
-use stackable_operator::kube::api::Patch::Json;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
@@ -297,14 +296,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         cluster_resources.get_required_labels(),
     )
     .context(BuildRbacResourcesSnafu)?;
-
-    // The clusterrolebinding that is needed for the namenode pod to be able to list and get
-    // objects of type `Node` has been deployed by the Helm chart at the time of installing this
-    // operator.
-    // The operator is allowed to patch that resource to give cluster SAs access to that binding
-
-
-    //client.apply_patch()
 
     cluster_resources
         .add(client, rbac_sa)
