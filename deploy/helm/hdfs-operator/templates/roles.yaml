@@ -165,14 +165,30 @@ rules:
       - configmaps
       - secrets
       - serviceaccounts
+      - pods
     verbs:
       - get
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - list
   - apiGroups:
       - events.k8s.io
     resources:
       - events
     verbs:
       - create
+  - apiGroups:
+    - ""
+    resources:
+      - ClusterRoleBindings
+    resourceNames:
+      - {{ include "operator.fullname" . }}-clusterrole-nodes
+    verbs:
+      - patch
+      - get
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io
@@ -183,3 +199,16 @@ rules:
     verbs:
       - use
 {{ end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "operator.fullname" . }}-clusterrole-nodes
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list

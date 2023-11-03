@@ -124,23 +124,28 @@ pub struct HdfsClusterConfig {
     pub authentication: Option<AuthenticationConfig>,
 
     /// Configuration to control HDFS topology (rack) awareness feature
-    pub topologyAwareness: Option<TopologyAwarenessConfig>,
+    pub rack_awareness: Option<Vec<TopologyLabel>>,
+}
+
+#[derive(
+Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct TopologyLabel {
+    label_type: TopologyLabelType,
+    label_name: String,
 }
 
 #[derive(
 Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
 #[serde(rename_all = "PascalCase")]
-pub enum TopologyAwarenessConfig {
-    NodeLabels {
-        labels: Vec<String>,
-    },
-    PodLabels {
-        labels: Vec<String>,
-    },
-    ConfigMap {
-        configMapName: String,
-    }
+pub enum TopologyLabelType {
+    #[default]
+    #[serde(rename = "node")]
+    Node,
+    #[serde(rename = "pod")]
+    Pod
 }
 
 fn default_dfs_replication_factor() -> u8 {
