@@ -6,8 +6,10 @@ use product_config::ProductConfigManager;
 use serde_json::json;
 use snafu::ResultExt;
 use stackable_hdfs_crd::{constants, constants::*, HdfsCluster};
-use stackable_operator::kube::api::{DynamicObject, PartialObjectMeta, Patch, ValidationDirective};
-use stackable_operator::kube::{Resource, ResourceExt};
+use stackable_operator::kube::api::{
+    DynamicObject, PartialObjectMeta, Patch, PatchParams, ValidationDirective,
+};
+use stackable_operator::kube::{Api, Resource, ResourceExt};
 use stackable_operator::{
     client::Client,
     k8s_openapi::api::{
@@ -100,38 +102,73 @@ pub async fn create_controller(
             .collect();
 
         warn!("Patching clusterrolebinding...");
-        let res = ClusterRoleBinding {
-            metadata: ObjectMeta {
-                name: Some("hdfs-operator-clusterrole-nodes".to_string()),
-                ..ObjectMeta::default()
-            },
-            ..ClusterRoleBinding::default()
-        };
+        /*let res = ClusterRoleBinding {
+             metadata: ObjectMeta {
+                 name: Some("hdfs-operator-clusterrole-nodes".to_string()),
+                 ..ObjectMeta::default()
+             },
+             subjects: Some(subjects),
+             ..ClusterRoleBinding::default()
+         };
+        // let typed_patch = Patch::Apply(&res);
+
+          */
 
         //json!({"apiVersion": "rbac.authorization.k8s.io/v1", "subjects": subjects}),
-        let patch =
-            json!({
-                "apiVersion": "rbac.authorization.k8s.io/v1",
-                "kind": "ClusterRoleBinding",
-                "metadata": {
-                    "name": "hdfs-operator-clusterrole-nodes"
-                },
-                "roleRef": {
-                    "kind": "ClusterRole",
-                    "name": "hdfs-operator-clusterrole-nodes",
-                    "apiGroup": "rbac.authorization.k8s.io"
-                },
-                "subjects": Some(subjects)
-            });
-        let test = Patch::Apply(patch.clone());
-        warn!("{:?}", test);
-        match client
+        /*let patch =
+           json!({
+               "apiVersion": "rbac.authorization.k8s.io/v1",
+               "kind": "ClusterRoleBinding",
+               "metadata": {
+                   "name": "hdfs-operator-clusterrole-nodes"
+               },
+               "roleRef": {
+                   "kind": "ClusterRole",
+                   "name": "hdfs-operator-clusterrole-nodes",
+                   "apiGroup": "rbac.authorization.k8s.io"
+               },
+               "subjects": Some(subjects)
+           });
+
+        */
+        let patch = Patch::Apply(json!({
+            "apiVersion": "rbac.authorization.k8s.io/v1".to_string(),
+            "kind": "ClusterRoleBinding".to_string(),
+            "metadata": {
+                "name": "hdfs-operator-clusterrole-nodes".to_string()
+            },
+            "roleRef": {
+                "apiGroup": "rbac.authorization.k8s.io".to_string(),
+                "kind": "ClusterRole".to_string(),
+                "name": "hdfs-operator-clusterrole-nodes".to_string()
+            },
+            "subjects": subjects
+        }));
+        warn!("{:?}", &patch);
+
+        //warn!("{:?}", test);
+        let client = client.as_kube_client();
+        let api: Api<ClusterRoleBinding> = Api::all(client);
+        let params = PatchParams {
+            field_manager: Some(constants::FIELD_MANAGER_SCOPE.to_string()),
+            ..PatchParams::default()
+        };
+        match api
+            .patch("hdfs-operator-clusterrole-nodes", &params, &patch)
+            .await
+        {
+            Ok(_) => warn!("successfully patched!"),
+            Err(e) => error!("{}", e),
+        }
+        /* match client
             .apply_patch(&constants::FIELD_MANAGER_SCOPE, &res, &patch)
             .await
         {
             Ok(_) => info!("Successfully patched!"),
             Err(e) => error!("{}", e),
         }
+
+         */
     }));
 
     let hdfs_controller = Controller::new(

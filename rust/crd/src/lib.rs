@@ -127,9 +127,7 @@ pub struct HdfsClusterConfig {
     pub rack_awareness: Option<Vec<TopologyLabel>>,
 }
 
-#[derive(
-Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
-)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TopologyLabel {
     label_type: TopologyLabelType,
@@ -137,7 +135,7 @@ pub struct TopologyLabel {
 }
 
 #[derive(
-Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
+    Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
 #[serde(rename_all = "PascalCase")]
 pub enum TopologyLabelType {
@@ -145,7 +143,7 @@ pub enum TopologyLabelType {
     #[serde(rename = "node")]
     Node,
     #[serde(rename = "pod")]
-    Pod
+    Pod,
 }
 
 fn default_dfs_replication_factor() -> u8 {
