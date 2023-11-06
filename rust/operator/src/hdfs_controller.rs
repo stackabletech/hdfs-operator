@@ -280,6 +280,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     )
     .context(BuildDiscoveryConfigMapSnafu)?;
 
+
     // The discovery CM is linked to the cluster lifecycle via ownerreference.
     // Therefore, must not be added to the "orphaned" cluster resources
     client

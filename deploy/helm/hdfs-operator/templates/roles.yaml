@@ -106,6 +106,15 @@ rules:
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
+      - clusterrolebindings
+    resourceNames:
+      - {{ include "operator.fullname" . }}-clusterrole-nodes
+    verbs:
+      - patch
+      - get
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
       - clusterroles
     verbs:
       - bind
@@ -180,15 +189,6 @@ rules:
       - events
     verbs:
       - create
-  - apiGroups:
-    - ""
-    resources:
-      - ClusterRoleBindings
-    resourceNames:
-      - {{ include "operator.fullname" . }}-clusterrole-nodes
-    verbs:
-      - patch
-      - get
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io

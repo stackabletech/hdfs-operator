@@ -1,22 +1,31 @@
 use std::sync::Arc;
 
-use futures::{future, StreamExt};
 use futures::FutureExt;
+use futures::{future, StreamExt};
 use product_config::ProductConfigManager;
-use stackable_hdfs_crd::{constants::*, HdfsCluster};
+use serde_json::json;
+use snafu::ResultExt;
+use stackable_hdfs_crd::{constants, constants::*, HdfsCluster};
+use stackable_operator::kube::api::{DynamicObject, PartialObjectMeta, Patch, ValidationDirective};
+use stackable_operator::kube::{Resource, ResourceExt};
 use stackable_operator::{
     client::Client,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Pod, Service},
+        rbac::v1::{ClusterRoleBinding, RoleRef, Subject},
     },
-    kube::runtime::{watcher, Controller,reflector::{self, ObjectRef, Store},},
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    kube::runtime::{
+        reflector::{self, ObjectRef, Store},
+        watcher, Controller,
+    },
     labels::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
 };
 use tracing::info_span;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 use tracing_futures::Instrument;
 
 mod config;
@@ -45,11 +54,13 @@ pub async fn create_controller(
     let reflector = std::pin::pin!(reflector::reflector(
         store_w,
         watcher(
-            stackable_operator::kube::Api::<HdfsCluster>::all(client.as_kube_client()),
+            stackable_operator::kube::Api::<PartialObjectMeta<HdfsCluster>>::all(
+                client.as_kube_client()
+            ),
             watcher::Config::default(),
         ),
     )
-    .for_each(|ev| async {
+    .then(|ev| async {
         match ev {
             Ok(watcher::Event::Applied(o)) => {
                 info!(object = %ObjectRef::from_obj(&o), "saw updated object")
@@ -73,8 +84,55 @@ pub async fn create_controller(
                 )
             }
         }
-       patch_rolebinding(store.clone());
-    }).map(Ok));
+        // Build a list of SubjectRef objects for all deployed HdfsClusters
+        // To do this we only need the metadata for that, as we only really
+        // need name and namespace of the objects
+        let subjects: Vec<Subject> = store
+            .state()
+            .into_iter()
+            .map(|object| object.metadata.clone())
+            .map(|meta| Subject {
+                kind: "ServiceAccount".to_string(),
+                name: meta.name.clone().unwrap(),
+                namespace: meta.namespace.clone(),
+                ..Subject::default()
+            })
+            .collect();
+
+        warn!("Patching clusterrolebinding...");
+        let res = ClusterRoleBinding {
+            metadata: ObjectMeta {
+                name: Some("hdfs-operator-clusterrole-nodes".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ClusterRoleBinding::default()
+        };
+
+        //json!({"apiVersion": "rbac.authorization.k8s.io/v1", "subjects": subjects}),
+        let patch =
+            json!({
+                "apiVersion": "rbac.authorization.k8s.io/v1",
+                "kind": "ClusterRoleBinding",
+                "metadata": {
+                    "name": "hdfs-operator-clusterrole-nodes"
+                },
+                "roleRef": {
+                    "kind": "ClusterRole",
+                    "name": "hdfs-operator-clusterrole-nodes",
+                    "apiGroup": "rbac.authorization.k8s.io"
+                },
+                "subjects": Some(subjects)
+            });
+        let test = Patch::Apply(patch.clone());
+        warn!("{:?}", test);
+        match client
+            .apply_patch(&constants::FIELD_MANAGER_SCOPE, &res, &patch)
+            .await
+        {
+            Ok(_) => info!("Successfully patched!"),
+            Err(e) => error!("{}", e),
+        }
+    }));
 
     let hdfs_controller = Controller::new(
         namespace.get_api::<HdfsCluster>(&client),
@@ -123,9 +181,12 @@ pub async fn create_controller(
     .map(|res| report_controller_reconciled(&client, &format!("pod-svc.{OPERATOR_NAME}"), &res))
     .instrument(info_span!("pod_svc_controller"));
 
-    futures::stream::select(hdfs_controller,  reflector)
-        .collect::<()>()
-        .await;
+    futures::stream::select(
+        hdfs_controller,
+        futures::stream::select(pod_svc_controller, reflector),
+    )
+    .collect::<()>()
+    .await;
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources
@@ -144,11 +205,5 @@ pub fn build_recommended_labels<'a, T>(
         controller_name,
         role,
         role_group,
-    }
-}
-
-pub async fn patch_rolebinding(store: Store<HdfsCluster>) {
-    for cluster in store.state() {
-        warn!(" {:?}", cluster);
     }
 }
