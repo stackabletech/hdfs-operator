@@ -134,15 +134,19 @@ pub struct TopologyLabel {
     label_name: String,
 }
 
+impl TopologyLabel {
+    pub fn to_config(&self) -> String {
+        format!("{}:{}", self.label_name, self.label_type)
+    }
+}
+
 #[derive(
     Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
 #[serde(rename_all = "PascalCase")]
 pub enum TopologyLabelType {
     #[default]
-    #[serde(rename = "node")]
     Node,
-    #[serde(rename = "pod")]
     Pod,
 }
 
@@ -716,6 +720,19 @@ impl HdfsCluster {
         self.https_secret_class().is_some()
     }
 
+    pub fn rackawareness_config(&self) -> Option<String> {
+        match self.spec.cluster_config.rack_awareness.as_ref() {
+            Some(label_list) => Some(
+                label_list
+                    .into_iter()
+                    .map(|label| label.to_config())
+                    .collect::<Vec<_>>()
+                    .join(";"),
+            ),
+            None => None,
+        }
+    }
+
     pub fn https_secret_class(&self) -> Option<&str> {
         self.spec
             .cluster_config
@@ -965,10 +982,19 @@ impl Configuration for NameNodeConfigFragment {
 
     fn compute_env(
         &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
+        resource: &Self::Configurable,
+        role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+        let mut result = BTreeMap::new();
+
+        // If a rack awareness is configured, insert the labels into an env var to configure
+        // the topology-provider, this is only needed on namenodes
+        if role_name == &HdfsRole::NameNode.to_string() {
+            if let Some(awareness_config) = resource.rackawareness_config() {
+                result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
+            }
+        }
+        Ok(result)
     }
 
     fn compute_cli(
@@ -982,7 +1008,7 @@ impl Configuration for NameNodeConfigFragment {
     fn compute_files(
         &self,
         resource: &Self::Configurable,
-        _role_name: &str,
+        role_name: &str,
         file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
@@ -991,8 +1017,16 @@ impl Configuration for NameNodeConfigFragment {
                 DFS_REPLICATION.to_string(),
                 Some(resource.spec.cluster_config.dfs_replication.to_string()),
             );
+        } else if file == CORE_SITE_XML {
+            if role_name == &HdfsRole::NameNode.to_string() {
+                if let Some(awareness_config) = resource.rackawareness_config() {
+                    config.insert(
+                        "net.topology.node.switch.mapping.impl".to_string(),
+                        Some("tech.stackable.hadoop.StackableTopologyProvider".to_string()),
+                    );
+                }
+            }
         }
-
         Ok(config)
     }
 }
@@ -1442,6 +1476,9 @@ spec:
     productVersion: 3.3.6
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
+    rackAwareness:
+      - type: node
+        label: kubernetes.io/zone
   nameNodes:
     roleGroups:
       default:
@@ -1477,6 +1514,9 @@ spec:
             .data_node_resources()
             .unwrap();
 
+        assert_eq!(hdfs.has_rackawareness_enabled(), true);
+        let rackawareness = hdfs.get_rackawareness();
+
         let pvc = resources.storage.get("data").unwrap();
         assert_eq!(pvc.count, 0);
 
@@ -1491,6 +1531,7 @@ spec:
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Ssd);
         assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
         assert_eq!(pvc.pvc.storage_class, Some("premium".to_string()));
+        assert_eq()
     }
 
     #[test]
