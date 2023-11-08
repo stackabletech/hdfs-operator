@@ -46,9 +46,6 @@ spec:
                       required:
                         - kerberos
                       type: object
-                    autoFormatFs:
-                      nullable: true
-                      type: boolean
                     dfsReplication:
                       default: 3
                       format: uint8

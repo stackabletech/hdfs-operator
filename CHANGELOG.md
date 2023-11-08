@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Don't default roleGroup replicas to zero when not specified ([#402]).
+- [BREAKING] Removed field `autoFormatFs`, which was never read ([#XXX]).
 
 ### Removed
 
