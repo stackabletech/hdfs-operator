@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Don't default roleGroup replicas to zero when not specified ([#402]).
+- [BREAKING] Removed field `autoFormatFs`, which was never read ([#422]).
 
 ### Removed
 
@@ -36,6 +37,7 @@ All notable changes to this project will be documented in this file.
 [#405]: https://github.com/stackabletech/hdfs-operator/pull/405
 [#407]: https://github.com/stackabletech/hdfs-operator/pull/407
 [#409]: https://github.com/stackabletech/hdfs-operator/pull/409
+[#422]: https://github.com/stackabletech/hdfs-operator/pull/422
 
 ## [23.7.0] - 2023-07-14
 

@@ -95,8 +95,6 @@ pub struct HdfsClusterSpec {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterConfig {
-    // FIXME: This attribute does not seem to be read anywhere.
-    pub auto_format_fs: Option<bool>,
     #[serde(default = "default_dfs_replication_factor")]
     pub dfs_replication: u8,
     /// Name of the Vector aggregator discovery ConfigMap.
