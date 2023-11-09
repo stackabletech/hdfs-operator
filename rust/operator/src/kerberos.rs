@@ -144,10 +144,12 @@ impl CoreSiteConfigBuilder {
 /// and getting a different hostname than the principal has.
 /// What ultimately killed this approach was
 ///
+/// ```text
 /// 2023-05-30 09:23:01,745 ERROR namenode.EditLogInputStream (EditLogFileInputStream.java:nextOpImpl(220)) - caught exception initializing https://hdfs-journalnode-default-1.hdfs-journalnode-default.kuttl-test-fine-rat.svc.cluster.local:8481/getJournal?jid=hdfs&segmentTxId=1&storageInfo=-65%3A595659877%3A1685437352616%3ACID-90c52400-5b07-49bf-bdbe-3469bbdc5ebb&inProgressOk=true
 /// org.apache.hadoop.hdfs.server.common.HttpGetFailedException: Fetch of https://hdfs-journalnode-default-1.hdfs-journalnode-default.kuttl-test-fine-rat.svc.cluster.local:8481/getJournal?jid=hdfs&segmentTxId=1&storageInfo=-65%3A595659877%3A1685437352616%3ACID-90c52400-5b07-49bf-bdbe-3469bbdc5ebb&inProgressOk=true failed with status code 403
 /// Response message:
 /// Only Namenode and another JournalNode may access this servlet
+/// ```
 ///
 /// After we have switched to using the following principals everything worked without problems
 fn principal_host_part(hdfs_name: &str, hdfs_namespace: &str) -> String {
