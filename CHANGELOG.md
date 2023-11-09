@@ -23,7 +23,7 @@ All notable changes to this project will be documented in this file.
 - Don't default roleGroup replicas to zero when not specified ([#402]).
 - [BREAKING] Removed field `autoFormatFs`, which was never read ([#422]).
 - Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
-  and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#XXX]).
+  and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#424]).
 
 ### Removed
 
@@ -40,6 +40,7 @@ All notable changes to this project will be documented in this file.
 [#407]: https://github.com/stackabletech/hdfs-operator/pull/407
 [#409]: https://github.com/stackabletech/hdfs-operator/pull/409
 [#422]: https://github.com/stackabletech/hdfs-operator/pull/422
+[#424]: https://github.com/stackabletech/hdfs-operator/pull/424
 
 ## [23.7.0] - 2023-07-14
 
