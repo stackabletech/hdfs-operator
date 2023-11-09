@@ -150,6 +150,6 @@ impl CoreSiteConfigBuilder {
 /// Only Namenode and another JournalNode may access this servlet
 ///
 /// After we have switched to using the following principals everything worked without problems
-pub fn principal_host_part(hdfs_name: &str, hdfs_namespace: &str) -> String {
+fn principal_host_part(hdfs_name: &str, hdfs_namespace: &str) -> String {
     format!("{hdfs_name}.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}")
 }

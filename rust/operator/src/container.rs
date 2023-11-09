@@ -9,15 +9,11 @@
 //! - Set resources
 //! - Add tcp probes and container ports (to the main containers)
 //!
-use crate::{
-    kerberos::principal_host_part,
-    product_logging::{
-        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-        MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
-        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
-    },
+use crate::product_logging::{
+    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE, HDFS_LOG4J_CONFIG_FILE,
+    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE, MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
+    MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
+    WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
 };
 
 use indoc::formatdoc;
@@ -654,10 +650,11 @@ wait_for_termination $!
     /// Needs the KERBEROS_REALM env var, which will be written with `export_kerberos_real_env_var_command`
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
     fn get_kerberos_ticket(hdfs_name: &str, hdfs_namespace: &str, role: &HdfsRole) -> String {
+        // Watch out, this is a bash substitution from a bash env var,
+        // not the substitution hdfs is doing.
         let principal = format!(
-            "{service_name}/{principal_host_part}",
+            "{service_name}/{hdfs_name}.{hdfs_namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
-            principal_host_part = principal_host_part(hdfs_name, hdfs_namespace),
         );
         formatdoc!(
             r###"
