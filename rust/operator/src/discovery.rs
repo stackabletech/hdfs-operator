@@ -11,13 +11,14 @@ use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     error::OperatorResult,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::ResourceExt,
 };
 
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
 /// for clients.
 pub fn build_discovery_configmap(
     hdfs: &HdfsCluster,
+    hdfs_name: &str,
+    hdfs_namespace: &str,
     controller: &str,
     namenode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
@@ -38,21 +39,21 @@ pub fn build_discovery_configmap(
         )
         .add_data(
             HDFS_SITE_XML,
-            build_discovery_hdfs_site_xml(hdfs, hdfs.name_any(), namenode_podrefs),
+            build_discovery_hdfs_site_xml(hdfs, hdfs_name, namenode_podrefs),
         )
         .add_data(
             CORE_SITE_XML,
-            build_discovery_core_site_xml(hdfs, hdfs.name_any()),
+            build_discovery_core_site_xml(hdfs, hdfs_name, hdfs_namespace),
         )
         .build()
 }
 
 fn build_discovery_hdfs_site_xml(
     hdfs: &HdfsCluster,
-    logical_name: String,
+    hdfs_name: &str,
     namenode_podrefs: &[HdfsPodRef],
 ) -> String {
-    HdfsSiteConfigBuilder::new(logical_name)
+    HdfsSiteConfigBuilder::new(hdfs_name.to_string())
         .dfs_name_services()
         .dfs_ha_namenodes(namenode_podrefs)
         .dfs_namenode_rpc_address_ha(namenode_podrefs)
@@ -62,9 +63,13 @@ fn build_discovery_hdfs_site_xml(
         .build_as_xml()
 }
 
-fn build_discovery_core_site_xml(hdfs: &HdfsCluster, logical_name: String) -> String {
-    CoreSiteConfigBuilder::new(logical_name)
+fn build_discovery_core_site_xml(
+    hdfs: &HdfsCluster,
+    hdfs_name: &str,
+    hdfs_namespace: &str,
+) -> String {
+    CoreSiteConfigBuilder::new(hdfs_name.to_string())
         .fs_default_fs()
-        .security_discovery_config(hdfs)
+        .security_discovery_config(hdfs, hdfs_name, hdfs_namespace)
         .build_as_xml()
 }

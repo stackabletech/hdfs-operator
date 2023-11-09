@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    ops::Deref,
     str::FromStr,
     sync::Arc,
 };
@@ -229,6 +230,13 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
 
+    let hdfs_name = hdfs.name_any();
+    let hdfs_namespace = hdfs
+        .namespace()
+        .with_context(|| ObjectHasNoNamespaceSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs.deref()),
+        })?;
+
     let resolved_product_image = hdfs
         .spec
         .image
@@ -274,6 +282,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let discovery_cm = build_discovery_configmap(
         &hdfs,
+        &hdfs_name,
+        &hdfs_namespace,
         HDFS_CONTROLLER,
         &namenode_podrefs,
         &resolved_product_image,
@@ -328,7 +338,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let merged_config = role
-                .merged_config(&hdfs, rolegroup_name)
+                .merged_config(&hdfs, &hdfs_name, rolegroup_name)
                 .context(ConfigMergeSnafu)?;
 
             let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
@@ -339,6 +349,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
+                &hdfs_name,
+                &hdfs_namespace,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
@@ -350,6 +362,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
+                &hdfs_name,
+                &hdfs_namespace,
                 &role,
                 &rolegroup_ref,
                 &resolved_product_image,
@@ -466,6 +480,8 @@ fn rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
+    hdfs_name: &str,
+    hdfs_namespace: &str,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
@@ -475,19 +491,6 @@ fn rolegroup_config_map(
     vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
-    let hdfs_name = hdfs
-        .metadata
-        .name
-        .as_deref()
-        .with_context(|| ObjectHasNoNameSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
-    let hdfs_namespace = hdfs
-        .namespace()
-        .with_context(|| ObjectHasNoNamespaceSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
-
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
     let mut hadoop_policy_xml = String::new();
@@ -525,7 +528,7 @@ fn rolegroup_config_map(
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
-                    .security_config(hdfs, hdfs_name, &hdfs_namespace)
+                    .security_config(hdfs, hdfs_name, hdfs_namespace)
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
@@ -659,6 +662,8 @@ fn rolegroup_config_map(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
+    hdfs_name: &str,
+    hdfs_namespace: &str,
     role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
@@ -690,6 +695,8 @@ fn rolegroup_statefulset(
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
         hdfs,
+        hdfs_name,
+        hdfs_namespace,
         role,
         resolved_product_image,
         merged_config,

@@ -22,7 +22,7 @@ use stackable_operator::{
         api::core::v1::PodTemplateSpec,
         apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
     },
-    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    kube::{runtime::reflector::ObjectRef, CustomResource},
     labels::role_group_selector_labels,
     product_config_utils::{ConfigError, Configuration},
     product_logging,
@@ -239,11 +239,12 @@ impl HdfsRole {
     pub fn merged_config(
         &self,
         hdfs: &HdfsCluster,
+        hdfs_name: &str,
         role_group: &str,
     ) -> Result<Box<dyn MergedConfig + Send + 'static>, Error> {
         match self {
             HdfsRole::NameNode => {
-                let default_config = NameNodeConfigFragment::default_config(&hdfs.name_any(), self);
+                let default_config = NameNodeConfigFragment::default_config(hdfs_name, self);
                 let role = hdfs
                     .spec
                     .name_nodes
@@ -282,7 +283,7 @@ impl HdfsRole {
                 ))
             }
             HdfsRole::DataNode => {
-                let default_config = DataNodeConfigFragment::default_config(&hdfs.name_any(), self);
+                let default_config = DataNodeConfigFragment::default_config(hdfs_name, self);
                 let role = hdfs
                     .spec
                     .data_nodes
@@ -321,8 +322,7 @@ impl HdfsRole {
                 ))
             }
             HdfsRole::JournalNode => {
-                let default_config =
-                    JournalNodeConfigFragment::default_config(&hdfs.name_any(), self);
+                let default_config = JournalNodeConfigFragment::default_config(hdfs_name, self);
                 let role = hdfs
                     .spec
                     .journal_nodes
@@ -1319,7 +1319,7 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
         let resources = role
-            .merged_config(&hdfs, "default")
+            .merged_config(&hdfs, "hdfs", "default")
             .unwrap()
             .data_node_resources()
             .unwrap();
@@ -1357,7 +1357,7 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
         let resources = role
-            .merged_config(&hdfs, "default")
+            .merged_config(&hdfs, "hdfs", "default")
             .unwrap()
             .data_node_resources()
             .unwrap();
@@ -1390,7 +1390,7 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
         let resources = role
-            .merged_config(&hdfs, "default")
+            .merged_config(&hdfs, "hdfs", "default")
             .unwrap()
             .data_node_resources()
             .unwrap();
@@ -1444,7 +1444,7 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
         let resources = role
-            .merged_config(&hdfs, "default")
+            .merged_config(&hdfs, "hdfs", "default")
             .unwrap()
             .data_node_resources()
             .unwrap();
@@ -1494,7 +1494,7 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
         let rr: ResourceRequirements = role
-            .merged_config(&hdfs, "default")
+            .merged_config(&hdfs, "hdfs", "default")
             .unwrap()
             .data_node_resources()
             .unwrap()
@@ -1547,7 +1547,7 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
         let rr: ResourceRequirements = role
-            .merged_config(&hdfs, "default")
+            .merged_config(&hdfs, "hdfs", "default")
             .unwrap()
             .data_node_resources()
             .unwrap()

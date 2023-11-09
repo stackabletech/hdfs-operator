@@ -72,7 +72,7 @@ spec:
         replicas: 1
         "#;
         let hdfs: HdfsCluster = serde_yaml::from_str(input).unwrap();
-        let merged_config = role.merged_config(&hdfs, "default").unwrap();
+        let merged_config = role.merged_config(&hdfs, "simple-hdfs", "default").unwrap();
 
         assert_eq!(
             merged_config.affinity(),
@@ -168,7 +168,9 @@ spec:
                 - antarctica-west1
         "#;
         let hdfs: HdfsCluster = serde_yaml::from_str(input).unwrap();
-        let merged_config = HdfsRole::DataNode.merged_config(&hdfs, "default").unwrap();
+        let merged_config = HdfsRole::DataNode
+            .merged_config(&hdfs, "simple-hdfs", "default")
+            .unwrap();
 
         assert_eq!(
             merged_config.affinity(),

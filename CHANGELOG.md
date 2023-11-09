@@ -22,6 +22,8 @@ All notable changes to this project will be documented in this file.
 
 - Don't default roleGroup replicas to zero when not specified ([#402]).
 - [BREAKING] Removed field `autoFormatFs`, which was never read ([#422]).
+- Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
+  and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#XXX]).
 
 ### Removed
 
