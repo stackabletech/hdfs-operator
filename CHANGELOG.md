@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - `vector` `0.26.0` -> `0.33.0` ([#378], [#409]).
 - Let secret-operator handle certificate conversion ([#392]).
 - `operator-rs` `0.44.0` -> `0.55.0` ([#381], [#394], [#404], [#405], [#409]).
+- Consolidate Rust workspace members ([#425]).
 
 ### Fixed
 
@@ -38,6 +39,7 @@ All notable changes to this project will be documented in this file.
 [#407]: https://github.com/stackabletech/hdfs-operator/pull/407
 [#409]: https://github.com/stackabletech/hdfs-operator/pull/409
 [#422]: https://github.com/stackabletech/hdfs-operator/pull/422
+[#425]: https://github.com/stackabletech/hdfs-operator/pull/425
 
 ## [23.7.0] - 2023-07-14
 
