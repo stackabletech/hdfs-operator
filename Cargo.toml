@@ -1,7 +1,5 @@
 [workspace]
-members = [
-    "rust/crd", "rust/operator", "rust/operator-binary"
-]
+members = ["rust/crd", "rust/operator-binary"]
 
 [workspace.package]
 version = "0.0.0-dev"

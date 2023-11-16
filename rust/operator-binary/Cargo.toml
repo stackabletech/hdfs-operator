@@ -1,5 +1,5 @@
 [package]
-name = "stackable-hdfs-operator-binary"
+name = "stackable-hdfs-operator"
 description = "Stackable Operator for Apache Hadoop HDFS"
 version.workspace = true
 authors.workspace = true
@@ -7,21 +7,30 @@ license.workspace = true
 edition.workspace = true
 repository.workspace = true
 publish = false
-build = "build.rs"
 
 [dependencies]
 stackable-hdfs-crd = { path = "../crd" }
-stackable-hdfs-operator = { path = "../operator" }
 
 anyhow.workspace = true
 clap.workspace = true
+futures.workspace = true
+indoc.workspace = true
+product-config.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+snafu.workspace = true
 stackable-operator.workspace = true
+strum.workspace = true
 tokio.workspace = true
+tracing-futures.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
 
 [build-dependencies]
 built.workspace = true
 
 [[bin]]
 name = "stackable-hdfs-operator"
-path = "src/stackable-hdfs-operator.rs"
+path = "src/main.rs"

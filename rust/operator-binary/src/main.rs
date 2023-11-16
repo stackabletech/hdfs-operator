@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use clap::{crate_description, crate_version, Parser};
 use futures::StreamExt;
 use product_config::ProductConfigManager;
 use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::{
-    client::Client,
+    cli::{Command, ProductOperatorRun},
+    client::{self, Client},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Pod, Service},
@@ -13,6 +15,7 @@ use stackable_operator::{
     labels::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
+    CustomResourceExt,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -28,10 +31,55 @@ mod pod_svc_controller;
 mod product_logging;
 
 mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+    pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
     pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
 pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
+
+#[derive(clap::Parser)]
+#[clap(about, author)]
+struct Opts {
+    #[clap(subcommand)]
+    cmd: Command,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let opts = Opts::parse();
+    match opts.cmd {
+        Command::Crd => HdfsCluster::print_yaml_schema()?,
+        Command::Run(ProductOperatorRun {
+            product_config,
+            watch_namespace,
+            tracing_target,
+        }) => {
+            stackable_operator::logging::initialize_logging(
+                "HDFS_OPERATOR_LOG",
+                APP_NAME,
+                tracing_target,
+            );
+
+            stackable_operator::utils::print_startup_string(
+                crate_description!(),
+                crate_version!(),
+                built_info::GIT_VERSION,
+                built_info::TARGET_PLATFORM.unwrap_or("unknown target"),
+                built_info::BUILT_TIME_UTC,
+                built_info::RUSTC_VERSION,
+            );
+            let product_config = product_config.load(&[
+                "deploy/config-spec/properties.yaml",
+                "/etc/stackable/hdfs-operator/config-spec/properties.yaml",
+            ])?;
+            let client = client::create_client(Some(OPERATOR_NAME.to_string())).await?;
+            create_controller(client, product_config, watch_namespace).await;
+        }
+    };
+
+    Ok(())
+}
 
 pub async fn create_controller(
     client: Client,
