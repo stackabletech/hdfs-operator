@@ -52,8 +52,8 @@ discovery ConfigMap contains the `core-site.xml` file and the `hdfs-site.xml` fi
 == Dependencies
 
 HDFS depends on ZooKeeper for coordination between nodes. You can run a ZooKeeper cluster with the
-xref:zookeeper:index.adoc[]. Additionally, the xref:commons-operator:index.adoc[] and
-xref:secret-operator:index.adoc[] are needed.
+xref:zookeeper:index.adoc[]. Additionally, the xref:commons-operator:index.adoc[],
+xref:secret-operator:index.adoc[] and xref:listener-operator:index.adoc[] are needed.
 
 == [[demos]]Demos
 
