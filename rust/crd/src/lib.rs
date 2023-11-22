@@ -136,14 +136,14 @@ pub struct TopologyLabel {
 
 impl TopologyLabel {
     pub fn to_config(&self) -> String {
-        format!("{}:{}", self.label_name, self.label_type)
+        format!("{}:{}", self.label_type, self.label_name)
     }
 }
 
 #[derive(
     Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
 )]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "lowercase")]
 pub enum TopologyLabelType {
     #[default]
     Node,

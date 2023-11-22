@@ -109,7 +109,7 @@ rules:
     resources:
       - clusterrolebindings
     resourceNames:
-      - {{ include "operator.fullname" . }}-clusterrole-nodes
+      - {{ include "operator.name" . }}-clusterrolebinding-nodes
     verbs:
       - patch
       - get
@@ -208,7 +208,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "operator.fullname" . }}-clusterrole-nodes
+  name: {{ include "operator.name" . }}-clusterrole-nodes
 rules:
   - apiGroups:
       - ""

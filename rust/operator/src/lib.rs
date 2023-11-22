@@ -135,12 +135,12 @@ pub async fn create_controller(
             "apiVersion": "rbac.authorization.k8s.io/v1".to_string(),
             "kind": "ClusterRoleBinding".to_string(),
             "metadata": {
-                "name": "hdfs-operator-clusterrole-nodes".to_string()
+                "name": "hdfs-clusterrolebinding-nodes".to_string()
             },
             "roleRef": {
                 "apiGroup": "rbac.authorization.k8s.io".to_string(),
                 "kind": "ClusterRole".to_string(),
-                "name": "hdfs-operator-clusterrole-nodes".to_string()
+                "name": "hdfs-clusterrole-nodes".to_string()
             },
             "subjects": subjects
         }));
@@ -154,21 +154,12 @@ pub async fn create_controller(
             ..PatchParams::default()
         };
         match api
-            .patch("hdfs-operator-clusterrole-nodes", &params, &patch)
+            .patch("hdfs-clusterrolebinding-nodes", &params, &patch)
             .await
         {
             Ok(_) => warn!("successfully patched!"),
             Err(e) => error!("{}", e),
         }
-        /* match client
-            .apply_patch(&constants::FIELD_MANAGER_SCOPE, &res, &patch)
-            .await
-        {
-            Ok(_) => info!("Successfully patched!"),
-            Err(e) => error!("{}", e),
-        }
-
-         */
     }));
 
     let hdfs_controller = Controller::new(

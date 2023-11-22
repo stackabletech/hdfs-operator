@@ -36,3 +36,8 @@ helm_crds, helm_non_crds = filter_yaml(
    kind = "^CustomResourceDefinition$",
 )
 k8s_yaml(helm_non_crds)
+
+k8s_yaml ('tests/stack/01-install-krb5-kdc.yaml')
+k8s_yaml ('tests/stack/02-create-kerberos-secretclass.yaml')
+k8s_yaml ('tests/stack/03-hdfs.yaml')
+k8s_yaml ('tests/stack/04-rolebinding.yaml')
