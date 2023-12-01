@@ -1,6 +1,6 @@
 = First steps
 
-Once you have followed the steps in the xref:getting_started/installation.adoc[] section to install the operator and its dependencies, you will now deploy an HDFS cluster and its dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by creating, verifying and deleting a test file in HDFS.
+Once you have followed the steps in the xref:getting_started/installation.adoc[] section to install the operator and its dependencies, you will now deploy an HDFS cluster and its dependencies. Afterward, you can <<_verify_that_it_works, verify that it works>> by creating, verifying and deleting a test file in HDFS.
 
 == Setup
 
@@ -38,10 +38,9 @@ include::example$getting_started/hdfs.yaml[]
 Where:
 
 - `metadata.name` contains the name of the HDFS cluster
-- the label of the Docker image provided by Stackable must be set in `spec.version`
+- the HDFS version in the Docker image provided by Stackable must be set in `spec.image.productVersion`
 
-NOTE: Please note that the version you need to specify for `spec.version` is not only the version of Hadoop which you want to roll out, but has to be amended with a Stackable version as shown. This Stackable version is the version of the underlying container image which is used to execute the processes. For a list of available versions please check our
-https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%hadoop%2Ftags[image registry].
+NOTE: Please note that the version you need to specify for `spec.image.productVersion` is the desired version of Apache HDFS. You can optionally specify the `spec.image.stackableVersion` to a certain release like `23.11.0` but it is recommended to leave it out and use the default provided by the operator. For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fhadoop%2Ftags[image registry].
 It should generally be safe to simply use the latest image version that is available.
 
 Create the actual HDFS cluster by applying the file:
