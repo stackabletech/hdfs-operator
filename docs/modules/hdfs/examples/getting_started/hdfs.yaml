@@ -5,8 +5,9 @@ metadata:
   name: simple-hdfs
 spec:
   image:
-    productVersion: 3.3.4
-    stackableVersion: 0.0.0-dev
+    productVersion: 3.3.6
+    stackableVersion: 0.0.0-dev-asdf
+    repo: localhost:45469/stackable
   clusterConfig:
     zookeeperConfigMapName: simple-hdfs-znode
     listenerClass: external-unstable

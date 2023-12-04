@@ -41,7 +41,7 @@ use stackable_operator::{
         },
         apimachinery::pkg::{api::resource::Quantity, util::intstr::IntOrString},
     },
-    kube::ResourceExt,
+    kube::{core::ObjectMeta, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
     product_logging::spec::{
@@ -237,10 +237,27 @@ impl ContainerConfig {
     ) -> Option<Vec<PersistentVolumeClaim>> {
         match role {
             HdfsRole::NameNode | HdfsRole::JournalNode => merged_config.resources().map(|r| {
-                vec![r.storage.data.build_pvc(
-                    ContainerConfig::DATA_VOLUME_MOUNT_NAME,
-                    Some(vec!["ReadWriteOnce"]),
-                )]
+                let listener =
+                    ListenerOperatorVolumeSourceBuilder::new(&ListenerReference::ListenerClass(
+                        "external-stable".into(), // TODO read from spec.clusterConfig.listenerClass
+                    ))
+                    .build()
+                    .volume_claim_template
+                    .unwrap();
+                vec![
+                    r.storage.data.build_pvc(
+                        ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+                        Some(vec!["ReadWriteOnce"]),
+                    ),
+                    PersistentVolumeClaim {
+                        metadata: ObjectMeta {
+                            name: Some("listener".to_string()),
+                            ..listener.metadata.unwrap()
+                        },
+                        spec: Some(listener.spec),
+                        ..Default::default()
+                    },
+                ]
             }),
             HdfsRole::DataNode => merged_config
                 .data_node_resources()
@@ -365,6 +382,12 @@ impl ContainerConfig {
                     HDFS_LOG4J_CONFIG_FILE,
                     merged_config.hdfs_logging(),
                 ));
+
+                args.push(
+                    "export POD_ADDRESS=$(cat /stackable/listener/default-address/address)"
+                        .to_string(),
+                );
+                args.push("for i in /stackable/listener/default-address/ports/*; do export $(basename $i | tr a-z A-Z)_PORT=\"$(cat $i)\"; done".to_string());
 
                 args.push(format!(
                     "{hadoop_home}/bin/hdfs {role}",
@@ -588,18 +611,21 @@ impl ContainerConfig {
                         .build(),
                 );
 
-                volumes.push(
-                    VolumeBuilder::new("listener")
-                        .ephemeral(
-                            ListenerOperatorVolumeSourceBuilder::new(
-                                &ListenerReference::ListenerClass(
-                                    "nodeport".into(), // TODO read from spec.clusterConfig.listenerClass
-                                ),
+                // FIXME
+                if object_name.contains("datanode") {
+                    volumes.push(
+                        VolumeBuilder::new("listener")
+                            .ephemeral(
+                                ListenerOperatorVolumeSourceBuilder::new(
+                                    &ListenerReference::ListenerClass(
+                                        "external-unstable".into(), // TODO read from spec.clusterConfig.listenerClass
+                                    ),
+                                )
+                                .build(),
                             )
                             .build(),
-                        )
-                        .build(),
-                );
+                    );
+                }
 
                 Some(merged_config.hdfs_logging())
             }
