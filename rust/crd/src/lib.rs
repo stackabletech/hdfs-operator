@@ -112,7 +112,7 @@ pub struct HdfsClusterSpec {
 pub struct HdfsClusterConfig {
     /// `dfsReplication` is the factor of how many times a file will be replicated to different data nodes.
     /// The default is 3.
-    /// You need at this many data nodes so each file can be replicated correctly, otherwise a warning will be printed.
+    /// You need at least the same amount of data nodes so each file can be replicated correctly, otherwise a warning will be printed.
     #[serde(default = "default_dfs_replication_factor")]
     pub dfs_replication: u8,
 
