@@ -110,7 +110,7 @@ pub struct HdfsClusterSpec {
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterConfig {
-    /// `dfsReplication` is the factor of how many times a file will be replicated to differen data nodes.
+    /// `dfsReplication` is the factor of how many times a file will be replicated to different data nodes.
     /// The default is 3.
     /// You need at this many data nodes so each file can be replicated correctly, otherwise a warning will be printed.
     #[serde(default = "default_dfs_replication_factor")]
