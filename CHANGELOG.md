@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- More CRD documentation ([#433]).
+
+### Changed
+
+- `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
+
+[#433]: https://github.com/stackabletech/hdfs-operator/pull/433
+
 ## [23.11.0] - 2023-11-24
 
 ### Added
