@@ -23,15 +23,20 @@ spec:
           description: Auto-generated derived type for HdfsClusterSpec via `CustomResource`
           properties:
             spec:
+              description: |-
+                An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/nightly/hdfs/).
+
+                The CRD contains three roles: `nameNodes`, `dataNodes` and `journalNodes`.
               properties:
                 clusterConfig:
+                  description: Configuration that applies to all roles and role groups. This includes settings for authentication, logging and the ZooKeeper cluster to use.
                   properties:
                     authentication:
-                      description: Configuration to set up a cluster secured using Kerberos.
+                      description: Settings related to user [authentication](https://docs.stackable.tech/home/nightly/usage-guide/security).
                       nullable: true
                       properties:
                         kerberos:
-                          description: Kerberos configuration
+                          description: Kerberos configuration.
                           properties:
                             secretClass:
                               description: Name of the SecretClass providing the keytab for the HDFS services.
@@ -48,6 +53,7 @@ spec:
                       type: object
                     dfsReplication:
                       default: 3
+                      description: '`dfsReplication` is the factor of how many times a file will be replicated to differen data nodes. The default is 3. You need at this many data nodes so each file can be replicated correctly, otherwise a warning will be printed.'
                       format: uint8
                       minimum: 0.0
                       type: integer
@@ -60,17 +66,17 @@ spec:
 
                         * external-unstable: Use a NodePort service
 
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
                       enum:
                         - cluster-internal
                         - external-unstable
                       type: string
                     vectorAggregatorConfigMapName:
-                      description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                      description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
                       nullable: true
                       type: string
                     zookeeperConfigMapName:
-                      description: Name of the ZooKeeper discovery config map.
+                      description: Name of the [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) for a ZooKeeper cluster.
                       type: string
                   required:
                     - zookeeperConfigMapName
@@ -79,7 +85,7 @@ spec:
                   default:
                     stopped: false
                     reconciliationPaused: false
-                  description: Cluster operations like pause reconciliation or cluster stop.
+                  description: '[Cluster operations](https://docs.stackable.tech/home/nightly/concepts/operations/cluster_operations) properties, allow stopping the product instance as well as pausing reconciliation.'
                   properties:
                     reconciliationPaused:
                       default: false

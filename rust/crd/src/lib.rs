@@ -61,6 +61,11 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 }
 
+/// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
+/// Find more information on how to use it and the resources that the operator generates in the
+/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hdfs/).
+///
+/// The CRD contains three roles: `nameNodes`, `dataNodes` and `journalNodes`.
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "hdfs.stackable.tech",
@@ -78,31 +83,50 @@ pub enum Error {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterSpec {
-    pub image: ProductImage,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name_nodes: Option<Role<NameNodeConfigFragment>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data_nodes: Option<Role<DataNodeConfigFragment>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
-    // Cluster wide configuration
+    /// Configuration that applies to all roles and role groups.
+    /// This includes settings for authentication, logging and the ZooKeeper cluster to use.
     pub cluster_config: HdfsClusterConfig,
-    /// Cluster operations like pause reconciliation or cluster stop.
+
+    // no doc string - See ProductImage struct
+    pub image: ProductImage,
+
+    // no doc string - See ClusterOperation struct
     #[serde(default)]
     pub cluster_operation: ClusterOperation,
+
+    // no doc string - See Role struct
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_nodes: Option<Role<NameNodeConfigFragment>>,
+
+    // no doc string - See Role struct
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_nodes: Option<Role<DataNodeConfigFragment>>,
+
+    // no doc string - See Role struct
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterConfig {
+    /// `dfsReplication` is the factor of how many times a file will be replicated to differen data nodes.
+    /// The default is 3.
+    /// You need at this many data nodes so each file can be replicated correctly, otherwise a warning will be printed.
     #[serde(default = "default_dfs_replication_factor")]
     pub dfs_replication: u8,
-    /// Name of the Vector aggregator discovery ConfigMap.
+
+    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+    /// to learn how to configure log aggregation with Vector.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
-    /// Name of the ZooKeeper discovery config map.
+
+    /// Name of the [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
+    /// for a ZooKeeper cluster.
     pub zookeeper_config_map_name: String,
+
     /// This field controls which type of Service the Operator creates for this HdfsCluster:
     ///
     /// * cluster-internal: Use a ClusterIP service
@@ -110,11 +134,12 @@ pub struct HdfsClusterConfig {
     /// * external-unstable: Use a NodePort service
     ///
     /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
-    /// Configuration to set up a cluster secured using Kerberos.
+
+    /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
     pub authentication: Option<AuthenticationConfig>,
 }
 

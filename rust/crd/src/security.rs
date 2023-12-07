@@ -7,7 +7,7 @@ pub struct AuthenticationConfig {
     /// Name of the SecretClass providing the tls certificates for the WebUIs.
     #[serde(default = "default_tls_secret_class")]
     pub tls_secret_class: String,
-    /// Kerberos configuration
+    /// Kerberos configuration.
     pub kerberos: KerberosConfig,
 }
 
