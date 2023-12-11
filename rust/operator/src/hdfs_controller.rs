@@ -447,8 +447,7 @@ fn rolegroup_config_map(
                         "dfs.namenode.datanode.registration.unsafe.allow-address-override",
                         "true",
                     )
-                    // .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
-                    .add("dfs.datanode.registered.hostname", "asdfasdf")
+                    .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
                     .add("dfs.datańode.registered.port", "${env.DATA_PORT}")
                     .add("dfs.datańode.registered.http.port", "1234")
                     .add("dfs.datańode.registered.ipc.port", "${env.IPC_PORT}")
