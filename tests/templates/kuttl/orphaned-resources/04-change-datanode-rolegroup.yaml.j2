@@ -4,6 +4,9 @@ kind: HdfsCluster
 metadata:
   name: test-hdfs
 spec:
+  image:
+    productVersion: "{{ test_scenario['values']['hadoop-latest'] }}"
+    pullPolicy: IfNotPresent
   dataNodes:
     config:
       logging:
