@@ -61,6 +61,7 @@ metadata:
 spec:
   image:
     productVersion: "{{ test_scenario['values']['hadoop'] }}"
+    pullPolicy: IfNotPresent
   clusterConfig:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
     zookeeperConfigMapName: test-hdfs-custom-log-znode
