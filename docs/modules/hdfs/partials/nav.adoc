@@ -10,6 +10,7 @@
 ** xref:hdfs:usage-guide/resources.adoc[]
 ** xref:hdfs:usage-guide/scaling.adoc[]
 ** xref:hdfs:usage-guide/fuse.adoc[]
+** xref:hdfs:usage-guide/rack-awareness.adoc[]
 ** xref:hdfs:usage-guide/logging-log-aggregation.adoc[]
 ** xref:hdfs:usage-guide/monitoring.adoc[]
 ** xref:hdfs:usage-guide/configuration-environment-overrides.adoc[]
