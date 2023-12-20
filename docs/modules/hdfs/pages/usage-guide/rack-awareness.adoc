@@ -67,7 +67,7 @@ metadata:
   name: hdfs-clusterrolebinding-nodes
 subjects:
   - kind: ServiceAccount
-    name: hdfs-simple-hdfs-serviceaccount
+    name: hdfs-serviceaccount
     namespace: stackable
 roleRef:
   kind: ClusterRole
@@ -88,6 +88,7 @@ spec:
     config:
     configOverrides:
       core-site.xml:
+        HADOOP_CLASSPATH: "/stackable/hadoop/share/hadoop/tools/lib/topology-provider-0.1.0.jar"
         net.topology.node.switch.mapping.impl: tech.stackable.hadoop.StackableTopologyProvider
 ----
 
@@ -111,10 +112,10 @@ metadata:
   name: simple-hdfs
 spec:
   nameNodes:
-    config:
     configOverrides:
       core-site.xml:
         net.topology.node.switch.mapping.impl: tech.stackable.hadoop.StackableTopologyProvider
     envOverrides:
+      HADOOP_CLASSPATH: "/stackable/hadoop/share/hadoop/tools/lib/topology-provider-0.1.0.jar"
       TOPOLOGY_LABELS: "node:topology.kubernetes.io/zone;pod:app.kubernetes.io/role-group"
 ----
