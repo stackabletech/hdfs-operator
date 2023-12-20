@@ -3,7 +3,7 @@
 Apache Hadoop supports a feature called Rack Awareness, which allows defining a topology for the nodes making up a cluster.
 Hadoop will then use that topology to spread out replicas of blocks in a fashion that maximizes fault tolerance.
 
-The default write path, for example, is to put replicas of a a newly created block first on a different node, but within the same rack, and the second copy on a node in a remote rack.
+The default write path, for example, is to put replicas of a newly created block first on a different node, but within the same rack, and the second copy on a node in a remote rack.
 In order for this to work properly, Hadoop needs to have information about the underlying infrastructure it runs on available - in a Kubernetes environment, this means obtaining information from the pods or nodes of the cluster.
 
 In order to enable gathering this information the Hadoop images contain https://github.com/stackabletech/hdfs-topology-provider on the classpath, which can be configured to read labels from Kubernetes objects.
