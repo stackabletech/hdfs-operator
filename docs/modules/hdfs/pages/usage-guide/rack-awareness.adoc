@@ -11,8 +11,7 @@ In order to enable gathering this information the Hadoop images contain https://
 In the current version of the SDP this is not exposed as fully integrated functionality in the operator, but rather needs to be configured via config overrides.
 
 
-NOTE:
-Until the operator code has been merged, users will need to manually deploy RBAC objects to allow the Hadoop pods access to the necessary Kubernetes objects.
+NOTE: Until the operator code has been merged, users will need to manually deploy RBAC objects to allow the Hadoop pods access to the necessary Kubernetes objects.
 
 Specifically this is a ClusterRole that allows reading pods and nodes, which needs to be bound to the individual ServiceAccounts that are deployed per Hadoop cluster.
 
@@ -56,7 +55,7 @@ subjects:
     namespace: <cluster-namespace>
 ----
 
-So for an HDFS cluster named `simple-hdfs` in the `stackable` namespace, the full ClusterRoleBinding would look like this:
+So for an HDFS cluster using the ServiceAccount `hdfs-serviceaccount` in the `stackable` namespace, the full ClusterRoleBinding would look like this:
 [source,yaml]
 ----
 ---
@@ -85,11 +84,11 @@ metadata:
   name: simple-hdfs
 spec:
   nameNodes:
-    config:
     configOverrides:
       core-site.xml:
-        HADOOP_CLASSPATH: "/stackable/hadoop/share/hadoop/tools/lib/topology-provider-0.1.0.jar"
         net.topology.node.switch.mapping.impl: tech.stackable.hadoop.StackableTopologyProvider
+    envOverrides:
+      HADOOP_CLASSPATH: "/stackable/hadoop/share/hadoop/tools/lib/topology-provider-0.1.0.jar"
 ----
 
 This instructs the namenode to use the topology tool for looking up information from Kubernetes.
