@@ -448,9 +448,10 @@ fn rolegroup_config_map(
                         "true",
                     )
                     .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
-                    .add("dfs.datańode.registered.port", "${env.DATA_PORT}")
-                    .add("dfs.datańode.registered.http.port", "1234")
-                    .add("dfs.datańode.registered.ipc.port", "${env.IPC_PORT}")
+                    .add("dfs.datanode.registered.port", "${env.DATA_PORT}")
+                    .add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}")
+                    // .add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}")
+                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}")
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
