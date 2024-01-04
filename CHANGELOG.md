@@ -4,14 +4,84 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- More CRD documentation ([#433]).
+
 ### Changed
 
-- Operator-rs: `0.40.2` -> `0.41.0` ([#349]).
+- `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
+
+[#433]: https://github.com/stackabletech/hdfs-operator/pull/433
+
+## [23.11.0] - 2023-11-24
+
+### Added
+
+- Default stackableVersion to operator version ([#381]).
+- Configuration overrides for the JVM security properties, such as DNS caching ([#384]).
+- Support PodDisruptionBudgets ([#394]).
+- Support graceful shutdown ([#407]).
+- Added support for 3.2.4, 3.3.6 ([#409]).
+
+### Changed
+
+- `vector` `0.26.0` -> `0.33.0` ([#378], [#409]).
+- Let secret-operator handle certificate conversion ([#392]).
+- `operator-rs` `0.44.0` -> `0.55.0` ([#381], [#394], [#404], [#405], [#409]).
+- Consolidate Rust workspace members ([#425]).
+
+### Fixed
+
+- Don't default roleGroup replicas to zero when not specified ([#402]).
+- [BREAKING] Removed field `autoFormatFs`, which was never read ([#422]).
+
+### Removed
+
+- Removed support for 3.3.1, 3.3.3 ([#409]).
+
+[#378]: https://github.com/stackabletech/hdfs-operator/pull/378
+[#381]: https://github.com/stackabletech/hdfs-operator/pull/381
+[#384]: https://github.com/stackabletech/hdfs-operator/pull/384
+[#392]: https://github.com/stackabletech/hdfs-operator/pull/392
+[#394]: https://github.com/stackabletech/hdfs-operator/pull/394
+[#402]: https://github.com/stackabletech/hdfs-operator/pull/402
+[#404]: https://github.com/stackabletech/hdfs-operator/pull/404
+[#405]: https://github.com/stackabletech/hdfs-operator/pull/405
+[#407]: https://github.com/stackabletech/hdfs-operator/pull/407
+[#409]: https://github.com/stackabletech/hdfs-operator/pull/409
+[#422]: https://github.com/stackabletech/hdfs-operator/pull/422
+[#425]: https://github.com/stackabletech/hdfs-operator/pull/425
+
+## [23.7.0] - 2023-07-14
+
+### Added
+
+- Add support for enabling secure mode with Kerberos ([#334]).
+- Generate OLM bundle for Release 23.4.0 ([#350]).
+- Missing CRD defaults for `status.conditions` field ([#354]).
+- Set explicit resources on all containers ([#359]).
+- Support podOverrides ([#368]).
+
+### Changed
+
+- Operator-rs: `0.40.2` -> `0.44.0` ([#349], [#372]).
 - Use 0.0.0-dev product images for testing ([#351])
 - Use testing-tools 0.2.0 ([#351])
+- Run as root group ([#353]).
+- Added kuttl test suites ([#364])
+- Increase the size limit of the log volumes ([#372])
 
+[#334]: https://github.com/stackabletech/hdfs-operator/pull/334
 [#349]: https://github.com/stackabletech/hdfs-operator/pull/349
+[#350]: https://github.com/stackabletech/hdfs-operator/pull/350
 [#351]: https://github.com/stackabletech/hdfs-operator/pull/351
+[#353]: https://github.com/stackabletech/hdfs-operator/pull/353
+[#354]: https://github.com/stackabletech/hdfs-operator/pull/354
+[#359]: https://github.com/stackabletech/hdfs-operator/pull/359
+[#364]: https://github.com/stackabletech/hdfs-operator/pull/364
+[#368]: https://github.com/stackabletech/hdfs-operator/pull/368
+[#372]: https://github.com/stackabletech/hdfs-operator/pull/372
 
 ## [23.4.0] - 2023-04-17
 
@@ -51,7 +121,6 @@ All notable changes to this project will be documented in this file.
 [#340]: https://github.com/stackabletech/hdfs-operator/pull/340
 [#341]: https://github.com/stackabletech/hdfs-operator/pull/341
 [#342]: https://github.com/stackabletech/hdfs-operator/pull/342
-
 
 ## [23.1.0] - 2023-01-23
 

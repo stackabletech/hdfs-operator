@@ -1,0 +1,145 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hdfs-namenode-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: namenode
+          resources:
+            requests:
+              cpu: 250m # From defaults
+              memory: 1Gi
+            limits:
+              cpu: "1" # From defaults
+              memory: 1Gi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
+        - name: zkfc
+      terminationGracePeriodSeconds: 900
+status:
+  readyReplicas: 2
+  replicas: 2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hdfs-journalnode-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: journalnode
+          resources:
+            requests:
+              cpu: 110m # From podOverrides
+              memory: 512Mi
+            limits:
+              cpu: 410m # From podOverrides
+              memory: 512Mi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
+      terminationGracePeriodSeconds: 900
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hdfs-datanode-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: datanode
+          resources:
+            requests:
+              cpu: 100m # From defaults
+              memory: 512Mi
+            limits:
+              cpu: 400m # From defaults
+              memory: 512Mi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
+      terminationGracePeriodSeconds: 1800
+status:
+  readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
+  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hdd-hdfs-datanode-default-0
+spec:
+  resources:
+    requests:
+      storage: 2Gi
+status:
+  accessModes:
+    - ReadWriteOnce
+  phase: Bound
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hdd-1-hdfs-datanode-default-0
+spec:
+  resources:
+    requests:
+      storage: 2Gi
+status:
+  accessModes:
+    - ReadWriteOnce
+  phase: Bound
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ssd-hdfs-datanode-default-0
+spec:
+  resources:
+    requests:
+      storage: 1Gi
+status:
+  accessModes:
+    - ReadWriteOnce
+  phase: Bound
+{% endif %}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-journalnode
+status:
+  expectedPods: 1
+  currentHealthy: 1
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-namenode
+status:
+  expectedPods: 2
+  currentHealthy: 2
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-datanode
+status:
+  expectedPods: {{ test_scenario['values']['number-of-datanodes'] }}
+  currentHealthy: {{ test_scenario['values']['number-of-datanodes'] }}
+  disruptionsAllowed: 1

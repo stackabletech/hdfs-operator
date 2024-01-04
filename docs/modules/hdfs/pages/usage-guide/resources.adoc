@@ -2,7 +2,25 @@
 
 == Storage for data volumes
 
-You can mount volumes where data is stored by specifying https://kubernetes.io/docs/concepts/storage/persistent-volumes[PersistentVolumeClaims] for each individual role group:
+You can mount volumes where data is stored by specifying https://kubernetes.io/docs/concepts/storage/persistent-volumes[PersistentVolumeClaims] for each individual role group.
+
+In case nothing is configured in the custom resource for a certain role group, each Pod will have one volume mount with `10Gi` capacity and storage type `Disk`:
+
+[source,yaml]
+----
+dataNodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          storage:
+            data:
+              count: 1
+              capacity: 10Gi
+              hdfsStorageType: Disk
+----
+
+These defaults can be overridden individually:
 
 [source,yaml]
 ----
@@ -17,8 +35,6 @@ dataNodes:
 ----
 
 In the above example, all DataNodes in the default group will store data (the location of `dfs.datanode.name.dir`) on a `128Gi` volume.
-
-By default, in case nothing is configured in the custom resource for a certain role group, each Pod will have a `5Gi` large volume mount for the data location.
 
 === Multiple storage volumes
 
@@ -35,8 +51,6 @@ dataNodes:
       config:
         resources:
           storage:
-            data: # We need to overwrite the data pvcs coming from the default value
-              count: 0
             my-disks:
               count: 3
               capacity: 12Ti
@@ -46,6 +60,10 @@ dataNodes:
               capacity: 5Ti
               storageClass: premium-ssd
               hdfsStorageType: SSD
+            # The default "data" PVC will still be created.
+            # If this is not desired then the count must be set to 0.
+            data:
+              count: 0
 ----
 
 This will create the following PVCs:
@@ -61,7 +79,7 @@ By configuring and using a dedicated https://kubernetes.io/docs/concepts/storage
 [NOTE]
 ====
 You might need to re-create the StatefulSet to apply the new PVC configuration because of https://github.com/kubernetes/kubernetes/issues/68737[this Kubernetes issue].
-You can delete the StatefulSet using `kubectl delete sts --cascade=false <statefulset>`.
+You can delete the StatefulSet using `kubectl delete statefulsets --cascade=orphan <statefulset>`.
 The hdfs-operator will re-create the StatefulSet automatically.
 ====
 
@@ -69,19 +87,49 @@ The hdfs-operator will re-create the StatefulSet automatically.
 
 include::home:concepts:stackable_resource_requests.adoc[]
 
-If no resource requests are configured explicitly, the HDFS operator uses the following defaults:
+A minimal HA setup consisting of 3 journalnodes, 2 namenodes and 2 datanodes has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
+
+* `2950m` CPU request
+* `8300m` CPU limit
+* `6528m` memory request and limit
+* `27648Mi` persistent storage
+
+Corresponding to the values above, the operator uses the following resource defaults:
 
 [source,yaml]
 ----
-dataNodes:
-  roleGroups:
-    default:
-      config:
-        resources:
-          cpu:
-            max: '4'
-            min: '100m'
-          storage:
-            data:
-              capacity: 2Gi
+spec:
+  journalNodes:
+    config:
+      resources:
+        cpu:
+          min: 100m
+          max: 400m
+        memory:
+          limit: 512Mi
+        storage:
+          data:
+            capacity: 1Gi
+  nameNodes:
+    config:
+      resources:
+        cpu:
+          min: 250m
+          max: 1000m
+        memory:
+          limit: 1024Mi
+        storage:
+          data:
+            capacity: 2Gi
+  dataNodes:
+    config:
+      resources:
+        cpu:
+          min: 100m
+          max: 400m
+        memory:
+          limit: 512Mi
+        storage:
+          data:
+            capacity: 10Gi
 ----

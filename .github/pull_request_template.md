@@ -1,9 +1,7 @@
-
 # Description
 
 *Please add a description here. This will become the commit message of the merge request later.*
 
-<!-- Commit message above. Everything below is not added to the message. Do not change this line! -->
 
 ## Definition of Done Checklist
 
@@ -14,15 +12,17 @@
 # Author
 - [ ] Changes are OpenShift compatible
 - [ ] CRD changes approved
+- [ ] CRD documentation for all fields, following the [style guide](https://docs.stackable.tech/home/nightly/contributor/style-guide).
 - [ ] Helm chart can be installed and deployed operator works
 - [ ] Integration tests passed (for non trivial changes)
+- [ ] Changes need to be "offline" compatible
 ```
 
 ```[tasklist]
 # Reviewer
 - [ ] Code contains useful comments
 - [ ] (Integration-)Test cases added
-- [ ] Documentation added or updated
+- [ ] Documentation added or updated. Follows the [style guide](https://docs.stackable.tech/home/nightly/contributor/style-guide).
 - [ ] Changelog updated
 - [ ] Cargo.toml only contains references to git tags (not specific commits or branches)
 ```
@@ -32,5 +32,3 @@
 - [ ] Feature Tracker has been updated
 - [ ] Proper release label has been added
 ```
-
-Once the review is done, comment `bors r+` (or `bors merge`) to merge. [Further information](https://bors.tech/documentation/getting-started/#reviewing-pull-requests)

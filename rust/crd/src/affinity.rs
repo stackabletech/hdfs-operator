@@ -55,8 +55,7 @@ metadata:
   name: simple-hdfs
 spec:
   image:
-    productVersion: 3.3.4
-    stackableVersion: 0.2.0
+    productVersion: 3.3.6
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   journalNodes:
@@ -143,9 +142,8 @@ metadata:
   name: simple-hdfs
 spec:
   image:
-    productVersion: 3.3.4
-    stackableVersion: 0.2.0
-  clusterConfig:    
+    productVersion: 3.3.6
+  clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   journalNodes:
     roleGroups:

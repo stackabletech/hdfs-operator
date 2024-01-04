@@ -5,8 +5,8 @@ metadata:
   name: test-hdfs-automatic-log
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['hadoop'].split('-stackable')[1] }}"
+    productVersion: "{{ test_scenario['values']['hadoop'] }}"
+    pullPolicy: IfNotPresent
   clusterConfig:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
     zookeeperConfigMapName: test-hdfs-automatic-log-znode
