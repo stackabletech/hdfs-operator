@@ -4,12 +4,14 @@ pub mod storage;
 
 use affinity::get_affinity;
 use constants::*;
+use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
+        listener::Listener,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -21,7 +23,10 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+    k8s_openapi::{
+        api::core::v1::Pod,
+        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+    },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     labels::role_group_selector_labels,
     product_config::types::PropertyNameKind,
@@ -41,14 +46,25 @@ use strum::{Display, EnumIter, EnumString};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Object has no associated namespace"))]
+    #[snafu(display("object has no associated namespace"))]
     NoNamespace,
-    #[snafu(display("Missing node role [{role}]"))]
+    #[snafu(display("missing node role {role:?}"))]
     MissingRole { role: String },
-    #[snafu(display("Missing role group [{role_group}] for role [{role}]"))]
+    #[snafu(display("missing role group {role_group:?} for role {role:?}"))]
     MissingRoleGroup { role: String, role_group: String },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+    #[snafu(display("unable to get {listener} (for {pod})"))]
+    GetPodListener {
+        source: stackable_operator::error::Error,
+        listener: ObjectRef<Listener>,
+        pod: ObjectRef<Pod>,
+    },
+    #[snafu(display("pod listener {listener} (for {pod}) has no address"))]
+    PodListenerHasNoAddress {
+        listener: ObjectRef<Listener>,
+        pod: ObjectRef<Pod>,
+    },
 }
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -529,9 +545,48 @@ impl HdfsCluster {
                     role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                     ports: role.ports().iter().map(|(n, p)| (n.clone(), *p)).collect(),
+                    fqdn_override: None,
                 })
             })
             .collect())
+    }
+
+    pub async fn namenode_listener_refs(
+        &self,
+        client: &stackable_operator::client::Client,
+    ) -> Result<Vec<HdfsPodRef>, Error> {
+        let pod_refs = self.pod_refs(&HdfsRole::NameNode)?;
+        try_join_all(pod_refs.into_iter().map(|pod_ref| async {
+            let listener_name = format!("listener-{}", pod_ref.pod_name);
+            let listener_ref =
+                || ObjectRef::<Listener>::new(&listener_name).within(&pod_ref.namespace);
+            let pod_obj_ref =
+                || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(&pod_ref.namespace);
+            let listener = client
+                .get::<Listener>(&listener_name, &pod_ref.namespace)
+                .await
+                .context(GetPodListenerSnafu {
+                    listener: listener_ref(),
+                    pod: pod_obj_ref(),
+                })?;
+            let listener_address = listener
+                .status
+                .and_then(|s| s.ingress_addresses?.into_iter().next())
+                .context(PodListenerHasNoAddressSnafu {
+                    listener: listener_ref(),
+                    pod: pod_obj_ref(),
+                })?;
+            Ok(HdfsPodRef {
+                fqdn_override: Some(listener_address.address),
+                ports: listener_address
+                    .ports
+                    .into_iter()
+                    .map(|(k, v)| (k, v as u16))
+                    .collect(),
+                ..pod_ref
+            })
+        }))
+        .await
     }
 
     pub fn rolegroup_ref_and_replicas(
@@ -649,15 +704,18 @@ pub struct HdfsPodRef {
     pub namespace: String,
     pub role_group_service_name: String,
     pub pod_name: String,
+    pub fqdn_override: Option<String>,
     pub ports: HashMap<String, u16>,
 }
 
 impl HdfsPodRef {
     pub fn fqdn(&self) -> String {
-        format!(
-            "{}.{}.{}.svc.cluster.local",
-            self.pod_name, self.role_group_service_name, self.namespace
-        )
+        self.fqdn_override.clone().unwrap_or_else(|| {
+            format!(
+                "{}.{}.{}.svc.cluster.local",
+                self.pod_name, self.role_group_service_name, self.namespace
+            )
+        })
     }
 }
 

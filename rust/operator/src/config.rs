@@ -139,6 +139,7 @@ impl HdfsSiteConfigBuilder {
         self.dfs_namenode_address_ha(
             namenode_podrefs,
             DFS_NAMENODE_RPC_ADDRESS,
+            "rpc",
             DEFAULT_NAME_NODE_RPC_PORT,
         );
         self
@@ -148,6 +149,7 @@ impl HdfsSiteConfigBuilder {
         self.dfs_namenode_address_ha(
             namenode_podrefs,
             DFS_NAMENODE_HTTP_ADDRESS,
+            "http",
             DEFAULT_NAME_NODE_HTTP_PORT,
         );
         self
@@ -157,6 +159,7 @@ impl HdfsSiteConfigBuilder {
         &mut self,
         namenode_podrefs: &[HdfsPodRef],
         address: &str,
+        port_name: &str,
         default_port: u16,
     ) -> &mut Self {
         for nn in namenode_podrefs {
@@ -165,7 +168,7 @@ impl HdfsSiteConfigBuilder {
                 format!(
                     "{}:{}",
                     nn.fqdn(),
-                    nn.ports.get(address).map_or(default_port, |p| *p)
+                    nn.ports.get(port_name).map_or(default_port, |p| *p)
                 ),
             );
         }

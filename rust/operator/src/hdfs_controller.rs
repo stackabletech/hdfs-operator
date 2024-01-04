@@ -103,7 +103,9 @@ pub enum Error {
         role: String,
         role_group: String,
     },
-    #[snafu(display("Cannot build config discovery config map"))]
+    #[snafu(display("Cannot collect discovery configuration"))]
+    CollectDiscoveryConfig { source: stackable_hdfs_crd::Error },
+    #[snafu(display("Cannot build discovery config map"))]
     BuildDiscoveryConfigMap {
         source: stackable_operator::error::Error,
     },
@@ -206,23 +208,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let discovery_cm = build_discovery_configmap(
-        &hdfs,
-        HDFS_CONTROLLER,
-        &namenode_podrefs,
-        &resolved_product_image,
-    )
-    .context(BuildDiscoveryConfigMapSnafu)?;
-
-    // The discovery CM is linked to the cluster lifecycle via ownerreference.
-    // Therefore, must not be added to the "orphaned" cluster resources
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
-        .await
-        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
-            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
-        })?;
-
     // The service account and rolebinding will be created per cluster
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         hdfs.as_ref(),
@@ -317,6 +302,26 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             );
         }
     }
+
+    let discovery_cm = build_discovery_configmap(
+        &hdfs,
+        HDFS_CONTROLLER,
+        &hdfs
+            .namenode_listener_refs(client)
+            .await
+            .context(CollectDiscoveryConfigSnafu)?,
+        &resolved_product_image,
+    )
+    .context(BuildDiscoveryConfigMapSnafu)?;
+
+    // The discovery CM is linked to the cluster lifecycle via ownerreference.
+    // Therefore, must not be added to the "orphaned" cluster resources
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        .await
+        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
+            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
+        })?;
 
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&hdfs.spec.cluster_operation);
