@@ -509,7 +509,8 @@ fn rolegroup_config_map(
                 // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
                 // be formatted by the namenode, or used by the other services.
                 // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-                hdfs_site_xml = HdfsSiteConfigBuilder::new(hdfs_name.to_string())
+                let mut builder = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
+                builder
                     .dfs_namenode_name_dir()
                     .dfs_datanode_data_dir(merged_config.data_node_resources().map(|r| r.storage))
                     .dfs_journalnode_edits_dir()
@@ -532,12 +533,14 @@ fn rolegroup_config_map(
                     )
                     .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
                     .add("dfs.datanode.registered.port", "${env.DATA_PORT}")
-                    .add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}")
-                    // .add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}")
-                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}")
-                    // the extend with config must come last in order to have overrides working!!!
-                    .extend(config)
-                    .build_as_xml();
+                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}");
+                if hdfs.has_https_enabled() {
+                    builder.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
+                } else {
+                    builder.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");
+                }
+                // the extend with config must come last in order to have overrides working!!!
+                hdfs_site_xml = builder.extend(config).build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
