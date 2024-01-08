@@ -27,7 +27,8 @@ use stackable_hdfs_crd::{
         STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
-    DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
+    DataNodeContainer, HdfsCluster, HdfsClusterConfig, HdfsPodRef, HdfsRole, MergedConfig,
+    NameNodeContainer,
 };
 use stackable_operator::{
     builder::{
@@ -162,7 +163,12 @@ impl ContainerConfig {
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(role.clone());
-        pb.add_volumes(main_container_config.volumes(merged_config, object_name));
+        pb.add_volumes(main_container_config.volumes(
+            &hdfs.spec.cluster_config,
+            role,
+            merged_config,
+            object_name,
+        ));
         pb.add_container(main_container_config.main_container(
             hdfs,
             role,
@@ -224,7 +230,12 @@ impl ContainerConfig {
             HdfsRole::NameNode => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
-                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
+                pb.add_volumes(zkfc_container_config.volumes(
+                    &hdfs.spec.cluster_config,
+                    role,
+                    merged_config,
+                    object_name,
+                ));
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
                     role,
@@ -237,9 +248,12 @@ impl ContainerConfig {
                 // Format namenode init container
                 let format_namenodes_container_config =
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
-                pb.add_volumes(
-                    format_namenodes_container_config.volumes(merged_config, object_name),
-                );
+                pb.add_volumes(format_namenodes_container_config.volumes(
+                    &hdfs.spec.cluster_config,
+                    role,
+                    merged_config,
+                    object_name,
+                ));
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
                     role,
@@ -253,9 +267,12 @@ impl ContainerConfig {
                 // Format ZooKeeper init container
                 let format_zookeeper_container_config =
                     Self::try_from(NameNodeContainer::FormatZooKeeper.to_string())?;
-                pb.add_volumes(
-                    format_zookeeper_container_config.volumes(merged_config, object_name),
-                );
+                pb.add_volumes(format_zookeeper_container_config.volumes(
+                    &hdfs.spec.cluster_config,
+                    role,
+                    merged_config,
+                    object_name,
+                ));
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
                     role,
@@ -270,9 +287,12 @@ impl ContainerConfig {
                 // Wait for namenode init container
                 let wait_for_namenodes_container_config =
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
-                pb.add_volumes(
-                    wait_for_namenodes_container_config.volumes(merged_config, object_name),
-                );
+                pb.add_volumes(wait_for_namenodes_container_config.volumes(
+                    &hdfs.spec.cluster_config,
+                    role,
+                    merged_config,
+                    object_name,
+                ));
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
                     role,
@@ -290,6 +310,7 @@ impl ContainerConfig {
     }
 
     pub fn volume_claim_templates(
+        cluster_config: &HdfsClusterConfig,
         role: &HdfsRole,
         merged_config: &(dyn MergedConfig + Send + 'static),
     ) -> Option<Vec<PersistentVolumeClaim>> {
@@ -297,7 +318,7 @@ impl ContainerConfig {
             HdfsRole::NameNode => merged_config.name_node_resources().map(|r| {
                 let listener =
                     ListenerOperatorVolumeSourceBuilder::new(&ListenerReference::ListenerClass(
-                        "external-stable".into(), // TODO read from spec.clusterConfig.listenerClass
+                        cluster_config.namenode_listener_class.clone(),
                     ))
                     .build()
                     .volume_claim_template
@@ -320,7 +341,7 @@ impl ContainerConfig {
             HdfsRole::JournalNode => merged_config.journal_node_resources().map(|r| {
                 let listener =
                     ListenerOperatorVolumeSourceBuilder::new(&ListenerReference::ListenerClass(
-                        "cluster-internal".into(), // TODO read from spec.clusterConfig.listenerClass
+                        cluster_config.journalnode_listener_class.clone(),
                     ))
                     .build()
                     .volume_claim_template
@@ -802,6 +823,8 @@ wait_for_termination $!
     /// Return the container volumes.
     fn volumes(
         &self,
+        cluster_config: &HdfsClusterConfig,
+        role: &HdfsRole,
         merged_config: &(dyn MergedConfig + Send + 'static),
         object_name: &str,
     ) -> Vec<Volume> {
@@ -826,14 +849,13 @@ wait_for_termination $!
                         .build(),
                 );
 
-                // FIXME
-                if object_name.contains("datanode") {
+                if *role == HdfsRole::DataNode {
                     volumes.push(
                         VolumeBuilder::new("listener")
                             .ephemeral(
                                 ListenerOperatorVolumeSourceBuilder::new(
                                     &ListenerReference::ListenerClass(
-                                        "external-unstable".into(), // TODO read from spec.clusterConfig.listenerClass
+                                        cluster_config.datanode_listener_class.clone(),
                                     ),
                                 )
                                 .build(),
@@ -911,9 +933,10 @@ wait_for_termination $!
                     );
                 }
                 HdfsRole::DataNode => {
-                    for pvc in Self::volume_claim_templates(role, merged_config)
-                        .iter()
-                        .flatten()
+                    for pvc in
+                        Self::volume_claim_templates(&hdfs.spec.cluster_config, role, merged_config)
+                            .iter()
+                            .flatten()
                     {
                         let pvc_name = pvc.name_any();
                         volume_mounts.push(VolumeMount {

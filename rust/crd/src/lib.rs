@@ -141,17 +141,12 @@ pub struct HdfsClusterConfig {
     /// for a ZooKeeper cluster.
     pub zookeeper_config_map_name: String,
 
-    /// This field controls which type of Service the Operator creates for this HdfsCluster:
-    ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
+    #[serde(default = "default_listener_class")]
+    pub journalnode_listener_class: String,
+    #[serde(default = "default_listener_class")]
+    pub namenode_listener_class: String,
+    #[serde(default = "default_listener_class")]
+    pub datanode_listener_class: String,
 
     /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
     pub authentication: Option<AuthenticationConfig>,
@@ -161,26 +156,8 @@ fn default_dfs_replication_factor() -> u8 {
     DEFAULT_DFS_REPLICATION_FACTOR
 }
 
-// TODO: Temporary solution until listener-operator is finished
-#[derive(
-    Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
-)]
-#[serde(rename_all = "PascalCase")]
-pub enum CurrentlySupportedListenerClasses {
-    #[default]
-    #[serde(rename = "cluster-internal")]
-    ClusterInternal,
-    #[serde(rename = "external-unstable")]
-    ExternalUnstable,
-}
-
-impl CurrentlySupportedListenerClasses {
-    pub fn k8s_service_type(&self) -> String {
-        match self {
-            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-        }
-    }
+fn default_listener_class() -> String {
+    "cluster-internal".to_string()
 }
 
 /// This is a shared trait for all role/role-group config structs to avoid duplication

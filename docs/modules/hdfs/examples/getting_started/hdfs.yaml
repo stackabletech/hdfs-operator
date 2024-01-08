@@ -10,7 +10,8 @@ spec:
     repo: localhost:41445/stackable
   clusterConfig:
     zookeeperConfigMapName: simple-hdfs-znode
-    listenerClass: external-unstable
+    namenodeListenerClass: external-stable
+    datanodeListenerClass: external-unstable
     dfsReplication: 1
   nameNodes:
     roleGroups:
