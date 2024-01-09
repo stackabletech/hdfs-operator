@@ -1,6 +1,7 @@
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    hdfs_controller::Error,
 };
 use stackable_hdfs_crd::{
     constants::{CORE_SITE_XML, HDFS_SITE_XML},
@@ -9,9 +10,8 @@ use stackable_hdfs_crd::{
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
-    error::OperatorResult,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::ResourceExt,
+    kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
 
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
@@ -21,12 +21,16 @@ pub fn build_discovery_configmap(
     controller: &str,
     namenode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
-) -> OperatorResult<ConfigMap> {
+) -> Result<ConfigMap, crate::hdfs_controller::Error> {
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(hdfs)
-                .ownerreference_from_resource(hdfs, None, Some(true))?
+                .ownerreference_from_resource(hdfs, None, Some(true))
+                .map_err(|err| Error::ObjectMissingMetadataForOwnerRef {
+                    source: err,
+                    obj_ref: ObjectRef::from_obj(hdfs),
+                })?
                 .with_recommended_labels(build_recommended_labels(
                     hdfs,
                     controller,
@@ -42,9 +46,10 @@ pub fn build_discovery_configmap(
         )
         .add_data(
             CORE_SITE_XML,
-            build_discovery_core_site_xml(hdfs, hdfs.name_any()),
+            build_discovery_core_site_xml(hdfs, hdfs.name_any())?,
         )
         .build()
+        .map_err(|err| Error::BuildDiscoveryConfigMap { source: err })
 }
 
 fn build_discovery_hdfs_site_xml(
@@ -62,9 +67,12 @@ fn build_discovery_hdfs_site_xml(
         .build_as_xml()
 }
 
-fn build_discovery_core_site_xml(hdfs: &HdfsCluster, logical_name: String) -> String {
-    CoreSiteConfigBuilder::new(logical_name)
+fn build_discovery_core_site_xml(
+    hdfs: &HdfsCluster,
+    logical_name: String,
+) -> Result<String, Error> {
+    Ok(CoreSiteConfigBuilder::new(logical_name)
         .fs_default_fs()
-        .security_discovery_config(hdfs)
-        .build_as_xml()
+        .security_discovery_config(hdfs)?
+        .build_as_xml())
 }

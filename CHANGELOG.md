@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 
 - `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
 
+### Fixed
+
+- Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
+  and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#XXX]).
+
 [#433]: https://github.com/stackabletech/hdfs-operator/pull/433
 
 ## [23.11.0] - 2023-11-24

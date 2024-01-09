@@ -441,6 +441,11 @@ impl HdfsRole {
 }
 
 impl HdfsCluster {
+    /// Return the namespace of the cluster or an error in case it is not set.
+    pub fn namespace_or_error(&self) -> Result<String, Error> {
+        self.namespace().context(NoNamespaceSnafu)
+    }
+
     /// Kubernetes labels to attach to Pods within a role group.
     ///
     /// The same labels are also used as selectors for Services and StatefulSets.
