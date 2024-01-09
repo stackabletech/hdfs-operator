@@ -81,33 +81,39 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: hdd-hdfs-datanode-default-0
+spec:
+  resources:
+    requests:
+      storage: 2Gi
 status:
   accessModes:
     - ReadWriteOnce
-  capacity:
-    storage: 2Gi
   phase: Bound
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: hdd-1-hdfs-datanode-default-0
+spec:
+  resources:
+    requests:
+      storage: 2Gi
 status:
   accessModes:
     - ReadWriteOnce
-  capacity:
-    storage: 2Gi
   phase: Bound
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: ssd-hdfs-datanode-default-0
+spec:
+  resources:
+    requests:
+      storage: 1Gi
 status:
   accessModes:
     - ReadWriteOnce
-  capacity:
-    storage: 1Gi
   phase: Bound
 {% endif %}
 ---

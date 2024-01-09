@@ -5,5 +5,6 @@ helm:
 versions:
   commons: 0.0.0-dev
   secret: 0.0.0-dev
+  listener: 0.0.0-dev
   zookeeper: 0.0.0-dev
   hdfs: 0.0.0-dev

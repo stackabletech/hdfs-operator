@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- More CRD documentation ([#433]).
+
+### Changed
+
+- `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
+
+[#433]: https://github.com/stackabletech/hdfs-operator/pull/433
+
+## [23.11.0] - 2023-11-24
+
+### Added
+
 - Default stackableVersion to operator version ([#381]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#384]).
 - Support PodDisruptionBudgets ([#394]).
@@ -17,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - `vector` `0.26.0` -> `0.33.0` ([#378], [#409]).
 - Let secret-operator handle certificate conversion ([#392]).
 - `operator-rs` `0.44.0` -> `0.55.0` ([#381], [#394], [#404], [#405], [#409]).
+- Consolidate Rust workspace members ([#425]).
 
 ### Fixed
 
@@ -41,6 +54,7 @@ All notable changes to this project will be documented in this file.
 [#409]: https://github.com/stackabletech/hdfs-operator/pull/409
 [#422]: https://github.com/stackabletech/hdfs-operator/pull/422
 [#424]: https://github.com/stackabletech/hdfs-operator/pull/424
+[#425]: https://github.com/stackabletech/hdfs-operator/pull/425
 
 ## [23.7.0] - 2023-07-14
 

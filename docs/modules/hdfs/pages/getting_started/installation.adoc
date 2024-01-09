@@ -1,7 +1,7 @@
 = Installation
 
 On this page you will install the Stackable HDFS operator and its dependency, the Zookeeper operator, as well as the
-commons and secret operators which are required by all Stackable operators.
+commons, secret and listener operators which are required by all Stackable operators.
 
 == Stackable Operators
 
@@ -28,6 +28,7 @@ The tool will show
 ----
 [INFO ] Installing commons operator
 [INFO ] Installing secret operator
+[INFO ] Installing listener operator
 [INFO ] Installing zookeeper operator
 [INFO ] Installing hdfs operator
 ----
