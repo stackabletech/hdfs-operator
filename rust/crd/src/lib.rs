@@ -141,23 +141,12 @@ pub struct HdfsClusterConfig {
     /// for a ZooKeeper cluster.
     pub zookeeper_config_map_name: String,
 
-    #[serde(default = "default_listener_class")]
-    pub journalnode_listener_class: String,
-    #[serde(default = "default_listener_class")]
-    pub namenode_listener_class: String,
-    #[serde(default = "default_listener_class")]
-    pub datanode_listener_class: String,
-
     /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
     pub authentication: Option<AuthenticationConfig>,
 }
 
 fn default_dfs_replication_factor() -> u8 {
     DEFAULT_DFS_REPLICATION_FACTOR
-}
-
-fn default_listener_class() -> String {
-    "cluster-internal".to_string()
 }
 
 /// This is a shared trait for all role/role-group config structs to avoid duplication
@@ -198,6 +187,7 @@ pub trait MergedConfig {
     fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
         None
     }
+    fn listener_class(&self) -> &str;
 }
 
 #[derive(
@@ -897,6 +887,8 @@ pub struct NameNodeConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+    #[fragment_attrs(serde(default))]
+    pub listener_class: String,
 }
 
 impl MergedConfig for NameNodeConfig {
@@ -952,6 +944,10 @@ impl MergedConfig for NameNodeConfig {
             .get(&NameNodeContainer::FormatZooKeeper)
             .cloned()
     }
+
+    fn listener_class(&self) -> &str {
+        &self.listener_class
+    }
 }
 
 impl NameNodeConfigFragment {
@@ -977,6 +973,7 @@ impl NameNodeConfigFragment {
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
         }
     }
 }
@@ -1065,6 +1062,8 @@ pub struct DataNodeConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+    #[fragment_attrs(serde(default))]
+    pub listener_class: String,
 }
 
 impl MergedConfig for DataNodeConfig {
@@ -1108,6 +1107,10 @@ impl MergedConfig for DataNodeConfig {
             .get(&DataNodeContainer::WaitForNameNodes)
             .cloned()
     }
+
+    fn listener_class(&self) -> &str {
+        &self.listener_class
+    }
 }
 
 impl DataNodeConfigFragment {
@@ -1138,6 +1141,7 @@ impl DataNodeConfigFragment {
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
         }
     }
 }
@@ -1224,6 +1228,8 @@ pub struct JournalNodeConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+    #[fragment_attrs(serde(default))]
+    pub listener_class: String,
 }
 
 impl MergedConfig for JournalNodeConfig {
@@ -1258,6 +1264,10 @@ impl MergedConfig for JournalNodeConfig {
     fn vector_logging_enabled(&self) -> bool {
         self.logging.enable_vector_agent
     }
+
+    fn listener_class(&self) -> &str {
+        &self.listener_class
+    }
 }
 
 impl JournalNodeConfigFragment {
@@ -1283,6 +1293,7 @@ impl JournalNodeConfigFragment {
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
         }
     }
 }

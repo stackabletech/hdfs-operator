@@ -24,6 +24,8 @@ pub const SERVICE_PORT_NAME_HTTPS: &str = "https";
 pub const SERVICE_PORT_NAME_DATA: &str = "data";
 pub const SERVICE_PORT_NAME_METRICS: &str = "metrics";
 
+pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
+
 pub const DEFAULT_NAME_NODE_METRICS_PORT: u16 = 8183;
 pub const DEFAULT_NAME_NODE_HTTP_PORT: u16 = 9870;
 pub const DEFAULT_NAME_NODE_HTTPS_PORT: u16 = 9871;
