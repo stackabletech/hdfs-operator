@@ -288,17 +288,6 @@ impl HdfsRole {
                     .config
                     .clone();
 
-                if let Some(RoleGroup {
-                    selector: Some(selector),
-                    ..
-                }) = role.role_groups.get(role_group)
-                {
-                    // Migrate old `selector` attribute, see ADR 26 affinities.
-                    // TODO Can be removed after support for the old `selector` field is dropped.
-                    #[allow(deprecated)]
-                    role_group_config.affinity.add_legacy_selector(selector);
-                }
-
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
                 Ok(Box::new(
@@ -326,17 +315,6 @@ impl HdfsRole {
                     .config
                     .config
                     .clone();
-
-                if let Some(RoleGroup {
-                    selector: Some(selector),
-                    ..
-                }) = role.role_groups.get(role_group)
-                {
-                    // Migrate old `selector` attribute, see ADR 26 affinities.
-                    // TODO Can be removed after support for the old `selector` field is dropped.
-                    #[allow(deprecated)]
-                    role_group_config.affinity.add_legacy_selector(selector);
-                }
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
@@ -366,17 +344,6 @@ impl HdfsRole {
                     .config
                     .config
                     .clone();
-
-                if let Some(RoleGroup {
-                    selector: Some(selector),
-                    ..
-                }) = role.role_groups.get(role_group)
-                {
-                    // Migrate old `selector` attribute, see ADR 26 affinities.
-                    // TODO Can be removed after support for the old `selector` field is dropped.
-                    #[allow(deprecated)]
-                    role_group_config.affinity.add_legacy_selector(selector);
-                }
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
