@@ -887,6 +887,8 @@ pub struct NameNodeConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose this rolegroup.
+    /// NameNodes should have a stable ListenerClass, such as `cluster-internal` or `external-stable`.
     #[fragment_attrs(serde(default))]
     pub listener_class: String,
 }
@@ -1062,6 +1064,8 @@ pub struct DataNodeConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose this rolegroup.
+    /// DataNodes should have a direct ListenerClass, such as `cluster-internal` or `external-unstable`.
     #[fragment_attrs(serde(default))]
     pub listener_class: String,
 }
