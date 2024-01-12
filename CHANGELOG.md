@@ -7,12 +7,15 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - More CRD documentation ([#433]).
+- Support for exposing HDFS clusters to clients outside of Kubernetes ([#450]).
 
 ### Changed
 
 - `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
+- [BREAKING] `.spec.clusterConfig.listenerClass` has been renamed to `.spec.nameNodes.config.listenerClass`, migration will be required when using `external-unstable` ([#450]).
 
 [#433]: https://github.com/stackabletech/hdfs-operator/pull/433
+[#450]: https://github.com/stackabletech/hdfs-operator/pull/450
 
 ## [23.11.0] - 2023-11-24
 
