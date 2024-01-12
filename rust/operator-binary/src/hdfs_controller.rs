@@ -277,8 +277,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         HDFS_CONTROLLER,
         &namenode_podrefs,
         &resolved_product_image,
-    )
-    .context(BuildDiscoveryConfigMapSnafu)?;
+    )?;
 
     // The discovery CM is linked to the cluster lifecycle via ownerreference.
     // Therefore, must not be added to the "orphaned" cluster resources
@@ -482,11 +481,6 @@ fn rolegroup_config_map(
         .with_context(|| ObjectHasNoNameSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
-    let hdfs_namespace = hdfs
-        .namespace()
-        .with_context(|| ObjectHasNoNamespaceSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
 
     let mut hdfs_site_xml = String::new();
     let mut core_site_xml = String::new();
@@ -525,7 +519,7 @@ fn rolegroup_config_map(
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
-                    .security_config(hdfs, hdfs_name, &hdfs_namespace)
+                    .security_config(hdfs)?
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
