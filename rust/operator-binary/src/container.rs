@@ -298,46 +298,50 @@ impl ContainerConfig {
     pub fn volume_claim_templates(
         role: &HdfsRole,
         merged_config: &(dyn MergedConfig + Send + 'static),
-    ) -> Option<Vec<PersistentVolumeClaim>> {
-        let listener_pvc = || {
-            let listener = ListenerOperatorVolumeSourceBuilder::new(
-                &ListenerReference::ListenerClass(merged_config.listener_class().to_string()),
-            )
-            .build()
-            .volume_claim_template
-            .unwrap();
-            PersistentVolumeClaim {
-                metadata: ObjectMeta {
-                    name: Some("listener".to_string()),
-                    ..listener.metadata.unwrap()
-                },
-                spec: Some(listener.spec),
-                ..Default::default()
-            }
-        };
+    ) -> Vec<PersistentVolumeClaim> {
         match role {
-            HdfsRole::NameNode => merged_config.name_node_resources().map(|r| {
-                vec![
+            HdfsRole::NameNode => [
+                merged_config.name_node_resources().map(|r| {
                     r.storage.data.build_pvc(
                         ContainerConfig::DATA_VOLUME_MOUNT_NAME,
                         Some(vec!["ReadWriteOnce"]),
-                    ),
-                    listener_pvc(),
-                ]
-            }),
-            HdfsRole::JournalNode => merged_config.journal_node_resources().map(|r| {
-                vec![
+                    )
+                }),
+                merged_config.listener_class().map(|listener_class| {
+                    let listener = ListenerOperatorVolumeSourceBuilder::new(
+                        &ListenerReference::ListenerClass(listener_class.to_string()),
+                    )
+                    .build()
+                    .volume_claim_template
+                    .unwrap();
+                    PersistentVolumeClaim {
+                        metadata: ObjectMeta {
+                            name: Some("listener".to_string()),
+                            ..listener.metadata.unwrap()
+                        },
+                        spec: Some(listener.spec),
+                        ..Default::default()
+                    }
+                }),
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+            HdfsRole::JournalNode => merged_config
+                .journal_node_resources()
+                .map(|r| {
                     r.storage.data.build_pvc(
                         ContainerConfig::DATA_VOLUME_MOUNT_NAME,
                         Some(vec!["ReadWriteOnce"]),
-                    ),
-                    listener_pvc(),
-                ]
-            }),
+                    )
+                })
+                .into_iter()
+                .collect(),
             HdfsRole::DataNode => merged_config
                 .data_node_resources()
                 .map(|r| r.storage)
-                .map(|storage| DataNodeStorageConfig { pvcs: storage }.build_pvcs()),
+                .map(|storage| DataNodeStorageConfig { pvcs: storage }.build_pvcs())
+                .unwrap_or_default(),
         }
     }
 
@@ -481,10 +485,12 @@ impl ContainerConfig {
 {COMMON_BASH_TRAP_FUNCTIONS}
 {remove_vector_shutdown_file_command}
 prepare_signal_handlers
-export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
-for i in /stackable/listener/default-address/ports/*; do
-  export $(basename $i | tr a-z A-Z)_PORT="$(cat $i)"
-done
+if [[ -d {STACKABLE_LISTENER_DIR} ]]; then
+    export POD_ADDRESS=$(cat {STACKABLE_LISTENER_DIR}/default-address/address)
+    for i in {STACKABLE_LISTENER_DIR}/default-address/ports/*; do
+        export $(basename $i | tr a-z A-Z)_PORT="$(cat $i)"
+    done
+fi
 {hadoop_home}/bin/hdfs {role} &
 wait_for_termination $!
 {create_vector_shutdown_file_command}
@@ -822,18 +828,20 @@ wait_for_termination $!
                 );
 
                 if *role == HdfsRole::DataNode {
-                    volumes.push(
-                        VolumeBuilder::new("listener")
-                            .ephemeral(
-                                ListenerOperatorVolumeSourceBuilder::new(
-                                    &ListenerReference::ListenerClass(
-                                        merged_config.listener_class().to_string(),
-                                    ),
+                    if let Some(listener_class) = merged_config.listener_class() {
+                        volumes.push(
+                            VolumeBuilder::new("listener")
+                                .ephemeral(
+                                    ListenerOperatorVolumeSourceBuilder::new(
+                                        &ListenerReference::ListenerClass(
+                                            listener_class.to_string(),
+                                        ),
+                                    )
+                                    .build(),
                                 )
                                 .build(),
-                            )
-                            .build(),
-                    );
+                        );
+                    }
                 }
 
                 Some(merged_config.hdfs_logging())
@@ -863,7 +871,6 @@ wait_for_termination $!
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
                 .build(),
-            VolumeMountBuilder::new("listener", STACKABLE_LISTENER_DIR).build(),
             VolumeMountBuilder::new(
                 self.volume_mount_dirs().config_mount_name(),
                 self.volume_mount_dirs().config_mount(),
@@ -894,8 +901,12 @@ wait_for_termination $!
                         .build(),
                 );
             }
-            ContainerConfig::Hdfs { role, .. } => match role {
-                HdfsRole::NameNode | HdfsRole::JournalNode => {
+            ContainerConfig::Hdfs { role, .. } => {
+                if let HdfsRole::NameNode | HdfsRole::DataNode = role {
+                    volume_mounts
+                        .push(VolumeMountBuilder::new("listener", STACKABLE_LISTENER_DIR).build());
+                }
+                if let HdfsRole::NameNode | HdfsRole::JournalNode = role {
                     volume_mounts.push(
                         VolumeMountBuilder::new(
                             Self::DATA_VOLUME_MOUNT_NAME,
@@ -904,11 +915,8 @@ wait_for_termination $!
                         .build(),
                     );
                 }
-                HdfsRole::DataNode => {
-                    for pvc in Self::volume_claim_templates(role, merged_config)
-                        .iter()
-                        .flatten()
-                    {
+                if let HdfsRole::DataNode = role {
+                    for pvc in Self::volume_claim_templates(role, merged_config) {
                         let pvc_name = pvc.name_any();
                         volume_mounts.push(VolumeMount {
                             mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
@@ -917,7 +925,7 @@ wait_for_termination $!
                         });
                     }
                 }
-            },
+            }
             // The other containers don't need any data pvcs to be mounted
             ContainerConfig::Zkfc { .. }
             | ContainerConfig::WaitForNameNodes { .. }

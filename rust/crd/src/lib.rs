@@ -187,7 +187,7 @@ pub trait MergedConfig {
     fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
         None
     }
-    fn listener_class(&self) -> &str;
+    fn listener_class(&self) -> Option<&str>;
 }
 
 #[derive(
@@ -945,8 +945,8 @@ impl MergedConfig for NameNodeConfig {
             .cloned()
     }
 
-    fn listener_class(&self) -> &str {
-        &self.listener_class
+    fn listener_class(&self) -> Option<&str> {
+        Some(&self.listener_class)
     }
 }
 
@@ -1108,8 +1108,8 @@ impl MergedConfig for DataNodeConfig {
             .cloned()
     }
 
-    fn listener_class(&self) -> &str {
-        &self.listener_class
+    fn listener_class(&self) -> Option<&str> {
+        Some(&self.listener_class)
     }
 }
 
@@ -1228,8 +1228,6 @@ pub struct JournalNodeConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
-    #[fragment_attrs(serde(default))]
-    pub listener_class: String,
 }
 
 impl MergedConfig for JournalNodeConfig {
@@ -1265,8 +1263,8 @@ impl MergedConfig for JournalNodeConfig {
         self.logging.enable_vector_agent
     }
 
-    fn listener_class(&self) -> &str {
-        &self.listener_class
+    fn listener_class(&self) -> Option<&str> {
+        None
     }
 }
 
@@ -1293,7 +1291,6 @@ impl JournalNodeConfigFragment {
             logging: product_logging::spec::default_logging(),
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
-            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
         }
     }
 }

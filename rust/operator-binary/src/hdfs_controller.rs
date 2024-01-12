@@ -765,7 +765,10 @@ fn rolegroup_statefulset(
             service_name: object_name,
             template: pod_template,
 
-            volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
+            volume_claim_templates: Some(ContainerConfig::volume_claim_templates(
+                role,
+                merged_config,
+            )),
             ..StatefulSetSpec::default()
         }),
         status: None,
