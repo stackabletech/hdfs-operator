@@ -210,6 +210,9 @@ pub enum Error {
 
     #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown { source: graceful_shutdown::Error },
+
+    #[snafu(display("failed to build roleGroup selector labels"))]
+    RoleGroupSelectorLabels { source: stackable_hdfs_crd::Error },
 }
 
 impl ReconcilerError for Error {
@@ -455,7 +458,11 @@ fn rolegroup_service(
                     })
                     .collect(),
             ),
-            selector: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
+            selector: Some(
+                hdfs.rolegroup_selector_labels(rolegroup_ref)
+                    .context(RoleGroupSelectorLabelsSnafu)?
+                    .into(),
+            ),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),

@@ -18,12 +18,9 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::{
-        api::core::v1::PodTemplateSpec,
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
-    },
+    k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::api::resource::Quantity},
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
-    labels::role_group_selector_labels,
+    kvp::{Label, LabelError, Labels},
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
@@ -49,6 +46,8 @@ pub mod constants;
 pub mod security;
 pub mod storage;
 
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("Object has no associated namespace"))]
@@ -59,6 +58,9 @@ pub enum Error {
     MissingRoleGroup { role: String, role_group: String },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+
+    #[snafu(display("failed to build label"))]
+    BuildLabel { source: LabelError },
 }
 
 /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
@@ -395,15 +397,22 @@ impl HdfsCluster {
     pub fn rolegroup_selector_labels(
         &self,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> BTreeMap<String, String> {
-        let mut group_labels = role_group_selector_labels(
+    ) -> Result<Labels> {
+        let mut group_labels = Labels::role_group_selector(
             self,
             APP_NAME,
             &rolegroup_ref.role,
             &rolegroup_ref.role_group,
+        )
+        .context(BuildLabelSnafu)?;
+        group_labels.insert(
+            Label::try_from((String::from("role"), rolegroup_ref.role.clone()))
+                .context(BuildLabelSnafu)?,
         );
-        group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
-        group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
+        group_labels.insert(
+            Label::try_from((String::from("group"), rolegroup_ref.role_group.clone()))
+                .context(BuildLabelSnafu)?,
+        );
 
         if self.spec.cluster_config.listener_class
             == CurrentlySupportedListenerClasses::ExternalUnstable
@@ -411,10 +420,13 @@ impl HdfsCluster {
             // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
             // useful for development purposes.
 
-            group_labels.insert(LABEL_ENABLE.to_string(), "true".to_string());
+            group_labels.insert(
+                Label::try_from((LABEL_ENABLE.to_string(), "true".to_string()))
+                    .context(BuildLabelSnafu)?,
+            );
         }
 
-        group_labels
+        Ok(group_labels)
     }
 
     /// Get a reference to the namenode [`RoleGroup`] struct if it exists.
