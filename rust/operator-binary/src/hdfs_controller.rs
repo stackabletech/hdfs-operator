@@ -14,7 +14,10 @@ use stackable_hdfs_crd::{
     constants::*, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, MergedConfig,
 };
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
+    builder::{
+        ConfigMapBuilder, ObjectMetaBuilder, ObjectMetaBuilderError, PodBuilder,
+        PodSecurityContextBuilder,
+    },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
@@ -34,7 +37,7 @@ use stackable_operator::{
         runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
-    labels::role_group_selector_labels,
+    kvp::{Label, LabelError, Labels},
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
@@ -213,6 +216,12 @@ pub enum Error {
 
     #[snafu(display("failed to build roleGroup selector labels"))]
     RoleGroupSelectorLabels { source: stackable_hdfs_crd::Error },
+
+    #[snafu(display("failed to build label"))]
+    BuildLabel { source: LabelError },
+
+    #[snafu(display("failed to build object  meta data"))]
+    ObjectMeta { source: ObjectMetaBuilderError },
 }
 
 impl ReconcilerError for Error {
@@ -296,7 +305,9 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         hdfs.as_ref(),
         APP_NAME,
-        cluster_resources.get_required_labels(),
+        cluster_resources
+            .get_required_labels()
+            .context(BuildLabelSnafu)?,
     )
     .context(BuildRbacResourcesSnafu)?;
 
@@ -426,46 +437,55 @@ fn rolegroup_service(
     resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
+
+    let prometheus_label =
+        Label::try_from(("prometheus.io/scrape", "true")).context(BuildLabelSnafu)?;
+
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hdfs)
+        .name(&rolegroup_ref.object_name())
+        .ownerreference_from_resource(hdfs, None, Some(true))
+        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(ObjectMetaSnafu)?
+        .with_label(prometheus_label)
+        .build();
+
+    let service_spec = ServiceSpec {
+        // Internal communication does not need to be exposed
+        type_: Some("ClusterIP".to_string()),
+        cluster_ip: Some("None".to_string()),
+        ports: Some(
+            hdfs.ports(role)
+                .into_iter()
+                .map(|(name, value)| ServicePort {
+                    name: Some(name),
+                    port: i32::from(value),
+                    protocol: Some("TCP".to_string()),
+                    ..ServicePort::default()
+                })
+                .collect(),
+        ),
+        selector: Some(
+            hdfs.rolegroup_selector_labels(rolegroup_ref)
+                .context(RoleGroupSelectorLabelsSnafu)?
+                .into(),
+        ),
+        publish_not_ready_addresses: Some(true),
+        ..ServiceSpec::default()
+    };
+
     Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(&rolegroup_ref.object_name())
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(build_recommended_labels(
-                hdfs,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .with_label("prometheus.io/scrape", "true")
-            .build(),
-        spec: Some(ServiceSpec {
-            // Internal communication does not need to be exposed
-            type_: Some("ClusterIP".to_string()),
-            cluster_ip: Some("None".to_string()),
-            ports: Some(
-                hdfs.ports(role)
-                    .into_iter()
-                    .map(|(name, value)| ServicePort {
-                        name: Some(name),
-                        port: i32::from(value),
-                        protocol: Some("TCP".to_string()),
-                        ..ServicePort::default()
-                    })
-                    .collect(),
-            ),
-            selector: Some(
-                hdfs.rolegroup_selector_labels(rolegroup_ref)
-                    .context(RoleGroupSelectorLabelsSnafu)?
-                    .into(),
-            ),
-            publish_not_ready_addresses: Some(true),
-            ..ServiceSpec::default()
-        }),
+        metadata,
+        spec: Some(service_spec),
         status: None,
     })
 }
@@ -613,24 +633,25 @@ fn rolegroup_config_map(
         .map(|(k, v)| (k, Some(v)))
         .collect();
 
+    let cm_metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hdfs)
+        .name(&rolegroup_ref.object_name())
+        .ownerreference_from_resource(hdfs, None, Some(true))
+        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(ObjectMetaSnafu)?
+        .build();
+
     builder
-        .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(hdfs)
-                .name(&rolegroup_ref.object_name())
-                .ownerreference_from_resource(hdfs, None, Some(true))
-                .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                    obj_ref: ObjectRef::from_obj(hdfs),
-                })?
-                .with_recommended_labels(build_recommended_labels(
-                    hdfs,
-                    RESOURCE_MANAGER_HDFS_CONTROLLER,
-                    &resolved_product_image.app_version_label,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                ))
-                .build(),
-        )
+        .metadata(cm_metadata)
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
         .add_data(HADOOP_POLICY_XML.to_string(), hadoop_policy_xml)
@@ -678,20 +699,27 @@ fn rolegroup_statefulset(
     let object_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
-    pb.metadata(ObjectMeta {
-        labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
+
+    let pb_metadata = ObjectMeta {
+        labels: Some(
+            hdfs.rolegroup_selector_labels(rolegroup_ref)
+                .context(RoleGroupSelectorLabelsSnafu)?
+                .into(),
+        ),
         ..ObjectMeta::default()
-    })
-    .image_pull_secrets_from_product_image(resolved_product_image)
-    .affinity(merged_config.affinity())
-    .service_account_name(service_account_name(APP_NAME))
-    .security_context(
-        PodSecurityContextBuilder::new()
-            .run_as_user(HDFS_UID)
-            .run_as_group(0)
-            .fs_group(1000)
-            .build(),
-    );
+    };
+
+    pb.metadata(pb_metadata)
+        .image_pull_secrets_from_product_image(resolved_product_image)
+        .affinity(merged_config.affinity())
+        .service_account_name(service_account_name(APP_NAME))
+        .security_context(
+            PodSecurityContextBuilder::new()
+                .run_as_user(HDFS_UID)
+                .run_as_group(0)
+                .fs_group(1000)
+                .build(),
+        );
 
     // Adds all containers and volumes to the pod builder
     ContainerConfig::add_containers_and_volumes(
@@ -718,42 +746,50 @@ fn rolegroup_statefulset(
         pod_template.merge_from(pod_overrides.clone());
     }
 
-    Ok(StatefulSet {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(&rolegroup_ref.object_name())
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(build_recommended_labels(
-                hdfs,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .build(),
-        spec: Some(StatefulSetSpec {
-            pod_management_policy: Some("OrderedReady".to_string()),
-            replicas: role
-                .role_group_replicas(hdfs, &rolegroup_ref.role_group)
-                .map(i32::from),
-            selector: LabelSelector {
-                match_labels: Some(role_group_selector_labels(
-                    hdfs,
-                    APP_NAME,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                )),
-                ..LabelSelector::default()
-            },
-            service_name: object_name,
-            template: pod_template,
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hdfs)
+        .name(&rolegroup_ref.object_name())
+        .ownerreference_from_resource(hdfs, None, Some(true))
+        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(ObjectMetaSnafu)?
+        .build();
 
-            volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
-            ..StatefulSetSpec::default()
-        }),
+    let match_labels = Labels::role_group_selector(
+        hdfs,
+        APP_NAME,
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    )
+    .context(BuildLabelSnafu)?;
+
+    let statefulset_spec = StatefulSetSpec {
+        pod_management_policy: Some("OrderedReady".to_string()),
+        replicas: role
+            .role_group_replicas(hdfs, &rolegroup_ref.role_group)
+            .map(i32::from),
+        selector: LabelSelector {
+            match_labels: Some(match_labels.into()),
+            ..LabelSelector::default()
+        },
+        service_name: object_name,
+        template: pod_template,
+
+        volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
+        ..StatefulSetSpec::default()
+    };
+
+    Ok(StatefulSet {
+        metadata,
+        spec: Some(statefulset_spec),
         status: None,
     })
 }
