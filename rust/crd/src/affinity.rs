@@ -33,11 +33,10 @@ mod test {
 
     use crate::{HdfsCluster, HdfsRole};
     use stackable_operator::{
-        commons::affinity::{StackableAffinity, StackableNodeSelector},
+        commons::affinity::StackableAffinity,
         k8s_openapi::{
             api::core::v1::{
-                NodeAffinity, NodeSelector, NodeSelectorRequirement, NodeSelectorTerm, PodAffinity,
-                PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm,
+                PodAffinity, PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm,
             },
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },

@@ -386,25 +386,6 @@ impl HdfsRole {
                 .and_then(|rg| rg.replicas),
         }
     }
-
-    /// Return the node/label selector for a certain rolegroup.
-    pub fn role_group_node_selector(
-        &self,
-        hdfs: &HdfsCluster,
-        role_group: &str,
-    ) -> Option<LabelSelector> {
-        match self {
-            HdfsRole::NameNode => hdfs
-                .namenode_rolegroup(role_group)
-                .and_then(|rg| rg.selector.clone()),
-            HdfsRole::DataNode => hdfs
-                .datanode_rolegroup(role_group)
-                .and_then(|rg| rg.selector.clone()),
-            HdfsRole::JournalNode => hdfs
-                .journalnode_rolegroup(role_group)
-                .and_then(|rg| rg.selector.clone()),
-        }
-    }
 }
 
 impl HdfsCluster {
