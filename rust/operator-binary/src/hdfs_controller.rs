@@ -54,7 +54,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::ContainerConfig,
     container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    discovery::build_discovery_configmap,
+    discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_event},
     kerberos,
     operations::{
@@ -132,9 +132,7 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot build config discovery config map"))]
-    BuildDiscoveryConfigMap {
-        source: stackable_operator::error::Error,
-    },
+    BuildDiscoveryConfigMap { source: discovery::Error },
 
     #[snafu(display("Failed to patch service account"))]
     ApplyServiceAccount {

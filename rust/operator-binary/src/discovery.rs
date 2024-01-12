@@ -2,17 +2,37 @@ use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
 };
+use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{CORE_SITE_XML, HDFS_SITE_XML},
     HdfsCluster, HdfsPodRef, HdfsRole,
 };
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ObjectMetaBuilder},
+    builder::{ConfigMapBuilder, ObjectMetaBuilder, ObjectMetaBuilderError},
     commons::product_image_selection::ResolvedProductImage,
-    error::OperatorResult,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::ResourceExt,
+    kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[derive(Snafu, Debug)]
+#[allow(clippy::enum_variant_names)]
+pub enum Error {
+    #[snafu(display("object {hdfs} is missing metadata to build owner reference"))]
+    ObjectMissingMetadataForOwnerRef {
+        source: stackable_operator::error::Error,
+        hdfs: ObjectRef<HdfsCluster>,
+    },
+
+    #[snafu(display("failed to build ConfigMap"))]
+    BuildConfigMap {
+        source: stackable_operator::error::Error,
+    },
+
+    #[snafu(display("failed to build object  meta data"))]
+    ObjectMeta { source: ObjectMetaBuilderError },
+}
 
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
 /// for clients.
@@ -21,21 +41,25 @@ pub fn build_discovery_configmap(
     controller: &str,
     namenode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
-) -> OperatorResult<ConfigMap> {
+) -> Result<ConfigMap> {
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hdfs)
+        .ownerreference_from_resource(hdfs, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu {
+            hdfs: ObjectRef::from_obj(hdfs),
+        })?
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            controller,
+            &resolved_product_image.app_version_label,
+            &HdfsRole::NameNode.to_string(),
+            "discovery",
+        ))
+        .context(ObjectMetaSnafu)?
+        .build();
+
     ConfigMapBuilder::new()
-        .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(hdfs)
-                .ownerreference_from_resource(hdfs, None, Some(true))?
-                .with_recommended_labels(build_recommended_labels(
-                    hdfs,
-                    controller,
-                    &resolved_product_image.app_version_label,
-                    &HdfsRole::NameNode.to_string(),
-                    "discovery",
-                ))
-                .build(),
-        )
+        .metadata(metadata)
         .add_data(
             HDFS_SITE_XML,
             build_discovery_hdfs_site_xml(hdfs, hdfs.name_any(), namenode_podrefs),
@@ -45,6 +69,7 @@ pub fn build_discovery_configmap(
             build_discovery_core_site_xml(hdfs, hdfs.name_any()),
         )
         .build()
+        .context(BuildConfigMapSnafu)
 }
 
 fn build_discovery_hdfs_site_xml(
