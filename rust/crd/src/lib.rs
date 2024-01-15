@@ -577,7 +577,7 @@ impl HdfsCluster {
     ) -> Result<Vec<HdfsPodRef>, Error> {
         let pod_refs = self.pod_refs(&HdfsRole::NameNode)?;
         try_join_all(pod_refs.into_iter().map(|pod_ref| async {
-            let listener_name = format!("listener-{}", pod_ref.pod_name);
+            let listener_name = format!("{LISTENER_VOLUME_NAME}-{}", pod_ref.pod_name);
             let listener_ref =
                 || ObjectRef::<Listener>::new(&listener_name).within(&pod_ref.namespace);
             let pod_obj_ref =

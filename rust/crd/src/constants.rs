@@ -76,6 +76,7 @@ pub const JOURNALNODE_ROOT_DATA_DIR: &str = "/stackable/data/journalnode";
 pub const DATANODE_ROOT_DATA_DIR_PREFIX: &str = "/stackable/data/";
 pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/datanode";
 
-pub const STACKABLE_LISTENER_DIR: &str = "/stackable/listener";
+pub const LISTENER_VOLUME_NAME: &str = "listener";
+pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 pub const HDFS_UID: i64 = 1000;

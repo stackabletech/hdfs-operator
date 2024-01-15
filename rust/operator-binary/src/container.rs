@@ -22,8 +22,8 @@ use stackable_hdfs_crd::{
     constants::{
         DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
         DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
-        JVM_SECURITY_PROPERTIES_FILE, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
-        SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC, STACKABLE_LISTENER_DIR,
+        JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, LOG4J_PROPERTIES,
+        NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
         STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
@@ -316,7 +316,7 @@ impl ContainerConfig {
                     .unwrap();
                     PersistentVolumeClaim {
                         metadata: ObjectMeta {
-                            name: Some("listener".to_string()),
+                            name: Some(LISTENER_VOLUME_NAME.to_string()),
                             ..listener.metadata.unwrap()
                         },
                         spec: Some(listener.spec),
@@ -485,9 +485,9 @@ impl ContainerConfig {
 {COMMON_BASH_TRAP_FUNCTIONS}
 {remove_vector_shutdown_file_command}
 prepare_signal_handlers
-if [[ -d {STACKABLE_LISTENER_DIR} ]]; then
-    export POD_ADDRESS=$(cat {STACKABLE_LISTENER_DIR}/default-address/address)
-    for i in {STACKABLE_LISTENER_DIR}/default-address/ports/*; do
+if [[ -d {LISTENER_VOLUME_DIR} ]]; then
+    export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
+    for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
         export $(basename $i | tr a-z A-Z)_PORT="$(cat $i)"
     done
 fi
@@ -830,7 +830,7 @@ wait_for_termination $!
                 if *role == HdfsRole::DataNode {
                     if let Some(listener_class) = merged_config.listener_class() {
                         volumes.push(
-                            VolumeBuilder::new("listener")
+                            VolumeBuilder::new(LISTENER_VOLUME_NAME)
                                 .ephemeral(
                                     ListenerOperatorVolumeSourceBuilder::new(
                                         &ListenerReference::ListenerClass(
@@ -903,8 +903,9 @@ wait_for_termination $!
             }
             ContainerConfig::Hdfs { role, .. } => {
                 if let HdfsRole::NameNode | HdfsRole::DataNode = role {
-                    volume_mounts
-                        .push(VolumeMountBuilder::new("listener", STACKABLE_LISTENER_DIR).build());
+                    volume_mounts.push(
+                        VolumeMountBuilder::new(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR).build(),
+                    );
                 }
                 if let HdfsRole::NameNode | HdfsRole::JournalNode = role {
                     volume_mounts.push(
