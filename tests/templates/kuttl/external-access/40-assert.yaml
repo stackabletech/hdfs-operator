@@ -1,0 +1,9 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+  # Won't work due to https://github.com/kudobuilder/kuttl/issues/322, the `script` runs in the
+  # test suite dir, not the test dir.
+  # We _could_ move some of the preparation to a TestStep, but running a persistent Docker container would cause
+  # resource leakage for failed/interrupted tests.
+  - script: ./operate-on-cluster.sh
