@@ -34,7 +34,7 @@ The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the We
 
 
 === 4. Verify that Kerberos is used
-Use `stackablectl services list --all-namespaces` to get the endpoints where the HDFS namenodes are reachable.
+Use `stackablectl stacklet list` to get the endpoints where the HDFS namenodes are reachable.
 Open the link (note that the namenode is now using https).
 You should see a Web UI similar to the following:
 

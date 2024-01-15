@@ -38,3 +38,12 @@ Contains the `fs.DefaultFS` which defaults to `hdfs://{clusterName}/`.
 
 `hdfs-site.xml`::
 Contains the `dfs.namenode.*` properties for `rpc` and `http` addresses for the `namenodes` as well as the `dfs.nameservices` property which defaults to `hdfs://{clusterName}/`.
+
+=== Kerberos
+In case Kerberos is enabled according to the xref:usage-guide/security.adoc[security documentation], the discovery ConfigMap also includes the information that clients must authenticate themselves using Kerberos.
+
+Some Kerberos-related configuration settings require the environment variable `KERBEROS_REALM` to be set (e.g. using `export KERBEROS_REALM=$(grep -oP 'default_realm = \K.*' /stackable/kerberos/krb5.conf)`).
+If you want to use the discovery ConfigMap outside Stackable services, you need to provide this environment variable.
+As an alternative you can substitute `${env.KERBEROS_REALM}` with your actual realm (e.g. by using `sed -i -e 's/${{env.KERBEROS_REALM}}/'"$KERBEROS_REALM/g" core-site.xml`).
+
+One example would be the property `dfs.namenode.kerberos.principal` being set to `nn/hdfs.default.svc.cluster.local@${env.KERBEROS_REALM}`.
