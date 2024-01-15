@@ -29,17 +29,11 @@ use stackable_hdfs_crd::{
     DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, MergedConfig, NameNodeContainer,
 };
 use stackable_operator::{
-    builder::SecretFormat,
-    product_logging::framework::{
-        create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
-    },
-    utils::COMMON_BASH_TRAP_FUNCTIONS,
-};
-use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ContainerBuilder, PodBuilder,
         SecretOperatorVolumeSourceBuilder, VolumeBuilder, VolumeMountBuilder,
     },
+    builder::{SecretFormat, SecretOperatorVolumeSourceBuilderError},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::core::v1::{
@@ -51,6 +45,9 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     memory::{BinaryMultiple, MemoryQuantity},
+    product_logging::framework::{
+        create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
+    },
     product_logging::{
         self,
         spec::{
@@ -58,6 +55,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use std::{collections::BTreeMap, str::FromStr};
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
@@ -65,6 +63,7 @@ use strum::{Display, EnumDiscriminants, IntoStaticStr};
 pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
 pub(crate) const TLS_STORE_VOLUME_NAME: &str = "tls";
 pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
+pub(crate) const KERBEROS_VOLUME_NAME: &str = "kerberos";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -82,6 +81,12 @@ pub enum Error {
     InvalidContainerName {
         source: stackable_operator::error::Error,
         name: String,
+    },
+
+    #[snafu(display("failed to build secret volume for {volume_name:?}"))]
+    BuildSecretVolume {
+        source: SecretOperatorVolumeSourceBuilderError,
+        volume_name: String,
     },
 }
 
@@ -198,13 +203,16 @@ impl ContainerConfig {
                         .with_node_scope()
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
-                        .build(),
+                        .build()
+                        .context(BuildSecretVolumeSnafu {
+                            volume_name: TLS_STORE_VOLUME_NAME,
+                        })?,
                     )
                     .build(),
             );
 
             pb.add_volume(
-                VolumeBuilder::new("kerberos")
+                VolumeBuilder::new(KERBEROS_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.kerberos.secret_class,
@@ -212,7 +220,10 @@ impl ContainerConfig {
                         .with_service_scope(hdfs.name_any())
                         .with_kerberos_service_name(role.kerberos_service_name())
                         .with_kerberos_service_name("HTTP")
-                        .build(),
+                        .build()
+                        .context(BuildSecretVolumeSnafu {
+                            volume_name: KERBEROS_VOLUME_NAME,
+                        })?,
                     )
                     .build(),
             );
