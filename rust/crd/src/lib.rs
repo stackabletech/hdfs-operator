@@ -47,6 +47,9 @@ use crate::{
     },
 };
 
+#[cfg(doc)]
+use stackable_operator::commons::listener::ListenerClass;
+
 pub mod affinity;
 pub mod constants;
 pub mod security;
@@ -527,9 +530,13 @@ impl HdfsCluster {
         }
     }
 
-    /// List all [HdfsPodRef]s expected for the given `role`
+    /// List all [`HdfsPodRef`]s expected for the given [`role`](HdfsRole).
     ///
     /// The `validated_config` is used to extract the ports exposed by the pods.
+    ///
+    /// The pod refs returned by `pod_refs` will only be able to able to access HDFS
+    /// from inside the Kubernetes cluster. For configuring downstream clients,
+    /// consider using [`Self::namenode_listener_refs`] instead.
     pub fn pod_refs(&self, role: &HdfsRole) -> Result<Vec<HdfsPodRef>, Error> {
         let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
 
@@ -554,6 +561,16 @@ impl HdfsCluster {
             .collect())
     }
 
+    /// List all [`HdfsPodRef`]s for the running namenodes, configured to access the cluster via
+    /// [Listener] rather than direct [Pod] access.
+    ///
+    /// This enables access from outside the Kubernetes cluster (if using a [ListenerClass] configured for this).
+    ///
+    /// This method assumes that all [Listener]s have been created, and may fail while waiting for the cluster to come online.
+    /// If this is unacceptable (mainly for configuring the cluster itself), consider [`Self::pod_refs`] instead.
+    ///
+    /// This method _only_ supports accessing namenodes, since journalnodes are considered internal, and datanodes are registered
+    /// dynamically with the namenodes.
     pub async fn namenode_listener_refs(
         &self,
         client: &stackable_operator::client::Client,
