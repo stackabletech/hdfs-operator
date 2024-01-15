@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+};
 
 use futures::future::try_join_all;
 use product_config::types::PropertyNameKind;
@@ -848,13 +851,16 @@ pub struct HdfsPodRef {
 }
 
 impl HdfsPodRef {
-    pub fn fqdn(&self) -> String {
-        self.fqdn_override.clone().unwrap_or_else(|| {
-            format!(
-                "{}.{}.{}.svc.cluster.local",
-                self.pod_name, self.role_group_service_name, self.namespace
-            )
-        })
+    pub fn fqdn(&self) -> Cow<str> {
+        self.fqdn_override.as_deref().map_or_else(
+            || {
+                Cow::Owned(format!(
+                    "{}.{}.{}.svc.cluster.local",
+                    self.pod_name, self.role_group_service_name, self.namespace
+                ))
+            },
+            Cow::Borrowed,
+        )
     }
 }
 
