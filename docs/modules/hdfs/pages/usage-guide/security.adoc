@@ -33,7 +33,7 @@ The `kerberos.secretClass` is used to give HDFS the possibility to request keyta
 The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
 
 
-=== 4. Verify that Kerberos is used
+=== 4. Verify that Kerberos authentication is required
 Use `stackablectl stacklet list` to get the endpoints where the HDFS namenodes are reachable.
 Open the link (note that the namenode is now using https).
 You should see a Web UI similar to the following:
@@ -74,5 +74,5 @@ spec:
 ----
 
 == Wire encryption
-In case kerberos is enabled, `Privacy` mode is used for best security.
-Wire encryption without kerberos as well as https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Data_confidentiality[other wire encryption modes] are *not* supported.
+In case Kerberos is enabled, `Privacy` mode is used for best security.
+Wire encryption without Kerberos as well as https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Data_confidentiality[other wire encryption modes] are *not* supported.
