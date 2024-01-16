@@ -895,28 +895,33 @@ wait_for_termination $!
                 );
             }
             ContainerConfig::Hdfs { role, .. } => {
+                // JournalNode doesn't use listeners, since it's only used internally by the namenodes
                 if let HdfsRole::NameNode | HdfsRole::DataNode = role {
                     volume_mounts.push(
                         VolumeMountBuilder::new(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR).build(),
                     );
                 }
-                if let HdfsRole::NameNode | HdfsRole::JournalNode = role {
-                    volume_mounts.push(
-                        VolumeMountBuilder::new(
-                            Self::DATA_VOLUME_MOUNT_NAME,
-                            STACKABLE_ROOT_DATA_DIR,
-                        )
-                        .build(),
-                    );
-                }
-                if let HdfsRole::DataNode = role {
-                    for pvc in Self::volume_claim_templates(role, merged_config) {
-                        let pvc_name = pvc.name_any();
-                        volume_mounts.push(VolumeMount {
-                            mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
-                            name: pvc_name,
-                            ..VolumeMount::default()
-                        });
+
+                // Add data volume
+                match role {
+                    HdfsRole::NameNode | HdfsRole::JournalNode => {
+                        volume_mounts.push(
+                            VolumeMountBuilder::new(
+                                Self::DATA_VOLUME_MOUNT_NAME,
+                                STACKABLE_ROOT_DATA_DIR,
+                            )
+                            .build(),
+                        );
+                    }
+                    HdfsRole::DataNode => {
+                        for pvc in Self::volume_claim_templates(role, merged_config) {
+                            let pvc_name = pvc.name_any();
+                            volume_mounts.push(VolumeMount {
+                                mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
+                                name: pvc_name,
+                                ..VolumeMount::default()
+                            });
+                        }
                     }
                 }
             }
