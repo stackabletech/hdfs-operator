@@ -423,9 +423,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     Ok(Action::await_change())
 }
 
-// TODOs:
-// * We must add the label "prometheus.io/scrape=true" to the created Services
-
 fn rolegroup_service(
     hdfs: &HdfsCluster,
     role: &HdfsRole,
