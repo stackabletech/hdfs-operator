@@ -380,6 +380,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         }
     }
 
+    // Discovery CM will fail to build until the rest of the cluster has been deployed, so do it last
+    // so that failure won't inhibit the rest of the cluster from booting up.
     let discovery_cm = build_discovery_configmap(
         &hdfs,
         HDFS_CONTROLLER,
