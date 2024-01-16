@@ -8,11 +8,14 @@ use stackable_operator::{
     builder::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Pod, Service, ServicePort, ServiceSpec},
     kube::runtime::controller::Action,
+    kvp::{LabelError, Labels},
     logging::controller::ReconcilerError,
     time::Duration,
 };
 use std::sync::Arc;
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -33,6 +36,9 @@ pub enum Error {
         source: stackable_operator::error::Error,
         name: String,
     },
+
+    #[snafu(display("failed to build label"))]
+    BuildLabel { source: LabelError },
 }
 
 impl ReconcilerError for Error {
@@ -47,21 +53,28 @@ pub struct Ctx {
 
 const APP_KUBERNETES_LABEL_BASE: &str = "app.kubernetes.io/";
 
-pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
     let name = pod.metadata.name.clone().context(PodHasNoNameSnafu)?;
 
-    let pod_labels = pod
-        .metadata
-        .labels
-        .as_ref()
-        .with_context(|| PodHasNoLabelsSnafu { name: name.clone() })?;
+    let pod_labels = Labels::try_from(
+        pod.metadata
+            .labels
+            .as_ref()
+            .with_context(|| PodHasNoLabelsSnafu { name: name.clone() })?,
+    )
+    .context(BuildLabelSnafu)?;
 
     let recommended_labels_from_pod = pod_labels
         .iter()
-        .filter(|(key, _)| key.starts_with(APP_KUBERNETES_LABEL_BASE))
-        .map(|(key, value)| (key.clone(), value.clone()))
+        .filter(|&label| {
+            label
+                .key()
+                .prefix()
+                .is_some_and(|prefix| *prefix == APP_KUBERNETES_LABEL_BASE)
+        })
+        .map(|label| label.clone())
         .collect();
 
     let ports: Vec<(String, i32)> = pod
@@ -80,30 +93,34 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action, Error
         .map(|cp| (cp.name.clone().unwrap_or_default(), cp.container_port))
         .collect();
 
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(pod.as_ref())
+        .labels(recommended_labels_from_pod)
+        .ownerreference_from_resource(pod.as_ref(), None, None)
+        .with_context(|_| PodOwnerReferenceSnafu { name: name.clone() })?
+        .build();
+
+    let service_spec = ServiceSpec {
+        type_: Some("NodePort".to_string()),
+        external_traffic_policy: Some("Local".to_string()),
+        ports: Some(
+            ports
+                .iter()
+                .map(|(name, port)| ServicePort {
+                    name: Some(name.clone()),
+                    port: *port,
+                    ..ServicePort::default()
+                })
+                .collect(),
+        ),
+        selector: Some([(LABEL_STS_POD_NAME.to_string(), name.clone())].into()),
+        publish_not_ready_addresses: Some(true),
+        ..ServiceSpec::default()
+    };
+
     let svc = Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(pod.as_ref())
-            .labels(recommended_labels_from_pod)
-            .ownerreference_from_resource(pod.as_ref(), None, None)
-            .with_context(|_| PodOwnerReferenceSnafu { name: name.clone() })?
-            .build(),
-        spec: Some(ServiceSpec {
-            type_: Some("NodePort".to_string()),
-            external_traffic_policy: Some("Local".to_string()),
-            ports: Some(
-                ports
-                    .iter()
-                    .map(|(name, port)| ServicePort {
-                        name: Some(name.clone()),
-                        port: *port,
-                        ..ServicePort::default()
-                    })
-                    .collect(),
-            ),
-            selector: Some([(LABEL_STS_POD_NAME.to_string(), name.clone())].into()),
-            publish_not_ready_addresses: Some(true),
-            ..ServiceSpec::default()
-        }),
+        metadata,
+        spec: Some(service_spec),
         ..Service::default()
     };
 
