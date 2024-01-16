@@ -5,7 +5,8 @@ use stackable_hdfs_crd::constants::{
     DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAMENODE_HTTPS_ADDRESS, DFS_NAMENODE_HTTP_ADDRESS,
     DFS_NAMENODE_NAME_DIR, DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR,
     DFS_NAME_SERVICES, DFS_REPLICATION, FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM,
-    JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
+    JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_HTTP,
+    SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_RPC,
 };
 use stackable_hdfs_crd::storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef};
@@ -141,7 +142,7 @@ impl HdfsSiteConfigBuilder {
         self.dfs_namenode_address_ha(
             namenode_podrefs,
             DFS_NAMENODE_RPC_ADDRESS,
-            "rpc",
+            SERVICE_PORT_NAME_RPC,
             DEFAULT_NAME_NODE_RPC_PORT,
         );
         self
@@ -156,14 +157,14 @@ impl HdfsSiteConfigBuilder {
             self.dfs_namenode_address_ha(
                 namenode_podrefs,
                 DFS_NAMENODE_HTTPS_ADDRESS,
-                "https",
+                SERVICE_PORT_NAME_HTTPS,
                 DEFAULT_NAME_NODE_HTTPS_PORT,
             );
         } else {
             self.dfs_namenode_address_ha(
                 namenode_podrefs,
                 DFS_NAMENODE_HTTP_ADDRESS,
-                "http",
+                SERVICE_PORT_NAME_HTTP,
                 DEFAULT_NAME_NODE_HTTP_PORT,
             );
         }
