@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
+    num::TryFromIntError,
 };
 
 use futures::future::try_join_all;
@@ -78,6 +79,12 @@ pub enum Error {
     PodListenerHasNoAddress {
         listener: ObjectRef<Listener>,
         pod: ObjectRef<Pod>,
+    },
+    #[snafu(display("port {port} ({port_name:?}) is out of bounds, must be within {range:?}", range = 0..=u16::MAX))]
+    PortOutOfBounds {
+        source: TryFromIntError,
+        port_name: String,
+        port: i32,
     },
 }
 
@@ -609,8 +616,14 @@ impl HdfsCluster {
                 ports: listener_address
                     .ports
                     .into_iter()
-                    .map(|(k, v)| (k, v as u16))
-                    .collect(),
+                    .map(|(port_name, port)| {
+                        let port = u16::try_from(port).context(PortOutOfBoundsSnafu {
+                            port_name: &port_name,
+                            port,
+                        })?;
+                        Ok((port_name, port))
+                    })
+                    .collect::<Result<_, _>>()?,
                 ..pod_ref
             })
         }))
