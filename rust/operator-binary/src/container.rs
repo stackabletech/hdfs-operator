@@ -162,7 +162,7 @@ impl ContainerConfig {
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(role.clone());
-        pb.add_volumes(main_container_config.volumes(role, merged_config, object_name));
+        pb.add_volumes(main_container_config.volumes(merged_config, object_name));
         pb.add_container(main_container_config.main_container(
             hdfs,
             role,
@@ -224,7 +224,7 @@ impl ContainerConfig {
             HdfsRole::NameNode => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
-                pb.add_volumes(zkfc_container_config.volumes(role, merged_config, object_name));
+                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
                     role,
@@ -237,11 +237,9 @@ impl ContainerConfig {
                 // Format namenode init container
                 let format_namenodes_container_config =
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
-                pb.add_volumes(format_namenodes_container_config.volumes(
-                    role,
-                    merged_config,
-                    object_name,
-                ));
+                pb.add_volumes(
+                    format_namenodes_container_config.volumes(merged_config, object_name),
+                );
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
                     role,
@@ -255,11 +253,9 @@ impl ContainerConfig {
                 // Format ZooKeeper init container
                 let format_zookeeper_container_config =
                     Self::try_from(NameNodeContainer::FormatZooKeeper.to_string())?;
-                pb.add_volumes(format_zookeeper_container_config.volumes(
-                    role,
-                    merged_config,
-                    object_name,
-                ));
+                pb.add_volumes(
+                    format_zookeeper_container_config.volumes(merged_config, object_name),
+                );
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
                     role,
@@ -274,11 +270,9 @@ impl ContainerConfig {
                 // Wait for namenode init container
                 let wait_for_namenodes_container_config =
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
-                pb.add_volumes(wait_for_namenodes_container_config.volumes(
-                    role,
-                    merged_config,
-                    object_name,
-                ));
+                pb.add_volumes(
+                    wait_for_namenodes_container_config.volumes(merged_config, object_name),
+                );
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
                     role,
@@ -802,14 +796,13 @@ wait_for_termination $!
     /// Return the container volumes.
     fn volumes(
         &self,
-        role: &HdfsRole,
         merged_config: &(dyn MergedConfig + Send + 'static),
         object_name: &str,
     ) -> Vec<Volume> {
         let mut volumes = vec![];
 
         let container_log_config = match self {
-            ContainerConfig::Hdfs { .. } => {
+            ContainerConfig::Hdfs { role, .. } => {
                 volumes.push(
                     VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
                         .empty_dir(EmptyDirVolumeSource {
