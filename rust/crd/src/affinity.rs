@@ -75,8 +75,8 @@ spec:
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
 
         assert_eq!(
-            merged_config.affinity(),
-            &StackableAffinity {
+            merged_config.affinity,
+            StackableAffinity {
                 pod_affinity: Some(PodAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
                         WeightedPodAffinityTerm {
@@ -171,8 +171,8 @@ spec:
         let merged_config = HdfsRole::DataNode.merged_config(&hdfs, "default").unwrap();
 
         assert_eq!(
-            merged_config.affinity(),
-            &StackableAffinity {
+            merged_config.affinity,
+            StackableAffinity {
                 pod_affinity: Some(PodAffinity {
                     preferred_during_scheduling_ignored_during_execution: Some(vec![
                         WeightedPodAffinityTerm {
