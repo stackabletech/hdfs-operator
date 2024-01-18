@@ -174,6 +174,7 @@ impl CurrentlySupportedListenerClasses {
     }
 }
 
+/// Configuration options that are available for all roles.
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -196,6 +197,7 @@ pub struct CommonNodeConfig {
     pub graceful_shutdown_timeout: Option<Duration>,
 }
 
+/// Configuration for a rolegroup of an unknown type.
 #[derive(Debug)]
 pub enum AnyNodeConfig {
     NameNode(NameNodeConfig),
