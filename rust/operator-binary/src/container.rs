@@ -438,7 +438,7 @@ impl ContainerConfig {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push_str(&self.copy_log4j_properties_cmd(
                     HDFS_LOG4J_CONFIG_FILE,
-                    merged_config.hdfs_logging(),
+                    &merged_config.hdfs_logging(),
                 ));
 
                 args.push_str(&format!(
@@ -463,7 +463,7 @@ wait_for_termination $!
                     .map(|node| node.logging.for_container(&NameNodeContainer::Zkfc))
                 {
                     args.push_str(
-                        &self.copy_log4j_properties_cmd(ZKFC_LOG4J_CONFIG_FILE, container_config),
+                        &self.copy_log4j_properties_cmd(ZKFC_LOG4J_CONFIG_FILE, &container_config),
                     );
                 }
                 args.push_str(&format!(
@@ -478,7 +478,7 @@ wait_for_termination $!
                 }) {
                     args.push_str(&self.copy_log4j_properties_cmd(
                         FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
-                        container_config,
+                        &container_config,
                     ));
                 }
                 // First step we check for active namenodes. This step should return an active namenode
@@ -538,7 +538,7 @@ wait_for_termination $!
                 }) {
                     args.push_str(&self.copy_log4j_properties_cmd(
                         FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-                        container_config,
+                        &container_config,
                     ));
                 }
                 args.push_str(&formatdoc!(
@@ -572,7 +572,7 @@ wait_for_termination $!
                 }) {
                     args.push_str(&self.copy_log4j_properties_cmd(
                         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-                        container_config,
+                        &container_config,
                     ));
                 }
                 if hdfs.has_kerberos_enabled() {
@@ -802,7 +802,7 @@ wait_for_termination $!
         };
 
         volumes.extend(Self::common_container_volumes(
-            container_log_config,
+            container_log_config.as_deref(),
             object_name,
             self.volume_mount_dirs().config_mount_name(),
             self.volume_mount_dirs().log_mount_name(),
@@ -899,7 +899,7 @@ wait_for_termination $!
     fn copy_log4j_properties_cmd(
         &self,
         log4j_config_file: &str,
-        container_log_config: ContainerLogConfig,
+        container_log_config: &ContainerLogConfig,
     ) -> String {
         let source_log4j_properties_dir = if let ContainerLogConfig {
             choice: Some(ContainerLogConfigChoice::Custom(_)),
@@ -1044,7 +1044,7 @@ wait_for_termination $!
 
     /// Common container specific log and config volumes
     fn common_container_volumes(
-        container_log_config: Option<ContainerLogConfig>,
+        container_log_config: Option<&ContainerLogConfig>,
         object_name: &str,
         config_volume_name: &str,
         log_volume_name: &str,
@@ -1069,7 +1069,7 @@ wait_for_termination $!
                 volumes.push(
                     VolumeBuilder::new(log_volume_name)
                         .config_map(ConfigMapVolumeSource {
-                            name: Some(config_map),
+                            name: Some(config_map.clone()),
                             ..ConfigMapVolumeSource::default()
                         })
                         .build(),

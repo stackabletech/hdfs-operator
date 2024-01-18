@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt::Display,
     ops::Deref,
@@ -242,21 +243,21 @@ impl AnyNodeConfig {
         namenode_container: NameNodeContainer,
         datanode_container: DataNodeContainer,
         journalnode_container: JournalNodeContainer,
-    ) -> ContainerLogConfig {
+    ) -> Cow<ContainerLogConfig> {
         match self {
             AnyNodeConfig::NameNode(node) => node.logging.for_container(&namenode_container),
             AnyNodeConfig::DataNode(node) => node.logging.for_container(&datanode_container),
             AnyNodeConfig::JournalNode(node) => node.logging.for_container(&journalnode_container),
         }
     }
-    pub fn hdfs_logging(&self) -> ContainerLogConfig {
+    pub fn hdfs_logging(&self) -> Cow<ContainerLogConfig> {
         self.common_logging(
             NameNodeContainer::Hdfs,
             DataNodeContainer::Hdfs,
             JournalNodeContainer::Hdfs,
         )
     }
-    pub fn vector_logging(&self) -> ContainerLogConfig {
+    pub fn vector_logging(&self) -> Cow<ContainerLogConfig> {
         self.common_logging(
             NameNodeContainer::Vector,
             DataNodeContainer::Vector,
@@ -1253,7 +1254,7 @@ impl HasStatusCondition for HdfsCluster {
 // TODO: upstream?
 pub trait LoggingExt {
     type Container;
-    fn for_container(&self, container: &Self::Container) -> ContainerLogConfig;
+    fn for_container(&self, container: &Self::Container) -> Cow<ContainerLogConfig>;
 }
 impl<T> LoggingExt for Logging<T>
 where
@@ -1261,8 +1262,11 @@ where
 {
     type Container = T;
 
-    fn for_container(&self, container: &Self::Container) -> ContainerLogConfig {
-        self.containers.get(container).cloned().unwrap_or_default()
+    fn for_container(&self, container: &Self::Container) -> Cow<ContainerLogConfig> {
+        self.containers
+            .get(container)
+            .map(Cow::Borrowed)
+            .unwrap_or_default()
     }
 }
 

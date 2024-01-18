@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
@@ -123,7 +123,7 @@ pub fn extend_role_group_config_map(
 ) -> Result<()> {
     fn add_log4j_config_if_automatic(
         cm_builder: &mut ConfigMapBuilder,
-        log_config: Option<ContainerLogConfig>,
+        log_config: Option<Cow<ContainerLogConfig>>,
         log_config_file: &str,
         container_name: impl Display,
         log_file: &str,
@@ -131,7 +131,7 @@ pub fn extend_role_group_config_map(
     ) {
         if let Some(ContainerLogConfig {
             choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) = log_config
+        }) = log_config.as_deref()
         {
             cm_builder.add_data(
                 log_config_file,
@@ -143,7 +143,7 @@ pub fn extend_role_group_config_map(
                         .floor()
                         .value as u32,
                     CONSOLE_CONVERSION_PATTERN,
-                    &log_config,
+                    log_config,
                 ),
             );
         }
@@ -200,9 +200,10 @@ pub fn extend_role_group_config_map(
         MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
     );
 
+    let vector_log_config = merged_config.vector_logging();
     let vector_log_config = if let ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    } = merged_config.vector_logging()
+    } = &*vector_log_config
     {
         Some(log_config)
     } else {
@@ -215,7 +216,7 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_vector_config(
                 rolegroup,
                 vector_aggregator_address.context(MissingVectorAggregatorAddressSnafu)?,
-                vector_log_config.as_ref(),
+                vector_log_config,
             ),
         );
     }
