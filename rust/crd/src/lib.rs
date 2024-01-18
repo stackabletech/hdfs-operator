@@ -215,6 +215,7 @@ impl Deref for AnyNodeConfig {
 }
 
 impl AnyNodeConfig {
+    // Downcasting helpers for each variant
     pub fn as_namenode(&self) -> Option<&NameNodeConfig> {
         if let Self::NameNode(node) = self {
             Some(node)
@@ -237,32 +238,25 @@ impl AnyNodeConfig {
         }
     }
 
-    // Logging config is distinct between each variant, due to the different enum types
-    fn common_logging(
-        &self,
-        namenode_container: NameNodeContainer,
-        datanode_container: DataNodeContainer,
-        journalnode_container: JournalNodeContainer,
-    ) -> Cow<ContainerLogConfig> {
+    // Logging config is distinct between each role, due to the different enum types,
+    // so provide helpers for containers that are common between all roles.
+    pub fn hdfs_logging(&self) -> Cow<ContainerLogConfig> {
         match self {
-            AnyNodeConfig::NameNode(node) => node.logging.for_container(&namenode_container),
-            AnyNodeConfig::DataNode(node) => node.logging.for_container(&datanode_container),
-            AnyNodeConfig::JournalNode(node) => node.logging.for_container(&journalnode_container),
+            AnyNodeConfig::NameNode(node) => node.logging.for_container(&NameNodeContainer::Hdfs),
+            AnyNodeConfig::DataNode(node) => node.logging.for_container(&DataNodeContainer::Hdfs),
+            AnyNodeConfig::JournalNode(node) => {
+                node.logging.for_container(&JournalNodeContainer::Hdfs)
+            }
         }
     }
-    pub fn hdfs_logging(&self) -> Cow<ContainerLogConfig> {
-        self.common_logging(
-            NameNodeContainer::Hdfs,
-            DataNodeContainer::Hdfs,
-            JournalNodeContainer::Hdfs,
-        )
-    }
     pub fn vector_logging(&self) -> Cow<ContainerLogConfig> {
-        self.common_logging(
-            NameNodeContainer::Vector,
-            DataNodeContainer::Vector,
-            JournalNodeContainer::Vector,
-        )
+        match &self {
+            AnyNodeConfig::NameNode(node) => node.logging.for_container(&NameNodeContainer::Vector),
+            AnyNodeConfig::DataNode(node) => node.logging.for_container(&DataNodeContainer::Vector),
+            AnyNodeConfig::JournalNode(node) => {
+                node.logging.for_container(&JournalNodeContainer::Vector)
+            }
+        }
     }
     pub fn vector_logging_enabled(&self) -> bool {
         match self {
