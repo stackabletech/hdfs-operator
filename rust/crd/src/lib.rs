@@ -1167,7 +1167,7 @@ pub struct JournalNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<JournalNodeContainer>,
-    #[fragment_attrs(serde(default))]
+    #[fragment_attrs(serde(flatten))]
     pub common: CommonNodeConfig,
 }
 
