@@ -169,6 +169,28 @@ impl CurrentlySupportedListenerClasses {
     }
 }
 
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
+pub struct CommonNodeConfig {
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
+    pub graceful_shutdown_timeout: Option<Duration>,
+}
+
 /// This is a shared trait for all role/role-group config structs to avoid duplication
 /// when extracting role specific configuration structs like resources or logging.
 pub trait MergedConfig {
@@ -296,7 +318,10 @@ impl HdfsRole {
                     // Migrate old `selector` attribute, see ADR 26 affinities.
                     // TODO Can be removed after support for the old `selector` field is dropped.
                     #[allow(deprecated)]
-                    role_group_config.affinity.add_legacy_selector(selector);
+                    role_group_config
+                        .common
+                        .affinity
+                        .add_legacy_selector(selector);
                 }
 
                 role_config.merge(&default_config);
@@ -335,7 +360,10 @@ impl HdfsRole {
                     // Migrate old `selector` attribute, see ADR 26 affinities.
                     // TODO Can be removed after support for the old `selector` field is dropped.
                     #[allow(deprecated)]
-                    role_group_config.affinity.add_legacy_selector(selector);
+                    role_group_config
+                        .common
+                        .affinity
+                        .add_legacy_selector(selector);
                 }
 
                 role_config.merge(&default_config);
@@ -375,7 +403,10 @@ impl HdfsRole {
                     // Migrate old `selector` attribute, see ADR 26 affinities.
                     // TODO Can be removed after support for the old `selector` field is dropped.
                     #[allow(deprecated)]
-                    role_group_config.affinity.add_legacy_selector(selector);
+                    role_group_config
+                        .common
+                        .affinity
+                        .add_legacy_selector(selector);
                 }
 
                 role_config.merge(&default_config);
@@ -873,11 +904,8 @@ pub struct NameNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<NameNodeContainer>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
+    #[fragment_attrs(serde(flatten))]
+    pub common: CommonNodeConfig,
 }
 
 impl MergedConfig for NameNodeConfig {
@@ -886,11 +914,11 @@ impl MergedConfig for NameNodeConfig {
     }
 
     fn affinity(&self) -> &StackableAffinity {
-        &self.affinity
+        &self.common.affinity
     }
 
     fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
-        self.graceful_shutdown_timeout.as_ref()
+        self.common.graceful_shutdown_timeout.as_ref()
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -956,8 +984,10 @@ impl NameNodeConfigFragment {
                 },
             },
             logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role),
-            graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            common: CommonNodeConfigFragment {
+                affinity: get_affinity(cluster_name, role),
+                graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            },
         }
     }
 }
@@ -1041,11 +1071,8 @@ pub struct DataNodeConfig {
     pub resources: Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<DataNodeContainer>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
+    #[fragment_attrs(serde(flatten))]
+    pub common: CommonNodeConfig,
 }
 
 impl MergedConfig for DataNodeConfig {
@@ -1056,11 +1083,11 @@ impl MergedConfig for DataNodeConfig {
     }
 
     fn affinity(&self) -> &StackableAffinity {
-        &self.affinity
+        &self.common.affinity
     }
 
     fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
-        self.graceful_shutdown_timeout.as_ref()
+        self.common.graceful_shutdown_timeout.as_ref()
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -1117,8 +1144,10 @@ impl DataNodeConfigFragment {
                 )]),
             },
             logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role),
-            graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            common: CommonNodeConfigFragment {
+                affinity: get_affinity(cluster_name, role),
+                graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            },
         }
     }
 }
@@ -1201,10 +1230,7 @@ pub struct JournalNodeConfig {
     #[fragment_attrs(serde(default))]
     pub logging: Logging<JournalNodeContainer>,
     #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
+    pub common: CommonNodeConfig,
 }
 
 impl MergedConfig for JournalNodeConfig {
@@ -1213,11 +1239,11 @@ impl MergedConfig for JournalNodeConfig {
     }
 
     fn affinity(&self) -> &StackableAffinity {
-        &self.affinity
+        &self.common.affinity
     }
 
     fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
-        self.graceful_shutdown_timeout.as_ref()
+        self.common.graceful_shutdown_timeout.as_ref()
     }
 
     fn hdfs_logging(&self) -> ContainerLogConfig {
@@ -1262,8 +1288,10 @@ impl JournalNodeConfigFragment {
                 },
             },
             logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role),
-            graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            common: CommonNodeConfigFragment {
+                affinity: get_affinity(cluster_name, role),
+                graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            },
         }
     }
 }
