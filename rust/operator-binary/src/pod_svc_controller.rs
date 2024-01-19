@@ -22,15 +22,19 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[snafu(display("Pod has no name"))]
     PodHasNoName,
+
     #[snafu(display("Pod [{name}] has no labels"))]
     PodHasNoLabels { name: String },
+
     #[snafu(display("Pod [{name}] has no spec"))]
     PodHasNoSpec { name: String },
+
     #[snafu(display("Failed to build owner reference of pod [{name}]"))]
     PodOwnerReference {
         source: stackable_operator::error::Error,
         name: String,
     },
+
     #[snafu(display("Cannot create pod service [{name}]"))]
     ApplyPodServiceFailed {
         source: stackable_operator::error::Error,

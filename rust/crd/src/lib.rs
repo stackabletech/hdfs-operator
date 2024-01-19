@@ -52,10 +52,13 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[snafu(display("Object has no associated namespace"))]
     NoNamespace,
+
     #[snafu(display("Missing node role [{role}]"))]
     MissingRole { role: String },
+
     #[snafu(display("Missing role group [{role_group}] for role [{role}]"))]
     MissingRoleGroup { role: String, role_group: String },
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 
