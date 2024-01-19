@@ -801,50 +801,47 @@ wait_for_termination $!
     ) -> Vec<Volume> {
         let mut volumes = vec![];
 
-        let container_log_config = match self {
-            ContainerConfig::Hdfs { role, .. } => {
-                volumes.push(
-                    VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
-                        .empty_dir(EmptyDirVolumeSource {
-                            medium: None,
-                            size_limit: Some(
-                                product_logging::framework::calculate_log_volume_size_limit(&[
-                                    MAX_HDFS_LOG_FILE_SIZE,
-                                    MAX_ZKFC_LOG_FILE_SIZE,
-                                    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-                                    MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
-                                    MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
-                                ]),
-                            ),
-                        })
-                        .build(),
-                );
-
-                if *role == HdfsRole::DataNode {
-                    if let Some(listener_class) = merged_config.listener_class() {
-                        volumes.push(
-                            VolumeBuilder::new(LISTENER_VOLUME_NAME)
-                                .ephemeral(
-                                    ListenerOperatorVolumeSourceBuilder::new(
-                                        &ListenerReference::ListenerClass(
-                                            listener_class.to_string(),
-                                        ),
-                                    )
-                                    .build(),
+        if let ContainerConfig::Hdfs { role, .. } = self {
+            if *role == HdfsRole::DataNode {
+                if let Some(listener_class) = merged_config.listener_class() {
+                    volumes.push(
+                        VolumeBuilder::new(LISTENER_VOLUME_NAME)
+                            .ephemeral(
+                                ListenerOperatorVolumeSourceBuilder::new(
+                                    &ListenerReference::ListenerClass(listener_class.to_string()),
                                 )
                                 .build(),
-                        );
-                    }
+                            )
+                            .build(),
+                    );
                 }
-
-                Some(merged_config.hdfs_logging())
             }
+
+            volumes.push(
+                VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
+                    .empty_dir(EmptyDirVolumeSource {
+                        medium: None,
+                        size_limit: Some(
+                            product_logging::framework::calculate_log_volume_size_limit(&[
+                                MAX_HDFS_LOG_FILE_SIZE,
+                                MAX_ZKFC_LOG_FILE_SIZE,
+                                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+                                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+                                MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+                            ]),
+                        ),
+                    })
+                    .build(),
+            );
+        }
+
+        let container_log_config = match self {
+            ContainerConfig::Hdfs { .. } => Some(merged_config.hdfs_logging()),
             ContainerConfig::Zkfc { .. } => merged_config.zkfc_logging(),
             ContainerConfig::FormatNameNodes { .. } => merged_config.format_namenodes_logging(),
             ContainerConfig::FormatZooKeeper { .. } => merged_config.format_zookeeper_logging(),
             ContainerConfig::WaitForNameNodes { .. } => merged_config.wait_for_namenodes(),
         };
-
         volumes.extend(Self::common_container_volumes(
             container_log_config,
             object_name,
