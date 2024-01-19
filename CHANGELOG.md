@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
-- Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#264]). 
+- Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#264]).
 
 ### Fixed
 
@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file.
 
 [#433]: https://github.com/stackabletech/hdfs-operator/pull/433
 [#451]: https://github.com/stackabletech/hdfs-operator/pull/451
-[#433]: https://github.com/stackabletech/hdfs-operator/pull/264
+[#264]: https://github.com/stackabletech/hdfs-operator/pull/264
 
 ## [23.11.0] - 2023-11-24
 
