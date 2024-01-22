@@ -219,7 +219,7 @@ pub enum Error {
     ObjectMeta { source: ObjectMetaBuilderError },
 
     #[snafu(display("failed to build security config"))]
-    Xxx { source: kerberos::Error },
+    BuildSecurityConfig { source: kerberos::Error },
 }
 
 impl ReconcilerError for Error {
@@ -554,7 +554,7 @@ fn rolegroup_config_map(
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
                     .security_config(hdfs)
-                    .context(XxxSnafu)?
+                    .context(BuildSecurityConfigSnafu)?
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
