@@ -121,9 +121,6 @@ pub enum Error {
     #[snafu(display("Object has no name"))]
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
 
-    #[snafu(display("Object has no namespace"))]
-    ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
-
     #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
     BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,
@@ -218,8 +215,11 @@ pub enum Error {
     #[snafu(display("failed to build label"))]
     BuildLabel { source: LabelError },
 
-    #[snafu(display("failed to build object  meta data"))]
+    #[snafu(display("failed to build object meta data"))]
     ObjectMeta { source: ObjectMetaBuilderError },
+
+    #[snafu(display("failed to build security config"))]
+    Xxx { source: kerberos::Error },
 }
 
 impl ReconcilerError for Error {
@@ -243,8 +243,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
-    if hdfs.has_kerberos_enabled() {
-        kerberos::check_if_supported(&resolved_product_image)?;
+    if hdfs.has_kerberos_enabled() && kerberos::check_if_supported(&resolved_product_image) {
+        return KerberosNotSupportedSnafu.fail();
     }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
@@ -287,7 +287,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         HDFS_CONTROLLER,
         &namenode_podrefs,
         &resolved_product_image,
-    )?;
+    )
+    .context(BuildDiscoveryConfigMapSnafu)?;
 
     // The discovery CM is linked to the cluster lifecycle via ownerreference.
     // Therefore, must not be added to the "orphaned" cluster resources
@@ -442,7 +443,7 @@ fn rolegroup_service(
         .name_and_namespace(hdfs)
         .name(&rolegroup_ref.object_name())
         .ownerreference_from_resource(hdfs, None, Some(true))
-        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+        .context(ObjectMissingMetadataForOwnerRefSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?
         .with_recommended_labels(build_recommended_labels(
@@ -552,7 +553,8 @@ fn rolegroup_config_map(
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
-                    .security_config(hdfs)?
+                    .security_config(hdfs)
+                    .context(XxxSnafu)?
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();

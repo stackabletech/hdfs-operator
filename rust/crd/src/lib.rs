@@ -20,7 +20,7 @@ use stackable_operator::{
     },
     k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::api::resource::Quantity},
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
-    kvp::{Label, LabelError, Labels},
+    kvp::{LabelError, Labels},
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
