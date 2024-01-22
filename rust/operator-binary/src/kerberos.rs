@@ -60,7 +60,7 @@ impl HdfsSiteConfigBuilder {
 }
 
 impl CoreSiteConfigBuilder {
-    pub fn security_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self, Error> {
+    pub fn security_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self> {
         if hdfs.authentication_config().is_some() {
             let principal_host_part = principal_host_part(hdfs)?;
 
@@ -111,7 +111,7 @@ impl CoreSiteConfigBuilder {
         Ok(self)
     }
 
-    pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self, Error> {
+    pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self> {
         if hdfs.has_kerberos_enabled() {
             let principal_host_part = principal_host_part(hdfs)?;
 
@@ -152,7 +152,7 @@ impl CoreSiteConfigBuilder {
 /// ```
 ///
 /// After we have switched to using the following principals everything worked without problems
-fn principal_host_part(hdfs: &HdfsCluster) -> Result<String, Error> {
+fn principal_host_part(hdfs: &HdfsCluster) -> Result<String> {
     let hdfs_name = hdfs.name_any();
     let hdfs_namespace = hdfs
         .namespace_or_error()
