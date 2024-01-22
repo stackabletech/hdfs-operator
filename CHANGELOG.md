@@ -11,8 +11,14 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
+- Use new label builders ([#454]).
+
+### Removed
+
+- [BREAKING] Removed legacy node selector on roleGroups ([#454]).
 
 [#433]: https://github.com/stackabletech/hdfs-operator/pull/433
+[#454]: https://github.com/stackabletech/hdfs-operator/pull/454
 
 ## [23.11.0] - 2023-11-24
 
