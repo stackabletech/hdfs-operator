@@ -1,7 +1,3 @@
-use crate::{
-    build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-};
 use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{CORE_SITE_XML, HDFS_SITE_XML},
@@ -12,6 +8,11 @@ use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::{runtime::reflector::ObjectRef, ResourceExt},
+};
+
+use crate::{
+    build_recommended_labels,
+    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;

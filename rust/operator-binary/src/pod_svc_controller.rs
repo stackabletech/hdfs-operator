@@ -1,6 +1,8 @@
 //! NodePort controller for exposing individual Pods.
 //!
 //! For pods with the label `hdfs.stackable.tech/pod-service=true` a NodePort is created that exposes the local node pod.
+use std::sync::Arc;
+
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::constants::*;
 use stackable_hdfs_crd::HdfsRole;
@@ -12,7 +14,6 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     time::Duration,
 };
-use std::sync::Arc;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
