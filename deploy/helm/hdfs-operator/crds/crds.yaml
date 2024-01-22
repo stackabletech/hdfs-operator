@@ -97,7 +97,7 @@ spec:
                       type: boolean
                   type: object
                 dataNodes:
-                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a [`HashMap`] containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level using the [`Merge`] trait. There is also a second form of config, which can only be configured at role level, the `roleConfig`.
+                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a key-value-map containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level. There is also a second form of config, which can only be configured at role level, the `roleConfig`. You can learn more about this in the [Roles and role group concept documentation](https://docs.stackable.tech/home/nightly/concepts/roles-and-role-groups).
                   nullable: true
                   properties:
                     cliOverrides:
@@ -7086,37 +7086,6 @@ spec:
                             minimum: 0.0
                             nullable: true
                             type: integer
-                          selector:
-                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
-                            nullable: true
-                            properties:
-                              matchExpressions:
-                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
-                                items:
-                                  description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
-                                  properties:
-                                    key:
-                                      description: key is the label key that the selector applies to.
-                                      type: string
-                                    operator:
-                                      description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
-                                      type: string
-                                    values:
-                                      description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
-                                      items:
-                                        type: string
-                                      type: array
-                                  required:
-                                    - key
-                                    - operator
-                                  type: object
-                                type: array
-                              matchLabels:
-                                additionalProperties:
-                                  type: string
-                                description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
-                                type: object
-                            type: object
                         type: object
                       type: object
                   required:
@@ -7169,7 +7138,7 @@ spec:
                       type: string
                   type: object
                 journalNodes:
-                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a [`HashMap`] containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level using the [`Merge`] trait. There is also a second form of config, which can only be configured at role level, the `roleConfig`.
+                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a key-value-map containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level. There is also a second form of config, which can only be configured at role level, the `roleConfig`. You can learn more about this in the [Roles and role group concept documentation](https://docs.stackable.tech/home/nightly/concepts/roles-and-role-groups).
                   nullable: true
                   properties:
                     cliOverrides:
@@ -14140,44 +14109,13 @@ spec:
                             minimum: 0.0
                             nullable: true
                             type: integer
-                          selector:
-                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
-                            nullable: true
-                            properties:
-                              matchExpressions:
-                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
-                                items:
-                                  description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
-                                  properties:
-                                    key:
-                                      description: key is the label key that the selector applies to.
-                                      type: string
-                                    operator:
-                                      description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
-                                      type: string
-                                    values:
-                                      description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
-                                      items:
-                                        type: string
-                                      type: array
-                                  required:
-                                    - key
-                                    - operator
-                                  type: object
-                                type: array
-                              matchLabels:
-                                additionalProperties:
-                                  type: string
-                                description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
-                                type: object
-                            type: object
                         type: object
                       type: object
                   required:
                     - roleGroups
                   type: object
                 nameNodes:
-                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a [`HashMap`] containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level using the [`Merge`] trait. There is also a second form of config, which can only be configured at role level, the `roleConfig`.
+                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a key-value-map containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level. There is also a second form of config, which can only be configured at role level, the `roleConfig`. You can learn more about this in the [Roles and role group concept documentation](https://docs.stackable.tech/home/nightly/concepts/roles-and-role-groups).
                   nullable: true
                   properties:
                     cliOverrides:
@@ -21148,37 +21086,6 @@ spec:
                             minimum: 0.0
                             nullable: true
                             type: integer
-                          selector:
-                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
-                            nullable: true
-                            properties:
-                              matchExpressions:
-                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
-                                items:
-                                  description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
-                                  properties:
-                                    key:
-                                      description: key is the label key that the selector applies to.
-                                      type: string
-                                    operator:
-                                      description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
-                                      type: string
-                                    values:
-                                      description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
-                                      items:
-                                        type: string
-                                      type: array
-                                  required:
-                                    - key
-                                    - operator
-                                  type: object
-                                type: array
-                              matchLabels:
-                                additionalProperties:
-                                  type: string
-                                description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
-                                type: object
-                            type: object
                         type: object
                       type: object
                   required:
