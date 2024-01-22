@@ -13,6 +13,7 @@ use stackable_operator::{
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    kerberos,
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -31,8 +32,11 @@ pub enum Error {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("failed to build object  meta data"))]
+    #[snafu(display("failed to build object meta data"))]
     ObjectMeta { source: ObjectMetaBuilderError },
+
+    #[snafu(display("failed to build security discovery config map"))]
+    BuildSecurityDiscoveryConfigMap { source: kerberos::Error },
 }
 
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
@@ -67,7 +71,7 @@ pub fn build_discovery_configmap(
         )
         .add_data(
             CORE_SITE_XML,
-            build_discovery_core_site_xml(hdfs, hdfs.name_any()),
+            build_discovery_core_site_xml(hdfs, hdfs.name_any())?,
         )
         .build()
         .context(BuildConfigMapSnafu)
@@ -88,9 +92,10 @@ fn build_discovery_hdfs_site_xml(
         .build_as_xml()
 }
 
-fn build_discovery_core_site_xml(hdfs: &HdfsCluster, logical_name: String) -> String {
-    CoreSiteConfigBuilder::new(logical_name)
+fn build_discovery_core_site_xml(hdfs: &HdfsCluster, logical_name: String) -> Result<String> {
+    Ok(CoreSiteConfigBuilder::new(logical_name)
         .fs_default_fs()
         .security_discovery_config(hdfs)
-        .build_as_xml()
+        .context(BuildSecurityDiscoveryConfigMapSnafu)?
+        .build_as_xml())
 }

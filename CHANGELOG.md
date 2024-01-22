@@ -16,9 +16,17 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - [BREAKING] Removed legacy node selector on roleGroups ([#454]).
+- Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#458]).
+
+### Fixed
+
+- Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
+  and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#451]).
 
 [#433]: https://github.com/stackabletech/hdfs-operator/pull/433
 [#454]: https://github.com/stackabletech/hdfs-operator/pull/454
+[#451]: https://github.com/stackabletech/hdfs-operator/pull/451
+[#458]: https://github.com/stackabletech/hdfs-operator/pull/458
 
 ## [23.11.0] - 2023-11-24
 
