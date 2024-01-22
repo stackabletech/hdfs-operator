@@ -79,7 +79,7 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
                 .prefix()
                 .is_some_and(|prefix| *prefix == APP_KUBERNETES_LABEL_BASE)
         })
-        .map(|label| label.clone())
+        .cloned()
         .collect();
 
     let ports: Vec<(String, i32)> = pod
