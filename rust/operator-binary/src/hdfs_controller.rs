@@ -494,6 +494,15 @@ fn rolegroup_config_map(
                 // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
                 // be formatted by the namenode, or used by the other services.
                 // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                //
+                // Notes on configuration choices
+                // ===============================
+                // We used to set `dfs.ha.nn.not-become-active-in-safemode` to true here due to
+                // badly worded HDFS documentation:
+                // https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithNFS.html
+                // This caused a deadlock with no namenode becoming active during a startup after
+                // HDFS was completely down for a while.
+
                 hdfs_site_xml = HdfsSiteConfigBuilder::new(hdfs_name.to_string())
                     .dfs_namenode_name_dir()
                     .dfs_datanode_data_dir(
@@ -512,7 +521,6 @@ fn rolegroup_config_map(
                     .dfs_client_failover_proxy_provider()
                     .security_config(hdfs)
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
-                    .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                     .add("dfs.ha.automatic-failover.enabled", "true")
                     .add("dfs.ha.namenode.id", "${env.POD_NAME}")
                     // the extend with config must come last in order to have overrides working!!!
