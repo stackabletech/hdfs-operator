@@ -408,14 +408,12 @@ impl HdfsCluster {
             &rolegroup_ref.role_group,
         )
         .context(BuildLabelSnafu)?;
-        group_labels.insert(
-            Label::try_from((String::from("role"), rolegroup_ref.role.clone()))
-                .context(BuildLabelSnafu)?,
-        );
-        group_labels.insert(
-            Label::try_from((String::from("group"), rolegroup_ref.role_group.clone()))
-                .context(BuildLabelSnafu)?,
-        );
+        group_labels
+            .parse_insert((String::from("role"), rolegroup_ref.role.clone()))
+            .context(BuildLabelSnafu)?;
+        group_labels
+            .parse_insert((String::from("group"), rolegroup_ref.role_group.clone()))
+            .context(BuildLabelSnafu)?;
 
         if self.spec.cluster_config.listener_class
             == CurrentlySupportedListenerClasses::ExternalUnstable
@@ -423,10 +421,9 @@ impl HdfsCluster {
             // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
             // useful for development purposes.
 
-            group_labels.insert(
-                Label::try_from((LABEL_ENABLE.to_string(), "true".to_string()))
-                    .context(BuildLabelSnafu)?,
-            );
+            group_labels
+                .parse_insert((LABEL_ENABLE.to_string(), "true".to_string()))
+                .context(BuildLabelSnafu)?;
         }
 
         Ok(group_labels)
