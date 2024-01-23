@@ -26,7 +26,7 @@ pub enum Error {
 /// With HDFS 3.2.2 we got weird errors, which *might* be caused by DNS lookup issues
 /// The Stacktrace is documented in rust/operator/src/kerberos_hdfs_3.2_stacktrace.txt
 pub fn is_supported(resolved_product_image: &ResolvedProductImage) -> bool {
-    resolved_product_image.product_version.starts_with("3.2.")
+    !resolved_product_image.product_version.starts_with("3.2.")
 }
 
 impl HdfsSiteConfigBuilder {
