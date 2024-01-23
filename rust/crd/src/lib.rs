@@ -1,4 +1,9 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+    ops::Deref,
+};
 
 use product_config::types::PropertyNameKind;
 use serde::{Deserialize, Serialize};
@@ -174,43 +179,98 @@ impl CurrentlySupportedListenerClasses {
     }
 }
 
-/// This is a shared trait for all role/role-group config structs to avoid duplication
-/// when extracting role specific configuration structs like resources or logging.
-pub trait MergedConfig {
-    fn name_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
-        None
+/// Configuration options that are available for all roles.
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
+pub struct CommonNodeConfig {
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
+    pub graceful_shutdown_timeout: Option<Duration>,
+}
+
+/// Configuration for a rolegroup of an unknown type.
+#[derive(Debug)]
+pub enum AnyNodeConfig {
+    NameNode(NameNodeConfig),
+    DataNode(DataNodeConfig),
+    JournalNode(JournalNodeConfig),
+}
+
+impl Deref for AnyNodeConfig {
+    type Target = CommonNodeConfig;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            AnyNodeConfig::NameNode(node) => &node.common,
+            AnyNodeConfig::DataNode(node) => &node.common,
+            AnyNodeConfig::JournalNode(node) => &node.common,
+        }
     }
-    fn journal_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
-        None
+}
+
+impl AnyNodeConfig {
+    // Downcasting helpers for each variant
+    pub fn as_namenode(&self) -> Option<&NameNodeConfig> {
+        if let Self::NameNode(node) = self {
+            Some(node)
+        } else {
+            None
+        }
     }
-    fn data_node_resources(
-        &self,
-    ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
-        None
+    pub fn as_datanode(&self) -> Option<&DataNodeConfig> {
+        if let Self::DataNode(node) = self {
+            Some(node)
+        } else {
+            None
+        }
     }
-    fn affinity(&self) -> &StackableAffinity;
-    fn graceful_shutdown_timeout(&self) -> Option<&Duration>;
-    /// Main container shared by all roles
-    fn hdfs_logging(&self) -> ContainerLogConfig;
-    /// Vector container shared by all roles
-    fn vector_logging(&self) -> ContainerLogConfig;
-    /// Helper method to access if vector container should be deployed
-    fn vector_logging_enabled(&self) -> bool;
-    /// Namenode side container (ZooKeeperFailOverController)
-    fn zkfc_logging(&self) -> Option<ContainerLogConfig> {
-        None
+    pub fn as_journalnode(&self) -> Option<&JournalNodeConfig> {
+        if let Self::JournalNode(node) = self {
+            Some(node)
+        } else {
+            None
+        }
     }
-    /// Namenode init container to format namenode
-    fn format_namenodes_logging(&self) -> Option<ContainerLogConfig> {
-        None
+
+    // Logging config is distinct between each role, due to the different enum types,
+    // so provide helpers for containers that are common between all roles.
+    pub fn hdfs_logging(&self) -> Cow<ContainerLogConfig> {
+        match self {
+            AnyNodeConfig::NameNode(node) => node.logging.for_container(&NameNodeContainer::Hdfs),
+            AnyNodeConfig::DataNode(node) => node.logging.for_container(&DataNodeContainer::Hdfs),
+            AnyNodeConfig::JournalNode(node) => {
+                node.logging.for_container(&JournalNodeContainer::Hdfs)
+            }
+        }
     }
-    /// Namenode init container to format zookeeper
-    fn format_zookeeper_logging(&self) -> Option<ContainerLogConfig> {
-        None
+    pub fn vector_logging(&self) -> Cow<ContainerLogConfig> {
+        match &self {
+            AnyNodeConfig::NameNode(node) => node.logging.for_container(&NameNodeContainer::Vector),
+            AnyNodeConfig::DataNode(node) => node.logging.for_container(&DataNodeContainer::Vector),
+            AnyNodeConfig::JournalNode(node) => {
+                node.logging.for_container(&JournalNodeContainer::Vector)
+            }
+        }
     }
-    /// Datanode init container to wait for namenodes to become ready
-    fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
-        None
+    pub fn vector_logging_enabled(&self) -> bool {
+        match self {
+            AnyNodeConfig::NameNode(node) => node.logging.enable_vector_agent,
+            AnyNodeConfig::DataNode(node) => node.logging.enable_vector_agent,
+            AnyNodeConfig::JournalNode(node) => node.logging.enable_vector_agent,
+        }
     }
 }
 
@@ -270,7 +330,7 @@ impl HdfsRole {
         &self,
         hdfs: &HdfsCluster,
         role_group: &str,
-    ) -> Result<Box<dyn MergedConfig + Send + 'static>, Error> {
+    ) -> Result<AnyNodeConfig, Error> {
         match self {
             HdfsRole::NameNode => {
                 let default_config = NameNodeConfigFragment::default_config(&hdfs.name_any(), self);
@@ -295,7 +355,7 @@ impl HdfsRole {
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
-                Ok(Box::new(
+                Ok(AnyNodeConfig::NameNode(
                     fragment::validate::<NameNodeConfig>(role_group_config)
                         .context(FragmentValidationFailureSnafu)?,
                 ))
@@ -323,7 +383,7 @@ impl HdfsRole {
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
-                Ok(Box::new(
+                Ok(AnyNodeConfig::DataNode(
                     fragment::validate::<DataNodeConfig>(role_group_config)
                         .context(FragmentValidationFailureSnafu)?,
                 ))
@@ -352,7 +412,7 @@ impl HdfsRole {
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
-                Ok(Box::new(
+                Ok(AnyNodeConfig::JournalNode(
                     fragment::validate::<JournalNodeConfig>(role_group_config)
                         .context(FragmentValidationFailureSnafu)?,
                 ))
@@ -833,66 +893,8 @@ pub struct NameNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<NameNodeContainer>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
-}
-
-impl MergedConfig for NameNodeConfig {
-    fn name_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
-        Some(self.resources.clone())
-    }
-
-    fn affinity(&self) -> &StackableAffinity {
-        &self.affinity
-    }
-
-    fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
-        self.graceful_shutdown_timeout.as_ref()
-    }
-
-    fn hdfs_logging(&self) -> ContainerLogConfig {
-        self.logging
-            .containers
-            .get(&NameNodeContainer::Hdfs)
-            .cloned()
-            .unwrap_or_default()
-    }
-
-    fn vector_logging(&self) -> ContainerLogConfig {
-        self.logging
-            .containers
-            .get(&NameNodeContainer::Vector)
-            .cloned()
-            .unwrap_or_default()
-    }
-
-    fn vector_logging_enabled(&self) -> bool {
-        self.logging.enable_vector_agent
-    }
-
-    fn zkfc_logging(&self) -> Option<ContainerLogConfig> {
-        self.logging
-            .containers
-            .get(&NameNodeContainer::Zkfc)
-            .cloned()
-    }
-
-    fn format_namenodes_logging(&self) -> Option<ContainerLogConfig> {
-        self.logging
-            .containers
-            .get(&NameNodeContainer::FormatNameNodes)
-            .cloned()
-    }
-
-    fn format_zookeeper_logging(&self) -> Option<ContainerLogConfig> {
-        self.logging
-            .containers
-            .get(&NameNodeContainer::FormatZooKeeper)
-            .cloned()
-    }
+    #[fragment_attrs(serde(flatten))]
+    pub common: CommonNodeConfig,
 }
 
 impl NameNodeConfigFragment {
@@ -916,8 +918,10 @@ impl NameNodeConfigFragment {
                 },
             },
             logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role),
-            graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            common: CommonNodeConfigFragment {
+                affinity: get_affinity(cluster_name, role),
+                graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            },
         }
     }
 }
@@ -1001,54 +1005,8 @@ pub struct DataNodeConfig {
     pub resources: Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<DataNodeContainer>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
-}
-
-impl MergedConfig for DataNodeConfig {
-    fn data_node_resources(
-        &self,
-    ) -> Option<Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>> {
-        Some(self.resources.clone())
-    }
-
-    fn affinity(&self) -> &StackableAffinity {
-        &self.affinity
-    }
-
-    fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
-        self.graceful_shutdown_timeout.as_ref()
-    }
-
-    fn hdfs_logging(&self) -> ContainerLogConfig {
-        self.logging
-            .containers
-            .get(&DataNodeContainer::Hdfs)
-            .cloned()
-            .unwrap_or_default()
-    }
-
-    fn vector_logging(&self) -> ContainerLogConfig {
-        self.logging
-            .containers
-            .get(&DataNodeContainer::Vector)
-            .cloned()
-            .unwrap_or_default()
-    }
-
-    fn vector_logging_enabled(&self) -> bool {
-        self.logging.enable_vector_agent
-    }
-
-    fn wait_for_namenodes(&self) -> Option<ContainerLogConfig> {
-        self.logging
-            .containers
-            .get(&DataNodeContainer::WaitForNameNodes)
-            .cloned()
-    }
+    #[fragment_attrs(serde(flatten))]
+    pub common: CommonNodeConfig,
 }
 
 impl DataNodeConfigFragment {
@@ -1077,8 +1035,10 @@ impl DataNodeConfigFragment {
                 )]),
             },
             logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role),
-            graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            common: CommonNodeConfigFragment {
+                affinity: get_affinity(cluster_name, role),
+                graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            },
         }
     }
 }
@@ -1160,45 +1120,8 @@ pub struct JournalNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<JournalNodeContainer>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
-    #[fragment_attrs(serde(default))]
-    pub graceful_shutdown_timeout: Option<Duration>,
-}
-
-impl MergedConfig for JournalNodeConfig {
-    fn journal_node_resources(&self) -> Option<Resources<HdfsStorageConfig, NoRuntimeLimits>> {
-        Some(self.resources.clone())
-    }
-
-    fn affinity(&self) -> &StackableAffinity {
-        &self.affinity
-    }
-
-    fn graceful_shutdown_timeout(&self) -> Option<&Duration> {
-        self.graceful_shutdown_timeout.as_ref()
-    }
-
-    fn hdfs_logging(&self) -> ContainerLogConfig {
-        self.logging
-            .containers
-            .get(&JournalNodeContainer::Hdfs)
-            .cloned()
-            .unwrap_or_default()
-    }
-
-    fn vector_logging(&self) -> ContainerLogConfig {
-        self.logging
-            .containers
-            .get(&JournalNodeContainer::Vector)
-            .cloned()
-            .unwrap_or_default()
-    }
-
-    fn vector_logging_enabled(&self) -> bool {
-        self.logging.enable_vector_agent
-    }
+    #[fragment_attrs(serde(flatten))]
+    pub common: CommonNodeConfig,
 }
 
 impl JournalNodeConfigFragment {
@@ -1222,8 +1145,10 @@ impl JournalNodeConfigFragment {
                 },
             },
             logging: product_logging::spec::default_logging(),
-            affinity: get_affinity(cluster_name, role),
-            graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            common: CommonNodeConfigFragment {
+                affinity: get_affinity(cluster_name, role),
+                graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            },
         }
     }
 }
@@ -1273,6 +1198,25 @@ impl HasStatusCondition for HdfsCluster {
     }
 }
 
+// TODO: upstream?
+pub trait LoggingExt {
+    type Container;
+    fn for_container(&self, container: &Self::Container) -> Cow<ContainerLogConfig>;
+}
+impl<T> LoggingExt for Logging<T>
+where
+    T: Ord + Clone + Display,
+{
+    type Container = T;
+
+    fn for_container(&self, container: &Self::Container) -> Cow<ContainerLogConfig> {
+        self.containers
+            .get(container)
+            .map(Cow::Borrowed)
+            .unwrap_or_default()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::storage::HdfsStorageType;
@@ -1308,11 +1252,8 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let resources = role
-            .merged_config(&hdfs, "default")
-            .unwrap()
-            .data_node_resources()
-            .unwrap();
+        let config = &role.merged_config(&hdfs, "default").unwrap();
+        let resources = &config.as_datanode().unwrap().resources;
         let pvc = resources.storage.get("data").unwrap();
 
         assert_eq!(pvc.count, 1);
@@ -1346,11 +1287,8 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let resources = role
-            .merged_config(&hdfs, "default")
-            .unwrap()
-            .data_node_resources()
-            .unwrap();
+        let config = &role.merged_config(&hdfs, "default").unwrap();
+        let resources = &config.as_datanode().unwrap().resources;
         let pvc = resources.storage.get("data").unwrap();
 
         assert_eq!(pvc.count, 1);
@@ -1379,11 +1317,8 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let resources = role
-            .merged_config(&hdfs, "default")
-            .unwrap()
-            .data_node_resources()
-            .unwrap();
+        let config = role.merged_config(&hdfs, "default").unwrap();
+        let resources = &config.as_datanode().unwrap().resources;
         let pvc = resources.storage.get("data").unwrap();
 
         assert_eq!(pvc.count, 1);
@@ -1433,11 +1368,8 @@ spec:
 
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsRole::DataNode;
-        let resources = role
-            .merged_config(&hdfs, "default")
-            .unwrap()
-            .data_node_resources()
-            .unwrap();
+        let config = &role.merged_config(&hdfs, "default").unwrap();
+        let resources = &config.as_datanode().unwrap().resources;
 
         let pvc = resources.storage.get("data").unwrap();
         assert_eq!(pvc.count, 0);
@@ -1486,8 +1418,10 @@ spec:
         let rr: ResourceRequirements = role
             .merged_config(&hdfs, "default")
             .unwrap()
-            .data_node_resources()
+            .as_datanode()
             .unwrap()
+            .resources
+            .clone()
             .into();
 
         let expected = ResourceRequirements {
@@ -1539,8 +1473,10 @@ spec:
         let rr: ResourceRequirements = role
             .merged_config(&hdfs, "default")
             .unwrap()
-            .data_node_resources()
+            .as_datanode()
             .unwrap()
+            .resources
+            .clone()
             .into();
 
         let expected = ResourceRequirements {
