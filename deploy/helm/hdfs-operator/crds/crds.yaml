@@ -93,6 +93,7 @@ spec:
                       type: object
                     config:
                       default: {}
+                      description: Configuration options that are available for all roles.
                       properties:
                         affinity:
                           default:
@@ -3604,6 +3605,7 @@ spec:
                             type: object
                           config:
                             default: {}
+                            description: Configuration options that are available for all roles.
                             properties:
                               affinity:
                                 default:
@@ -7173,6 +7175,7 @@ spec:
                       type: object
                     config:
                       default: {}
+                      description: Configuration options that are available for all roles.
                       properties:
                         affinity:
                           default:
@@ -10671,6 +10674,7 @@ spec:
                             type: object
                           config:
                             default: {}
+                            description: Configuration options that are available for all roles.
                             properties:
                               affinity:
                                 default:
@@ -14181,6 +14185,7 @@ spec:
                       type: object
                     config:
                       default: {}
+                      description: Configuration options that are available for all roles.
                       properties:
                         affinity:
                           default:
@@ -17683,6 +17688,7 @@ spec:
                             type: object
                           config:
                             default: {}
+                            description: Configuration options that are available for all roles.
                             properties:
                               affinity:
                                 default:

@@ -1,5 +1,9 @@
+use std::{borrow::Cow, fmt::Display};
+
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{DataNodeContainer, HdfsCluster, MergedConfig, NameNodeContainer};
+use stackable_hdfs_crd::{
+    AnyNodeConfig, DataNodeContainer, HdfsCluster, LoggingExt, NameNodeContainer,
+};
 use stackable_operator::{
     builder::ConfigMapBuilder,
     client::Client,
@@ -114,119 +118,92 @@ pub async fn resolve_vector_aggregator_address(
 pub fn extend_role_group_config_map(
     rolegroup: &RoleGroupRef<HdfsCluster>,
     vector_aggregator_address: Option<&str>,
-    merged_config: &(dyn MergedConfig + Send + 'static),
+    merged_config: &AnyNodeConfig,
     cm_builder: &mut ConfigMapBuilder,
 ) -> Result<()> {
-    if let ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    } = merged_config.hdfs_logging()
-    {
-        cm_builder.add_data(
-            HDFS_LOG4J_CONFIG_FILE,
-            product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/hdfs"),
-                HDFS_LOG_FILE,
-                MAX_HDFS_LOG_FILE_SIZE
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32,
-                CONSOLE_CONVERSION_PATTERN,
-                &log_config,
-            ),
-        );
-    }
-
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = merged_config.zkfc_logging()
-    {
-        cm_builder.add_data(
-            ZKFC_LOG4J_CONFIG_FILE,
-            product_logging::framework::create_log4j_config(
-                &format!(
-                    "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = NameNodeContainer::Zkfc
+    fn add_log4j_config_if_automatic(
+        cm_builder: &mut ConfigMapBuilder,
+        log_config: Option<Cow<ContainerLogConfig>>,
+        log_config_file: &str,
+        container_name: impl Display,
+        log_file: &str,
+        max_log_file_size: MemoryQuantity,
+    ) {
+        if let Some(ContainerLogConfig {
+            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+        }) = log_config.as_deref()
+        {
+            cm_builder.add_data(
+                log_config_file,
+                product_logging::framework::create_log4j_config(
+                    &format!("{STACKABLE_LOG_DIR}/{container_name}"),
+                    log_file,
+                    max_log_file_size
+                        .scale_to(BinaryMultiple::Mebi)
+                        .floor()
+                        .value as u32,
+                    CONSOLE_CONVERSION_PATTERN,
+                    log_config,
                 ),
-                ZKFC_LOG_FILE,
-                MAX_ZKFC_LOG_FILE_SIZE
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32,
-                CONSOLE_CONVERSION_PATTERN,
-                &log_config,
-            ),
-        );
+            );
+        }
     }
+    add_log4j_config_if_automatic(
+        cm_builder,
+        Some(merged_config.hdfs_logging()),
+        HDFS_LOG4J_CONFIG_FILE,
+        "hdfs",
+        HDFS_LOG_FILE,
+        MAX_HDFS_LOG_FILE_SIZE,
+    );
+    add_log4j_config_if_automatic(
+        cm_builder,
+        merged_config
+            .as_namenode()
+            .map(|nn| nn.logging.for_container(&NameNodeContainer::Zkfc)),
+        ZKFC_LOG4J_CONFIG_FILE,
+        &NameNodeContainer::Zkfc,
+        ZKFC_LOG_FILE,
+        MAX_ZKFC_LOG_FILE_SIZE,
+    );
+    add_log4j_config_if_automatic(
+        cm_builder,
+        merged_config.as_namenode().map(|nn| {
+            nn.logging
+                .for_container(&NameNodeContainer::FormatNameNodes)
+        }),
+        FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
+        &NameNodeContainer::FormatNameNodes,
+        FORMAT_NAMENODES_LOG_FILE,
+        MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+    );
+    add_log4j_config_if_automatic(
+        cm_builder,
+        merged_config.as_namenode().map(|nn| {
+            nn.logging
+                .for_container(&NameNodeContainer::FormatZooKeeper)
+        }),
+        FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+        &NameNodeContainer::FormatZooKeeper,
+        FORMAT_ZOOKEEPER_LOG_FILE,
+        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+    );
+    add_log4j_config_if_automatic(
+        cm_builder,
+        merged_config.as_datanode().map(|dn| {
+            dn.logging
+                .for_container(&DataNodeContainer::WaitForNameNodes)
+        }),
+        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+        &DataNodeContainer::WaitForNameNodes,
+        WAIT_FOR_NAMENODES_LOG_FILE,
+        MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+    );
 
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = merged_config.format_namenodes_logging()
-    {
-        cm_builder.add_data(
-            FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
-            product_logging::framework::create_log4j_config(
-                &format!(
-                    "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = NameNodeContainer::FormatNameNodes
-                ),
-                FORMAT_NAMENODES_LOG_FILE,
-                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32,
-                CONSOLE_CONVERSION_PATTERN,
-                &log_config,
-            ),
-        );
-    }
-
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = merged_config.format_zookeeper_logging()
-    {
-        cm_builder.add_data(
-            FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-            product_logging::framework::create_log4j_config(
-                &format!(
-                    "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = NameNodeContainer::FormatZooKeeper
-                ),
-                FORMAT_ZOOKEEPER_LOG_FILE,
-                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32,
-                CONSOLE_CONVERSION_PATTERN,
-                &log_config,
-            ),
-        );
-    }
-
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = merged_config.wait_for_namenodes()
-    {
-        cm_builder.add_data(
-            WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-            product_logging::framework::create_log4j_config(
-                &format!(
-                    "{STACKABLE_LOG_DIR}/{container_name}",
-                    container_name = DataNodeContainer::WaitForNameNodes
-                ),
-                WAIT_FOR_NAMENODES_LOG_FILE,
-                MAX_WAIT_NAMENODES_LOG_FILE_SIZE
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32,
-                CONSOLE_CONVERSION_PATTERN,
-                &log_config,
-            ),
-        );
-    }
-
+    let vector_log_config = merged_config.vector_logging();
     let vector_log_config = if let ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    } = merged_config.vector_logging()
+    } = &*vector_log_config
     {
         Some(log_config)
     } else {
@@ -239,7 +216,7 @@ pub fn extend_role_group_config_map(
             product_logging::framework::create_vector_config(
                 rolegroup,
                 vector_aggregator_address.context(MissingVectorAggregatorAddressSnafu)?,
-                vector_log_config.as_ref(),
+                vector_log_config,
             ),
         );
     }

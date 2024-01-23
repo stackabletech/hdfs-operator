@@ -11,7 +11,7 @@ use product_config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
-    constants::*, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, MergedConfig,
+    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
 };
 use stackable_operator::{
     builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
@@ -330,7 +330,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
                 &journalnode_podrefs,
                 &resolved_product_image,
-                merged_config.as_ref(),
+                &merged_config,
                 vector_aggregator_address.as_deref(),
             )?;
 
@@ -340,7 +340,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &rolegroup_ref,
                 &resolved_product_image,
                 env_overrides,
-                merged_config.as_ref(),
+                &merged_config,
                 &namenode_podrefs,
             )?;
 
@@ -478,7 +478,7 @@ fn rolegroup_config_map(
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
-    merged_config: &(dyn MergedConfig + Send + 'static),
+    merged_config: &AnyNodeConfig,
     vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
@@ -502,10 +502,23 @@ fn rolegroup_config_map(
                 // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
                 // be formatted by the namenode, or used by the other services.
                 // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
+                //
+                // Notes on configuration choices
+                // ===============================
+                // We used to set `dfs.ha.nn.not-become-active-in-safemode` to true here due to
+                // badly worded HDFS documentation:
+                // https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithNFS.html
+                // This caused a deadlock with no namenode becoming active during a startup after
+                // HDFS was completely down for a while.
+
                 let mut builder = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
                 builder
                     .dfs_namenode_name_dir()
-                    .dfs_datanode_data_dir(merged_config.data_node_resources().map(|r| r.storage))
+                    .dfs_datanode_data_dir(
+                        merged_config
+                            .as_datanode()
+                            .map(|node| node.resources.storage.clone()),
+                    )
                     .dfs_journalnode_edits_dir()
                     .dfs_replication(hdfs.spec.cluster_config.dfs_replication)
                     .dfs_name_services()
@@ -517,7 +530,6 @@ fn rolegroup_config_map(
                     .dfs_client_failover_proxy_provider()
                     .security_config(hdfs)
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
-                    .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                     .add("dfs.ha.automatic-failover.enabled", "true")
                     .add("dfs.ha.namenode.id", "${env.POD_NAME}")
                     .add(
@@ -677,7 +689,7 @@ fn rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
     env_overrides: Option<&BTreeMap<String, String>>,
-    merged_config: &(dyn MergedConfig + Send + 'static),
+    merged_config: &AnyNodeConfig,
     namenode_podrefs: &[HdfsPodRef],
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
@@ -690,7 +702,7 @@ fn rolegroup_statefulset(
         ..ObjectMeta::default()
     })
     .image_pull_secrets_from_product_image(resolved_product_image)
-    .affinity(merged_config.affinity())
+    .affinity(&merged_config.affinity)
     .service_account_name(service_account_name(APP_NAME))
     .security_context(
         PodSecurityContextBuilder::new()
@@ -758,10 +770,7 @@ fn rolegroup_statefulset(
             service_name: object_name,
             template: pod_template,
 
-            volume_claim_templates: Some(ContainerConfig::volume_claim_templates(
-                role,
-                merged_config,
-            )),
+            volume_claim_templates: Some(ContainerConfig::volume_claim_templates(merged_config)),
             ..StatefulSetSpec::default()
         }),
         status: None,
