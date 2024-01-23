@@ -10,7 +10,6 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
 - Use new label builders ([#454]).
 
 ### Removed
@@ -23,7 +22,6 @@ All notable changes to this project will be documented in this file.
 - Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
   and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#451]).
 
-[#433]: https://github.com/stackabletech/hdfs-operator/pull/433
 [#454]: https://github.com/stackabletech/hdfs-operator/pull/454
 [#451]: https://github.com/stackabletech/hdfs-operator/pull/451
 [#458]: https://github.com/stackabletech/hdfs-operator/pull/458
