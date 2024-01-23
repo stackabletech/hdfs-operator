@@ -156,7 +156,7 @@ fn principal_host_part(hdfs: &HdfsCluster) -> Result<String> {
     let hdfs_name = hdfs.name_any();
     let hdfs_namespace = hdfs
         .namespace_or_error()
-        .context(ObjectHasNoNamespaceSnafu {
+        .with_context(|_| ObjectHasNoNamespaceSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
     Ok(format!(
