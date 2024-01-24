@@ -77,7 +77,9 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
             label
                 .key()
                 .prefix()
-                .is_some_and(|prefix| *prefix == APP_KUBERNETES_LABEL_BASE)
+                .map(std::ops::Deref::deref)
+                .map(std::ops::Deref::deref)
+                == Some(APP_KUBERNETES_LABEL_BASE)
         })
         .cloned()
         .collect();
