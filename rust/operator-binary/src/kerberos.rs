@@ -22,11 +22,13 @@ pub enum Error {
     },
 }
 
+/// Checks for unsupported Kerberos versions
+///
 /// We only support Kerberos for HDFS >= 3.3.x
 /// With HDFS 3.2.2 we got weird errors, which *might* be caused by DNS lookup issues
 /// The Stacktrace is documented in rust/operator/src/kerberos_hdfs_3.2_stacktrace.txt
-pub fn is_supported(resolved_product_image: &ResolvedProductImage) -> bool {
-    !resolved_product_image.product_version.starts_with("3.2.")
+pub fn is_not_supported(resolved_product_image: &ResolvedProductImage) -> bool {
+    resolved_product_image.product_version.starts_with("3.2.")
 }
 
 impl HdfsSiteConfigBuilder {
