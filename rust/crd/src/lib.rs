@@ -67,8 +67,8 @@ pub enum Error {
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 
-    #[snafu(display("failed to build label"))]
-    BuildLabel { source: LabelError },
+    #[snafu(display("failed to build role-group selector label"))]
+    BuildRoleGroupSelectorLabel { source: LabelError },
 }
 
 /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
@@ -472,13 +472,13 @@ impl HdfsCluster {
             &rolegroup_ref.role,
             &rolegroup_ref.role_group,
         )
-        .context(BuildLabelSnafu)?;
+        .context(BuildRoleGroupSelectorLabelSnafu)?;
         group_labels
-            .parse_insert((String::from("role"), rolegroup_ref.role.clone()))
-            .context(BuildLabelSnafu)?;
+            .parse_insert(("role", rolegroup_ref.role.deref()))
+            .context(BuildRoleGroupSelectorLabelSnafu)?;
         group_labels
-            .parse_insert((String::from("group"), rolegroup_ref.role_group.clone()))
-            .context(BuildLabelSnafu)?;
+            .parse_insert(("group", rolegroup_ref.role_group.deref()))
+            .context(BuildRoleGroupSelectorLabelSnafu)?;
 
         if self.spec.cluster_config.listener_class
             == CurrentlySupportedListenerClasses::ExternalUnstable
@@ -487,8 +487,8 @@ impl HdfsCluster {
             // useful for development purposes.
 
             group_labels
-                .parse_insert((LABEL_ENABLE.to_string(), "true".to_string()))
-                .context(BuildLabelSnafu)?;
+                .parse_insert((LABEL_ENABLE, "true"))
+                .context(BuildRoleGroupSelectorLabelSnafu)?;
         }
 
         Ok(group_labels)

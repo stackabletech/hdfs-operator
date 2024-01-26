@@ -42,8 +42,8 @@ pub enum Error {
         name: String,
     },
 
-    #[snafu(display("failed to build label"))]
-    BuildLabel { source: LabelError },
+    #[snafu(display("failed to build new labels from pod labels"))]
+    NewLabelsFromPodLabels { source: LabelError },
 }
 
 impl ReconcilerError for Error {
@@ -69,7 +69,7 @@ pub async fn reconcile_pod(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
             .as_ref()
             .with_context(|| PodHasNoLabelsSnafu { name: name.clone() })?,
     )
-    .context(BuildLabelSnafu)?;
+    .context(NewLabelsFromPodLabelsSnafu)?;
 
     let recommended_labels_from_pod = pod_labels
         .iter()

@@ -212,8 +212,14 @@ pub enum Error {
     #[snafu(display("failed to build roleGroup selector labels"))]
     RoleGroupSelectorLabels { source: stackable_hdfs_crd::Error },
 
-    #[snafu(display("failed to build label"))]
-    BuildLabel { source: LabelError },
+    #[snafu(display("failed to build prometheus label"))]
+    BuildPrometheusLabel { source: LabelError },
+
+    #[snafu(display("failed to build cluster resources label"))]
+    BuildClusterResourcesLabel { source: LabelError },
+
+    #[snafu(display("failed to build role-group selector label"))]
+    BuildRoleGroupSelectorLabel { source: LabelError },
 
     #[snafu(display("failed to build object meta data"))]
     ObjectMeta { source: ObjectMetaBuilderError },
@@ -305,7 +311,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         APP_NAME,
         cluster_resources
             .get_required_labels()
-            .context(BuildLabelSnafu)?,
+            .context(BuildClusterResourcesLabelSnafu)?,
     )
     .context(BuildRbacResourcesSnafu)?;
 
@@ -437,7 +443,7 @@ fn rolegroup_service(
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
 
     let prometheus_label =
-        Label::try_from(("prometheus.io/scrape", "true")).context(BuildLabelSnafu)?;
+        Label::try_from(("prometheus.io/scrape", "true")).context(BuildPrometheusLabelSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
         .name_and_namespace(hdfs)
@@ -775,7 +781,7 @@ fn rolegroup_statefulset(
         &rolegroup_ref.role,
         &rolegroup_ref.role_group,
     )
-    .context(BuildLabelSnafu)?;
+    .context(BuildRoleGroupSelectorLabelSnafu)?;
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),
