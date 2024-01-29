@@ -3,6 +3,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "operator.fullname" . }}-clusterrole
+  labels:
+  {{- include "operator.labels" . | nindent 4 }}
 rules:
   - apiGroups:
       - ""
@@ -123,6 +125,8 @@ apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
   name: hdfs-scc
+  labels:
+  {{- include "operator.labels" . | nindent 4 }}
   annotations:
     kubernetes.io/description: |-
       This resource is derived from hostmount-anyuid. It provides all the features of the
@@ -164,6 +168,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "operator.name" . }}-clusterrole
+  labels:
+  {{- include "operator.labels" . | nindent 4 }}
 rules:
   - apiGroups:
       - ""
