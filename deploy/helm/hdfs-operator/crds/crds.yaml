@@ -59,7 +59,7 @@ spec:
                       type: integer
                     listenerClass:
                       default: cluster-internal
-                      description: Deprecated, use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
+                      description: Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
                       enum:
                         - cluster-internal
                       type: string
