@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
-- [BREAKING] `.spec.clusterConfig.listenerClass` has been renamed to `.spec.nameNodes.config.listenerClass`, migration will be required when using `external-unstable` ([#450]).
+- [BREAKING] `.spec.clusterConfig.listenerClass` has been split to `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass`, migration will be required when using `external-unstable` ([#450]).
 - Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#458]).
 
 ### Fixed
