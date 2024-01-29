@@ -57,6 +57,12 @@ spec:
                       format: uint8
                       minimum: 0.0
                       type: integer
+                    listenerClass:
+                      default: cluster-internal
+                      description: Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
+                      enum:
+                        - cluster-internal
+                      type: string
                     vectorAggregatorConfigMapName:
                       description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
                       nullable: true

@@ -158,10 +158,22 @@ pub struct HdfsClusterConfig {
 
     /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
     pub authentication: Option<AuthenticationConfig>,
+
+    // Scheduled for removal in v1alpha2, see https://github.com/stackabletech/issues/issues/504
+    /// Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
+    #[serde(default)]
+    pub listener_class: DeprecatedClusterListenerClass,
 }
 
 fn default_dfs_replication_factor() -> u8 {
     DEFAULT_DFS_REPLICATION_FACTOR
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum DeprecatedClusterListenerClass {
+    #[default]
+    ClusterInternal,
 }
 
 /// Configuration options that are available for all roles.
