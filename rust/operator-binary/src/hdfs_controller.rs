@@ -72,92 +72,92 @@ const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
-    #[snafu(display("Invalid role configuration"))]
+    #[snafu(display("invalid role configuration"))]
     InvalidRoleConfig {
         source: stackable_operator::product_config_utils::ConfigError,
     },
 
-    #[snafu(display("Invalid product configuration"))]
+    #[snafu(display("invalid product configuration"))]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Cannot create rolegroup service [{name}]"))]
+    #[snafu(display("cannot create rolegroup service {name:?}"))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("Cannot create role group config map [{name}]"))]
+    #[snafu(display("cannot create role group config map {name:?}"))]
     ApplyRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("Cannot create role group stateful set [{name}]"))]
+    #[snafu(display("cannot create role group stateful set {name:?}"))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("Cannot create discovery config map [{name}]"))]
+    #[snafu(display("cannot create discovery config map {name:?}"))]
     ApplyDiscoveryConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("No metadata for [{obj_ref}]"))]
+    #[snafu(display("no metadata for {obj_ref:?}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<HdfsCluster>,
     },
 
-    #[snafu(display("Invalid role [{role}]"))]
+    #[snafu(display("invalid role {role:?}"))]
     InvalidRole {
         source: strum::ParseError,
         role: String,
     },
 
-    #[snafu(display("Object has no name"))]
+    #[snafu(display("object has no name"))]
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
 
-    #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
+    #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
     BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         role: String,
         role_group: String,
     },
 
-    #[snafu(display("Cannot collect discovery configuration"))]
+    #[snafu(display("cannot collect discovery configuration"))]
     CollectDiscoveryConfig { source: stackable_hdfs_crd::Error },
 
-    #[snafu(display("Cannot build config discovery config map"))]
+    #[snafu(display("cannot build config discovery config map"))]
     BuildDiscoveryConfigMap { source: discovery::Error },
 
-    #[snafu(display("Failed to patch service account"))]
+    #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to patch role binding"))]
+    #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to create cluster resources"))]
+    #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to delete orphaned resources"))]
+    #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to create pod references"))]
+    #[snafu(display("failed to create pod references"))]
     CreatePodReferences { source: stackable_hdfs_crd::Error },
 
-    #[snafu(display("Failed to build role properties"))]
+    #[snafu(display("failed to build role properties"))]
     BuildRoleProperties { source: stackable_hdfs_crd::Error },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
@@ -165,7 +165,7 @@ pub enum Error {
         source: crate::product_logging::Error,
     },
 
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
+    #[snafu(display("failed to add the logging configuration to the ConfigMap {cm_name:?}"))]
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
@@ -201,7 +201,7 @@ pub enum Error {
     KerberosNotSupported,
 
     #[snafu(display(
-        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
+        "failed to serialize {JVM_SECURITY_PROPERTIES_FILE:?} for {}",
         rolegroup
     ))]
     JvmSecurityProperties {

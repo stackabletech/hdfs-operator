@@ -15,7 +15,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("Object has no namespace"))]
+    #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace {
         source: stackable_hdfs_crd::Error,
         obj_ref: ObjectRef<HdfsCluster>,

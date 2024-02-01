@@ -76,16 +76,16 @@ pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
 
-    #[snafu(display("Invalid java heap config for [{role}]"))]
+    #[snafu(display("invalid java heap config for {role:?}"))]
     InvalidJavaHeapConfig {
         source: stackable_operator::error::Error,
         role: String,
     },
 
-    #[snafu(display("Could not determine any ContainerConfig actions for [{container_name}]. Container not recognized."))]
+    #[snafu(display("could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."))]
     UnrecognizedContainerName { container_name: String },
 
-    #[snafu(display("Invalid container name [{name}]"))]
+    #[snafu(display("invalid container name {name:?}"))]
     InvalidContainerName {
         source: stackable_operator::error::Error,
         name: String,
