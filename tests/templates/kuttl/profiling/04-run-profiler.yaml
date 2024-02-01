@@ -4,5 +4,5 @@ kind: TestStep
 metadata:
   name: run-profiler
 commands:
-  - script: |
+  - script: |-
       kubectl cp run-profiler.py $NAMESPACE/test-runner-0:/stackable

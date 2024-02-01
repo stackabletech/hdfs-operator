@@ -1,8 +1,6 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: install-test-container
 timeout: 300
 ---
 apiVersion: apps/v1
