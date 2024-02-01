@@ -4,6 +4,7 @@ dimensions:
     values:
       - 3.2.4
       - 3.3.4
+      - 3.3.6
   - name: hadoop-latest
     values:
       - 3.3.4
@@ -65,6 +66,10 @@ tests:
   - name: cluster-operation
     dimensions:
       - hadoop-latest
+      - zookeeper-latest
+  - name: profiling
+    dimensions:
+      - hadoop
       - zookeeper-latest
   # Broken due to https://github.com/kudobuilder/kuttl/issues/322, see 40-assert.yaml for more details
   # - name: external-access
