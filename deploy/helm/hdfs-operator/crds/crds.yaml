@@ -59,17 +59,9 @@ spec:
                       type: integer
                     listenerClass:
                       default: cluster-internal
-                      description: |-
-                        This field controls which type of Service the Operator creates for this HdfsCluster:
-
-                        * cluster-internal: Use a ClusterIP service
-
-                        * external-unstable: Use a NodePort service
-
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+                      description: Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
                       enum:
                         - cluster-internal
-                        - external-unstable
                       type: string
                     vectorAggregatorConfigMapName:
                       description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
@@ -583,6 +575,10 @@ spec:
                           type: object
                         gracefulShutdownTimeout:
                           description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+                          nullable: true
+                          type: string
+                        listenerClass:
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup. DataNodes should have a direct ListenerClass, such as `cluster-internal` or `external-unstable`.
                           nullable: true
                           type: string
                         logging:
@@ -4091,6 +4087,10 @@ spec:
                                 type: object
                               gracefulShutdownTimeout:
                                 description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+                                nullable: true
+                                type: string
+                              listenerClass:
+                                description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup. DataNodes should have a direct ListenerClass, such as `cluster-internal` or `external-unstable`.
                                 nullable: true
                                 type: string
                               logging:
@@ -14607,6 +14607,10 @@ spec:
                           description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
                           nullable: true
                           type: string
+                        listenerClass:
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup. NameNodes should have a stable ListenerClass, such as `cluster-internal` or `external-stable`.
+                          nullable: true
+                          type: string
                         logging:
                           default:
                             enableVectorAgent: null
@@ -18104,6 +18108,10 @@ spec:
                                 type: object
                               gracefulShutdownTimeout:
                                 description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+                                nullable: true
+                                type: string
+                              listenerClass:
+                                description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup. NameNodes should have a stable ListenerClass, such as `cluster-internal` or `external-stable`.
                                 nullable: true
                                 type: string
                               logging:

@@ -17,18 +17,20 @@ use stackable_hdfs_crd::{
     constants::{
         DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
         DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
-        JVM_SECURITY_PROPERTIES_FILE, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
-        SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
+        JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, LOG4J_PROPERTIES,
+        NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
+        STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
     AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
 };
 use stackable_operator::{
     builder::{
-        resources::ResourceRequirementsBuilder, ContainerBuilder, PodBuilder,
-        SecretOperatorVolumeSourceBuilder, VolumeBuilder, VolumeMountBuilder,
+        resources::ResourceRequirementsBuilder, ContainerBuilder,
+        ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+        ListenerReference, PodBuilder, SecretFormat, SecretOperatorVolumeSourceBuilder,
+        SecretOperatorVolumeSourceBuilderError, VolumeBuilder, VolumeMountBuilder,
     },
-    builder::{SecretFormat, SecretOperatorVolumeSourceBuilderError},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::core::v1::{
@@ -38,7 +40,7 @@ use stackable_operator::{
         },
         apimachinery::pkg::util::intstr::IntOrString,
     },
-    kube::ResourceExt,
+    kube::{core::ObjectMeta, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::framework::{
         create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
@@ -66,6 +68,8 @@ pub(crate) const TLS_STORE_VOLUME_NAME: &str = "tls";
 pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
 pub(crate) const KERBEROS_VOLUME_NAME: &str = "kerberos";
 
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
@@ -91,6 +95,11 @@ pub enum Error {
     BuildSecretVolume {
         source: SecretOperatorVolumeSourceBuilderError,
         volume_name: String,
+    },
+
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
     },
 }
 
@@ -170,7 +179,7 @@ impl ContainerConfig {
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(role.clone());
-        pb.add_volumes(main_container_config.volumes(merged_config, object_name));
+        pb.add_volumes(main_container_config.volumes(merged_config, object_name)?);
         pb.add_container(main_container_config.main_container(
             hdfs,
             role,
@@ -238,7 +247,7 @@ impl ContainerConfig {
             HdfsRole::NameNode => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
-                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name));
+                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name)?);
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
                     role,
@@ -252,7 +261,7 @@ impl ContainerConfig {
                 let format_namenodes_container_config =
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
                 pb.add_volumes(
-                    format_namenodes_container_config.volumes(merged_config, object_name),
+                    format_namenodes_container_config.volumes(merged_config, object_name)?,
                 );
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
@@ -268,7 +277,7 @@ impl ContainerConfig {
                 let format_zookeeper_container_config =
                     Self::try_from(NameNodeContainer::FormatZooKeeper.to_string())?;
                 pb.add_volumes(
-                    format_zookeeper_container_config.volumes(merged_config, object_name),
+                    format_zookeeper_container_config.volumes(merged_config, object_name)?,
                 );
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
@@ -285,7 +294,7 @@ impl ContainerConfig {
                 let wait_for_namenodes_container_config =
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
                 pb.add_volumes(
-                    wait_for_namenodes_container_config.volumes(merged_config, object_name),
+                    wait_for_namenodes_container_config.volumes(merged_config, object_name)?,
                 );
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
@@ -303,20 +312,44 @@ impl ContainerConfig {
         Ok(())
     }
 
-    pub fn volume_claim_templates(merged_config: &AnyNodeConfig) -> Vec<PersistentVolumeClaim> {
+    pub fn volume_claim_templates(
+        merged_config: &AnyNodeConfig,
+    ) -> Result<Vec<PersistentVolumeClaim>> {
         match merged_config {
-            AnyNodeConfig::NameNode(node) => vec![node.resources.storage.data.build_pvc(
+            AnyNodeConfig::NameNode(node) => {
+                let listener = ListenerOperatorVolumeSourceBuilder::new(
+                    &ListenerReference::ListenerClass(node.listener_class.to_string()),
+                )
+                .build_ephemeral()
+                .context(BuildListenerVolumeSnafu)?
+                .volume_claim_template
+                .unwrap();
+
+                let pvcs = vec![
+                    node.resources.storage.data.build_pvc(
+                        ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+                        Some(vec!["ReadWriteOnce"]),
+                    ),
+                    PersistentVolumeClaim {
+                        metadata: ObjectMeta {
+                            name: Some(LISTENER_VOLUME_NAME.to_string()),
+                            ..listener.metadata.unwrap()
+                        },
+                        spec: Some(listener.spec),
+                        ..Default::default()
+                    },
+                ];
+
+                Ok(pvcs)
+            }
+            AnyNodeConfig::JournalNode(node) => Ok(vec![node.resources.storage.data.build_pvc(
                 ContainerConfig::DATA_VOLUME_MOUNT_NAME,
                 Some(vec!["ReadWriteOnce"]),
-            )],
-            AnyNodeConfig::JournalNode(node) => vec![node.resources.storage.data.build_pvc(
-                ContainerConfig::DATA_VOLUME_MOUNT_NAME,
-                Some(vec!["ReadWriteOnce"]),
-            )],
-            AnyNodeConfig::DataNode(node) => DataNodeStorageConfig {
+            )]),
+            AnyNodeConfig::DataNode(node) => Ok(DataNodeStorageConfig {
                 pvcs: node.resources.storage.clone(),
             }
-            .build_pvcs(),
+            .build_pvcs()),
         }
     }
 
@@ -350,7 +383,7 @@ impl ContainerConfig {
                 env_overrides,
                 resources.as_ref(),
             ))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config))
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config)?)
             .add_container_ports(self.container_ports(hdfs));
 
         if let Some(resources) = resources {
@@ -386,7 +419,7 @@ impl ContainerConfig {
             .command(Self::command())
             .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config));
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config)?);
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
@@ -456,14 +489,20 @@ impl ContainerConfig {
                 ));
 
                 args.push_str(&format!(
-                    "\
+                    r#"\
 {COMMON_BASH_TRAP_FUNCTIONS}
 {remove_vector_shutdown_file_command}
 prepare_signal_handlers
+if [[ -d {LISTENER_VOLUME_DIR} ]]; then
+    export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
+    for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
+        export $(basename $i | tr a-z A-Z)_PORT="$(cat $i)"
+    done
+fi
 {hadoop_home}/bin/hdfs {role} &
 wait_for_termination $!
 {create_vector_shutdown_file_command}
-",
+"#,
                     hadoop_home = Self::HADOOP_HOME,
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
@@ -774,30 +813,44 @@ wait_for_termination $!
     }
 
     /// Return the container volumes.
-    fn volumes(&self, merged_config: &AnyNodeConfig, object_name: &str) -> Vec<Volume> {
+    fn volumes(&self, merged_config: &AnyNodeConfig, object_name: &str) -> Result<Vec<Volume>> {
         let mut volumes = vec![];
 
-        let container_log_config = match self {
-            ContainerConfig::Hdfs { .. } => {
+        if let ContainerConfig::Hdfs { .. } = self {
+            if let AnyNodeConfig::DataNode(node) = merged_config {
                 volumes.push(
-                    VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
-                        .empty_dir(EmptyDirVolumeSource {
-                            medium: None,
-                            size_limit: Some(
-                                product_logging::framework::calculate_log_volume_size_limit(&[
-                                    MAX_HDFS_LOG_FILE_SIZE,
-                                    MAX_ZKFC_LOG_FILE_SIZE,
-                                    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-                                    MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
-                                    MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
-                                ]),
-                            ),
-                        })
+                    VolumeBuilder::new(LISTENER_VOLUME_NAME)
+                        .ephemeral(
+                            ListenerOperatorVolumeSourceBuilder::new(
+                                &ListenerReference::ListenerClass(node.listener_class.to_string()),
+                            )
+                            .build_ephemeral()
+                            .context(BuildListenerVolumeSnafu)?,
+                        )
                         .build(),
                 );
-
-                Some(merged_config.hdfs_logging())
             }
+
+            volumes.push(
+                VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
+                    .empty_dir(EmptyDirVolumeSource {
+                        medium: None,
+                        size_limit: Some(
+                            product_logging::framework::calculate_log_volume_size_limit(&[
+                                MAX_HDFS_LOG_FILE_SIZE,
+                                MAX_ZKFC_LOG_FILE_SIZE,
+                                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+                                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+                                MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+                            ]),
+                        ),
+                    })
+                    .build(),
+            );
+        }
+
+        let container_log_config = match self {
+            ContainerConfig::Hdfs { .. } => Some(merged_config.hdfs_logging()),
             ContainerConfig::Zkfc { .. } => merged_config
                 .as_namenode()
                 .map(|node| node.logging.for_container(&NameNodeContainer::Zkfc)),
@@ -814,7 +867,6 @@ wait_for_termination $!
                     .for_container(&DataNodeContainer::WaitForNameNodes)
             }),
         };
-
         volumes.extend(Self::common_container_volumes(
             container_log_config.as_deref(),
             object_name,
@@ -822,11 +874,15 @@ wait_for_termination $!
             self.volume_mount_dirs().log_mount_name(),
         ));
 
-        volumes
+        Ok(volumes)
     }
 
     /// Returns the container volume mounts.
-    fn volume_mounts(&self, hdfs: &HdfsCluster, merged_config: &AnyNodeConfig) -> Vec<VolumeMount> {
+    fn volume_mounts(
+        &self,
+        hdfs: &HdfsCluster,
+        merged_config: &AnyNodeConfig,
+    ) -> Result<Vec<VolumeMount>> {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
                 .build(),
@@ -860,33 +916,44 @@ wait_for_termination $!
                         .build(),
                 );
             }
-            ContainerConfig::Hdfs { role, .. } => match role {
-                HdfsRole::NameNode | HdfsRole::JournalNode => {
+            ContainerConfig::Hdfs { role, .. } => {
+                // JournalNode doesn't use listeners, since it's only used internally by the namenodes
+                if let HdfsRole::NameNode | HdfsRole::DataNode = role {
                     volume_mounts.push(
-                        VolumeMountBuilder::new(
-                            Self::DATA_VOLUME_MOUNT_NAME,
-                            STACKABLE_ROOT_DATA_DIR,
-                        )
-                        .build(),
+                        VolumeMountBuilder::new(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR).build(),
                     );
                 }
-                HdfsRole::DataNode => {
-                    for pvc in Self::volume_claim_templates(merged_config) {
-                        let pvc_name = pvc.name_any();
-                        volume_mounts.push(VolumeMount {
-                            mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
-                            name: pvc_name,
-                            ..VolumeMount::default()
-                        });
+
+                // Add data volume
+                match role {
+                    HdfsRole::NameNode | HdfsRole::JournalNode => {
+                        volume_mounts.push(
+                            VolumeMountBuilder::new(
+                                Self::DATA_VOLUME_MOUNT_NAME,
+                                STACKABLE_ROOT_DATA_DIR,
+                            )
+                            .build(),
+                        );
+                    }
+                    HdfsRole::DataNode => {
+                        for pvc in Self::volume_claim_templates(merged_config)? {
+                            let pvc_name = pvc.name_any();
+                            volume_mounts.push(VolumeMount {
+                                mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
+                                name: pvc_name,
+                                ..VolumeMount::default()
+                            });
+                        }
                     }
                 }
-            },
+            }
             // The other containers don't need any data pvcs to be mounted
             ContainerConfig::Zkfc { .. }
             | ContainerConfig::WaitForNameNodes { .. }
             | ContainerConfig::FormatZooKeeper { .. } => {}
         }
-        volume_mounts
+
+        Ok(volume_mounts)
     }
 
     /// Create a config directory for the respective container.

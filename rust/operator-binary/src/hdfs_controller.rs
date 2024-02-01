@@ -52,7 +52,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    container::ContainerConfig,
+    container::{self, ContainerConfig},
     container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
     discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_event},
@@ -127,6 +127,9 @@ pub enum Error {
         role: String,
         role_group: String,
     },
+
+    #[snafu(display("Cannot collect discovery configuration"))]
+    CollectDiscoveryConfig { source: stackable_hdfs_crd::Error },
 
     #[snafu(display("Cannot build config discovery config map"))]
     BuildDiscoveryConfigMap { source: discovery::Error },
@@ -221,6 +224,9 @@ pub enum Error {
     #[snafu(display("failed to build role-group selector label"))]
     BuildRoleGroupSelectorLabel { source: LabelError },
 
+    #[snafu(display("failed to build role-group volume claim templates from config"))]
+    BuildRoleGroupVolumeClaimTemplates { source: container::Error },
+
     #[snafu(display("failed to build object meta data"))]
     ObjectMeta { source: ObjectMetaBuilderError },
 
@@ -287,23 +293,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
-
-    let discovery_cm = build_discovery_configmap(
-        &hdfs,
-        HDFS_CONTROLLER,
-        &namenode_podrefs,
-        &resolved_product_image,
-    )
-    .context(BuildDiscoveryConfigMapSnafu)?;
-
-    // The discovery CM is linked to the cluster lifecycle via ownerreference.
-    // Therefore, must not be added to the "orphaned" cluster resources
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
-        .await
-        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
-            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
-        })?;
 
     // The service account and rolebinding will be created per cluster
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
@@ -411,6 +400,28 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 .context(FailedToCreatePdbSnafu)?;
         }
     }
+
+    // Discovery CM will fail to build until the rest of the cluster has been deployed, so do it last
+    // so that failure won't inhibit the rest of the cluster from booting up.
+    let discovery_cm = build_discovery_configmap(
+        &hdfs,
+        HDFS_CONTROLLER,
+        &hdfs
+            .namenode_listener_refs(client)
+            .await
+            .context(CollectDiscoveryConfigSnafu)?,
+        &resolved_product_image,
+    )
+    .context(BuildDiscoveryConfigMapSnafu)?;
+
+    // The discovery CM is linked to the cluster lifecycle via ownerreference.
+    // Therefore, must not be added to the "orphaned" cluster resources
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        .await
+        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
+            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
+        })?;
 
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&hdfs.spec.cluster_operation);
@@ -535,7 +546,8 @@ fn rolegroup_config_map(
                 // This caused a deadlock with no namenode becoming active during a startup after
                 // HDFS was completely down for a while.
 
-                hdfs_site_xml = HdfsSiteConfigBuilder::new(hdfs_name.to_string())
+                let mut builder = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
+                builder
                     .dfs_namenode_name_dir()
                     .dfs_datanode_data_dir(
                         merged_config
@@ -555,9 +567,20 @@ fn rolegroup_config_map(
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
                     .add("dfs.ha.automatic-failover.enabled", "true")
                     .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                    // the extend with config must come last in order to have overrides working!!!
-                    .extend(config)
-                    .build_as_xml();
+                    .add(
+                        "dfs.namenode.datanode.registration.unsafe.allow-address-override",
+                        "true",
+                    )
+                    .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
+                    .add("dfs.datanode.registered.port", "${env.DATA_PORT}")
+                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}");
+                if hdfs.has_https_enabled() {
+                    builder.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
+                } else {
+                    builder.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");
+                }
+                // the extend with config must come last in order to have overrides working!!!
+                hdfs_site_xml = builder.extend(config).build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
@@ -783,6 +806,9 @@ fn rolegroup_statefulset(
     )
     .context(BuildRoleGroupSelectorLabelSnafu)?;
 
+    let pvcs = ContainerConfig::volume_claim_templates(merged_config)
+        .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
+
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),
         replicas: role
@@ -795,7 +821,7 @@ fn rolegroup_statefulset(
         service_name: object_name,
         template: pod_template,
 
-        volume_claim_templates: Some(ContainerConfig::volume_claim_templates(merged_config)),
+        volume_claim_templates: Some(pvcs),
         ..StatefulSetSpec::default()
     };
 

@@ -2,9 +2,11 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt::Display,
+    num::TryFromIntError,
     ops::Deref,
 };
 
+use futures::future::try_join_all;
 use product_config::types::PropertyNameKind;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -12,6 +14,7 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
+        listener::Listener,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -23,7 +26,10 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::api::resource::Quantity},
+    k8s_openapi::{
+        api::core::v1::{Pod, PodTemplateSpec},
+        apimachinery::pkg::api::resource::Quantity,
+    },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     kvp::{LabelError, Labels},
     product_config_utils::{ConfigError, Configuration},
@@ -46,6 +52,9 @@ use crate::{
     },
 };
 
+#[cfg(doc)]
+use stackable_operator::commons::listener::ListenerClass;
+
 pub mod affinity;
 pub mod constants;
 pub mod security;
@@ -55,17 +64,37 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Object has no associated namespace"))]
+    #[snafu(display("object has no associated namespace"))]
     NoNamespace,
 
-    #[snafu(display("Missing node role [{role}]"))]
+    #[snafu(display("missing node role {role:?}"))]
     MissingRole { role: String },
 
-    #[snafu(display("Missing role group [{role_group}] for role [{role}]"))]
+    #[snafu(display("missing role group {role_group:?} for role {role:?}"))]
     MissingRoleGroup { role: String, role_group: String },
 
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+
+    #[snafu(display("unable to get {listener} (for {pod})"))]
+    GetPodListener {
+        source: stackable_operator::error::Error,
+        listener: ObjectRef<Listener>,
+        pod: ObjectRef<Pod>,
+    },
+
+    #[snafu(display("{listener} (for {pod}) has no address"))]
+    PodListenerHasNoAddress {
+        listener: ObjectRef<Listener>,
+        pod: ObjectRef<Pod>,
+    },
+
+    #[snafu(display("port {port} ({port_name:?}) is out of bounds, must be within {range:?}", range = 0..=u16::MAX))]
+    PortOutOfBounds {
+        source: TryFromIntError,
+        port_name: String,
+        port: i32,
+    },
 
     #[snafu(display("failed to build role-group selector label"))]
     BuildRoleGroupSelectorLabel { source: LabelError },
@@ -137,46 +166,24 @@ pub struct HdfsClusterConfig {
     /// for a ZooKeeper cluster.
     pub zookeeper_config_map_name: String,
 
-    /// This field controls which type of Service the Operator creates for this HdfsCluster:
-    ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
-
     /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
     pub authentication: Option<AuthenticationConfig>,
+
+    // Scheduled for removal in v1alpha2, see https://github.com/stackabletech/issues/issues/504
+    /// Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
+    #[serde(default)]
+    pub listener_class: DeprecatedClusterListenerClass,
 }
 
 fn default_dfs_replication_factor() -> u8 {
     DEFAULT_DFS_REPLICATION_FACTOR
 }
 
-// TODO: Temporary solution until listener-operator is finished
-#[derive(
-    Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
-)]
-#[serde(rename_all = "PascalCase")]
-pub enum CurrentlySupportedListenerClasses {
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum DeprecatedClusterListenerClass {
     #[default]
-    #[serde(rename = "cluster-internal")]
     ClusterInternal,
-    #[serde(rename = "external-unstable")]
-    ExternalUnstable,
-}
-
-impl CurrentlySupportedListenerClasses {
-    pub fn k8s_service_type(&self) -> String {
-        match self {
-            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-        }
-    }
 }
 
 /// Configuration options that are available for all roles.
@@ -480,17 +487,6 @@ impl HdfsCluster {
             .parse_insert(("group", rolegroup_ref.role_group.deref()))
             .context(BuildRoleGroupSelectorLabelSnafu)?;
 
-        if self.spec.cluster_config.listener_class
-            == CurrentlySupportedListenerClasses::ExternalUnstable
-        {
-            // TODO: in a production environment, probably not all roles need to be exposed with one NodePort per Pod but it's
-            // useful for development purposes.
-
-            group_labels
-                .parse_insert((LABEL_ENABLE, "true"))
-                .context(BuildRoleGroupSelectorLabelSnafu)?;
-        }
-
         Ok(group_labels)
     }
 
@@ -580,9 +576,13 @@ impl HdfsCluster {
         }
     }
 
-    /// List all [HdfsPodRef]s expected for the given `role`
+    /// List all [`HdfsPodRef`]s expected for the given [`role`](HdfsRole).
     ///
     /// The `validated_config` is used to extract the ports exposed by the pods.
+    ///
+    /// The pod refs returned by `pod_refs` will only be able to able to access HDFS
+    /// from inside the Kubernetes cluster. For configuring downstream clients,
+    /// consider using [`Self::namenode_listener_refs`] instead.
     pub fn pod_refs(&self, role: &HdfsRole) -> Result<Vec<HdfsPodRef>, Error> {
         let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
 
@@ -601,9 +601,64 @@ impl HdfsCluster {
                         .iter()
                         .map(|(n, p)| (n.clone(), *p))
                         .collect(),
+                    fqdn_override: None,
                 })
             })
             .collect())
+    }
+
+    /// List all [`HdfsPodRef`]s for the running namenodes, configured to access the cluster via
+    /// [Listener] rather than direct [Pod] access.
+    ///
+    /// This enables access from outside the Kubernetes cluster (if using a [ListenerClass] configured for this).
+    ///
+    /// This method assumes that all [Listener]s have been created, and may fail while waiting for the cluster to come online.
+    /// If this is unacceptable (mainly for configuring the cluster itself), consider [`Self::pod_refs`] instead.
+    ///
+    /// This method _only_ supports accessing namenodes, since journalnodes are considered internal, and datanodes are registered
+    /// dynamically with the namenodes.
+    pub async fn namenode_listener_refs(
+        &self,
+        client: &stackable_operator::client::Client,
+    ) -> Result<Vec<HdfsPodRef>, Error> {
+        let pod_refs = self.pod_refs(&HdfsRole::NameNode)?;
+        try_join_all(pod_refs.into_iter().map(|pod_ref| async {
+            let listener_name = format!("{LISTENER_VOLUME_NAME}-{}", pod_ref.pod_name);
+            let listener_ref =
+                || ObjectRef::<Listener>::new(&listener_name).within(&pod_ref.namespace);
+            let pod_obj_ref =
+                || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(&pod_ref.namespace);
+            let listener = client
+                .get::<Listener>(&listener_name, &pod_ref.namespace)
+                .await
+                .context(GetPodListenerSnafu {
+                    listener: listener_ref(),
+                    pod: pod_obj_ref(),
+                })?;
+            let listener_address = listener
+                .status
+                .and_then(|s| s.ingress_addresses?.into_iter().next())
+                .context(PodListenerHasNoAddressSnafu {
+                    listener: listener_ref(),
+                    pod: pod_obj_ref(),
+                })?;
+            Ok(HdfsPodRef {
+                fqdn_override: Some(listener_address.address),
+                ports: listener_address
+                    .ports
+                    .into_iter()
+                    .map(|(port_name, port)| {
+                        let port = u16::try_from(port).context(PortOutOfBoundsSnafu {
+                            port_name: &port_name,
+                            port,
+                        })?;
+                        Ok((port_name, port))
+                    })
+                    .collect::<Result<_, _>>()?,
+                ..pod_ref
+            })
+        }))
+        .await
     }
 
     pub fn rolegroup_ref_and_replicas(
@@ -835,14 +890,20 @@ pub struct HdfsPodRef {
     pub namespace: String,
     pub role_group_service_name: String,
     pub pod_name: String,
+    pub fqdn_override: Option<String>,
     pub ports: HashMap<String, u16>,
 }
 
 impl HdfsPodRef {
-    pub fn fqdn(&self) -> String {
-        format!(
-            "{}.{}.{}.svc.cluster.local",
-            self.pod_name, self.role_group_service_name, self.namespace
+    pub fn fqdn(&self) -> Cow<str> {
+        self.fqdn_override.as_deref().map_or_else(
+            || {
+                Cow::Owned(format!(
+                    "{}.{}.{}.svc.cluster.local",
+                    self.pod_name, self.role_group_service_name, self.namespace
+                ))
+            },
+            Cow::Borrowed,
         )
     }
 }
@@ -893,6 +954,10 @@ pub struct NameNodeConfig {
     pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<NameNodeContainer>,
+    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose this rolegroup.
+    /// NameNodes should have a stable ListenerClass, such as `cluster-internal` or `external-stable`.
+    #[fragment_attrs(serde(default))]
+    pub listener_class: String,
     #[fragment_attrs(serde(flatten))]
     pub common: CommonNodeConfig,
 }
@@ -918,6 +983,7 @@ impl NameNodeConfigFragment {
                 },
             },
             logging: product_logging::spec::default_logging(),
+            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
@@ -1005,6 +1071,10 @@ pub struct DataNodeConfig {
     pub resources: Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<DataNodeContainer>,
+    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose this rolegroup.
+    /// DataNodes should have a direct ListenerClass, such as `cluster-internal` or `external-unstable`.
+    #[fragment_attrs(serde(default))]
+    pub listener_class: String,
     #[fragment_attrs(serde(flatten))]
     pub common: CommonNodeConfig,
 }
@@ -1035,6 +1105,7 @@ impl DataNodeConfigFragment {
                 )]),
             },
             logging: product_logging::spec::default_logging(),
+            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),

@@ -3,8 +3,11 @@ dimensions:
   - name: hadoop
     values:
       - 3.2.4
-      - 3.3.6
+      - 3.3.4
   - name: hadoop-latest
+    values:
+      - 3.3.4
+  - name: hadoop-external-client-docker-image
     values:
       - 3.3.6
   - name: zookeeper
@@ -63,6 +66,12 @@ tests:
     dimensions:
       - hadoop-latest
       - zookeeper-latest
+  # Broken due to https://github.com/kudobuilder/kuttl/issues/322, see 40-assert.yaml for more details
+  # - name: external-access
+  #   dimensions:
+  #     - hadoop-latest # We only support external access for HDFS >= 3.3.x.
+  #     - hadoop-external-client-docker-image
+  #     - zookeeper-latest
 suites:
   - name: nightly
     patch:
