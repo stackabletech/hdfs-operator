@@ -8,13 +8,16 @@ spec:
     productVersion: 3.3.6
   clusterConfig:
     zookeeperConfigMapName: simple-hdfs-znode
-    listenerClass: external-unstable
     dfsReplication: 1
   nameNodes:
+    config:
+      listenerClass: external-unstable
     roleGroups:
       default:
         replicas: 2
   dataNodes:
+    config:
+      listenerClass: external-unstable
     roleGroups:
       default:
         replicas: 1
