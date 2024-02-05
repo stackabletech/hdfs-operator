@@ -12,7 +12,7 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::runtime::{watcher, Controller},
-    labels::ObjectLabels,
+    kvp::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
     CustomResourceExt,

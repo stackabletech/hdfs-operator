@@ -1,3 +1,4 @@
+use snafu::{ResultExt, Snafu};
 use stackable_hdfs_crd::{
     constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
     HdfsCluster,
@@ -7,21 +8,27 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
 
-use crate::{
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    hdfs_controller::Error,
-};
+use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
 
-pub fn check_if_supported(resolved_product_image: &ResolvedProductImage) -> Result<(), Error> {
-    // We only support Kerberos for HDFS >= 3.3.x
-    // With HDFS 3.2.2 we got weird errors, which *might* be caused by DNS lookup issues
-    // The Stacktrace is documented in rust/operator/src/kerberos_hdfs_3.2_stacktrace.txt
+type Result<T, E = Error> = std::result::Result<T, E>;
 
-    if resolved_product_image.product_version.starts_with("3.2.") {
-        Err(Error::KerberosNotSupported {})
-    } else {
-        Ok(())
-    }
+#[derive(Snafu, Debug)]
+#[allow(clippy::enum_variant_names)]
+pub enum Error {
+    #[snafu(display("object has no namespace"))]
+    ObjectHasNoNamespace {
+        source: stackable_hdfs_crd::Error,
+        obj_ref: ObjectRef<HdfsCluster>,
+    },
+}
+
+/// Checks for unsupported Kerberos versions
+///
+/// We only support Kerberos for HDFS >= 3.3.x
+/// With HDFS 3.2.2 we got weird errors, which *might* be caused by DNS lookup issues
+/// The Stacktrace is documented in rust/operator/src/kerberos_hdfs_3.2_stacktrace.txt
+pub fn is_not_supported(resolved_product_image: &ResolvedProductImage) -> bool {
+    resolved_product_image.product_version.starts_with("3.2.")
 }
 
 impl HdfsSiteConfigBuilder {
@@ -55,7 +62,7 @@ impl HdfsSiteConfigBuilder {
 }
 
 impl CoreSiteConfigBuilder {
-    pub fn security_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self, Error> {
+    pub fn security_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self> {
         if hdfs.authentication_config().is_some() {
             let principal_host_part = principal_host_part(hdfs)?;
 
@@ -106,7 +113,7 @@ impl CoreSiteConfigBuilder {
         Ok(self)
     }
 
-    pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self, Error> {
+    pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self> {
         if hdfs.has_kerberos_enabled() {
             let principal_host_part = principal_host_part(hdfs)?;
 
@@ -147,11 +154,11 @@ impl CoreSiteConfigBuilder {
 /// ```
 ///
 /// After we have switched to using the following principals everything worked without problems
-fn principal_host_part(hdfs: &HdfsCluster) -> Result<String, Error> {
+fn principal_host_part(hdfs: &HdfsCluster) -> Result<String> {
     let hdfs_name = hdfs.name_any();
     let hdfs_namespace = hdfs
         .namespace_or_error()
-        .map_err(|_| Error::ObjectHasNoNamespace {
+        .with_context(|_| ObjectHasNoNamespaceSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
     Ok(format!(
