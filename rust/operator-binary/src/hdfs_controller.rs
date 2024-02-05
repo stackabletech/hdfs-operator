@@ -11,10 +11,13 @@ use product_config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_hdfs_crd::{
-    constants::*, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, MergedConfig,
+    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
 };
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder},
+    builder::{
+        ConfigMapBuilder, ObjectMetaBuilder, ObjectMetaBuilderError, PodBuilder,
+        PodSecurityContextBuilder,
+    },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
@@ -34,7 +37,7 @@ use stackable_operator::{
         runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
-    labels::role_group_selector_labels,
+    kvp::{Label, LabelError, Labels},
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
@@ -49,9 +52,9 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    container::ContainerConfig,
+    container::{self, ContainerConfig},
     container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    discovery::build_discovery_configmap,
+    discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_event},
     kerberos,
     operations::{
@@ -69,94 +72,92 @@ const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
-    #[snafu(display("Invalid role configuration"))]
+    #[snafu(display("invalid role configuration"))]
     InvalidRoleConfig {
         source: stackable_operator::product_config_utils::ConfigError,
     },
 
-    #[snafu(display("Invalid product configuration"))]
+    #[snafu(display("invalid product configuration"))]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Cannot create rolegroup service [{name}]"))]
+    #[snafu(display("cannot create rolegroup service {name:?}"))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("Cannot create role group config map [{name}]"))]
+    #[snafu(display("cannot create role group config map {name:?}"))]
     ApplyRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("Cannot create role group stateful set [{name}]"))]
+    #[snafu(display("cannot create role group stateful set {name:?}"))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("Cannot create discovery config map [{name}]"))]
+    #[snafu(display("cannot create discovery config map {name:?}"))]
     ApplyDiscoveryConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
 
-    #[snafu(display("No metadata for [{obj_ref}]"))]
+    #[snafu(display("no metadata for {obj_ref:?}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<HdfsCluster>,
     },
 
-    #[snafu(display("Invalid role [{role}]"))]
+    #[snafu(display("invalid role {role:?}"))]
     InvalidRole {
         source: strum::ParseError,
         role: String,
     },
 
-    #[snafu(display("Object has no name"))]
+    #[snafu(display("object has no name"))]
     ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
 
-    #[snafu(display("Object has no namespace"))]
-    ObjectHasNoNamespace { obj_ref: ObjectRef<HdfsCluster> },
-
-    #[snafu(display("Cannot build config map for role [{role}] and role group [{role_group}]"))]
+    #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
     BuildRoleGroupConfigMap {
         source: stackable_operator::error::Error,
         role: String,
         role_group: String,
     },
 
-    #[snafu(display("Cannot build config discovery config map"))]
-    BuildDiscoveryConfigMap {
-        source: stackable_operator::error::Error,
-    },
+    #[snafu(display("cannot collect discovery configuration"))]
+    CollectDiscoveryConfig { source: stackable_hdfs_crd::Error },
 
-    #[snafu(display("Failed to patch service account"))]
+    #[snafu(display("cannot build config discovery config map"))]
+    BuildDiscoveryConfigMap { source: discovery::Error },
+
+    #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to patch role binding"))]
+    #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to create cluster resources"))]
+    #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to delete orphaned resources"))]
+    #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("Failed to create pod references"))]
+    #[snafu(display("failed to create pod references"))]
     CreatePodReferences { source: stackable_hdfs_crd::Error },
 
-    #[snafu(display("Failed to build role properties"))]
+    #[snafu(display("failed to build role properties"))]
     BuildRoleProperties { source: stackable_hdfs_crd::Error },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
@@ -164,7 +165,7 @@ pub enum Error {
         source: crate::product_logging::Error,
     },
 
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
+    #[snafu(display("failed to add the logging configuration to the ConfigMap {cm_name:?}"))]
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
@@ -200,7 +201,7 @@ pub enum Error {
     KerberosNotSupported,
 
     #[snafu(display(
-        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
+        "failed to serialize {JVM_SECURITY_PROPERTIES_FILE:?} for {}",
         rolegroup
     ))]
     JvmSecurityProperties {
@@ -210,6 +211,27 @@ pub enum Error {
 
     #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown { source: graceful_shutdown::Error },
+
+    #[snafu(display("failed to build roleGroup selector labels"))]
+    RoleGroupSelectorLabels { source: stackable_hdfs_crd::Error },
+
+    #[snafu(display("failed to build prometheus label"))]
+    BuildPrometheusLabel { source: LabelError },
+
+    #[snafu(display("failed to build cluster resources label"))]
+    BuildClusterResourcesLabel { source: LabelError },
+
+    #[snafu(display("failed to build role-group selector label"))]
+    BuildRoleGroupSelectorLabel { source: LabelError },
+
+    #[snafu(display("failed to build role-group volume claim templates from config"))]
+    BuildRoleGroupVolumeClaimTemplates { source: container::Error },
+
+    #[snafu(display("failed to build object meta data"))]
+    ObjectMeta { source: ObjectMetaBuilderError },
+
+    #[snafu(display("failed to build security config"))]
+    BuildSecurityConfig { source: kerberos::Error },
 }
 
 impl ReconcilerError for Error {
@@ -233,8 +255,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
-    if hdfs.has_kerberos_enabled() {
-        kerberos::check_if_supported(&resolved_product_image)?;
+    if hdfs.has_kerberos_enabled() && kerberos::is_not_supported(&resolved_product_image) {
+        return KerberosNotSupportedSnafu.fail();
     }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
@@ -272,28 +294,13 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let discovery_cm = build_discovery_configmap(
-        &hdfs,
-        HDFS_CONTROLLER,
-        &namenode_podrefs,
-        &resolved_product_image,
-    )
-    .context(BuildDiscoveryConfigMapSnafu)?;
-
-    // The discovery CM is linked to the cluster lifecycle via ownerreference.
-    // Therefore, must not be added to the "orphaned" cluster resources
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
-        .await
-        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
-            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
-        })?;
-
     // The service account and rolebinding will be created per cluster
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         hdfs.as_ref(),
         APP_NAME,
-        cluster_resources.get_required_labels(),
+        cluster_resources
+            .get_required_labels()
+            .context(BuildClusterResourcesLabelSnafu)?,
     )
     .context(BuildRbacResourcesSnafu)?;
 
@@ -344,7 +351,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &namenode_podrefs,
                 &journalnode_podrefs,
                 &resolved_product_image,
-                merged_config.as_ref(),
+                &merged_config,
                 vector_aggregator_address.as_deref(),
             )?;
 
@@ -354,7 +361,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &rolegroup_ref,
                 &resolved_product_image,
                 env_overrides,
-                merged_config.as_ref(),
+                &merged_config,
                 &namenode_podrefs,
             )?;
 
@@ -394,6 +401,28 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         }
     }
 
+    // Discovery CM will fail to build until the rest of the cluster has been deployed, so do it last
+    // so that failure won't inhibit the rest of the cluster from booting up.
+    let discovery_cm = build_discovery_configmap(
+        &hdfs,
+        HDFS_CONTROLLER,
+        &hdfs
+            .namenode_listener_refs(client)
+            .await
+            .context(CollectDiscoveryConfigSnafu)?,
+        &resolved_product_image,
+    )
+    .context(BuildDiscoveryConfigMapSnafu)?;
+
+    // The discovery CM is linked to the cluster lifecycle via ownerreference.
+    // Therefore, must not be added to the "orphaned" cluster resources
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+        .await
+        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
+            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
+        })?;
+
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&hdfs.spec.cluster_operation);
 
@@ -423,42 +452,55 @@ fn rolegroup_service(
     resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
+
+    let prometheus_label =
+        Label::try_from(("prometheus.io/scrape", "true")).context(BuildPrometheusLabelSnafu)?;
+
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hdfs)
+        .name(&rolegroup_ref.object_name())
+        .ownerreference_from_resource(hdfs, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(ObjectMetaSnafu)?
+        .with_label(prometheus_label)
+        .build();
+
+    let service_spec = ServiceSpec {
+        // Internal communication does not need to be exposed
+        type_: Some("ClusterIP".to_string()),
+        cluster_ip: Some("None".to_string()),
+        ports: Some(
+            hdfs.ports(role)
+                .into_iter()
+                .map(|(name, value)| ServicePort {
+                    name: Some(name),
+                    port: i32::from(value),
+                    protocol: Some("TCP".to_string()),
+                    ..ServicePort::default()
+                })
+                .collect(),
+        ),
+        selector: Some(
+            hdfs.rolegroup_selector_labels(rolegroup_ref)
+                .context(RoleGroupSelectorLabelsSnafu)?
+                .into(),
+        ),
+        publish_not_ready_addresses: Some(true),
+        ..ServiceSpec::default()
+    };
+
     Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(&rolegroup_ref.object_name())
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(build_recommended_labels(
-                hdfs,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .with_label("prometheus.io/scrape", "true")
-            .build(),
-        spec: Some(ServiceSpec {
-            // Internal communication does not need to be exposed
-            type_: Some("ClusterIP".to_string()),
-            cluster_ip: Some("None".to_string()),
-            ports: Some(
-                hdfs.ports(role)
-                    .into_iter()
-                    .map(|(name, value)| ServicePort {
-                        name: Some(name),
-                        port: i32::from(value),
-                        protocol: Some("TCP".to_string()),
-                        ..ServicePort::default()
-                    })
-                    .collect(),
-            ),
-            selector: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
-            publish_not_ready_addresses: Some(true),
-            ..ServiceSpec::default()
-        }),
+        metadata,
+        spec: Some(service_spec),
         status: None,
     })
 }
@@ -471,7 +513,7 @@ fn rolegroup_config_map(
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
-    merged_config: &(dyn MergedConfig + Send + 'static),
+    merged_config: &AnyNodeConfig,
     vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
@@ -480,11 +522,6 @@ fn rolegroup_config_map(
         .name
         .as_deref()
         .with_context(|| ObjectHasNoNameSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
-    let hdfs_namespace = hdfs
-        .namespace()
-        .with_context(|| ObjectHasNoNamespaceSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
 
@@ -500,9 +537,23 @@ fn rolegroup_config_map(
                 // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
                 // be formatted by the namenode, or used by the other services.
                 // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-                hdfs_site_xml = HdfsSiteConfigBuilder::new(hdfs_name.to_string())
+                //
+                // Notes on configuration choices
+                // ===============================
+                // We used to set `dfs.ha.nn.not-become-active-in-safemode` to true here due to
+                // badly worded HDFS documentation:
+                // https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithNFS.html
+                // This caused a deadlock with no namenode becoming active during a startup after
+                // HDFS was completely down for a while.
+
+                let mut builder = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
+                builder
                     .dfs_namenode_name_dir()
-                    .dfs_datanode_data_dir(merged_config.data_node_resources().map(|r| r.storage))
+                    .dfs_datanode_data_dir(
+                        merged_config
+                            .as_datanode()
+                            .map(|node| node.resources.storage.clone()),
+                    )
                     .dfs_journalnode_edits_dir()
                     .dfs_replication(hdfs.spec.cluster_config.dfs_replication)
                     .dfs_name_services()
@@ -514,18 +565,29 @@ fn rolegroup_config_map(
                     .dfs_client_failover_proxy_provider()
                     .security_config(hdfs)
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
-                    .add("dfs.ha.nn.not-become-active-in-safemode", "true")
                     .add("dfs.ha.automatic-failover.enabled", "true")
                     .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                    // the extend with config must come last in order to have overrides working!!!
-                    .extend(config)
-                    .build_as_xml();
+                    .add(
+                        "dfs.namenode.datanode.registration.unsafe.allow-address-override",
+                        "true",
+                    )
+                    .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
+                    .add("dfs.datanode.registered.port", "${env.DATA_PORT}")
+                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}");
+                if hdfs.has_https_enabled() {
+                    builder.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
+                } else {
+                    builder.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");
+                }
+                // the extend with config must come last in order to have overrides working!!!
+                hdfs_site_xml = builder.extend(config).build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
                 core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
-                    .security_config(hdfs, hdfs_name, &hdfs_namespace)
+                    .security_config(hdfs)
+                    .context(BuildSecurityConfigSnafu)?
                     // the extend with config must come last in order to have overrides working!!!
                     .extend(config)
                     .build_as_xml();
@@ -606,24 +668,25 @@ fn rolegroup_config_map(
         .map(|(k, v)| (k, Some(v)))
         .collect();
 
+    let cm_metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hdfs)
+        .name(&rolegroup_ref.object_name())
+        .ownerreference_from_resource(hdfs, None, Some(true))
+        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(ObjectMetaSnafu)?
+        .build();
+
     builder
-        .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(hdfs)
-                .name(&rolegroup_ref.object_name())
-                .ownerreference_from_resource(hdfs, None, Some(true))
-                .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                    obj_ref: ObjectRef::from_obj(hdfs),
-                })?
-                .with_recommended_labels(build_recommended_labels(
-                    hdfs,
-                    RESOURCE_MANAGER_HDFS_CONTROLLER,
-                    &resolved_product_image.app_version_label,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                ))
-                .build(),
-        )
+        .metadata(cm_metadata)
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
         .add_data(HADOOP_POLICY_XML.to_string(), hadoop_policy_xml)
@@ -663,7 +726,7 @@ fn rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
     env_overrides: Option<&BTreeMap<String, String>>,
-    merged_config: &(dyn MergedConfig + Send + 'static),
+    merged_config: &AnyNodeConfig,
     namenode_podrefs: &[HdfsPodRef],
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
@@ -671,20 +734,27 @@ fn rolegroup_statefulset(
     let object_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
-    pb.metadata(ObjectMeta {
-        labels: Some(hdfs.rolegroup_selector_labels(rolegroup_ref)),
+
+    let pb_metadata = ObjectMeta {
+        labels: Some(
+            hdfs.rolegroup_selector_labels(rolegroup_ref)
+                .context(RoleGroupSelectorLabelsSnafu)?
+                .into(),
+        ),
         ..ObjectMeta::default()
-    })
-    .image_pull_secrets_from_product_image(resolved_product_image)
-    .affinity(merged_config.affinity())
-    .service_account_name(service_account_name(APP_NAME))
-    .security_context(
-        PodSecurityContextBuilder::new()
-            .run_as_user(HDFS_UID)
-            .run_as_group(0)
-            .fs_group(1000)
-            .build(),
-    );
+    };
+
+    pb.metadata(pb_metadata)
+        .image_pull_secrets_from_product_image(resolved_product_image)
+        .affinity(&merged_config.affinity)
+        .service_account_name(service_account_name(APP_NAME))
+        .security_context(
+            PodSecurityContextBuilder::new()
+                .run_as_user(HDFS_UID)
+                .run_as_group(0)
+                .fs_group(1000)
+                .build(),
+        );
 
     // Adds all containers and volumes to the pod builder
     ContainerConfig::add_containers_and_volumes(
@@ -711,42 +781,53 @@ fn rolegroup_statefulset(
         pod_template.merge_from(pod_overrides.clone());
     }
 
-    Ok(StatefulSet {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(&rolegroup_ref.object_name())
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(build_recommended_labels(
-                hdfs,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .build(),
-        spec: Some(StatefulSetSpec {
-            pod_management_policy: Some("OrderedReady".to_string()),
-            replicas: role
-                .role_group_replicas(hdfs, &rolegroup_ref.role_group)
-                .map(i32::from),
-            selector: LabelSelector {
-                match_labels: Some(role_group_selector_labels(
-                    hdfs,
-                    APP_NAME,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                )),
-                ..LabelSelector::default()
-            },
-            service_name: object_name,
-            template: pod_template,
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(hdfs)
+        .name(&rolegroup_ref.object_name())
+        .ownerreference_from_resource(hdfs, None, Some(true))
+        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+            obj_ref: ObjectRef::from_obj(hdfs),
+        })?
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(ObjectMetaSnafu)?
+        .build();
 
-            volume_claim_templates: ContainerConfig::volume_claim_templates(role, merged_config),
-            ..StatefulSetSpec::default()
-        }),
+    let match_labels = Labels::role_group_selector(
+        hdfs,
+        APP_NAME,
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    )
+    .context(BuildRoleGroupSelectorLabelSnafu)?;
+
+    let pvcs = ContainerConfig::volume_claim_templates(merged_config)
+        .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
+
+    let statefulset_spec = StatefulSetSpec {
+        pod_management_policy: Some("OrderedReady".to_string()),
+        replicas: role
+            .role_group_replicas(hdfs, &rolegroup_ref.role_group)
+            .map(i32::from),
+        selector: LabelSelector {
+            match_labels: Some(match_labels.into()),
+            ..LabelSelector::default()
+        },
+        service_name: object_name,
+        template: pod_template,
+
+        volume_claim_templates: Some(pvcs),
+        ..StatefulSetSpec::default()
+    };
+
+    Ok(StatefulSet {
+        metadata,
+        spec: Some(statefulset_spec),
         status: None,
     })
 }

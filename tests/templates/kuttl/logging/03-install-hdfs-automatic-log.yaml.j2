@@ -6,6 +6,7 @@ metadata:
 spec:
   image:
     productVersion: "{{ test_scenario['values']['hadoop'] }}"
+    pullPolicy: IfNotPresent
   clusterConfig:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
     zookeeperConfigMapName: test-hdfs-automatic-log-znode
@@ -85,10 +86,13 @@ spec:
                 console:
                   level: INFO
                 file:
-                  level: INFO
+                  # Set the log level to DEBUG because if the NameNodes
+                  # are already ready then nothing is logged at the INFO
+                  # level.
+                  level: DEBUG
                 loggers:
                   ROOT:
-                    level: INFO
+                    level: DEBUG
   journalNodes:
     roleGroups:
       default:

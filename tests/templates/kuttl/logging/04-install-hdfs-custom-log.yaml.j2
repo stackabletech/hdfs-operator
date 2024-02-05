@@ -49,7 +49,9 @@ metadata:
   name: hdfs-wait-for-namenodes-log-config
 data:
   wait-for-namenodes.log4j.properties: |
-    log4j.rootLogger=INFO, FILE
+    # Set the log level to DEBUG because if the NameNodes are already
+    # ready then nothing is logged at the INFO level.
+    log4j.rootLogger=DEBUG, FILE
     log4j.appender.FILE=org.apache.log4j.FileAppender
     log4j.appender.FILE.File=/stackable/log/wait-for-namenodes/wait-for-namenodes.log4j.xml
     log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
@@ -61,6 +63,7 @@ metadata:
 spec:
   image:
     productVersion: "{{ test_scenario['values']['hadoop'] }}"
+    pullPolicy: IfNotPresent
   clusterConfig:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
     zookeeperConfigMapName: test-hdfs-custom-log-znode

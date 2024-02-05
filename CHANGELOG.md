@@ -6,6 +6,36 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- More CRD documentation ([#433]).
+- Support for exposing HDFS clusters to clients outside of Kubernetes ([#450]).
+- Helm: support labels in values.yaml ([#460]).
+
+### Changed
+
+- Use new label builders ([#454]).
+
+### Removed
+
+- [BREAKING] `.spec.clusterConfig.listenerClass` has been split to `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass`, migration will be required when using `external-unstable` ([#450], [#462]).
+- [BREAKING] Removed legacy node selector on roleGroups ([#454]).
+- Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#458]).
+
+### Fixed
+
+- Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
+  and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#451]).
+
+[#450]: https://github.com/stackabletech/hdfs-operator/pull/450
+[#451]: https://github.com/stackabletech/hdfs-operator/pull/451
+[#454]: https://github.com/stackabletech/hdfs-operator/pull/454
+[#458]: https://github.com/stackabletech/hdfs-operator/pull/458
+[#460]: https://github.com/stackabletech/hdfs-operator/pull/460
+[#462]: https://github.com/stackabletech/hdfs-operator/pull/462
+
+## [23.11.0] - 2023-11-24
+
+### Added
+
 - Default stackableVersion to operator version ([#381]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#384]).
 - Support PodDisruptionBudgets ([#394]).
@@ -17,10 +47,12 @@ All notable changes to this project will be documented in this file.
 - `vector` `0.26.0` -> `0.33.0` ([#378], [#409]).
 - Let secret-operator handle certificate conversion ([#392]).
 - `operator-rs` `0.44.0` -> `0.55.0` ([#381], [#394], [#404], [#405], [#409]).
+- Consolidate Rust workspace members ([#425]).
 
 ### Fixed
 
 - Don't default roleGroup replicas to zero when not specified ([#402]).
+- [BREAKING] Removed field `autoFormatFs`, which was never read ([#422]).
 
 ### Removed
 
@@ -36,6 +68,8 @@ All notable changes to this project will be documented in this file.
 [#405]: https://github.com/stackabletech/hdfs-operator/pull/405
 [#407]: https://github.com/stackabletech/hdfs-operator/pull/407
 [#409]: https://github.com/stackabletech/hdfs-operator/pull/409
+[#422]: https://github.com/stackabletech/hdfs-operator/pull/422
+[#425]: https://github.com/stackabletech/hdfs-operator/pull/425
 
 ## [23.7.0] - 2023-07-14
 

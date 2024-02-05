@@ -9,9 +9,6 @@ pub const FIELD_MANAGER_SCOPE_POD: &str = "pod-service";
 
 pub const APP_NAME: &str = "hdfs";
 
-pub const LABEL_ENABLE: &str = "hdfs.stackable.tech/pod-service";
-pub const LABEL_STS_POD_NAME: &str = "statefulset.kubernetes.io/pod-name";
-
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
 pub const HADOOP_POLICY_XML: &str = "hadoop-policy.xml";
@@ -26,6 +23,8 @@ pub const SERVICE_PORT_NAME_HTTP: &str = "http";
 pub const SERVICE_PORT_NAME_HTTPS: &str = "https";
 pub const SERVICE_PORT_NAME_DATA: &str = "data";
 pub const SERVICE_PORT_NAME_METRICS: &str = "metrics";
+
+pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
 pub const DEFAULT_NAME_NODE_METRICS_PORT: u16 = 8183;
 pub const DEFAULT_NAME_NODE_HTTP_PORT: u16 = 9870;
@@ -76,5 +75,8 @@ pub const JOURNALNODE_ROOT_DATA_DIR: &str = "/stackable/data/journalnode";
 // ending up with a location of `/stackable/hadoop/data`
 pub const DATANODE_ROOT_DATA_DIR_PREFIX: &str = "/stackable/data/";
 pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/datanode";
+
+pub const LISTENER_VOLUME_NAME: &str = "listener";
+pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 pub const HDFS_UID: i64 = 1000;

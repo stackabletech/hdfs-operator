@@ -6,11 +6,11 @@ metadata:
 spec:
   image:
     productVersion: "{{ test_scenario['values']['zookeeper'] }}"
+    pullPolicy: IfNotPresent
   clusterConfig:
     listenerClass: {{ test_scenario['values']['listener-class'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    logging:
-      vectorAggregatorConfigMapName: vector-aggregator-discovery
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   servers:
     config:
