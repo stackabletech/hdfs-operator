@@ -12,7 +12,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
-    #[snafu(display("Failed to publish event"))]
+    #[snafu(display("failed to publish event"))]
     PublishEvent {
         source: stackable_operator::kube::Error,
     },

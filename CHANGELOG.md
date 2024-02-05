@@ -12,8 +12,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.56.1` -> `0.57.0` ([#433]).
+- Use new label builders ([#454]).
+
+### Removed
+
 - [BREAKING] `.spec.clusterConfig.listenerClass` has been split to `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass`, migration will be required when using `external-unstable` ([#450], [#462]).
+- [BREAKING] Removed legacy node selector on roleGroups ([#454]).
 - Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#458]).
 
 ### Fixed
@@ -21,9 +25,9 @@ All notable changes to this project will be documented in this file.
 - Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
   and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#451]).
 
-[#433]: https://github.com/stackabletech/hdfs-operator/pull/433
 [#450]: https://github.com/stackabletech/hdfs-operator/pull/450
 [#451]: https://github.com/stackabletech/hdfs-operator/pull/451
+[#454]: https://github.com/stackabletech/hdfs-operator/pull/454
 [#458]: https://github.com/stackabletech/hdfs-operator/pull/458
 [#460]: https://github.com/stackabletech/hdfs-operator/pull/460
 [#462]: https://github.com/stackabletech/hdfs-operator/pull/462

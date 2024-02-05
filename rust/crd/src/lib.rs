@@ -27,12 +27,11 @@ use stackable_operator::{
         merge::Merge,
     },
     k8s_openapi::{
-        api::core::v1::Pod,
-        api::core::v1::PodTemplateSpec,
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        api::core::v1::{Pod, PodTemplateSpec},
+        apimachinery::pkg::api::resource::Quantity,
     },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
-    labels::role_group_selector_labels,
+    kvp::{LabelError, Labels},
     product_config_utils::{ConfigError, Configuration},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
@@ -61,33 +60,44 @@ pub mod constants;
 pub mod security;
 pub mod storage;
 
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object has no associated namespace"))]
     NoNamespace,
+
     #[snafu(display("missing node role {role:?}"))]
     MissingRole { role: String },
+
     #[snafu(display("missing role group {role_group:?} for role {role:?}"))]
     MissingRoleGroup { role: String, role_group: String },
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+
     #[snafu(display("unable to get {listener} (for {pod})"))]
     GetPodListener {
         source: stackable_operator::error::Error,
         listener: ObjectRef<Listener>,
         pod: ObjectRef<Pod>,
     },
+
     #[snafu(display("{listener} (for {pod}) has no address"))]
     PodListenerHasNoAddress {
         listener: ObjectRef<Listener>,
         pod: ObjectRef<Pod>,
     },
+
     #[snafu(display("port {port} ({port_name:?}) is out of bounds, must be within {range:?}", range = 0..=u16::MAX))]
     PortOutOfBounds {
         source: TryFromIntError,
         port_name: String,
         port: i32,
     },
+
+    #[snafu(display("failed to build role-group selector label"))]
+    BuildRoleGroupSelectorLabel { source: LabelError },
 }
 
 /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
@@ -350,20 +360,6 @@ impl HdfsRole {
                     .config
                     .clone();
 
-                if let Some(RoleGroup {
-                    selector: Some(selector),
-                    ..
-                }) = role.role_groups.get(role_group)
-                {
-                    // Migrate old `selector` attribute, see ADR 26 affinities.
-                    // TODO Can be removed after support for the old `selector` field is dropped.
-                    #[allow(deprecated)]
-                    role_group_config
-                        .common
-                        .affinity
-                        .add_legacy_selector(selector);
-                }
-
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
                 Ok(AnyNodeConfig::NameNode(
@@ -391,20 +387,6 @@ impl HdfsRole {
                     .config
                     .config
                     .clone();
-
-                if let Some(RoleGroup {
-                    selector: Some(selector),
-                    ..
-                }) = role.role_groups.get(role_group)
-                {
-                    // Migrate old `selector` attribute, see ADR 26 affinities.
-                    // TODO Can be removed after support for the old `selector` field is dropped.
-                    #[allow(deprecated)]
-                    role_group_config
-                        .common
-                        .affinity
-                        .add_legacy_selector(selector);
-                }
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
@@ -434,20 +416,6 @@ impl HdfsRole {
                     .config
                     .config
                     .clone();
-
-                if let Some(RoleGroup {
-                    selector: Some(selector),
-                    ..
-                }) = role.role_groups.get(role_group)
-                {
-                    // Migrate old `selector` attribute, see ADR 26 affinities.
-                    // TODO Can be removed after support for the old `selector` field is dropped.
-                    #[allow(deprecated)]
-                    role_group_config
-                        .common
-                        .affinity
-                        .add_legacy_selector(selector);
-                }
 
                 role_config.merge(&default_config);
                 role_group_config.merge(&role_config);
@@ -490,25 +458,6 @@ impl HdfsRole {
                 .and_then(|rg| rg.replicas),
         }
     }
-
-    /// Return the node/label selector for a certain rolegroup.
-    pub fn role_group_node_selector(
-        &self,
-        hdfs: &HdfsCluster,
-        role_group: &str,
-    ) -> Option<LabelSelector> {
-        match self {
-            HdfsRole::NameNode => hdfs
-                .namenode_rolegroup(role_group)
-                .and_then(|rg| rg.selector.clone()),
-            HdfsRole::DataNode => hdfs
-                .datanode_rolegroup(role_group)
-                .and_then(|rg| rg.selector.clone()),
-            HdfsRole::JournalNode => hdfs
-                .journalnode_rolegroup(role_group)
-                .and_then(|rg| rg.selector.clone()),
-        }
-    }
 }
 
 impl HdfsCluster {
@@ -523,17 +472,22 @@ impl HdfsCluster {
     pub fn rolegroup_selector_labels(
         &self,
         rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    ) -> BTreeMap<String, String> {
-        let mut group_labels = role_group_selector_labels(
+    ) -> Result<Labels> {
+        let mut group_labels = Labels::role_group_selector(
             self,
             APP_NAME,
             &rolegroup_ref.role,
             &rolegroup_ref.role_group,
-        );
-        group_labels.insert(String::from("role"), rolegroup_ref.role.clone());
-        group_labels.insert(String::from("group"), rolegroup_ref.role_group.clone());
-
+        )
+        .context(BuildRoleGroupSelectorLabelSnafu)?;
         group_labels
+            .parse_insert(("role", rolegroup_ref.role.deref()))
+            .context(BuildRoleGroupSelectorLabelSnafu)?;
+        group_labels
+            .parse_insert(("group", rolegroup_ref.role_group.deref()))
+            .context(BuildRoleGroupSelectorLabelSnafu)?;
+
+        Ok(group_labels)
     }
 
     /// Get a reference to the namenode [`RoleGroup`] struct if it exists.
