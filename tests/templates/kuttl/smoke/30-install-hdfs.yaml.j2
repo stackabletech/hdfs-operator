@@ -16,12 +16,12 @@ spec:
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     dfsReplication: 1
-    listenerClass: {{ test_scenario['values']['listener-class'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   nameNodes:
     config:
+      listenerClass: {{ test_scenario['values']['listener-class'] }}
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
@@ -29,6 +29,7 @@ spec:
         replicas: 2
   dataNodes:
     config:
+      listenerClass: {{ test_scenario['values']['listener-class'] }}
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
 {% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
