@@ -29,7 +29,8 @@ dimensions:
   - name: listener-class
     values:
       - "cluster-internal"
-      - "external-unstable"
+      # Disable test case due to https://github.com/stackabletech/hdfs-operator/issues/467
+      # - "external-unstable"
   - name: kerberos-realm
     values:
       - "CLUSTER.LOCAL"
