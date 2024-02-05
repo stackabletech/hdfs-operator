@@ -1504,7 +1504,7 @@ spec:
         let config = &role.merged_config(&hdfs, "default").unwrap();
         let resources = &config.as_datanode().unwrap().resources;
 
-        assert_eq!(hdfs.has_rackawareness_enabled(), true);
+        assert!(hdfs.has_rackawareness_enabled());
         let rackawareness = hdfs.rackawareness_config();
 
         let pvc = resources.storage.get("data").unwrap();

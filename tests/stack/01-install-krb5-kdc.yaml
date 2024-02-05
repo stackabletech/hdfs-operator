@@ -1,0 +1,135 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: krb5-kdc
+spec:
+  selector:
+    app: krb5-kdc
+  ports:
+    - name: kadmin
+      port: 749
+    - name: kdc
+      port: 88
+    - name: kdc-udp
+      port: 88
+      protocol: UDP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: krb5-kdc
+spec:
+  serviceName: krb5-kdc
+  selector:
+    matchLabels:
+      app: krb5-kdc
+  template:
+    metadata:
+      labels:
+        app: krb5-kdc
+    spec:
+      initContainers:
+        - name: init
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable0.0.0-dev
+          args:
+            - sh
+            - -euo
+            - pipefail
+            - -c
+            - |
+              test -e /var/kerberos/krb5kdc/principal || kdb5_util create -s -P asdf
+              kadmin.local get_principal -terse root/admin || kadmin.local add_principal -pw asdf root/admin
+              # stackable-secret-operator principal must match the keytab specified in the SecretClass
+              kadmin.local get_principal -terse stackable-secret-operator || kadmin.local add_principal -e aes256-cts-hmac-sha384-192:normal -pw asdf stackable-secret-operator
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+            - mountPath: /var/kerberos/krb5kdc
+              name: data
+      containers:
+        - name: kdc
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable0.0.0-dev
+          args:
+            - krb5kdc
+            - -n
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+            - mountPath: /var/kerberos/krb5kdc
+              name: data
+        - name: kadmind
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable0.0.0-dev
+          args:
+            - kadmind
+            - -nofork
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+            - mountPath: /var/kerberos/krb5kdc
+              name: data
+        - name: client
+          image: docker.stackable.tech/stackable/krb5:1.18.2-stackable0.0.0-dev
+          tty: true
+          stdin: true
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+      volumes:
+        - name: config
+          configMap:
+            name: krb5-kdc
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: krb5-kdc
+data:
+  krb5.conf: |
+    [logging]
+    default = STDERR
+    kdc = STDERR
+    admin_server = STDERR
+    # default = FILE:/var/log/krb5libs.log
+    # kdc = FILE:/var/log/krb5kdc.log
+    # admin_server = FILE:/vaggr/log/kadmind.log
+    [libdefaults]
+    dns_lookup_realm = false
+    ticket_lifetime = 24h
+    renew_lifetime = 7d
+    forwardable = true
+    rdns = false
+    default_realm = CLUSTER.LOCAL
+    spake_preauth_groups = edwards25519
+    [realms]
+    CLUSTER.LOCAL = {
+     acl_file = /stackable/config/kadm5.acl
+     disable_encrypted_timestamp = false
+    }
+    [domain_realm]
+    .cluster.local = CLUSTER.LOCAL
+    cluster.local = CLUSTER.LOCAL
+  kadm5.acl: |
+    root/admin *e
+    stackable-secret-operator *e
