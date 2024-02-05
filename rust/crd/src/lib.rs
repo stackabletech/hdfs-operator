@@ -720,17 +720,21 @@ impl HdfsCluster {
         self.https_secret_class().is_some()
     }
 
+    pub fn has_rackawareness_enabled(&self) -> bool {
+        self.rackawareness_config().is_some()
+    }
     pub fn rackawareness_config(&self) -> Option<String> {
-        match self.spec.cluster_config.rack_awareness.as_ref() {
-            Some(label_list) => Some(
+        self.spec
+            .cluster_config
+            .rack_awareness
+            .as_ref()
+            .map(|label_list| {
                 label_list
-                    .into_iter()
+                    .iter()
                     .map(|label| label.to_config())
                     .collect::<Vec<_>>()
-                    .join(";"),
-            ),
-            None => None,
-        }
+                    .join(";")
+            })
     }
 
     pub fn https_secret_class(&self) -> Option<&str> {
@@ -989,7 +993,7 @@ impl Configuration for NameNodeConfigFragment {
 
         // If a rack awareness is configured, insert the labels into an env var to configure
         // the topology-provider, this is only needed on namenodes
-        if role_name == &HdfsRole::NameNode.to_string() {
+        if role_name == HdfsRole::NameNode.to_string() {
             if let Some(awareness_config) = resource.rackawareness_config() {
                 result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
             }
@@ -1017,16 +1021,15 @@ impl Configuration for NameNodeConfigFragment {
                 DFS_REPLICATION.to_string(),
                 Some(resource.spec.cluster_config.dfs_replication.to_string()),
             );
-        } else if file == CORE_SITE_XML {
-            if role_name == &HdfsRole::NameNode.to_string() {
-                if let Some(awareness_config) = resource.rackawareness_config() {
-                    config.insert(
-                        "net.topology.node.switch.mapping.impl".to_string(),
-                        Some("tech.stackable.hadoop.StackableTopologyProvider".to_string()),
-                    );
-                }
+        } else if file == CORE_SITE_XML && role_name == HdfsRole::NameNode.to_string() {
+            if let Some(_awareness_config) = resource.rackawareness_config() {
+                config.insert(
+                    "net.topology.node.switch.mapping.impl".to_string(),
+                    Some("tech.stackable.hadoop.StackableTopologyProvider".to_string()),
+                );
             }
         }
+
         Ok(config)
     }
 }
@@ -1477,8 +1480,8 @@ spec:
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
-      - type: node
-        label: kubernetes.io/zone
+      - labelType: node
+        labelName: kubernetes.io/zone
   nameNodes:
     roleGroups:
       default:
@@ -1515,7 +1518,7 @@ spec:
             .unwrap();
 
         assert_eq!(hdfs.has_rackawareness_enabled(), true);
-        let rackawareness = hdfs.get_rackawareness();
+        let rackawareness = hdfs.rackawareness_config();
 
         let pvc = resources.storage.get("data").unwrap();
         assert_eq!(pvc.count, 0);
@@ -1531,7 +1534,7 @@ spec:
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Ssd);
         assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
         assert_eq!(pvc.pvc.storage_class, Some("premium".to_string()));
-        assert_eq()
+        assert!(rackawareness.is_some());
     }
 
     #[test]

@@ -1,25 +1,20 @@
 use std::sync::Arc;
 
-use futures::FutureExt;
-use futures::{future, StreamExt};
+use futures::StreamExt;
 use product_config::ProductConfigManager;
 use serde_json::json;
-use snafu::ResultExt;
 use stackable_hdfs_crd::{constants, constants::*, HdfsCluster};
-use stackable_operator::kube::api::{
-    DynamicObject, PartialObjectMeta, Patch, PatchParams, ValidationDirective,
-};
-use stackable_operator::kube::{Api, Resource, ResourceExt};
+use stackable_operator::kube::api::{PartialObjectMeta, Patch, PatchParams};
+use stackable_operator::kube::Api;
 use stackable_operator::{
     client::Client,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Pod, Service},
-        rbac::v1::{ClusterRoleBinding, RoleRef, Subject},
+        rbac::v1::{ClusterRoleBinding, Subject},
     },
-    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::runtime::{
-        reflector::{self, ObjectRef, Store},
+        reflector::{self, ObjectRef},
         watcher, Controller,
     },
     labels::ObjectLabels,
