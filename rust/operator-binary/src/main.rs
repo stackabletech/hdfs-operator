@@ -94,12 +94,10 @@ pub async fn create_controller(
 ) {
     let (store, store_w) = reflector::store();
 
-    let _reflector = std::pin::pin!(reflector::reflector(
+    let reflector = std::pin::pin!(reflector::reflector(
         store_w,
         watcher(
-            stackable_operator::kube::Api::<PartialObjectMeta<HdfsCluster>>::all(
-                client.as_kube_client()
-            ),
+            Api::<PartialObjectMeta<HdfsCluster>>::all(client.as_kube_client()),
             watcher::Config::default(),
         ),
     )
@@ -136,40 +134,13 @@ pub async fn create_controller(
             .map(|object| object.metadata.clone())
             .map(|meta| Subject {
                 kind: "ServiceAccount".to_string(),
-                name: meta.name.clone().unwrap(),
+                name: "hdfs-serviceaccount".to_string(),
                 namespace: meta.namespace.clone(),
                 ..Subject::default()
             })
             .collect();
 
         warn!("Patching clusterrolebinding...");
-        /*let res = ClusterRoleBinding {
-             metadata: ObjectMeta {
-                 name: Some("hdfs-operator-clusterrole-nodes".to_string()),
-                 ..ObjectMeta::default()
-             },
-             subjects: Some(subjects),
-             ..ClusterRoleBinding::default()
-         };
-        // let typed_patch = Patch::Apply(&res);
-          */
-
-        //json!({"apiVersion": "rbac.authorization.k8s.io/v1", "subjects": subjects}),
-        /*let patch =
-           json!({
-               "apiVersion": "rbac.authorization.k8s.io/v1",
-               "kind": "ClusterRoleBinding",
-               "metadata": {
-                   "name": "hdfs-operator-clusterrole-nodes"
-               },
-               "roleRef": {
-                   "kind": "ClusterRole",
-                   "name": "hdfs-operator-clusterrole-nodes",
-                   "apiGroup": "rbac.authorization.k8s.io"
-               },
-               "subjects": Some(subjects)
-           });
-        */
         let patch = Patch::Apply(json!({
             "apiVersion": "rbac.authorization.k8s.io/v1".to_string(),
             "kind": "ClusterRoleBinding".to_string(),
@@ -185,11 +156,10 @@ pub async fn create_controller(
         }));
         warn!("{:?}", &patch);
 
-        //warn!("{:?}", test);
         let client = client.as_kube_client();
         let api: Api<ClusterRoleBinding> = Api::all(client);
         let params = PatchParams {
-            field_manager: Some(constants::FIELD_MANAGER_SCOPE.to_string()),
+            field_manager: Some(FIELD_MANAGER_SCOPE.to_string()),
             ..PatchParams::default()
         };
         match api
@@ -229,7 +199,9 @@ pub async fn create_controller(
     .map(|res| report_controller_reconciled(&client, CONTROLLER_NAME, &res))
     .instrument(info_span!("hdfs_controller"));
 
-    hdfs_controller.collect::<()>().await;
+    futures::stream::select(hdfs_controller, reflector)
+        .collect::<()>()
+        .await;
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources
