@@ -4,7 +4,7 @@ use clap::{crate_description, crate_version, Parser};
 use futures::StreamExt;
 use product_config::ProductConfigManager;
 use serde_json::json;
-use stackable_hdfs_crd::{constants, constants::*, HdfsCluster};
+use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject};
 use stackable_operator::kube::api::{PartialObjectMeta, Patch, PatchParams};
 use stackable_operator::kube::runtime::reflector;
