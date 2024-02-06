@@ -1050,6 +1050,10 @@ impl Configuration for NameNodeConfigFragment {
         if role_name == HdfsRole::NameNode.to_string() {
             if let Some(awareness_config) = resource.rackawareness_config() {
                 result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
+                result.insert(
+                    "HADOOP_CLASSPATH".to_string(),
+                    Some("/stackable/hadoop/share/hadoop/tools/lib/*.jar".to_string()),
+                );
             }
         }
         Ok(result)
