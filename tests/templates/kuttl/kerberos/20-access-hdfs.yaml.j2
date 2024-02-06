@@ -14,7 +14,7 @@ commands:
           spec:
             containers:
               - name: access-hdfs
-                image: docker.stackable.tech/sandbox/docker-images-pr540-5212814/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
+                image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
                 env:
                   - name: HADOOP_CONF_DIR
                     value: /stackable/conf/hdfs
