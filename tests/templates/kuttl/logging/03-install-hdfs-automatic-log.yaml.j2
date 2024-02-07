@@ -11,6 +11,13 @@ spec:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
     zookeeperConfigMapName: test-hdfs-automatic-log-znode
   nameNodes:
+    config:
+      resources:
+        memory:
+          limit: 256Mi
+        cpu:
+          max: 250m
+          min: 50m
     roleGroups:
       default:
         replicas: 2
@@ -59,6 +66,13 @@ spec:
                   ROOT:
                     level: INFO
   dataNodes:
+    config:
+      resources:
+        memory:
+          limit: 256Mi
+        cpu:
+          max: 250m
+          min: 50m
     roleGroups:
       default:
         replicas: 1
@@ -94,6 +108,13 @@ spec:
                   ROOT:
                     level: DEBUG
   journalNodes:
+    config:
+      resources:
+        memory:
+          limit: 256Mi
+        cpu:
+          max: 250m
+          min: 50m
     roleGroups:
       default:
         replicas: 1
