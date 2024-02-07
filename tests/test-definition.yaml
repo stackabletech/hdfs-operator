@@ -54,6 +54,11 @@ tests:
       - zookeeper-latest
       - kerberos-realm
       - kerberos-backend
+  - name: topology-provider
+    dimensions:
+      - hadoop-latest
+      - zookeeper-latest
+      - kerberos-backend
   - name: orphaned-resources
     dimensions:
       - hadoop-latest

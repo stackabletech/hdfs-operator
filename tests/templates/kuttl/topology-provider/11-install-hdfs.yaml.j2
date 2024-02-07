@@ -1,0 +1,67 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n $NAMESPACE -f - <<EOF
+      ---
+      apiVersion: hdfs.stackable.tech/v1alpha1
+      kind: HdfsCluster
+      metadata:
+        name: hdfs
+      spec:
+        image:
+          productVersion: 3.3.6 #"{{ test_scenario['values']['hadoop-latest'] }}" # TODO replace with non-local image!
+          custom: docker.stackable.tech/stackable/hadoop:3.3.6-stackable0.0.0-dev # ditto
+          pullPolicy: IfNotPresent
+        clusterConfig:
+          zookeeperConfigMapName: hdfs-zk
+          rackAwareness:
+            - labelType: node
+              labelName: kubernetes.io/hostname
+            - labelType: pod
+              labelName: app.kubernetes.io/role-group
+          dfsReplication: 1
+          authentication:
+            tlsSecretClass: tls
+            kerberos:
+              secretClass: kerberos-$NAMESPACE
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+          vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+        nameNodes:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+              containers:
+                hdfs:
+                  console:
+                    level: DEBUG
+                  file:
+                    level: DEBUG
+                  loggers:
+                    ROOT:
+                      level: DEBUG
+          configOverrides: &configOverrides
+            core-site.xml:
+              hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+          roleGroups:
+            default:
+              replicas: 2
+        dataNodes:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+          configOverrides: *configOverrides
+          roleGroups:
+            rackcheck:
+              replicas: 1
+        journalNodes:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+          configOverrides: *configOverrides
+          roleGroups:
+            default:
+              replicas: 1
+      EOF
