@@ -181,7 +181,11 @@ pub struct HdfsClusterConfig {
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TopologyLabel {
+    /// Name of the label type that will be typically either `node` or `pod`, used to create a
+    /// topology out of datanodes.
     label_type: TopologyLabelType,
+
+    /// Name of the label that will be used to resolve a datanode to a topology zone.
     label_name: String,
 }
 
