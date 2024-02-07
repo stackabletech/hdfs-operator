@@ -2,9 +2,8 @@
 dimensions:
   - name: hadoop
     values:
-      # - 3.2.4
+      - 3.2.4
       - 3.3.4
-      - 3.3.6
   - name: hadoop-latest
     values:
       - 3.3.4
@@ -41,32 +40,32 @@ dimensions:
       # This will *not* respect the kerberos-realm test attribute, but instead use a hard-coded realm
       # - activeDirectory
 tests:
-  # - name: smoke
-  #   dimensions:
-  #     - hadoop
-  #     - zookeeper
-  #     - zookeeper-latest # Needed for smoke test to detect if zk versions is the latest we support
-  #     - number-of-datanodes
-  #     - datanode-pvcs
-  #     - listener-class
-  # - name: kerberos
-  #   dimensions:
-  #     - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
-  #     - zookeeper-latest
-  #     - kerberos-realm
-  #     - kerberos-backend
-  # - name: orphaned-resources
-  #   dimensions:
-  #     - hadoop-latest
-  #     - zookeeper-latest
+  - name: smoke
+    dimensions:
+      - hadoop
+      - zookeeper
+      - zookeeper-latest # Needed for smoke test to detect if zk versions is the latest we support
+      - number-of-datanodes
+      - datanode-pvcs
+      - listener-class
+  - name: kerberos
+    dimensions:
+      - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
+      - zookeeper-latest
+      - kerberos-realm
+      - kerberos-backend
+  - name: orphaned-resources
+    dimensions:
+      - hadoop-latest
+      - zookeeper-latest
   - name: logging
     dimensions:
       - hadoop
       - zookeeper-latest
-  # - name: cluster-operation
-  #   dimensions:
-  #     - hadoop-latest
-  #     - zookeeper-latest
+  - name: cluster-operation
+    dimensions:
+      - hadoop-latest
+      - zookeeper-latest
   # Broken due to https://github.com/kudobuilder/kuttl/issues/322, see 40-assert.yaml for more details
   # - name: external-access
   #   dimensions:
