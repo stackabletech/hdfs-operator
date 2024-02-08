@@ -40,6 +40,10 @@ dimensions:
       # Requires manual setup, see create-kerberos-secretclass.yaml
       # This will *not* respect the kerberos-realm test attribute, but instead use a hard-coded realm
       # - activeDirectory
+  - name: openshift
+    values:
+      - "true"
+      - "false"
 tests:
   - name: smoke
     dimensions:
@@ -71,6 +75,7 @@ tests:
     dimensions:
       - hadoop
       - zookeeper-latest
+      - openshift
   # Broken due to https://github.com/kudobuilder/kuttl/issues/322, see 40-assert.yaml for more details
   # - name: external-access
   #   dimensions:

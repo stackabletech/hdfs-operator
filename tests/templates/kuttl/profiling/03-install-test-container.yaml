@@ -21,6 +21,7 @@ spec:
       labels:
         app: test-runner
     spec:
+      serviceAccountName: test-sa
       securityContext:
         fsGroup: 1000
       containers:
