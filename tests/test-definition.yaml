@@ -42,7 +42,6 @@ dimensions:
       # - activeDirectory
   - name: openshift
     values:
-      - "true"
       - "false"
 tests:
   - name: smoke
