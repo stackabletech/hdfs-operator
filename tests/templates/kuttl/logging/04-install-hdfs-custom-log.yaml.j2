@@ -68,6 +68,11 @@ spec:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
     zookeeperConfigMapName: test-hdfs-custom-log-znode
   nameNodes:
+    config:
+      resources:
+        cpu:
+          max: 250m
+          min: 50m
     roleGroups:
       default:
         replicas: 2
@@ -88,6 +93,11 @@ spec:
                 custom:
                   configMap: hdfs-format-zookeeper-log-config
   dataNodes:
+    config:
+      resources:
+        cpu:
+          max: 250m
+          min: 50m
     roleGroups:
       default:
         replicas: 1
@@ -102,6 +112,11 @@ spec:
                 custom:
                   configMap: hdfs-wait-for-namenodes-log-config
   journalNodes:
+    config:
+      resources:
+        cpu:
+          max: 250m
+          min: 50m
     roleGroups:
       default:
         replicas: 1
