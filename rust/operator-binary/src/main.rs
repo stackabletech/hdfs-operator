@@ -94,6 +94,9 @@ pub async fn create_controller(
 ) {
     let (store, store_w) = reflector::store();
 
+    // The topology provider will need to get/list pods and nodes to gather and filter label information.
+    // Retrieving Node information requires a cluster-role, the binding for which is applied to each
+    // HDFS cluster that has been deployed, via a patch.
     let reflector = std::pin::pin!(reflector::reflector(
         store_w,
         watcher(

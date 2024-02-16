@@ -1049,8 +1049,9 @@ impl Configuration for NameNodeConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
 
-        // If a rack awareness is configured, insert the labels into an env var to configure
-        // the topology-provider, this is only needed on namenodes
+        // If rack awareness is configured, insert the labels into an env var to configure
+        // the topology-provider and add the artifact to the classpath.
+        // This is only needed on namenodes.
         if role_name == HdfsRole::NameNode.to_string() {
             if let Some(awareness_config) = resource.rackawareness_config() {
                 result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
