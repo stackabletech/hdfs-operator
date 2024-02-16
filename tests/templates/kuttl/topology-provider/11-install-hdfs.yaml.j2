@@ -11,9 +11,7 @@ commands:
         name: hdfs
       spec:
         image:
-          productVersion: 3.3.6 #"{{ test_scenario['values']['hadoop-latest'] }}" # TODO replace with non-local image!
-          custom: docker.stackable.tech/stackable/hadoop:3.3.6-stackable0.0.0-dev # ditto
-          pullPolicy: IfNotPresent
+          productVersion: "{{ test_scenario['values']['hadoop-latest'] }}"
         clusterConfig:
           zookeeperConfigMapName: hdfs-zk
           rackAwareness:
@@ -55,7 +53,7 @@ commands:
           configOverrides: *configOverrides
           roleGroups:
             rackcheck:
-              replicas: 1
+              replicas: 3
         journalNodes:
           config:
             logging:

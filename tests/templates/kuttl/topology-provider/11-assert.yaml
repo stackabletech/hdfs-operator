@@ -24,5 +24,5 @@ kind: StatefulSet
 metadata:
   name: hdfs-datanode-rackcheck
 status:
-  readyReplicas: 1
-  replicas: 1
+  readyReplicas: 3
+  replicas: 3

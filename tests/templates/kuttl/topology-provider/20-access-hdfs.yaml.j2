@@ -31,6 +31,7 @@ commands:
                     kinit -kt /stackable/kerberos/keytab testuser/access-hdfs.$NAMESPACE.svc.cluster.local
                     klist
 
+                    # check that a topology has been created for the dataNode role group
                     bin/hdfs dfsadmin -printTopology | grep "Rack: /.*/rackcheck"
                 volumeMounts:
                   - name: hdfs-config
