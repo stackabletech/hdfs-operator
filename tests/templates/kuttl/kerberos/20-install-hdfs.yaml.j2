@@ -12,7 +12,6 @@ commands:
       spec:
         image:
           productVersion: "{{ test_scenario['values']['hadoop-latest'] }}"
-          pullPolicy: IfNotPresent
         clusterConfig:
           zookeeperConfigMapName: hdfs-zk
           dfsReplication: 1
@@ -27,9 +26,30 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+              containers:
+                hdfs:
+                  console:
+                    level: DEBUG
+                  loggers:
+                    ROOT:
+                      level: INFO
+                    tech.stackable.hadoop:
+                      level: DEBUG
           configOverrides: &configOverrides
+            hdfs-site.xml:
+              dfs.namenode.inode.attributes.provider.class: tech.stackable.hadoop.StackableAuthorizer
             core-site.xml:
-              hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+              # The mapper is only handled on the namenode so no need to apply this config to all roles
+              hadoop.security.group.mapping: tech.stackable.hadoop.StackableGroupMapper
+              hadoop.security.group.mapping.opa.policy.url: http://opa:8081/v1/data/hdfs/groups
+              hadoop.security.authorization.opa.policy.url: http://opa:8081/v1/data/hdfs/allow
+              # The operator adds a default static mapping when kerberos is activated, see:
+              # https://github.com/stackabletech/hdfs-operator/blob/main/rust/operator-binary/src/kerberos.rs#L97-L101
+              # This should be removed so that the mapping implementation can provide this information instead:
+              hadoop.user.group.static.mapping.overrides: ""
+          envOverrides: &envOverrides
+            # FIXME: Remove once https://github.com/stackabletech/docker-images/pull/569 is merged
+            HADOOP_CLASSPATH: "/stackable/hadoop/share/hadoop/tools/lib/*.jar"
           roleGroups:
             default:
               replicas: 2
@@ -38,6 +58,7 @@ commands:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
           configOverrides: *configOverrides
+          envOverrides: *envOverrides
           roleGroups:
             default:
               replicas: 2
@@ -46,6 +67,7 @@ commands:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
           configOverrides: *configOverrides
+          envOverrides: *envOverrides
           roleGroups:
             default:
               replicas: 3
