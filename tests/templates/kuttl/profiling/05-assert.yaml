@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  - script: >-
+      kubectl exec -n $NAMESPACE test-runner-0 --
+      python /stackable/run-profiler.py
