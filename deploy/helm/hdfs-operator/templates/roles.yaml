@@ -230,3 +230,11 @@ rules:
     verbs:
       - get
       - list
+  - apiGroups:
+      - listeners.stackable.tech
+    resources:
+      - listenerclasses
+      - listeners
+    verbs:
+      - get
+      - list
