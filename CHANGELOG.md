@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - More CRD documentation ([#433]).
 - Support for exposing HDFS clusters to clients outside of Kubernetes ([#450]).
 - Helm: support labels in values.yaml ([#460]).
+- Add support for OPA authorizer and group mapper ([#474]).
 
 ### Changed
 
@@ -31,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#458]: https://github.com/stackabletech/hdfs-operator/pull/458
 [#460]: https://github.com/stackabletech/hdfs-operator/pull/460
 [#462]: https://github.com/stackabletech/hdfs-operator/pull/462
+[#474]: https://github.com/stackabletech/hdfs-operator/pull/474
 
 ## [23.11.0] - 2023-11-24
 
