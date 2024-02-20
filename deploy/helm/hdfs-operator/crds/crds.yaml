@@ -52,7 +52,7 @@ spec:
                         - kerberos
                       type: object
                     authorization:
-                      description: Authorization options for HDFS.
+                      description: Authorization options for HDFS. Learn more in the [HDFS authorization usage guide](https://docs.stackable.tech/home/nightly/hdfs/usage-guide/security#authorization).
                       nullable: true
                       properties:
                         opaAuthorization:
