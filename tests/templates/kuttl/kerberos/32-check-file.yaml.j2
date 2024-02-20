@@ -28,11 +28,11 @@ commands:
                   - |
                     set -ex
                     klist -k /stackable/kerberos/keytab
-                    kinit -kt /stackable/kerberos/keytab testuser/check-hdfs.$NAMESPACE.svc.cluster.local
+                    kinit -kt /stackable/kerberos/keytab admin/check-hdfs.$NAMESPACE.svc.cluster.local
                     klist
 
-                    bin/hdfs dfs -ls /
-                    bin/hdfs dfs -cat /hosts
+                    bin/hdfs dfs -ls -R /
+                    bin/hdfs dfs -cat /developers/hosts
                 volumeMounts:
                   - name: hdfs-config
                     mountPath: /stackable/conf/hdfs
@@ -49,7 +49,7 @@ commands:
                       annotations:
                         secrets.stackable.tech/class: kerberos-$NAMESPACE
                         secrets.stackable.tech/scope: service=check-hdfs
-                        secrets.stackable.tech/kerberos.service.names: testuser
+                        secrets.stackable.tech/kerberos.service.names: admin
                     spec:
                       storageClassName: secrets.stackable.tech
                       accessModes:

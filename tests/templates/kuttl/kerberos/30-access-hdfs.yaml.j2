@@ -28,14 +28,39 @@ commands:
                   - |
                     set -ex
                     klist -k /stackable/kerberos/keytab
-                    kinit -kt /stackable/kerberos/keytab testuser/access-hdfs.$NAMESPACE.svc.cluster.local
-                    klist
 
+                    # Does not work because of env var substitution problems
+                    log_in () { kdestroy; kinit -kt /stackable/kerberos/keytab $1/access-hdfs.$NAMESPACE.svc.cluster.local; }
+
+                    kdestroy; kinit -kt /stackable/kerberos/keytab admin/access-hdfs.$NAMESPACE.svc.cluster.local
                     bin/hdfs dfs -ls /
-                    bin/hdfs dfs -rm -f /hosts
-                    bin/hdfs dfs -put -f /etc/hosts /hosts
-                    bin/hdfs dfs -ls /
-                    bin/hdfs dfs -cat /hosts
+                    bin/hdfs dfs -mkdir -p /alice
+                    bin/hdfs dfs -mkdir -p /bob
+                    bin/hdfs dfs -mkdir -p /developers
+                    bin/hdfs dfs -mkdir -p /developers-ro
+                    bin/hdfs dfs -ls -R /
+
+                    kdestroy; kinit -kt /stackable/kerberos/keytab alice/access-hdfs.$NAMESPACE.svc.cluster.local
+                    bin/hdfs dfs -ls / && exit 1
+                    bin/hdfs dfs -ls /alice
+                    bin/hdfs dfs -ls /bob && exit 1
+                    bin/hdfs dfs -ls /developers
+                    bin/hdfs dfs -ls /developers-ro
+
+                    bin/hdfs dfs -put -f /etc/hosts /alice/
+                    bin/hdfs dfs -put -f /etc/hosts /bob/ && exit 1
+                    bin/hdfs dfs -put -f /etc/hosts /developers/
+                    bin/hdfs dfs -put -f /etc/hosts /developers-ro/ && exit 1
+
+                    kdestroy; kinit -kt /stackable/kerberos/keytab bob/access-hdfs.$NAMESPACE.svc.cluster.local
+                    bin/hdfs dfs -ls / && exit 1
+                    bin/hdfs dfs -ls /alice && exit 1
+                    bin/hdfs dfs -ls /bob
+                    bin/hdfs dfs -ls /developers
+                    bin/hdfs dfs -ls /developers-ro && exit 1
+
+                    echo "Test passed"
+                    exit 0
                 volumeMounts:
                   - name: hdfs-config
                     mountPath: /stackable/conf/hdfs
@@ -52,7 +77,7 @@ commands:
                       annotations:
                         secrets.stackable.tech/class: kerberos-$NAMESPACE
                         secrets.stackable.tech/scope: service=access-hdfs
-                        secrets.stackable.tech/kerberos.service.names: testuser
+                        secrets.stackable.tech/kerberos.service.names: admin,alice,bob
                     spec:
                       storageClassName: secrets.stackable.tech
                       accessModes:
