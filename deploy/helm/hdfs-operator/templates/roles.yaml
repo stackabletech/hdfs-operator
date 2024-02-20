@@ -233,7 +233,6 @@ rules:
   - apiGroups:
       - listeners.stackable.tech
     resources:
-      - listenerclasses
       - listeners
     verbs:
       - get
