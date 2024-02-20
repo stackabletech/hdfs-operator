@@ -13,7 +13,7 @@ use stackable_operator::{
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    kerberos,
+    security::kerberos,
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;

@@ -19,6 +19,13 @@ commands:
             tlsSecretClass: tls
             kerberos:
               secretClass: kerberos-$NAMESPACE
+          authorization:
+            opaAuthorization:
+              configMapName: opa
+              package: hdfs
+            opaGroupMapping:
+              configMapName: opa
+              package: hdfs
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
           vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -35,18 +42,6 @@ commands:
                       level: INFO
                     tech.stackable.hadoop:
                       level: DEBUG
-          configOverrides: &configOverrides
-            hdfs-site.xml:
-              dfs.namenode.inode.attributes.provider.class: tech.stackable.hadoop.StackableAuthorizer
-            core-site.xml:
-              # The mapper is only handled on the namenode so no need to apply this config to all roles
-              hadoop.security.group.mapping: tech.stackable.hadoop.StackableGroupMapper
-              hadoop.security.group.mapping.opa.policy.url: http://opa:8081/v1/data/hdfs/groups
-              hadoop.security.authorization.opa.policy.url: http://opa:8081/v1/data/hdfs/allow
-              # The operator adds a default static mapping when kerberos is activated, see:
-              # https://github.com/stackabletech/hdfs-operator/blob/main/rust/operator-binary/src/kerberos.rs#L97-L101
-              # This should be removed so that the mapping implementation can provide this information instead:
-              hadoop.user.group.static.mapping.overrides: ""
           envOverrides: &envOverrides
             # FIXME: Remove once https://github.com/stackabletech/docker-images/pull/569 is merged
             HADOOP_CLASSPATH: "/stackable/hadoop/share/hadoop/tools/lib/*.jar"
@@ -57,7 +52,6 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-          configOverrides: *configOverrides
           envOverrides: *envOverrides
           roleGroups:
             default:
@@ -66,7 +60,6 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-          configOverrides: *configOverrides
           envOverrides: *envOverrides
           roleGroups:
             default:

@@ -100,13 +100,13 @@ impl CoreSiteConfigBuilder {
                 .add(
                     "dfs.namenode.kerberos.principal.pattern",
                     format!("nn/{principal_host_part}"),
-                )
-                // Otherwise we fail with `java.io.IOException: No groups found for user nn`
-                // Default value is `dr.who=`, so we include that here
-                .add(
-                    "hadoop.user.group.static.mapping.overrides",
-                    "dr.who=;nn=;nm=;jn=;",
                 );
+            // // Otherwise we fail with `java.io.IOException: No groups found for user nn`
+            // // Default value is `dr.who=`, so we include that here
+            // .add(
+            //     "hadoop.user.group.static.mapping.overrides",
+            //     "dr.who=;nn=;nm=;jn=;",
+            // );
 
             self.add_wire_encryption_settings();
         }

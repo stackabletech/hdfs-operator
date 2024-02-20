@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use stackable_operator::schemars::{self, JsonSchema};
+use stackable_operator::{
+    commons::opa::OpaConfig,
+    schemars::{self, JsonSchema},
+};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,4 +23,13 @@ fn default_tls_secret_class() -> String {
 pub struct KerberosConfig {
     /// Name of the SecretClass providing the keytab for the HDFS services.
     pub secret_class: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HdfsAuthorization {
+    // no doc - it's in the struct.
+    pub opa_authorization: OpaConfig,
+    /// (Optionally - but recommended) you can let HDFS look up group memberships from OPA.
+    pub opa_group_mapping: Option<OpaConfig>,
 }

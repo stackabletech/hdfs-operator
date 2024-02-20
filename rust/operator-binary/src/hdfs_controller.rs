@@ -52,16 +52,15 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    container::{self, ContainerConfig},
-    container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
+    container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_event},
-    kerberos,
     operations::{
         graceful_shutdown::{self, add_graceful_shutdown_config},
         pdb::add_pdbs,
     },
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    security::{self, kerberos, opa::HdfsOpaConfig},
     OPERATOR_NAME,
 };
 
@@ -232,6 +231,9 @@ pub enum Error {
 
     #[snafu(display("failed to build security config"))]
     BuildSecurityConfig { source: kerberos::Error },
+
+    #[snafu(display("invalid OPA configuration"))]
+    InvalidOpaConfig { source: security::opa::Error },
 }
 
 impl ReconcilerError for Error {
@@ -313,6 +315,15 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         .await
         .context(ApplyRoleBindingSnafu)?;
 
+    let hdfs_opa_config = match &hdfs.spec.cluster_config.authorization {
+        Some(opa_config) => Some(
+            HdfsOpaConfig::from_opa_config(client, &hdfs, &resolved_product_image, opa_config)
+                .await
+                .context(InvalidOpaConfigSnafu)?,
+        ),
+        None => None,
+    };
+
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
@@ -352,6 +363,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &journalnode_podrefs,
                 &resolved_product_image,
                 &merged_config,
+                &hdfs_opa_config,
                 vector_aggregator_address.as_deref(),
             )?;
 
@@ -514,6 +526,7 @@ fn rolegroup_config_map(
     journalnode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
     merged_config: &AnyNodeConfig,
+    hdfs_opa_config: &Option<HdfsOpaConfig>,
     vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
@@ -546,8 +559,8 @@ fn rolegroup_config_map(
                 // This caused a deadlock with no namenode becoming active during a startup after
                 // HDFS was completely down for a while.
 
-                let mut builder = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
-                builder
+                let mut hdfs_site = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
+                hdfs_site
                     .dfs_namenode_name_dir()
                     .dfs_datanode_data_dir(
                         merged_config
@@ -575,22 +588,28 @@ fn rolegroup_config_map(
                     .add("dfs.datanode.registered.port", "${env.DATA_PORT}")
                     .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}");
                 if hdfs.has_https_enabled() {
-                    builder.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
+                    hdfs_site.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
                 } else {
-                    builder.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");
+                    hdfs_site.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");
+                }
+                if let Some(hdfs_opa_config) = hdfs_opa_config {
+                    hdfs_opa_config.add_hdfs_site_config(&mut hdfs_site);
                 }
                 // the extend with config must come last in order to have overrides working!!!
-                hdfs_site_xml = builder.extend(config).build_as_xml();
+                hdfs_site_xml = hdfs_site.extend(config).build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
-                core_site_xml = CoreSiteConfigBuilder::new(hdfs_name.to_string())
+                let mut core_site = CoreSiteConfigBuilder::new(hdfs_name.to_string());
+                core_site
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
                     .security_config(hdfs)
-                    .context(BuildSecurityConfigSnafu)?
-                    // the extend with config must come last in order to have overrides working!!!
-                    .extend(config)
-                    .build_as_xml();
+                    .context(BuildSecurityConfigSnafu)?;
+                if let Some(hdfs_opa_config) = hdfs_opa_config {
+                    hdfs_opa_config.add_core_site_config(&mut core_site);
+                }
+                // the extend with config must come last in order to have overrides working!!!
+                core_site_xml = core_site.extend(config).build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == HADOOP_POLICY_XML => {
                 // We don't add any settings here, the main purpose is to have a configOverride for users.
