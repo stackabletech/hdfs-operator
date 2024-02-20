@@ -171,8 +171,7 @@ pub struct HdfsClusterConfig {
     pub authentication: Option<AuthenticationConfig>,
 
     /// Authorization options for HDFS.
-    // TODO:
-    // Learn more in the [HDFS authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hdfs/usage-guide/security#authorization).
+    /// Learn more in the [HDFS authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hdfs/usage-guide/security#authorization).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization: Option<HdfsAuthorization>,
 
