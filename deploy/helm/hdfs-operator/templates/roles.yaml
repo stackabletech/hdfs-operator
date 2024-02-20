@@ -97,6 +97,14 @@ rules:
       - listeners
     verbs:
       - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+    verbs:
+      - get
+      - list
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
@@ -227,6 +235,7 @@ rules:
     resources:
       - pods
       - nodes
+      - endpoints
     verbs:
       - get
       - list
