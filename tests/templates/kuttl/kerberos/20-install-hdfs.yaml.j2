@@ -43,9 +43,6 @@ commands:
                       level: INFO
                     tech.stackable.hadoop:
                       level: DEBUG
-          envOverrides: &envOverrides
-            # FIXME: Remove once https://github.com/stackabletech/docker-images/pull/569 is merged
-            HADOOP_CLASSPATH: "/stackable/hadoop/share/hadoop/tools/lib/*.jar"
           roleGroups:
             default:
               replicas: 2
@@ -53,7 +50,6 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-          envOverrides: *envOverrides
           roleGroups:
             default:
               replicas: 2
@@ -61,7 +57,6 @@ commands:
           config:
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-          envOverrides: *envOverrides
           roleGroups:
             default:
               replicas: 3
