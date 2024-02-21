@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - [BREAKING] `.spec.clusterConfig.listenerClass` has been split to `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass`, migration will be required when using `external-unstable` ([#450], [#462]).
 - [BREAKING] Removed legacy node selector on roleGroups ([#454]).
 - Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#458]).
+- Removed support for Hadoop `3.2` ([#XXX]).
 
 ### Fixed
 
