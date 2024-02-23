@@ -195,11 +195,6 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "kerberos not supported for HDFS versions < 3.3.x. Please use at least version 3.3.x"
-    ))]
-    KerberosNotSupported,
-
-    #[snafu(display(
         "failed to serialize {JVM_SECURITY_PROPERTIES_FILE:?} for {}",
         rolegroup
     ))]
@@ -257,9 +252,6 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
-    if hdfs.has_kerberos_enabled() && kerberos::is_not_supported(&resolved_product_image) {
-        return KerberosNotSupportedSnafu.fail();
-    }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
         .await
