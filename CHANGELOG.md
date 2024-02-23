@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - [BREAKING] `.spec.clusterConfig.listenerClass` has been split to `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass`, migration will be required when using `external-unstable` ([#450], [#462]).
 - [BREAKING] Removed legacy node selector on roleGroups ([#454]).
 - Change default value of `dfs.ha.nn.not-become-active-in-safemode` from `true` to `false` ([#458]).
+- Removed support for Hadoop `3.2` ([#475]).
 
 ### Fixed
 
@@ -31,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#458]: https://github.com/stackabletech/hdfs-operator/pull/458
 [#460]: https://github.com/stackabletech/hdfs-operator/pull/460
 [#462]: https://github.com/stackabletech/hdfs-operator/pull/462
+[#475]: https://github.com/stackabletech/hdfs-operator/pull/475
 
 ## [23.11.0] - 2023-11-24
 
