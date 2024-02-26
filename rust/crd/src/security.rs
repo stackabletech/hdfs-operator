@@ -27,9 +27,7 @@ pub struct KerberosConfig {
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HdfsAuthorization {
-    // no doc - it's in the struct.
-    pub opa_authorization: OpaConfig,
-    /// (Optionally - but recommended) you can let HDFS look up group memberships from OPA.
-    pub opa_group_mapping: Option<OpaConfig>,
+pub struct AuthorizationConfig {
+    // No doc - it's in the struct.
+    pub opa: OpaConfig,
 }

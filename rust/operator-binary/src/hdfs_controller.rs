@@ -309,7 +309,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let hdfs_opa_config = match &hdfs.spec.cluster_config.authorization {
         Some(opa_config) => Some(
-            HdfsOpaConfig::from_opa_config(client, &hdfs, &resolved_product_image, opa_config)
+            HdfsOpaConfig::from_opa_config(client, &hdfs, opa_config)
                 .await
                 .context(InvalidOpaConfigSnafu)?,
         ),

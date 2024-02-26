@@ -78,10 +78,7 @@ spec:
       kerberos:
         secretClass: kerberos-$NAMESPACE
     authorization:
-      opaAuthorization:
-        configMapName: opa
-        package: hdfs
-      opaGroupMapping:
+      opa:
         configMapName: opa
         package: hdfs
 ----

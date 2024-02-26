@@ -8,7 +8,7 @@ use std::{
 
 use futures::future::try_join_all;
 use product_config::types::PropertyNameKind;
-use security::HdfsAuthorization;
+use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -173,7 +173,7 @@ pub struct HdfsClusterConfig {
     /// Authorization options for HDFS.
     /// Learn more in the [HDFS authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hdfs/usage-guide/security#authorization).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization: Option<HdfsAuthorization>,
+    pub authorization: Option<AuthorizationConfig>,
 
     // Scheduled for removal in v1alpha2, see https://github.com/stackabletech/issues/issues/504
     /// Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.

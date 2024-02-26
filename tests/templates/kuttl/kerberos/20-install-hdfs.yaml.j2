@@ -21,10 +21,7 @@ commands:
             kerberos:
               secretClass: kerberos-$NAMESPACE
           authorization:
-            opaAuthorization:
-              configMapName: opa
-              package: hdfs
-            opaGroupMapping:
+            opa:
               configMapName: opa
               package: hdfs
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
