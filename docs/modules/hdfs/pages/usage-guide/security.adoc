@@ -86,6 +86,15 @@ spec:
         package: hdfs
 ----
 
+=== Username extraction
+HDFS allows you to configure how the `shortUsername` is extracted from the Kerberos principal using https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Mapping_from_Kerberos_principals_to_OS_user_accounts[`hadoop.security.auth_to_local`].
+Stackable does not use a custom mechanism, instead we stick to the default setup.
+The authorizer sends the whole UserGroupInformation (including the `shortUserName` *and* the full `userName`) to OPA, which is perfect.
+The GroupMapper interface however only gives the `shortUsername` while https://github.com/apache/hadoop/blob/a897e745f598ef05fc0c253b2a776100e48688d2/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/security/GroupMappingServiceProvider.java#L45[asking for the group memberships].
+
+Because of this limitation we tried to map the principals from Kerberos 1:1 to the HDFS `shortUserName`, so the GroupMapper has access to the full `userName`. However this did not work, as HDFS only allows "simple usernames", https://github.com/apache/hadoop/blob/8378ab9f92c72dc6164b62f7be71826fd750dba4/hadoop-common-project/hadoop-auth/src/main/java/org/apache/hadoop/security/authentication/util/KerberosName.java#L348[which are not allowed to contain a `/` or `@`].
+Because of this limitation, the GroupMapper ignores the `shortUsername` passed to the function and instead calls to `UserGroupInformation.getCurrentUser()`,  uses `.getUserName()` to extract the full `userName` and uses that to lookup the group memberships.
+
 == Wire encryption
 In case Kerberos is enabled, `Privacy` mode is used for best security.
 Wire encryption without Kerberos as well as https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Data_confidentiality[other wire encryption modes] are *not* supported.
