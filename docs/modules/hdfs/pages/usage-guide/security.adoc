@@ -58,6 +58,7 @@ For authorization we developed https://github.com/stackabletech/hdfs-utils[hdfs-
 This matches our general xref:home:concepts:opa.adoc[] mechanisms.
 
 IMPORTANT: It is recommended to enable Kerberos when doing Authorization, as otherwise you don't have any security measures at all.
+There still might be cases where you want authorization on top of a cluster without authentication, as you don't want to accidentally drop files and therefore use different users for different use-cases.
 
 In order to use the authorizer you need a ConfigMap containing a rego rule and reference that in your HDFS cluster.
 In addition to this you need a OpaCluster that serves the rego rules - this guide assumes it's called `opa`.
@@ -67,16 +68,14 @@ In addition to this you need a OpaCluster that serves the rego rules - this guid
 include::example$usage-guide/hdfs-regorules.yaml[]
 ----
 
-Reference it as follows in your HdfsCluster:
+This regorules is intended for demonstration purpose and allows every operation.
+For a production setup you probably want to have a look at our integration tests for a more secure set of regorules.
+Reference the rego rule as follows in your HdfsCluster:
 
 [source,yaml]
 ----
 spec:
   clusterConfig:
-    authentication:
-      tlsSecretClass: tls
-      kerberos:
-        secretClass: kerberos-$NAMESPACE
     authorization:
       opa:
         configMapName: opa
