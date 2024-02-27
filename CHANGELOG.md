@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 - More CRD documentation ([#433]).
 - Support for exposing HDFS clusters to clients outside of Kubernetes ([#450]).
 - Helm: support labels in values.yaml ([#460]).
-- Add support for OPA authorizer and group mapper ([#474]).
+- Add support for OPA authorizer ([#474]).
 
 ### Changed
 
