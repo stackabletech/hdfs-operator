@@ -35,6 +35,7 @@ impl HdfsOpaConfig {
         })
     }
 
+    /// Add all the needed configurations to `hdfs-site.xml`
     pub fn add_hdfs_site_config(&self, config: &mut HdfsSiteConfigBuilder) {
         config.add(
             "dfs.namenode.inode.attributes.provider.class",
@@ -42,6 +43,7 @@ impl HdfsOpaConfig {
         );
     }
 
+    /// Add all the needed configurations to `core-site.xml`
     pub fn add_core_site_config(&self, config: &mut CoreSiteConfigBuilder) {
         config.add(
             "hadoop.security.authorization.opa.policy.url",
