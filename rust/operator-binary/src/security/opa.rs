@@ -10,18 +10,12 @@ pub enum Error {
     ConstructOpaEndpointForAuthorizer {
         source: stackable_operator::error::Error,
     },
-
-    #[snafu(display("failed to construct OPA endpoint URL for group mapper"))]
-    ConstructOpaEndpointForGroupMapper {
-        source: stackable_operator::error::Error,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct HdfsOpaConfig {
     authorization_connection_string: String,
-    group_mapper_connection_string: String,
 }
 
 impl HdfsOpaConfig {
@@ -35,15 +29,9 @@ impl HdfsOpaConfig {
             .full_document_url_from_config_map(client, hdfs, Some("allow"), OpaApiVersion::V1)
             .await
             .context(ConstructOpaEndpointForAuthorizerSnafu)?;
-        let group_mapper_connection_string = authorization_config
-            .opa
-            .full_document_url_from_config_map(client, hdfs, Some("groups"), OpaApiVersion::V1)
-            .await
-            .context(ConstructOpaEndpointForGroupMapperSnafu)?;
 
         Ok(HdfsOpaConfig {
             authorization_connection_string,
-            group_mapper_connection_string,
         })
     }
 
@@ -58,14 +46,6 @@ impl HdfsOpaConfig {
         config.add(
             "hadoop.security.authorization.opa.policy.url",
             &self.authorization_connection_string,
-        );
-        config.add(
-            "hadoop.security.group.mapping",
-            "tech.stackable.hadoop.StackableGroupMapper",
-        );
-        config.add(
-            "hadoop.security.group.mapping.opa.policy.url",
-            &self.group_mapper_connection_string,
         );
     }
 }
