@@ -186,6 +186,7 @@ commands:
 
           groups_for_user := {
               "admin/access-hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}": ["admins"],
+              "admin/check-hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}": ["admins"],
               "alice/access-hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}": ["developers"],
               "bob/access-hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}": []
           }
