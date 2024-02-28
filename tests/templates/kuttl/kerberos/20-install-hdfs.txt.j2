@@ -1,0 +1,53 @@
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+    productVersion: "{{ test_scenario['values']['hadoop-latest'] }}"
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+    dfsReplication: 1
+    authentication:
+      tlsSecretClass: tls
+      kerberos:
+        secretClass: kerberos-$NAMESPACE
+    authorization:
+      opa:
+        configMapName: opa
+        package: hdfs
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  nameNodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          hdfs:
+            console:
+              level: DEBUG
+            loggers:
+              ROOT:
+                level: INFO
+              tech.stackable.hadoop:
+                level: DEBUG
+    roleGroups:
+      default:
+        replicas: 2
+  dataNodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 2
+  journalNodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 3

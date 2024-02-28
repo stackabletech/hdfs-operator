@@ -54,24 +54,60 @@ In case you want to access your HDFS it is recommended to start up a client Pod 
 We have an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/20-access-hdfs.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
 
 == Authorization
-We currently don't support authorization yet.
-In the future support will be added by writing an opa-authorizer to match our general xref:home:concepts:opa.adoc[] mechanisms.
+For authorization we developed https://github.com/stackabletech/hdfs-utils[hdfs-utils], which contains an OPA authorizer and group mapper.
+This matches our general xref:home:concepts:opa.adoc[] mechanisms.
 
-In the meantime a very basic level of authorization can be reached by using `configOverrides` to set the `hadoop.user.group.static.mapping.overrides` property.
-In thew following example the `dr.who=;nn=;nm=;jn=;` part is needed for HDFS internal operations and the user `testuser` is granted admin permissions.
+IMPORTANT: It is recommended to enable Kerberos when doing Authorization, as otherwise you don't have any security measures at all.
+There still might be cases where you want authorization on top of a cluster without authentication, as you don't want to accidentally drop files and therefore use different users for different use-cases.
+
+In order to use the authorizer you need a ConfigMap containing a rego rule and reference that in your HDFS cluster.
+In addition to this you need a OpaCluster that serves the rego rules - this guide assumes it's called `opa`.
+
+[source,rego]
+----
+include::example$usage-guide/hdfs-regorules.yaml[]
+----
+
+This rego rule is intended for demonstration purposes and allows every operation.
+For a production setup you probably want to take a look at our integration tests for a more secure set of rego rules.
+Reference the rego rule as follows in your HdfsCluster:
 
 [source,yaml]
 ----
 spec:
-  nameNodes:
-    configOverrides: &configOverrides
-      core-site.xml:
-        hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
-  dataNodes:
-    configOverrides: *configOverrides
-  journalNodes:
-    configOverrides: *configOverrides
+  clusterConfig:
+    authorization:
+      opa:
+        configMapName: opa
+        package: hdfs
 ----
+
+=== How it works
+WARNING: Take all your knowledge about HDFS authorization and throw it in the bin.
+The approach we are taking for our authorization paradigm departs significantly from traditional Hadoop patterns and POSIX-style permissions.
+
+In short, the current rego rules ignore the file ownership, permissions, ACLs and all other attributes files can have.
+All of this is state in HDFS and clashes with the infrastructure-as-code approach (IaC).
+
+Instead, HDFS will send a request detailing who (e.g. `alice/test-hdfs-permissions.default.svc.cluster.local@CLUSTER.LOCAL`) is trying to do what (e.g. `open`, `create`, `delete` or `append`) on what file (e.g. `/foo/bar`).
+OPA then makes a decision if this action is allowed or not.
+
+Instead of `chown`-ing a directory to a different user to assign write permissions, you should go to your IaC Git repository and add a rego rule entry specifying that the user is allowed to read and write to that directory.
+
+=== Group memberships
+We encountered several challenges while implementing the group mapper, the most serious of which being that the `GroupMappingServiceProvider` interface only passes the `shortUsername` when https://github.com/apache/hadoop/blob/a897e745f598ef05fc0c253b2a776100e48688d2/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/security/GroupMappingServiceProvider.java#L45[asking for group memberships].
+This does not allow us to differentiate between e.g. `hbase/hbase-prod.prod-namespace.svc.cluster.local@CLUSTER.LOCAL` and `hbase/hbase-dev.dev-namespace.svc.cluster.local@CLUSTER.LOCAL`, as the GroupMapper will get asked for `hbase` group memberships in both cases.
+
+Users could work around this to assign unique shortNames by using https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Mapping_from_Kerberos_principals_to_OS_user_accounts[`hadoop.security.auth_to_local`].
+This is however a potentially complex and error-prone process.
+We also tried mapping the principals from Kerberos 1:1 to the HDFS `shortUserName`, so the GroupMapper has access to the full `userName`.
+However, this did not work, as HDFS only allows "simple usernames", https://github.com/apache/hadoop/blob/8378ab9f92c72dc6164b62f7be71826fd750dba4/hadoop-common-project/hadoop-auth/src/main/java/org/apache/hadoop/security/authentication/util/KerberosName.java#L348[which are not allowed to contain a `/` or `@`].
+
+Because of these issues we do not use a custom GroupMapper and only rely on the authorizer, which in turn receives a complete `UserGroupInformation` object, including the `shortUserName` and the precious full `userName`.
+This has the downside that the group memberships used in OPA for authorization are not known to HDFS.
+The implication is thus that you cannot add users to the `superuser` group, which is needed for certain administrative actions in HDFS.
+We have decided that this is an acceptable approach as normal operations will not be affected.
+In case you really need users to be part of the `superusers` group, you can use a configOverride on `hadoop.user.group.static.mapping.overrides` for that.
 
 == Wire encryption
 In case Kerberos is enabled, `Privacy` mode is used for best security.

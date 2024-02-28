@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-regorules
+  labels:
+    opa.stackable.tech/bundle: "true"
+data:
+  hdfs.rego: |
+    package hdfs
+
+    import rego.v1
+
+    default allow = true

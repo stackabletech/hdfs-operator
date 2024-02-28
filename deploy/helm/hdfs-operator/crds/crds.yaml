@@ -51,6 +51,26 @@ spec:
                       required:
                         - kerberos
                       type: object
+                    authorization:
+                      description: Authorization options for HDFS. Learn more in the [HDFS authorization usage guide](https://docs.stackable.tech/home/nightly/hdfs/usage-guide/security#authorization).
+                      nullable: true
+                      properties:
+                        opa:
+                          description: Configure the OPA stacklet [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) and the name of the Rego package containing your authorization rules. Consult the [OPA authorization documentation](https://docs.stackable.tech/home/nightly/concepts/opa) to learn how to deploy Rego authorization rules with OPA.
+                          properties:
+                            configMapName:
+                              description: The [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) for the OPA stacklet that should be used for authorization requests.
+                              type: string
+                            package:
+                              description: The name of the Rego package containing the Rego rules for the product.
+                              nullable: true
+                              type: string
+                          required:
+                            - configMapName
+                          type: object
+                      required:
+                        - opa
+                      type: object
                     dfsReplication:
                       default: 3
                       description: '`dfsReplication` is the factor of how many times a file will be replicated to different data nodes. The default is 3. You need at least the same amount of data nodes so each file can be replicated correctly, otherwise a warning will be printed.'
