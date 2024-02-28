@@ -98,7 +98,7 @@ Instead of `chown`-ing a directory to a different user to assign write permissio
 We encountered several challenges while implementing the group mapper, the most serious of which being that the `GroupMappingServiceProvider` interface only passes the `shortUsername` when https://github.com/apache/hadoop/blob/a897e745f598ef05fc0c253b2a776100e48688d2/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/security/GroupMappingServiceProvider.java#L45[asking for group memberships].
 This does not allow us to differentiate between e.g. `hbase/hbase-prod.prod-namespace.svc.cluster.local@CLUSTER.LOCAL` and `hbase/hbase-dev.dev-namespace.svc.cluster.local@CLUSTER.LOCAL`, as the GroupMapper will get asked for `hbase` group memberships in both cases.
 
-Users could work around this by giving users unique shortNames by using https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Mapping_from_Kerberos_principals_to_OS_user_accounts[`hadoop.security.auth_to_local`].
+Users could work around this to assign unique shortNames by using https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Mapping_from_Kerberos_principals_to_OS_user_accounts[`hadoop.security.auth_to_local`].
 This is however a potentially complex and error-prone process.
 We also tried mapping the principals from Kerberos 1:1 to the HDFS `shortUserName`, so the GroupMapper has access to the full `userName`.
 However, this did not work, as HDFS only allows "simple usernames", https://github.com/apache/hadoop/blob/8378ab9f92c72dc6164b62f7be71826fd750dba4/hadoop-common-project/hadoop-auth/src/main/java/org/apache/hadoop/security/authentication/util/KerberosName.java#L348[which are not allowed to contain a `/` or `@`].
