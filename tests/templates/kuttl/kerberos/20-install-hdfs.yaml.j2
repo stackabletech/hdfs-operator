@@ -3,4 +3,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   # We need to replace $NAMESPACE (by KUTTL)
-  - script: envsubst < 20-install-hdfs.txt | kubectl apply -n $NAMESPACE -f -
+  - script: envsubst '$NAMESPACE' < 20-install-hdfs.txt | kubectl apply -n $NAMESPACE -f -
