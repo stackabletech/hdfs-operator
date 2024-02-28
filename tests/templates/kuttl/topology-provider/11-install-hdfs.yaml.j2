@@ -12,6 +12,7 @@ commands:
       spec:
         image:
           productVersion: "{{ test_scenario['values']['hadoop-latest'] }}"
+          pullPolicy: IfNotPresent
         clusterConfig:
           zookeeperConfigMapName: hdfs-zk
           rackAwareness:
