@@ -30,7 +30,7 @@ commands:
                     klist -k /stackable/kerberos/keytab
 
                     # Does not work because of env var substitution problems
-                    log_in () { kdestroy; kinit -kt /stackable/kerberos/keytab $1/access-hdfs.$NAMESPACE.svc.cluster.local; }
+                    # log_in () { kdestroy; kinit -kt /stackable/kerberos/keytab $1/access-hdfs.$NAMESPACE.svc.cluster.local; }
 
                     kdestroy; kinit -kt /stackable/kerberos/keytab admin/access-hdfs.$NAMESPACE.svc.cluster.local
                     bin/hdfs dfs -ls /
