@@ -90,6 +90,17 @@ impl CoreSiteConfigBuilder {
                     format!("nn/{principal_host_part}"),
                 );
 
+            if !hdfs.has_authorization_enabled() {
+                // In case *no* OPA authorizer is used, we got the following error message:
+                // java.io.IOException: No groups found for user nn
+                // In case the OPA authorizer is used everything seems to be fine.
+                // The default value is `dr.who=`, so we include that here.
+                self.add(
+                    "hadoop.user.group.static.mapping.overrides",
+                    "dr.who=;nn=;nm=;jn=;",
+                );
+            }
+
             self.add_wire_encryption_settings();
         }
         Ok(self)

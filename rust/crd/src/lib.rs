@@ -807,6 +807,10 @@ impl HdfsCluster {
             .map(|k| k.tls_secret_class.as_str())
     }
 
+    pub fn has_authorization_enabled(&self) -> bool {
+        self.spec.cluster_config.authorization.is_some()
+    }
+
     pub fn num_datanodes(&self) -> u16 {
         self.spec
             .data_nodes
