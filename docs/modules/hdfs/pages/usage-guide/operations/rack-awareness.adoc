@@ -24,7 +24,7 @@ spec:
   nameNodes:
     configOverrides:
       core-site.xml:
-        hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+        net.topology.node.switch.mapping.impl: tech.stackable.hadoop.StackableTopologyProvider
 ----
 
 This defines a default group mapping and is necessary is needed for HDFS internal operations. As an example, the user `testuser` is also granted admin permissions. See the section on xref:usage-guide/security.adoc#_authorization[Authorization] for more details.
@@ -61,7 +61,5 @@ spec:
       - labelType: pod
         labelName: app.kubernetes.io/role-group
   nameNodes:
-    configOverrides:
-      core-site.xml:
-        hadoop.user.group.static.mapping.overrides: "dr.who=;nn=;nm=;jn=;testuser=supergroup;"
+    ...
 ----

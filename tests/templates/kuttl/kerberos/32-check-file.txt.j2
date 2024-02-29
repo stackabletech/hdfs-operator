@@ -1,0 +1,58 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: check-hdfs
+spec:
+  template:
+    spec:
+      containers:
+        - name: check-hdfs
+          image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
+          env:
+            - name: HADOOP_CONF_DIR
+              value: /stackable/conf/hdfs
+            - name: KRB5_CONFIG
+              value: /stackable/kerberos/krb5.conf
+            - name: HADOOP_OPTS
+              value: -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -ex
+              klist -k /stackable/kerberos/keytab
+              kinit -kt /stackable/kerberos/keytab admin/check-hdfs.$NAMESPACE.svc.cluster.local
+              klist
+
+              bin/hdfs dfs -ls -R /
+              bin/hdfs dfs -cat /developers/hosts
+          volumeMounts:
+            - name: hdfs-config
+              mountPath: /stackable/conf/hdfs
+            - name: kerberos
+              mountPath: /stackable/kerberos
+      volumes:
+        - name: hdfs-config
+          configMap:
+            name: hdfs
+        - name: kerberos
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: kerberos-$NAMESPACE
+                  secrets.stackable.tech/scope: service=check-hdfs
+                  secrets.stackable.tech/kerberos.service.names: admin
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 1000
+      restartPolicy: OnFailure

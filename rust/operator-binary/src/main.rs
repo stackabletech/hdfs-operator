@@ -32,9 +32,9 @@ mod container;
 mod discovery;
 mod event;
 mod hdfs_controller;
-mod kerberos;
 mod operations;
 mod product_logging;
+mod security;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));

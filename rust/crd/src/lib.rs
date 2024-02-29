@@ -8,6 +8,7 @@ use std::{
 
 use futures::future::try_join_all;
 use product_config::types::PropertyNameKind;
+use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -146,7 +147,7 @@ pub struct HdfsClusterSpec {
     pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HdfsClusterConfig {
     /// `dfsReplication` is the factor of how many times a file will be replicated to different data nodes.
@@ -168,6 +169,11 @@ pub struct HdfsClusterConfig {
 
     /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
     pub authentication: Option<AuthenticationConfig>,
+
+    /// Authorization options for HDFS.
+    /// Learn more in the [HDFS authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hdfs/usage-guide/security#authorization).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authorization: Option<AuthorizationConfig>,
 
     // Scheduled for removal in v1alpha2, see https://github.com/stackabletech/issues/issues/504
     /// Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
@@ -846,6 +852,10 @@ impl HdfsCluster {
             .authentication
             .as_ref()
             .map(|k| k.tls_secret_class.as_str())
+    }
+
+    pub fn has_authorization_enabled(&self) -> bool {
+        self.spec.cluster_config.authorization.is_some()
     }
 
     pub fn num_datanodes(&self) -> u16 {
