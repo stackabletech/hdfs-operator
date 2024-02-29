@@ -379,3 +379,4 @@ jobs:
         run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out
       - name: "Passed?"
         run: '[ "$(./preflight-linux-amd64 check container "$IMAGE_TAG" | jq -r .passed)" == true ]'
+
