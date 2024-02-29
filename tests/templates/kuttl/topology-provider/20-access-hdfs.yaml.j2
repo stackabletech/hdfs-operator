@@ -12,6 +12,7 @@ commands:
       spec:
         template:
           spec:
+            serviceAccountName: test-sa
             containers:
               - name: access-hdfs
                 image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
