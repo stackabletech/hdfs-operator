@@ -1,10 +1,10 @@
 = HDFS Rack Awareness
 
-Apache Hadoop supports a feature called Rack Awareness, which allows defining a topology for the nodes making up a cluster.
+Apache Hadoop supports a feature called Rack Awareness, which allows users to define a topology for the nodes making up a cluster.
 Hadoop will then use that topology to spread out replicas of blocks in a fashion that maximizes fault tolerance.
 
 The default write path, for example, is to put replicas of a newly created block first on a different node, but within the same rack, and the second copy on a node in a remote rack.
-In order for this to work properly, Hadoop needs to have information about the underlying infrastructure it runs on available - in a Kubernetes environment, this means obtaining information from the pods or nodes of the cluster.
+In order for this to work properly, Hadoop needs to have access to the information about the underlying infrastructure it runs on. In a Kubernetes environment, this means obtaining information from the pods or nodes of the cluster.
 
 In order to enable gathering this information the Hadoop images contain https://github.com/stackabletech/hdfs-topology-provider on the classpath, which can be configured to read labels from Kubernetes objects.
 
@@ -12,40 +12,7 @@ In the current version of the SDP this is now exposed as fully integrated functi
 
 NOTE: Prior to SDP release 24.3, it was necessary to manually deploy RBAC objects to allow the Hadoop pods access to the necessary Kubernetes objects. This ClusterRole allows the reading of pods and nodes and needs to be bound to the individual ServiceAccounts that are deployed per Hadoop cluster: this is now performed by the operator itself.
 
-To configure the cluster for rack awareness for a HDFS running in a kerberized environment, the following setting needs to be made via a config override:
-
-[source,yaml]
-----
-apiVersion: hdfs.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: simple-hdfs
-spec:
-  nameNodes:
-    configOverrides:
-      core-site.xml:
-        net.topology.node.switch.mapping.impl: tech.stackable.hadoop.StackableTopologyProvider
-----
-
-This defines a default group mapping and is necessary is needed for HDFS internal operations. As an example, the user `testuser` is also granted admin permissions. See the section on xref:usage-guide/security.adoc#_authorization[Authorization] for more details.
-
-Configuration of the tool is then done via the field `rackAwareness` under the cluster configuration:
-
-[source,yaml]
-----
-clusterConfig:
-  rackAwareness:
-    - labelType: node
-      labelName: topology.kubernetes.io/zone
-    - labelType: pod
-      labelName: app.kubernetes.io/role-group
-----
-
-Internally this will be used to create a topology label in the form of:
-
-- `/<value of label topology.kubernetes.io/zone on the node>/<value of label app.kubernetes.io/role-group on the pod>`
-
-An example of configuring the above would look like this:
+Configuration of the tool is done by using the field `rackAwareness` under the cluster configuration:
 
 [source,yaml]
 ----
@@ -63,3 +30,7 @@ spec:
   nameNodes:
     ...
 ----
+
+Internally this will be used to create a topology label in the form of:
+
+- `/<value of label topology.kubernetes.io/zone on the node>/<value of label app.kubernetes.io/role-group on the pod>`
