@@ -124,6 +124,15 @@ pub enum ContainerConfig {
         web_ui_http_port_name: &'static str,
         /// Port name of the web UI HTTPS port, used for the liveness probe.
         web_ui_https_port_name: &'static str,
+        /// Path of the web UI URL; The path defaults to / in Kubernetes
+        /// and the kubelet follows redirects. The default would work if
+        /// the location header is set properly but that is not the case
+        /// for the DataNode. On a TLS-enabled DataNode, calling
+        /// https://127.0.0.1:9865/ redirects to the non-TLS URL
+        /// http://127.0.0.1:9865/index.html which causes the liveness
+        /// probe to fail. So it is best to not rely on the location
+        /// header but instead provide the resolved path directly.
+        web_ui_path: &'static str,
         /// The JMX Exporter metrics port.
         metrics_port: u16,
     },
@@ -820,18 +829,21 @@ wait_for_termination $!
             ContainerConfig::Hdfs {
                 web_ui_http_port_name,
                 web_ui_https_port_name,
+                web_ui_path,
                 ..
             } => {
                 let http_get_action = if hdfs.has_https_enabled() {
                     HTTPGetAction {
                         port: IntOrString::String(web_ui_https_port_name.to_string()),
                         scheme: Some("HTTPS".into()),
+                        path: Some(web_ui_path.to_string()),
                         ..HTTPGetAction::default()
                     }
                 } else {
                     HTTPGetAction {
                         port: IntOrString::String(web_ui_http_port_name.to_string()),
                         scheme: Some("HTTP".into()),
+                        path: Some(web_ui_path.to_string()),
                         ..HTTPGetAction::default()
                     }
                 };
@@ -1237,6 +1249,7 @@ impl From<HdfsRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
+                web_ui_path: "/dfshealth.html",
                 metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
             },
             HdfsRole::DataNode => Self::Hdfs {
@@ -1246,6 +1259,7 @@ impl From<HdfsRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_IPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
+                web_ui_path: "/datanode.html",
                 metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
             },
             HdfsRole::JournalNode => Self::Hdfs {
@@ -1255,6 +1269,7 @@ impl From<HdfsRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
+                web_ui_path: "/journalnode.html",
                 metrics_port: DEFAULT_JOURNAL_NODE_METRICS_PORT,
             },
         }
