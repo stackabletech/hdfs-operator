@@ -17,9 +17,12 @@ use stackable_hdfs_crd::{
     constants::{
         DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
         DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
-        JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, LOG4J_PROPERTIES,
-        NAMENODE_ROOT_DATA_DIR, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
-        STACKABLE_ROOT_DATA_DIR,
+        JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+        LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
+        LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
+        READINESS_PROBE_FAILURE_THRESHOLD, READINESS_PROBE_INITIAL_DELAY_SECONDS,
+        READINESS_PROBE_PERIOD_SECONDS, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
+        SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
     },
     storage::DataNodeStorageConfig,
     AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
@@ -35,8 +38,9 @@ use stackable_operator::{
     k8s_openapi::{
         api::core::v1::{
             ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
-            EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim,
-            Probe, ResourceRequirements, TCPSocketAction, Volume, VolumeMount,
+            EmptyDirVolumeSource, EnvVar, EnvVarSource, HTTPGetAction, ObjectFieldSelector,
+            PersistentVolumeClaim, Probe, ResourceRequirements, TCPSocketAction, Volume,
+            VolumeMount,
         },
         apimachinery::pkg::util::intstr::IntOrString,
     },
@@ -114,8 +118,12 @@ pub enum ContainerConfig {
         container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
-        /// Readiness and liveness probe service port name.
-        tcp_socket_action_port_name: &'static str,
+        /// Port name of the IPC/RPC port, used for the readiness probe.
+        ipc_port_name: &'static str,
+        /// Port name of the web UI HTTP port, used for the liveness probe.
+        web_ui_http_port_name: &'static str,
+        /// Port name of the web UI HTTPS port, used for the liveness probe.
+        web_ui_https_port_name: &'static str,
         /// The JMX Exporter metrics port.
         metrics_port: u16,
     },
@@ -390,9 +398,21 @@ impl ContainerConfig {
             cb.resources(resources);
         }
 
-        if let Some(probe) = self.tcp_socket_action_probe(10, 10) {
-            cb.readiness_probe(probe.clone());
+        if let Some(probe) = self.web_ui_port_probe(
+            hdfs,
+            LIVENESS_PROBE_PERIOD_SECONDS,
+            LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
+            LIVENESS_PROBE_FAILURE_THRESHOLD,
+        ) {
             cb.liveness_probe(probe);
+        }
+
+        if let Some(probe) = self.ipc_port_probe(
+            READINESS_PROBE_PERIOD_SECONDS,
+            READINESS_PROBE_INITIAL_DELAY_SECONDS,
+            READINESS_PROBE_FAILURE_THRESHOLD,
+        ) {
+            cb.readiness_probe(probe.clone());
         }
 
         Ok(cb.build())
@@ -788,24 +808,61 @@ wait_for_termination $!
         }
     }
 
-    /// Creates a probe for [`stackable_operator::k8s_openapi::api::core::v1::TCPSocketAction`]
-    /// for liveness or readiness probes
-    fn tcp_socket_action_probe(
+    /// Creates a probe for the web UI port
+    fn web_ui_port_probe(
         &self,
+        hdfs: &HdfsCluster,
         period_seconds: i32,
         initial_delay_seconds: i32,
+        failure_threshold: i32,
     ) -> Option<Probe> {
         match self {
             ContainerConfig::Hdfs {
-                tcp_socket_action_port_name,
+                web_ui_http_port_name,
+                web_ui_https_port_name,
                 ..
-            } => Some(Probe {
+            } => {
+                let http_get_action = if hdfs.has_https_enabled() {
+                    HTTPGetAction {
+                        port: IntOrString::String(web_ui_https_port_name.to_string()),
+                        scheme: Some("HTTPS".into()),
+                        ..HTTPGetAction::default()
+                    }
+                } else {
+                    HTTPGetAction {
+                        port: IntOrString::String(web_ui_http_port_name.to_string()),
+                        scheme: Some("HTTP".into()),
+                        ..HTTPGetAction::default()
+                    }
+                };
+                Some(Probe {
+                    http_get: Some(http_get_action),
+                    period_seconds: Some(period_seconds),
+                    initial_delay_seconds: Some(initial_delay_seconds),
+                    failure_threshold: Some(failure_threshold),
+                    ..Probe::default()
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// Creates a probe for the IPC/RPC port
+    fn ipc_port_probe(
+        &self,
+        period_seconds: i32,
+        initial_delay_seconds: i32,
+        failure_threshold: i32,
+    ) -> Option<Probe> {
+        match self {
+            ContainerConfig::Hdfs { ipc_port_name, .. } => Some(Probe {
                 tcp_socket: Some(TCPSocketAction {
-                    port: IntOrString::String(String::from(*tcp_socket_action_port_name)),
+                    port: IntOrString::String(ipc_port_name.to_string()),
                     ..TCPSocketAction::default()
                 }),
                 period_seconds: Some(period_seconds),
                 initial_delay_seconds: Some(initial_delay_seconds),
+                failure_threshold: Some(failure_threshold),
                 ..Probe::default()
             }),
             _ => None,
@@ -1177,21 +1234,27 @@ impl From<HdfsRole> for ContainerConfig {
                 role: role.clone(),
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
-                tcp_socket_action_port_name: SERVICE_PORT_NAME_RPC,
+                ipc_port_name: SERVICE_PORT_NAME_RPC,
+                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
+                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
                 metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
             },
             HdfsRole::DataNode => Self::Hdfs {
                 role: role.clone(),
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
-                tcp_socket_action_port_name: SERVICE_PORT_NAME_IPC,
+                ipc_port_name: SERVICE_PORT_NAME_IPC,
+                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
+                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
                 metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
             },
             HdfsRole::JournalNode => Self::Hdfs {
                 role: role.clone(),
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
-                tcp_socket_action_port_name: SERVICE_PORT_NAME_RPC,
+                ipc_port_name: SERVICE_PORT_NAME_RPC,
+                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
+                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
                 metrics_port: DEFAULT_JOURNAL_NODE_METRICS_PORT,
             },
         }
