@@ -49,6 +49,13 @@ pub const DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
 pub const DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
     Duration::from_minutes_unchecked(30);
 
+pub const READINESS_PROBE_INITIAL_DELAY_SECONDS: i32 = 10;
+pub const READINESS_PROBE_PERIOD_SECONDS: i32 = 10;
+pub const READINESS_PROBE_FAILURE_THRESHOLD: i32 = 3;
+pub const LIVENESS_PROBE_INITIAL_DELAY_SECONDS: i32 = 10;
+pub const LIVENESS_PROBE_PERIOD_SECONDS: i32 = 10;
+pub const LIVENESS_PROBE_FAILURE_THRESHOLD: i32 = 5;
+
 // hdfs-site.xml
 pub const DFS_NAMENODE_NAME_DIR: &str = "dfs.namenode.name.dir";
 pub const DFS_NAMENODE_SHARED_EDITS_DIR: &str = "dfs.namenode.shared.edits.dir";
