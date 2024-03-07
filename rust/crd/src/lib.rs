@@ -836,11 +836,12 @@ impl HdfsCluster {
         self.spec
             .cluster_config
             .rack_awareness
-            .as_ref()
+            .clone()
+            .filter(|label_list| !label_list.is_empty())
             .map(|label_list| {
                 label_list
                     .iter()
-                    .map(|label| label.to_config())
+                    .map(TopologyLabel::to_config)
                     .collect::<Vec<_>>()
                     .join(";")
             })
