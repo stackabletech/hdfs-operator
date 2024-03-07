@@ -829,9 +829,6 @@ impl HdfsCluster {
         self.https_secret_class().is_some()
     }
 
-    pub fn has_rackawareness_enabled(&self) -> bool {
-        self.rackawareness_config().is_some()
-    }
     pub fn rackawareness_config(&self) -> Option<String> {
         self.spec
             .cluster_config
@@ -1520,9 +1517,6 @@ spec:
         let config = &role.merged_config(&hdfs, "default").unwrap();
         let resources = &config.as_datanode().unwrap().resources;
 
-        assert!(hdfs.has_rackawareness_enabled());
-        let rackawareness = hdfs.rackawareness_config();
-
         let pvc = resources.storage.get("data").unwrap();
         assert_eq!(pvc.count, 0);
 
@@ -1537,7 +1531,6 @@ spec:
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Ssd);
         assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
         assert_eq!(pvc.pvc.storage_class, Some("premium".to_string()));
-        assert!(rackawareness.is_some());
     }
 
     #[test]
@@ -1677,5 +1670,46 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
         assert_eq!(hdfs.num_datanodes(), 45);
+    }
+
+    #[test]
+    pub fn test_rack_awareness_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+    productVersion: 3.3.6
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+    rackAwareness:
+      - labelType: node
+        labelName: kubernetes.io/zone
+      - labelType: pod
+        labelName: app.kubernetes.io/role-group
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let rack_awareness = hdfs.rackawareness_config();
+        // test the expected value to be used as an env-var: the mapper will use this to
+        // convert to an HDFS-internal label
+        assert_eq!(
+            Some("Node:kubernetes.io/zone;Pod:app.kubernetes.io/role-group".to_string()),
+            rack_awareness
+        );
     }
 }
