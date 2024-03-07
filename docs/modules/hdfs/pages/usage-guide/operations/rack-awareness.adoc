@@ -31,6 +31,4 @@ spec:
     ...
 ----
 
-Internally this will be used to create a topology label in the form of:
-
-- `/<value of label topology.kubernetes.io/zone on the node>/<value of label app.kubernetes.io/role-group on the pod>`
+Internally this will be used to create a topology label consisting of the value of the node label `topology.kubernetes.io/zone` and the pod label `app.kubernetes.io/role-group`, e.g. `/eu-central-1/rg1`.
