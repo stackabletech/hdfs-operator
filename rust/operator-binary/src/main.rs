@@ -5,6 +5,7 @@ use futures::StreamExt;
 use product_config::ProductConfigManager;
 use serde_json::json;
 use stackable_hdfs_crd::{constants::*, HdfsCluster};
+use stackable_operator::commons::rbac::service_account_name;
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject};
 use stackable_operator::kube::api::{PartialObjectMeta, Patch, PatchParams};
 use stackable_operator::kube::runtime::reflector;
@@ -23,7 +24,6 @@ use stackable_operator::{
     namespace::WatchNamespace,
     CustomResourceExt,
 };
-use tracing::log::warn;
 use tracing::{error, info, info_span};
 use tracing_futures::Instrument;
 
@@ -94,9 +94,9 @@ pub async fn create_controller(
 ) {
     let (store, store_w) = reflector::store();
 
-    // The topology provider will need to get/list pods and nodes to gather and filter label information.
-    // Retrieving Node information requires a cluster-role, the binding for which is applied to each
-    // HDFS cluster that has been deployed, via a patch.
+    // The topology provider will need to build label information by querying kubernetes nodes and this
+    // requires the clusterrole 'hdfs-clusterrole-nodes': this is bound to each deployed HDFS cluster
+    // via a patch.
     let reflector = std::pin::pin!(reflector::reflector(
         store_w,
         watcher(
@@ -128,7 +128,7 @@ pub async fn create_controller(
                 )
             }
         }
-        // Build a list of SubjectRef objects for all deployed HdfsClusters
+        // Build a list of SubjectRef objects for all deployed HdfsClusters.
         // To do this we only need the metadata for that, as we only really
         // need name and namespace of the objects
         let subjects: Vec<Subject> = store
@@ -137,13 +137,12 @@ pub async fn create_controller(
             .map(|object| object.metadata.clone())
             .map(|meta| Subject {
                 kind: "ServiceAccount".to_string(),
-                name: "hdfs-serviceaccount".to_string(),
+                name: service_account_name(APP_NAME),
                 namespace: meta.namespace.clone(),
                 ..Subject::default()
             })
             .collect();
 
-        warn!("Patching clusterrolebinding...");
         let patch = Patch::Apply(json!({
             "apiVersion": "rbac.authorization.k8s.io/v1".to_string(),
             "kind": "ClusterRoleBinding".to_string(),
@@ -157,7 +156,6 @@ pub async fn create_controller(
             },
             "subjects": subjects
         }));
-        warn!("{:?}", &patch);
 
         let client = client.as_kube_client();
         let api: Api<ClusterRoleBinding> = Api::all(client);
@@ -166,7 +164,10 @@ pub async fn create_controller(
             .patch("hdfs-clusterrolebinding-nodes", &params, &patch)
             .await
         {
-            Ok(_) => warn!("successfully patched!"),
+            Ok(_) => info!(
+                "Clusterrole-binding has been successfully patched: {:?}",
+                &patch
+            ),
             Err(e) => error!("{}", e),
         }
     }));
