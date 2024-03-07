@@ -121,7 +121,7 @@ kubectl rollout status --watch --timeout=5m statefulset/webhdfs
 
 file_status() {
   # tag::file-status[]
-  kubectl exec -n default webhdfs-0 -- curl -s -XGET "http://simple-hdfs-namenode-default-0:9870/webhdfs/v1/?op=LISTSTATUS"
+  kubectl exec -n default webhdfs-0 -- curl -s -XGET "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local:9870/webhdfs/v1/?op=LISTSTATUS"
   # end::file-status[]
 }
 
@@ -143,7 +143,7 @@ kubectl cp -n default ./testdata.txt webhdfs-0:/tmp
 create_file() {
   # tag::create-file[]
   kubectl exec -n default webhdfs-0 -- \
-  curl -s -XPUT -T /tmp/testdata.txt "http://simple-hdfs-namenode-default-0:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE&noredirect=true"
+  curl -s -XPUT -T /tmp/testdata.txt "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE&noredirect=true"
   # end::create-file[]
 }
 
@@ -162,7 +162,7 @@ echo "Created file: $found_file with status $(file_status)"
 echo "Delete file"
 delete_file() {
   # tag::delete-file[]
-  kubectl exec -n default webhdfs-0 -- curl -s -XDELETE "http://simple-hdfs-namenode-default-0:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=DELETE"
+  kubectl exec -n default webhdfs-0 -- curl -s -XDELETE "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=DELETE"
   # end::delete-file[]
 }
 
