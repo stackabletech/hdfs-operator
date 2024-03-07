@@ -161,10 +161,7 @@ pub async fn create_controller(
 
         let client = client.as_kube_client();
         let api: Api<ClusterRoleBinding> = Api::all(client);
-        let params = PatchParams {
-            field_manager: Some(FIELD_MANAGER_SCOPE.to_string()),
-            ..PatchParams::default()
-        };
+        let params = PatchParams::apply(FIELD_MANAGER_SCOPE);
         match api
             .patch("hdfs-clusterrolebinding-nodes", &params, &patch)
             .await
