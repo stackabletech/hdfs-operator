@@ -13,6 +13,7 @@ rules:
     verbs:
       - list
       - watch
+      - get
   - apiGroups:
       - ""
     resources:
@@ -96,6 +97,14 @@ rules:
       - listeners
     verbs:
       - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+    verbs:
+      - get
+      - list
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
@@ -111,6 +120,19 @@ rules:
       - {{ include "operator.name" . }}clusters/status
     verbs:
       - patch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterrolebindings
+    resourceNames:
+      - {{ include "operator.name" . }}-clusterrolebinding-nodes
+    verbs:
+      - patch
+      - get
+      - update
+      - list
+      - watch
+      - create
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -177,8 +199,15 @@ rules:
       - configmaps
       - secrets
       - serviceaccounts
+      - pods
     verbs:
       - get
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - list
   - apiGroups:
       - events.k8s.io
     resources:
@@ -195,3 +224,25 @@ rules:
     verbs:
       - use
 {{ end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "operator.name" . }}-clusterrole-nodes
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - nodes
+      - endpoints
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - listeners.stackable.tech
+    resources:
+      - listeners
+    verbs:
+      - get
+      - list

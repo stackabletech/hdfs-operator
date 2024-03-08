@@ -179,6 +179,36 @@ pub struct HdfsClusterConfig {
     /// Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
     #[serde(default)]
     pub listener_class: DeprecatedClusterListenerClass,
+
+    /// Configuration to control HDFS topology (rack) awareness feature
+    pub rack_awareness: Option<Vec<TopologyLabel>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopologyLabel {
+    /// Name of the label type that will be typically either `node` or `pod`, used to create a
+    /// topology out of datanodes.
+    label_type: TopologyLabelType,
+
+    /// Name of the label that will be used to resolve a datanode to a topology zone.
+    label_name: String,
+}
+
+impl TopologyLabel {
+    pub fn to_config(&self) -> String {
+        format!("{}:{}", self.label_type, self.label_name)
+    }
+}
+
+#[derive(
+    Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum TopologyLabelType {
+    #[default]
+    Node,
+    Pod,
 }
 
 fn default_dfs_replication_factor() -> u8 {
@@ -799,6 +829,21 @@ impl HdfsCluster {
         self.https_secret_class().is_some()
     }
 
+    pub fn rackawareness_config(&self) -> Option<String> {
+        self.spec
+            .cluster_config
+            .rack_awareness
+            .clone()
+            .filter(|label_list| !label_list.is_empty())
+            .map(|label_list| {
+                label_list
+                    .iter()
+                    .map(TopologyLabel::to_config)
+                    .collect::<Vec<_>>()
+                    .join(";")
+            })
+    }
+
     pub fn https_secret_class(&self) -> Option<&str> {
         self.spec
             .cluster_config
@@ -1007,10 +1052,20 @@ impl Configuration for NameNodeConfigFragment {
 
     fn compute_env(
         &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
+        resource: &Self::Configurable,
+        role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+        let mut result = BTreeMap::new();
+
+        // If rack awareness is configured, insert the labels into an env var to configure
+        // the topology-provider and add the artifact to the classpath.
+        // This is only needed on namenodes.
+        if role_name == HdfsRole::NameNode.to_string() {
+            if let Some(awareness_config) = resource.rackawareness_config() {
+                result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
+            }
+        }
+        Ok(result)
     }
 
     fn compute_cli(
@@ -1024,7 +1079,7 @@ impl Configuration for NameNodeConfigFragment {
     fn compute_files(
         &self,
         resource: &Self::Configurable,
-        _role_name: &str,
+        role_name: &str,
         file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut config = BTreeMap::new();
@@ -1033,6 +1088,13 @@ impl Configuration for NameNodeConfigFragment {
                 DFS_REPLICATION.to_string(),
                 Some(resource.spec.cluster_config.dfs_replication.to_string()),
             );
+        } else if file == CORE_SITE_XML && role_name == HdfsRole::NameNode.to_string() {
+            if let Some(_awareness_config) = resource.rackawareness_config() {
+                config.insert(
+                    "net.topology.node.switch.mapping.impl".to_string(),
+                    Some("tech.stackable.hadoop.StackableTopologyProvider".to_string()),
+                );
+            }
         }
 
         Ok(config)
@@ -1420,6 +1482,9 @@ spec:
     productVersion: 3.3.6
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
+    rackAwareness:
+      - labelType: node
+        labelName: kubernetes.io/zone
   nameNodes:
     roleGroups:
       default:
@@ -1605,5 +1670,46 @@ spec:
         let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
         assert_eq!(hdfs.num_datanodes(), 45);
+    }
+
+    #[test]
+    pub fn test_rack_awareness_from_yaml() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+    productVersion: 3.3.6
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+    rackAwareness:
+      - labelType: node
+        labelName: kubernetes.io/zone
+      - labelType: pod
+        labelName: app.kubernetes.io/role-group
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let rack_awareness = hdfs.rackawareness_config();
+        // test the expected value to be used as an env-var: the mapper will use this to
+        // convert to an HDFS-internal label
+        assert_eq!(
+            Some("Node:kubernetes.io/zone;Pod:app.kubernetes.io/role-group".to_string()),
+            rack_awareness
+        );
     }
 }

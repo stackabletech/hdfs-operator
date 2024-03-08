@@ -1,0 +1,66 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n $NAMESPACE -f - <<EOF
+      ---
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: access-hdfs
+      spec:
+        template:
+          spec:
+            serviceAccountName: test-sa
+            containers:
+              - name: access-hdfs
+                image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
+                env:
+                  - name: HADOOP_CONF_DIR
+                    value: /stackable/conf/hdfs
+                  - name: KRB5_CONFIG
+                    value: /stackable/kerberos/krb5.conf
+                  - name: HADOOP_OPTS
+                    value: -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    set -ex
+                    klist -k /stackable/kerberos/keytab
+                    kinit -kt /stackable/kerberos/keytab testuser/access-hdfs.$NAMESPACE.svc.cluster.local
+                    klist
+
+                    # check that a topology has been created for the dataNode role group
+                    bin/hdfs dfsadmin -printTopology | grep "Rack: /.*/rackcheck"
+                volumeMounts:
+                  - name: hdfs-config
+                    mountPath: /stackable/conf/hdfs
+                  - name: kerberos
+                    mountPath: /stackable/kerberos
+            volumes:
+              - name: hdfs-config
+                configMap:
+                  name: hdfs
+              - name: kerberos
+                ephemeral:
+                  volumeClaimTemplate:
+                    metadata:
+                      annotations:
+                        secrets.stackable.tech/class: kerberos-$NAMESPACE
+                        secrets.stackable.tech/scope: service=access-hdfs
+                        secrets.stackable.tech/kerberos.service.names: testuser
+                    spec:
+                      storageClassName: secrets.stackable.tech
+                      accessModes:
+                        - ReadWriteOnce
+                      resources:
+                        requests:
+                          storage: "1"
+            securityContext:
+              fsGroup: 1000
+              runAsGroup: 1000
+              runAsUser: 1000
+            restartPolicy: OnFailure
+      EOF

@@ -6,6 +6,7 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: test-sa
       containers:
         - name: check-hdfs
           image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev

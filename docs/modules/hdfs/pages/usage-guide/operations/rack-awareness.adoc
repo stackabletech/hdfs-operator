@@ -1,80 +1,18 @@
 = HDFS Rack Awareness
 
-Apache Hadoop supports a feature called Rack Awareness, which allows defining a topology for the nodes making up a cluster.
+Apache Hadoop supports a feature called Rack Awareness, which allows users to define a topology for the nodes making up a cluster.
 Hadoop will then use that topology to spread out replicas of blocks in a fashion that maximizes fault tolerance.
 
 The default write path, for example, is to put replicas of a newly created block first on a different node, but within the same rack, and the second copy on a node in a remote rack.
-In order for this to work properly, Hadoop needs to have information about the underlying infrastructure it runs on available - in a Kubernetes environment, this means obtaining information from the pods or nodes of the cluster.
+In order for this to work properly, Hadoop needs to have access to the information about the underlying infrastructure it runs on. In a Kubernetes environment, this means obtaining information from the pods or nodes of the cluster.
 
 In order to enable gathering this information the Hadoop images contain https://github.com/stackabletech/hdfs-topology-provider on the classpath, which can be configured to read labels from Kubernetes objects.
 
-In the current version of the SDP this is not exposed as fully integrated functionality in the operator, but rather needs to be configured via config overrides.
+In the current version of the SDP this is now exposed as fully integrated functionality in the operator, and no longer needs to be configured via config overrides.
 
+NOTE: Prior to SDP release 24.3, it was necessary to manually deploy RBAC objects to allow the Hadoop pods access to the necessary Kubernetes objects. This ClusterRole allows the reading of pods and nodes and needs to be bound to the individual ServiceAccounts that are deployed per Hadoop cluster: this is now performed by the operator itself.
 
-NOTE: Until the operator code has been merged, users will need to manually deploy RBAC objects to allow the Hadoop pods access to the necessary Kubernetes objects.
-
-Specifically this is a ClusterRole that allows reading pods and nodes, which needs to be bound to the individual ServiceAccounts that are deployed per Hadoop cluster.
-
-The following listing shows the generic objects that need to be deployed:
-
-[source,yaml]
-----
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: hdfs-clusterrole-nodes
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-      - pods
-    verbs:
-      - get
-      - list
----
-apiVersion: rbac.authorization.k8s.io/v1
-# This cluster role binding allows anyone in the "manager" group to read secrets in any namespace.
-kind: ClusterRoleBinding
-metadata:
-  name: hdfs-clusterrolebinding-nodes
-roleRef:
-  kind: ClusterRole
-  name: hdfs-clusterrole-nodes
-  apiGroup: rbac.authorization.k8s.io
-----
-
-In addition to this, the ClusterRoleBinding object needs to be patched with an entry for every Hadoop cluster in the `subjects` field:
-
-[source,yaml]
-----
-subjects:
-  - kind: ServiceAccount
-    name: hdfs-<clustername>-serviceaccount
-    namespace: <cluster-namespace>
-----
-
-So for an HDFS cluster using the ServiceAccount `hdfs-serviceaccount` in the `stackable` namespace, the full ClusterRoleBinding would look like this:
-[source,yaml]
-----
----
-apiVersion: rbac.authorization.k8s.io/v1
-# This cluster role binding allows anyone in the "manager" group to read secrets in any namespace.
-kind: ClusterRoleBinding
-metadata:
-  name: hdfs-clusterrolebinding-nodes
-subjects:
-  - kind: ServiceAccount
-    name: hdfs-serviceaccount
-    namespace: stackable
-roleRef:
-  kind: ClusterRole
-  name: hdfs-clusterrole-nodes
-  apiGroup: rbac.authorization.k8s.io
-----
-
-To then configure the cluster for rack awareness, the following setting needs to be set via config override:
+Configuration of the tool is done by using the field `rackAwareness` under the cluster configuration:
 
 [source,yaml]
 ----
@@ -83,35 +21,14 @@ kind: HdfsCluster
 metadata:
   name: simple-hdfs
 spec:
+  clusterConfig:
+    rackAwareness:
+      - labelType: node
+        labelName: topology.kubernetes.io/zone
+      - labelType: pod
+        labelName: app.kubernetes.io/role-group
   nameNodes:
-    configOverrides:
-      core-site.xml:
-        net.topology.node.switch.mapping.impl: tech.stackable.hadoop.StackableTopologyProvider
+    ...
 ----
 
-This instructs the namenode to use the topology tool for looking up information from Kubernetes.
-
-Configuration of the tool is then done via the environment variable `TOPOLOGY_LABELS`.
-
-This variable can be set to a semicolon separated list (maximum of two levels are allowed by default) of the following format: [node|pod]:<labelname>
-
-
-So for example `node:topology.kubernetes.io/zone;pod:app.kubernetes.io/role-group` would resolve to /<value of label topology.kubernetes.io/zone on the node>/<value of label app.kubernetes.io/role-group on the pod>.
-
-
-A full example of configuring this would look like this:
-
-[source,yaml]
-----
-apiVersion: hdfs.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: simple-hdfs
-spec:
-  nameNodes:
-    configOverrides:
-      core-site.xml:
-        net.topology.node.switch.mapping.impl: tech.stackable.hadoop.StackableTopologyProvider
-    envOverrides:
-      TOPOLOGY_LABELS: "node:topology.kubernetes.io/zone;pod:app.kubernetes.io/role-group"
-----
+Internally this will be used to create a topology label consisting of the value of the node label `topology.kubernetes.io/zone` and the pod label `app.kubernetes.io/role-group`, e.g. `/eu-central-1/rg1`.

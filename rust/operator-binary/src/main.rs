@@ -11,7 +11,11 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::runtime::{watcher, Controller},
+    kube::{
+        api::PartialObjectMeta,
+        runtime::{reflector, watcher, Controller},
+        Api,
+    },
     kvp::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
@@ -24,6 +28,7 @@ mod config;
 mod container;
 mod discovery;
 mod event;
+mod hdfs_clusterrolebinding_nodes_controller;
 mod hdfs_controller;
 mod operations;
 mod product_logging;
@@ -85,6 +90,22 @@ pub async fn create_controller(
     product_config: ProductConfigManager,
     namespace: WatchNamespace,
 ) {
+    let (store, store_w) = reflector::store();
+
+    // The topology provider will need to build label information by querying kubernetes nodes and this
+    // requires the clusterrole 'hdfs-clusterrole-nodes': this is bound to each deployed HDFS cluster
+    // via a patch.
+    let reflector = reflector::reflector(
+        store_w,
+        watcher(
+            Api::<PartialObjectMeta<HdfsCluster>>::all(client.as_kube_client()),
+            watcher::Config::default(),
+        ),
+    )
+    .then(|ev| {
+        hdfs_clusterrolebinding_nodes_controller::reconcile(client.as_kube_client(), &store, ev)
+    });
+
     let hdfs_controller = Controller::new(
         namespace.get_api::<HdfsCluster>(&client),
         watcher::Config::default(),
@@ -113,7 +134,9 @@ pub async fn create_controller(
     .map(|res| report_controller_reconciled(&client, CONTROLLER_NAME, &res))
     .instrument(info_span!("hdfs_controller"));
 
-    hdfs_controller.collect::<()>().await;
+    futures::stream::select(hdfs_controller, reflector)
+        .collect::<()>()
+        .await;
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources

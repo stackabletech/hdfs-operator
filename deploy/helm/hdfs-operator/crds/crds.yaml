@@ -83,6 +83,25 @@ spec:
                       enum:
                         - cluster-internal
                       type: string
+                    rackAwareness:
+                      description: Configuration to control HDFS topology (rack) awareness feature
+                      items:
+                        properties:
+                          labelName:
+                            description: Name of the label that will be used to resolve a datanode to a topology zone.
+                            type: string
+                          labelType:
+                            description: Name of the label type that will be typically either `node` or `pod`, used to create a topology out of datanodes.
+                            enum:
+                              - node
+                              - pod
+                            type: string
+                        required:
+                          - labelName
+                          - labelType
+                        type: object
+                      nullable: true
+                      type: array
                     vectorAggregatorConfigMapName:
                       description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
                       nullable: true
