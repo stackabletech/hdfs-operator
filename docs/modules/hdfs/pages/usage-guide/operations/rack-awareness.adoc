@@ -23,10 +23,8 @@ metadata:
 spec:
   clusterConfig:
     rackAwareness:
-      - labelType: node
-        labelName: topology.kubernetes.io/zone
-      - labelType: pod
-        labelName: app.kubernetes.io/role-group
+      - nodeLabel: topology.kubernetes.io/zone
+      - podLabel: app.kubernetes.io/role-group
   nameNodes:
     ...
 ----
