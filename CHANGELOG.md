@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added rack awareness support via topology provider implementation ([#429], [#XXX]).
+- Added rack awareness support via topology provider implementation ([#429], [#495]).
 - More CRD documentation ([#433]).
 - Support for exposing HDFS clusters to clients outside of Kubernetes ([#450]).
 - Helm: support labels in values.yaml ([#460]).
@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file.
 [#475]: https://github.com/stackabletech/hdfs-operator/pull/475
 [#491]: https://github.com/stackabletech/hdfs-operator/pull/491
 [#492]: https://github.com/stackabletech/hdfs-operator/pull/492
+[#495]: https://github.com/stackabletech/hdfs-operator/pull/495
 
 ## [23.11.0] - 2023-11-24
 
