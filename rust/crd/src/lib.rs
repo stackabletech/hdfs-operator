@@ -190,7 +190,7 @@ pub enum TopologyLabel {
     /// Name of the label on the Kubernetes Node (where the Pod is placed on) used to resolve a datanode to a topology
     /// zone.
     NodeLabel(String),
-    
+
     /// Name of the label on the Kubernetes Pod used to resolve a datanode to a topology zone.
     PodLabel(String),
 }
