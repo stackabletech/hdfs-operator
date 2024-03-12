@@ -184,31 +184,23 @@ pub struct HdfsClusterConfig {
     pub rack_awareness: Option<Vec<TopologyLabel>>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TopologyLabel {
-    /// Name of the label type that will be typically either `node` or `pod`, used to create a
-    /// topology out of datanodes.
-    label_type: TopologyLabelType,
-
-    /// Name of the label that will be used to resolve a datanode to a topology zone.
-    label_name: String,
+pub enum TopologyLabel {
+    /// Name of the label on the Kubernetes Node (where the Pod is placed on) used to resolve a datanode to a topology
+    /// zone.
+    NodeLabel(String),
+    /// Name of the label on the Kubernetes Pod used to resolve a datanode to a topology zone.
+    PodLabel(String),
 }
 
 impl TopologyLabel {
     pub fn to_config(&self) -> String {
-        format!("{}:{}", self.label_type, self.label_name)
+        match &self {
+            TopologyLabel::NodeLabel(l) => format!("Node:{l}"),
+            TopologyLabel::PodLabel(l) => format!("Pod:{l}"),
+        }
     }
-}
-
-#[derive(
-    Clone, Debug, Default, Display, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum TopologyLabelType {
-    #[default]
-    Node,
-    Pod,
 }
 
 fn default_dfs_replication_factor() -> u8 {
@@ -833,8 +825,7 @@ impl HdfsCluster {
         self.spec
             .cluster_config
             .rack_awareness
-            .clone()
-            .filter(|label_list| !label_list.is_empty())
+            .as_ref()
             .map(|label_list| {
                 label_list
                     .iter()
@@ -1483,8 +1474,7 @@ spec:
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
-      - labelType: node
-        labelName: kubernetes.io/zone
+      - nodeLabel: kubernetes.io/zone
   nameNodes:
     roleGroups:
       default:
@@ -1512,7 +1502,9 @@ spec:
       default:
         replicas: 1";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let deserializer = serde_yaml::Deserializer::from_str(cr);
+        let hdfs: HdfsCluster =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let role = HdfsRole::DataNode;
         let config = &role.merged_config(&hdfs, "default").unwrap();
         let resources = &config.as_datanode().unwrap().resources;
@@ -1686,10 +1678,8 @@ spec:
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
-      - labelType: node
-        labelName: kubernetes.io/zone
-      - labelType: pod
-        labelName: app.kubernetes.io/role-group
+      - nodeLabel: kubernetes.io/zone
+      - podLabel: app.kubernetes.io/role-group
   nameNodes:
     roleGroups:
       default:
@@ -1703,7 +1693,10 @@ spec:
       default:
         replicas: 1";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let deserializer = serde_yaml::Deserializer::from_str(cr);
+        let hdfs: HdfsCluster =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+
         let rack_awareness = hdfs.rackawareness_config();
         // test the expected value to be used as an env-var: the mapper will use this to
         // convert to an HDFS-internal label

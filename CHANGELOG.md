@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added rack awareness support via topology provider implementation ([#429]).
+- Added rack awareness support via topology provider implementation ([#429], [#XXX]).
 - More CRD documentation ([#433]).
 - Support for exposing HDFS clusters to clients outside of Kubernetes ([#450]).
 - Helm: support labels in values.yaml ([#460]).
