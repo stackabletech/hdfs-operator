@@ -16,10 +16,8 @@ commands:
         clusterConfig:
           zookeeperConfigMapName: hdfs-zk
           rackAwareness:
-            - labelType: node
-              labelName: kubernetes.io/hostname
-            - labelType: pod
-              labelName: app.kubernetes.io/role-group
+            - nodeLabel: kubernetes.io/hostname
+            - podLabel: app.kubernetes.io/role-group
           dfsReplication: 1
           authentication:
             tlsSecretClass: tls

@@ -15,7 +15,7 @@ dimensions:
       - 3.8.3
   - name: zookeeper-latest
     values:
-      - 3.8.3
+      - 3.9.1
   - name: number-of-datanodes
     values:
       - "1"
