@@ -11,13 +11,13 @@ spec:
     dfsReplication: 1
   nameNodes:
     config:
-      listenerClass: cluster-internal
+      listenerClass: external-stable
     roleGroups:
       default:
         replicas: 2
   dataNodes:
     config:
-      listenerClass: cluster-internal
+      listenerClass: external-unstable
     roleGroups:
       default:
         replicas: 1

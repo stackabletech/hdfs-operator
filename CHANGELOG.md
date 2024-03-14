@@ -17,7 +17,6 @@ All notable changes to this project will be documented in this file.
 - Use new label builders ([#454]).
 - Change the liveness probes to use the web UI port and to fail after
   one minute ([#491]).
-- Update the getting started script to use the listener class cluster-internal ([#492])
 
 ### Removed
 
