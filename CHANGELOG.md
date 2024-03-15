@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
 
 - Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
   and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#451]).
+- User provided env overrides now work as expected ([#499]).
 
 [#429]: https://github.com/stackabletech/hdfs-operator/pull/429
 [#450]: https://github.com/stackabletech/hdfs-operator/pull/450
@@ -43,6 +44,7 @@ All notable changes to this project will be documented in this file.
 [#491]: https://github.com/stackabletech/hdfs-operator/pull/491
 [#492]: https://github.com/stackabletech/hdfs-operator/pull/492
 [#495]: https://github.com/stackabletech/hdfs-operator/pull/495
+[#499]: https://github.com/stackabletech/hdfs-operator/pull/499
 
 ## [23.11.0] - 2023-11-24
 
