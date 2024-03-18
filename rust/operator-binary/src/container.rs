@@ -741,12 +741,18 @@ wait_for_termination $!
         env_overrides: Option<&BTreeMap<String, String>>,
         resources: Option<&ResourceRequirements>,
     ) -> Vec<EnvVar> {
-        let mut env = Vec::new();
+        // Maps env var name to env var object. This allows env_overrides to work
+        // as expected (i.e. users can override the env var value).
+        let mut env: BTreeMap<String, EnvVar> = BTreeMap::new();
 
-        env.extend(Self::shared_env_vars(
-            self.volume_mount_dirs().final_config(),
-            zookeeper_config_map_name,
-        ));
+        env.extend(
+            Self::shared_env_vars(
+                self.volume_mount_dirs().final_config(),
+                zookeeper_config_map_name,
+            )
+            .into_iter()
+            .map(|env_var| (env_var.name.clone(), env_var)),
+        );
 
         // For the main container we use specialized env variables for every role
         // (think of like HDFS_NAMENODE_OPTS or HDFS_DATANODE_OPTS)
@@ -758,11 +764,15 @@ wait_for_termination $!
         // so we don't want to stuff all the config into HADOOP_OPTS, but rather into the specialized env variables
         // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
         if let ContainerConfig::Hdfs { role, .. } = self {
-            env.push(EnvVar {
-                name: role.hadoop_opts_env_var_for_role().to_string(),
-                value: self.build_hadoop_opts(hdfs, resources).ok(),
-                ..EnvVar::default()
-            });
+            let role_opts_name = role.hadoop_opts_env_var_for_role().to_string();
+            env.insert(
+                role_opts_name.clone(),
+                EnvVar {
+                    name: role_opts_name,
+                    value: self.build_hadoop_opts(hdfs, resources).ok(),
+                    ..EnvVar::default()
+                },
+            );
         }
         // Additionally, any other init or sidecar container must have access to the following settings.
         // As the Prometheus metric emitter is not part of this config it's safe to use for hdfs cli tools as well.
@@ -770,27 +780,45 @@ wait_for_termination $!
         // `bin/hdfs dfs -ls /` without getting `Caused by: java.lang.IllegalArgumentException: KrbException: Cannot locate default realm`
         // because the `-Djava.security.krb5.conf` setting is missing
         if hdfs.has_kerberos_enabled() {
-            env.push(EnvVar {
-                name: "HADOOP_OPTS".to_string(),
-                value: Some("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string()),
-                ..EnvVar::default()
-            });
+            env.insert(
+                "HADOOP_OPTS".to_string(),
+                EnvVar {
+                    name: "HADOOP_OPTS".to_string(),
+                    value: Some(
+                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
+                    ),
+                    ..EnvVar::default()
+                },
+            );
 
-            env.push(EnvVar {
-                name: "KRB5_CONFIG".to_string(),
-                value: Some("/stackable/kerberos/krb5.conf".to_string()),
-                ..EnvVar::default()
-            });
-            env.push(EnvVar {
-                name: "KRB5_CLIENT_KTNAME".to_string(),
-                value: Some("/stackable/kerberos/keytab".to_string()),
-                ..EnvVar::default()
-            });
+            env.insert(
+                "KRB5_CONFIG".to_string(),
+                EnvVar {
+                    name: "KRB5_CONFIG".to_string(),
+                    value: Some("/stackable/kerberos/krb5.conf".to_string()),
+                    ..EnvVar::default()
+                },
+            );
+            env.insert(
+                "KRB5_CLIENT_KTNAME".to_string(),
+                EnvVar {
+                    name: "KRB5_CLIENT_KTNAME".to_string(),
+                    value: Some("/stackable/kerberos/keytab".to_string()),
+                    ..EnvVar::default()
+                },
+            );
         }
 
         // Overrides need to come last
-        env.extend(Self::transform_env_overrides_to_env_vars(env_overrides));
-        env
+        let mut env_override_vars: BTreeMap<String, EnvVar> =
+            Self::transform_env_overrides_to_env_vars(env_overrides)
+                .into_iter()
+                .map(|env_var| (env_var.name.clone(), env_var))
+                .collect();
+
+        env.append(&mut env_override_vars);
+
+        env.into_values().collect()
     }
 
     /// Returns the container resources.
