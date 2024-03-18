@@ -846,3 +846,115 @@ fn rolegroup_statefulset(
 pub fn error_policy(_obj: Arc<HdfsCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(*Duration::from_secs(5))
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    pub fn test_env_overrides() {
+        let cr = "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+    productVersion: 3.3.6
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  dataNodes:
+    roleGroups:
+      default:
+        envOverrides:
+          MY_ENV: my-value
+          HADOOP_HOME: /not/the/default/path
+        replicas: 1
+";
+        let product_config = "
+---
+version: 0.1.0
+spec:
+  units: []
+properties: []
+";
+
+        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+
+        let config =
+            transform_all_roles_to_config(&hdfs, hdfs.build_role_properties().unwrap()).unwrap();
+
+        let validated_config = validate_all_roles_and_groups_config(
+            "3.3.6",
+            &config,
+            &ProductConfigManager::from_str(product_config).unwrap(),
+            false,
+            false,
+        )
+        .unwrap();
+
+        let role = HdfsRole::DataNode;
+        let rolegroup_config = validated_config
+            .get(&role.to_string())
+            .unwrap()
+            .get("default")
+            .unwrap();
+        let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
+
+        let merged_config = role.merged_config(&hdfs, "default").unwrap();
+        let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME, "0.0.0-dev");
+
+        let mut pb = PodBuilder::new();
+        pb.metadata(ObjectMeta::default());
+        ContainerConfig::add_containers_and_volumes(
+            &mut pb,
+            &hdfs,
+            &role,
+            &resolved_product_image,
+            &merged_config,
+            env_overrides,
+            &hdfs.spec.cluster_config.zookeeper_config_map_name,
+            "todo",
+            &[],
+        )
+        .unwrap();
+        let containers = pb.build().unwrap().spec.unwrap().containers;
+        let main_container = containers
+            .iter()
+            .find(|c| c.name == role.to_string())
+            .unwrap();
+
+        assert_eq!(
+            main_container
+                .env
+                .clone()
+                .unwrap()
+                .into_iter()
+                .find(|e| e.name == "MY_ENV")
+                .unwrap()
+                .value,
+            Some("my-value".to_string())
+        );
+
+        assert_eq!(
+            main_container
+                .env
+                .clone()
+                .unwrap()
+                .into_iter()
+                .find(|e| e.name == "HADOOP_HOME")
+                .unwrap()
+                .value,
+            Some("/not/the/default/path".to_string())
+        );
+    }
+}
