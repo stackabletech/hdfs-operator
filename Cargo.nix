@@ -5903,6 +5903,10 @@ rec {
             name = "rstest";
             packageId = "rstest";
           }
+          {
+            name = "serde_yaml";
+            packageId = "serde_yaml";
+          }
         ];
 
       };
