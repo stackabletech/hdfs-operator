@@ -19,7 +19,7 @@ your needs, or have a look at the <<demos, demos>> for some example setups.
 == Operator model
 
 The Operator manages the _HdfsCluster_ custom resource. The cluster implements three
-xref:home:concepts:roles-and-role-groups.adoc[roles]:
+xref:concepts:roles-and-role-groups.adoc[roles]:
 
 * DataNode - responsible for storing the actual data.
 * JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode
@@ -65,8 +65,10 @@ to analyze the data.
 **xref:demos:jupyterhub-pyspark-hdfs-anomaly-detection-taxi-data.adoc[]** showcases the integration between HDFS and
 Jupyter. New York Taxi data is stored in HDFS and analyzed in a Jupyter notebook.
 
-== Supported Versions
+== Supported versions
 
-The Stackable Operator for Apache HDFS currently supports the following versions of HDFS:
+The Stackable Operator for Apache HDFS currently supports the HDFS versions listed below.
+To use a specific HDFS version in your HdfsCluster, you have to specify an image - this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
+The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
