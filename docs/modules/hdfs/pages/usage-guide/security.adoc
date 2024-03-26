@@ -3,7 +3,7 @@
 == Authentication
 Currently the only supported authentication mechanism is Kerberos, which is disabled by default.
 For Kerberos to work a Kerberos KDC is needed, which the users needs to provide.
-The xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
+The xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
 
 IMPORTANT: Kerberos is supported starting from HDFS version 3.3.x
 
@@ -12,7 +12,7 @@ To configure HDFS to use Kerberos you first need to collect information about yo
 Additionally you need a service-user, which the secret-operator uses to create create principals for the HDFS services.
 
 === 2. Create Kerberos SecretClass
-Afterwards you need to enter all the needed information into a SecretClass, as described in xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
+Afterwards you need to enter all the needed information into a SecretClass, as described in xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
 The following guide assumes you have named your SecretClass `kerberos-hdfs`.
 
 === 3. Configure HDFS to use SecretClass
@@ -55,7 +55,7 @@ We have an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templa
 
 == Authorization
 For authorization we developed https://github.com/stackabletech/hdfs-utils[hdfs-utils], which contains an OPA authorizer and group mapper.
-This matches our general xref:home:concepts:opa.adoc[] mechanisms.
+This matches our general xref:concepts:opa.adoc[] mechanisms.
 
 IMPORTANT: It is recommended to enable Kerberos when doing Authorization, as otherwise you don't have any security measures at all.
 There still might be cases where you want authorization on top of a cluster without authentication, as you don't want to accidentally drop files and therefore use different users for different use-cases.
