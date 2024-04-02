@@ -11,7 +11,8 @@ data:
 
     import rego.v1
 
-    default allow = false
+    default allow := false
+    default matches_identity(identity) := false
 
     # HDFS authorizer
     allow if {
@@ -29,10 +30,38 @@ data:
         }
     }
 
+    # Identity regex matches the (long) userName
+    matches_identity(identity) if {
+        match_entire(identity, concat("", ["userRegex:", input.callerUgi.userName]))
+    }
+
+    # Identity regex matches the shortUsername
+    matches_identity(identity) if {
+        match_entire(identity, concat("", ["shortUserRegex:", input.callerUgi.shortUserName]))
+    }
+
     # Identity mentions group the user is part of (by looking up using the (long) userName)
     matches_identity(identity) if {
         some group in groups_for_user[input.callerUgi.userName]
         identity == concat("", ["group:", group])
+    }
+
+    # Identity regex matches group the user is part of (by looking up using the (long) userName)
+    matches_identity(identity) if {
+        some group in groups_for_user[input.callerUgi.userName]
+        match_entire(identity, concat("", ["groupRegex:", group]))
+    }
+
+    # Identity mentions group the user is part of (by looking up using the shortUserName)
+    matches_identity(identity) if {
+        some group in groups_for_short_user_name[input.callerUgi.shortUserName]
+        identity == concat("", ["group:", group])
+    }
+
+    # Identity regex matches group the user is part of (by looking up using the shortUserName)
+    matches_identity(identity) if {
+        some group in groups_for_short_user_name[input.callerUgi.shortUserName]
+        match_entire(identity, concat("", ["groupRegex:", group]))
     }
 
     # Resource mentions the file explicitly
@@ -61,6 +90,13 @@ data:
         "full": ["full", "rw", "ro"],
         "rw": ["rw", "ro"],
         "ro": ["ro"],
+    }
+
+    match_entire(pattern, value) if {
+        # Add the anchors ^ and $
+        pattern_with_anchors := concat("", ["^", pattern, "$"])
+
+        regex.match(pattern_with_anchors, value)
     }
 
     # To get a (hopefully complete) list of actions run "ack 'String operationName = '" in the hadoop source code
@@ -182,6 +218,8 @@ data:
         "alice/access-hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}": ["developers"],
         "bob/access-hdfs.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}": []
     }
+
+    groups_for_short_user_name := {}
 
     acls := [
         {
