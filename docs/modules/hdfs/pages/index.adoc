@@ -78,3 +78,9 @@ To use a specific HDFS version in your HdfsCluster, you have to specify an image
 The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
+
+== Useful links
+
+* The {github}[hdfs-operator {external-link-icon}^] GitHub repository
+* The operator feature overview in the {feature-tracker}[feature tracker {external-link-icon}^]
+* The {crd-docs}/hdfs.stackable.tech/airflowcluster/v1alpha1/[HdfsCluster {external-link-icon}^] CRD documentation
