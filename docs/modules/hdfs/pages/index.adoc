@@ -3,7 +3,8 @@
 :keywords: Stackable Operator, Hadoop, Apache HDFS, Kubernetes, k8s, operator, big data, metadata, storage, cluster, distributed storage
 :hdfs-docs: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html
 :github: https://github.com/stackabletech/hdfs-operator/
-:crd: {crd-docs}/hdfs.stackable.tech/hdfscluster/v1alpha1/
+:crd: {crd-docs-base-url}/airflow-operator/{crd-docs-version}/
+:crd-hdfscluster: {crd-docs}/hdfs.stackable.tech/hdfscluster/v1alpha1/
 :feature-tracker: https://features.stackable.tech/unified
 
 [.link-bar]
@@ -83,4 +84,4 @@ include::partial$supported-versions.adoc[]
 
 * The {github}[hdfs-operator {external-link-icon}^] GitHub repository
 * The operator feature overview in the {feature-tracker}[feature tracker {external-link-icon}^]
-* The {crd-docs}/hdfs.stackable.tech/hdfscluster/v1alpha1/[HdfsCluster {external-link-icon}^] CRD documentation
+* The {crd-hdfscluster}[HdfsCluster {external-link-icon}^] CRD documentation
