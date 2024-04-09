@@ -1,16 +1,25 @@
 = Stackable Operator for Apache HDFS
 :description: The Stackable Operator for Apache HDFS is a Kubernetes operator that can manage Apache HDFS clusters. Learn about its features, resources, dependencies and demos, and see the list of supported HDFS versions.
-:keywords: Stackable Operator, Hadoop, Apache HDFS, Kubernetes, k8s, operator, engineer, big data, metadata, storage, cluster, distributed storage
+:keywords: Stackable Operator, Hadoop, Apache HDFS, Kubernetes, k8s, operator, big data, metadata, storage, cluster, distributed storage
+:hdfs-docs: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html
+:github: https://github.com/stackabletech/hdfs-operator/
+:crd: {crd-docs-base-url}/hdfs-operator/{crd-docs-version}/
+:crd-hdfscluster: {crd-docs}/hdfs.stackable.tech/hdfscluster/v1alpha1/
+:feature-tracker: https://features.stackable.tech/unified
 
-The Stackable Operator for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html[Apache HDFS]
-(Hadoop Distributed File System) is used to set up HFDS in high-availability mode. HDFS is a distributed file system
-designed to store and manage massive amounts of data across multiple machines in a fault-tolerant manner. The Operator
-depends on the xref:zookeeper:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby NameNodes.
+[.link-bar]
+* {github}[GitHub {external-link-icon}^]
+* {feature-tracker}[Feature Tracker {external-link-icon}^]
+* {crd}[CRD documentation {external-link-icon}^]
+
+The Stackable operator for {hdfs-docs}[Apache HDFS] (Hadoop Distributed File System) is used to set up HFDS in high-availability mode.
+HDFS is a distributed file system designed to store and manage massive amounts of data across multiple machines in a fault-tolerant manner.
+The operator depends on the xref:zookeeper:index.adoc[] to operate a ZooKeeper cluster to coordinate the active and standby NameNodes.
 
 == Getting started
 
 Follow the xref:getting_started/index.adoc[Getting started guide] which will guide you through installing the Stackable
-HDFS and ZooKeeper Operators, setting up ZooKeeper and HDFS and writing a file to HDFS to verify that everything is set
+HDFS and ZooKeeper operators, setting up ZooKeeper and HDFS and writing a file to HDFS to verify that everything is set
 up correctly.
 
 Afterwards you can consult the xref:usage-guide/index.adoc[] to learn more about tailoring your HDFS configuration to
@@ -18,16 +27,15 @@ your needs, or have a look at the <<demos, demos>> for some example setups.
 
 == Operator model
 
-The Operator manages the _HdfsCluster_ custom resource. The cluster implements three
-xref:concepts:roles-and-role-groups.adoc[roles]:
+The operator manages the _HdfsCluster_ custom resource.
+The cluster implements three xref:concepts:roles-and-role-groups.adoc[roles]:
 
 * DataNode - responsible for storing the actual data.
 * JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode
   fails. For details see: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
 * NameNode - responsible for keeping track of HDFS blocks and providing access to the data.
 
-
-image::hdfs_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the Stackable Operator for Apache HDFS]
+image::hdfs_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the Stackable operator for Apache HDFS]
 
 The operator creates the following K8S objects per role group defined in the custom resource.
 
@@ -39,36 +47,41 @@ The operator creates the following K8S objects per role group defined in the cus
 In addition, a `NodePort` service is created for each pod labeled with `hdfs.stackable.tech/pod-service=true` that
 exposes all container ports to the outside world (from the perspective of K8S).
 
-In the custom resource you can specify the number of replicas per role group (NameNode, DataNode or JournalNode). A
-minimal working configuration requires:
+In the custom resource you can specify the number of replicas per role group (NameNode, DataNode or JournalNode).
+A minimal working configuration requires:
 
 * 2 NameNodes (HA)
 * 1 JournalNode
 * 1 DataNode (should match at least the `clusterConfig.dfsReplication` factor)
 
-The Operator creates a xref:concepts:service_discovery.adoc[service discovery ConfigMap] for the HDFS instance. The
-discovery ConfigMap contains the `core-site.xml` file and the `hdfs-site.xml` file.
+The operator creates a xref:concepts:service_discovery.adoc[service discovery ConfigMap] for the HDFS instance.
+The discovery ConfigMap contains the `core-site.xml` file and the `hdfs-site.xml` file.
 
 == Dependencies
 
-HDFS depends on ZooKeeper for coordination between nodes. You can run a ZooKeeper cluster with the
-xref:zookeeper:index.adoc[]. Additionally, the xref:commons-operator:index.adoc[],
-xref:secret-operator:index.adoc[] and xref:listener-operator:index.adoc[] are needed.
+HDFS depends on Apache ZooKeeper for coordination between nodes.
+You can run a ZooKeeper cluster with the xref:zookeeper:index.adoc[].
+Additionally, the xref:commons-operator:index.adoc[], xref:secret-operator:index.adoc[] and xref:listener-operator:index.adoc[] are required.
 
 == [[demos]]Demos
 
 Two demos that use HDFS are available.
 
-**xref:demos:hbase-hdfs-load-cycling-data.adoc[]** loads a dataset of cycling data from S3 into HDFS and then uses HBase
-to analyze the data.
+**xref:demos:hbase-hdfs-load-cycling-data.adoc[]** loads a dataset of cycling data from S3 into HDFS and then uses HBase to analyze the data.
 
-**xref:demos:jupyterhub-pyspark-hdfs-anomaly-detection-taxi-data.adoc[]** showcases the integration between HDFS and
-Jupyter. New York Taxi data is stored in HDFS and analyzed in a Jupyter notebook.
+**xref:demos:jupyterhub-pyspark-hdfs-anomaly-detection-taxi-data.adoc[]** showcases the integration between HDFS and Jupyter.
+New York Taxi data is stored in HDFS and analyzed in a Jupyter notebook.
 
 == Supported versions
 
-The Stackable Operator for Apache HDFS currently supports the HDFS versions listed below.
+The Stackable operator for Apache HDFS currently supports the HDFS versions listed below.
 To use a specific HDFS version in your HdfsCluster, you have to specify an image - this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
 The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
+
+== Useful links
+
+* The {github}[hdfs-operator {external-link-icon}^] GitHub repository
+* The operator feature overview in the {feature-tracker}[feature tracker {external-link-icon}^]
+* The {crd-hdfscluster}[HdfsCluster {external-link-icon}^] CRD documentation
