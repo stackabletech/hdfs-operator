@@ -15,7 +15,7 @@ dimensions:
       - 3.8.3
   - name: zookeeper-latest
     values:
-      - 3.8.3
+      - 3.9.1
   - name: number-of-datanodes
     values:
       - "1"
@@ -51,6 +51,7 @@ tests:
       - number-of-datanodes
       - datanode-pvcs
       - listener-class
+      - openshift
   - name: kerberos
     dimensions:
       - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
@@ -68,14 +69,17 @@ tests:
     dimensions:
       - hadoop-latest
       - zookeeper-latest
+      - openshift
   - name: logging
     dimensions:
       - hadoop
       - zookeeper-latest
+      - openshift
   - name: cluster-operation
     dimensions:
       - hadoop-latest
       - zookeeper-latest
+      - openshift
   - name: profiling
     dimensions:
       - hadoop

@@ -4,9 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [24.3.0] - 2024-03-20
+
 ### Added
 
-- Added rack awareness support via topology provider implementation ([#429]).
+- Added rack awareness support via topology provider implementation ([#429], [#495]).
 - More CRD documentation ([#433]).
 - Support for exposing HDFS clusters to clients outside of Kubernetes ([#450]).
 - Helm: support labels in values.yaml ([#460]).
@@ -29,6 +31,7 @@ All notable changes to this project will be documented in this file.
 
 - Include hdfs principals `dfs.journalnode.kerberos.principal`, `dfs.namenode.kerberos.principal`
   and `dfs.datanode.kerberos.principal` in the discovery ConfigMap in case Kerberos is enabled ([#451]).
+- User provided env overrides now work as expected ([#499]).
 
 [#429]: https://github.com/stackabletech/hdfs-operator/pull/429
 [#450]: https://github.com/stackabletech/hdfs-operator/pull/450
@@ -40,6 +43,9 @@ All notable changes to this project will be documented in this file.
 [#474]: https://github.com/stackabletech/hdfs-operator/pull/474
 [#475]: https://github.com/stackabletech/hdfs-operator/pull/475
 [#491]: https://github.com/stackabletech/hdfs-operator/pull/491
+[#492]: https://github.com/stackabletech/hdfs-operator/pull/492
+[#495]: https://github.com/stackabletech/hdfs-operator/pull/495
+[#499]: https://github.com/stackabletech/hdfs-operator/pull/499
 
 ## [23.11.0] - 2023-11-24
 

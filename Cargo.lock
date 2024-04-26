@@ -1959,6 +1959,7 @@ dependencies = [
  "rstest",
  "serde",
  "serde_json",
+ "serde_yaml",
  "snafu 0.7.5",
  "stackable-hdfs-crd",
  "stackable-operator",

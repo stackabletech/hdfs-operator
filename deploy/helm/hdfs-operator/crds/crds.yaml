@@ -86,19 +86,18 @@ spec:
                     rackAwareness:
                       description: Configuration to control HDFS topology (rack) awareness feature
                       items:
+                        oneOf:
+                          - required:
+                              - nodeLabel
+                          - required:
+                              - podLabel
                         properties:
-                          labelName:
-                            description: Name of the label that will be used to resolve a datanode to a topology zone.
+                          nodeLabel:
+                            description: Name of the label on the Kubernetes Node (where the Pod is placed on) used to resolve a datanode to a topology zone.
                             type: string
-                          labelType:
-                            description: Name of the label type that will be typically either `node` or `pod`, used to create a topology out of datanodes.
-                            enum:
-                              - node
-                              - pod
+                          podLabel:
+                            description: Name of the label on the Kubernetes Pod used to resolve a datanode to a topology zone.
                             type: string
-                        required:
-                          - labelName
-                          - labelType
                         type: object
                       nullable: true
                       type: array
