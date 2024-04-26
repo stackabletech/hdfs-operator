@@ -11,13 +11,13 @@ spec:
     dfsReplication: 1
   nameNodes:
     config:
-      listenerClass: cluster-internal
+      listenerClass: external-stable # This exposes your Stacklet outside of Kubernetes. Remove this configuration if this is not desired
     roleGroups:
       default:
         replicas: 2
   dataNodes:
     config:
-      listenerClass: cluster-internal
+      listenerClass: external-unstable # This exposes your Stacklet outside of Kubernetes. Remove this configuration if this is not desired
     roleGroups:
       default:
         replicas: 1

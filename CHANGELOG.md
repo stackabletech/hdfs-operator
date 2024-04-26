@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Revert changing the getting started script to use the listener class `cluster-internal` ([#492]) ([#493]).
+
 ## [24.3.0] - 2024-03-20
 
 ### Added
@@ -19,7 +23,7 @@ All notable changes to this project will be documented in this file.
 - Use new label builders ([#454]).
 - Change the liveness probes to use the web UI port and to fail after
   one minute ([#491]).
-- Update the getting started script to use the listener class cluster-internal ([#492])
+- Update the getting started script to use the listener class `cluster-internal` ([#492]).
 
 ### Removed
 
@@ -45,6 +49,7 @@ All notable changes to this project will be documented in this file.
 [#475]: https://github.com/stackabletech/hdfs-operator/pull/475
 [#491]: https://github.com/stackabletech/hdfs-operator/pull/491
 [#492]: https://github.com/stackabletech/hdfs-operator/pull/492
+[#493]: https://github.com/stackabletech/hdfs-operator/pull/493
 [#495]: https://github.com/stackabletech/hdfs-operator/pull/495
 [#499]: https://github.com/stackabletech/hdfs-operator/pull/499
 
