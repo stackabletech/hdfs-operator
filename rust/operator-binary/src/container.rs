@@ -525,7 +525,7 @@ prepare_signal_handlers
 if [[ -d {LISTENER_VOLUME_DIR} ]]; then
     export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
     for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
-        export $(basename $i | tr a-z A-Z)_PORT="$(cat $i)"
+        export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
     done
 fi
 {hadoop_home}/bin/hdfs {role} &

@@ -66,3 +66,7 @@ spec:
                     cpu: 110m
                   limits:
                     cpu: 410m
+                ports:
+                  # https://github.com/stackabletech/hdfs-operator/issues/514
+                  - name: dashed-port
+                    containerPort: 1234
