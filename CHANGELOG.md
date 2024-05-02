@@ -7,6 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Revert changing the getting started script to use the listener class `cluster-internal` ([#492]) ([#493]).
+- Fix HDFS pods crashing on launch when any port names contain dashes ([#517]).
+
+[#493]: https://github.com/stackabletech/hdfs-operator/pull/493
+[#517]: https://github.com/stackabletech/hdfs-operator/pull/517
 
 ## [24.3.0] - 2024-03-20
 
@@ -49,7 +53,6 @@ All notable changes to this project will be documented in this file.
 [#475]: https://github.com/stackabletech/hdfs-operator/pull/475
 [#491]: https://github.com/stackabletech/hdfs-operator/pull/491
 [#492]: https://github.com/stackabletech/hdfs-operator/pull/492
-[#493]: https://github.com/stackabletech/hdfs-operator/pull/493
 [#495]: https://github.com/stackabletech/hdfs-operator/pull/495
 [#499]: https://github.com/stackabletech/hdfs-operator/pull/499
 
