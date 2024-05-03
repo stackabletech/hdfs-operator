@@ -123,7 +123,8 @@ Access is granted by looking at three bits of information that must be supplied 
 * the *resource* requested by the user
 * the *operation* which the user wants to perform on the resource
 
-Each operation has an implicit action-level attribute e.g. `create` requires at least read-write permissions. This action attribute is then checked against the permissions assigned to the user by an ACL and the operation is permitted if this check is fulfilled.
+Each operation has an implicit action-level attribute e.g. `create` requires at least read-write permissions.
+This action attribute is then checked against the permissions assigned to the user by an ACL and the operation is permitted if this check is fulfilled.
 
 The basic structure of this rego rule is shown below (you can refer to the full https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs.rego[here]).
 
@@ -191,7 +192,8 @@ acls := [
 ----
 
 The full file in the hdfs-utils repository contains extra documentary information such as a https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs.rego#L186-L204[listing] of HDFS actions that would not typically be subject to an ACL.
-In hdfs-utils there is also a https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs_test.rego[test file] to verify the rules, where different asserts are applied to the rules. Take the test case below as an example:
+In hdfs-utils there is also a https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs_test.rego[test file] to verify the rules, where different asserts are applied to the rules.
+Take the test case below as an example:
 
 [source]
 ----
@@ -211,7 +213,7 @@ This test passes through the following steps:
 
 ==== 1. Does the user or group exist in the ACL?
 
-Yes, a match is found on userName via the corresponding group (`admins`, yielded by the mapping `groups_for_user`)
+Yes, a match is found on userName via the corresponding group (`admins`, yielded by the mapping `groups_for_user`).
 
 ==== 2. Does this user/group have permission to fulfill the specified operation on the given path?
 
