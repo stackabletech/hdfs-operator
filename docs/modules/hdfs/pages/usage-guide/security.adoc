@@ -122,7 +122,7 @@ Access is granted by looking at three bits of information that must be supplied 
 * the *resource* requested by the user
 * the *operation* which the user wants to perform on the resource
 
-Each operation has an implicit action-level attribute e.g. `create` requires at least read-write permissions. This action attribute is then checked against the permissions assigned to the user by an ACL list and the operation is permitted if this check is fulfilled.
+Each operation has an implicit action-level attribute e.g. `create` requires at least read-write permissions. This action attribute is then checked against the permissions assigned to the user by an ACL and the operation is permitted if this check is fulfilled.
 
 The basic structure of this rego rule is shown below (you can refer to the full https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs.rego[here]).
 
@@ -133,12 +133,12 @@ package hdfs
 
 import rego.v1
 
-# Access is turned off by default
+# Turn off access by default.
 default allow := false
 default matches_identity(identity) := false
 
-# Access is checked in order of increasing specificity (i.e. identity first).
-# This allows access to be denied as "early" as possible.
+# Check access in order of increasing specificity (i.e. identity first).
+# Deny access as "early" as possible.
 allow if {
     some acl in acls
     matches_identity(acl.identity)
@@ -161,7 +161,7 @@ matches_resource(file, resource) if {
     ...
 }
 
-# The operation and its implicit action is checked against an ACL
+# Check the operation and its implicit action against an ACL
 action_sufficient_for_operation(action, operation) if {
     action_hierarchy[action][_] == action_for_operation[operation]
 }
@@ -225,7 +225,7 @@ Yes, as this ACL item
 },
 ----
 
-as it matches the resource on
+matches the resource on
 
 [source]
 ----
