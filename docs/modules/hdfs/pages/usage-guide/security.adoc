@@ -70,7 +70,7 @@ include::example$usage-guide/hdfs-regorules.yaml[]
 
 This rego rule is intended for demonstration purposes and allows every operation.
 For a production setup you will probably need to have something much more granular.
-We provide a more representative rego rule in our integration tests and in the afore-mentioned hdfs-utils repository.
+We provide a more representative rego rule in our integration tests and in the aforementioned hdfs-utils repository.
 Details can be found below in the <<_fine_granular_rego_rule_, fine-granular rego rule>> section.
 Reference the rego rule as follows in your HdfsCluster:
 
