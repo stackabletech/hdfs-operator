@@ -99,11 +99,6 @@ pub enum Error {
 
     #[snafu(display("failed to build role-group selector label"))]
     BuildRoleGroupSelectorLabel { source: LabelError },
-
-    #[snafu(display("configuration had validation errors"))]
-    ConfigurationValidation {
-        source: stackable_operator::product_config_utils::Error,
-    },
 }
 
 /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
