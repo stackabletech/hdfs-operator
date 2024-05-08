@@ -174,4 +174,3 @@ else
   echo "Detected status: $deleted"
   exit 1
 fi
-
