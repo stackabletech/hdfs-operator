@@ -33,7 +33,7 @@ use stackable_operator::{
     },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     kvp::{LabelError, Labels},
-    product_config_utils::{ConfigError, Configuration},
+    product_config_utils::{Configuration, Error as ConfigError},
     product_logging,
     product_logging::spec::{ContainerLogConfig, Logging},
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
@@ -79,7 +79,7 @@ pub enum Error {
 
     #[snafu(display("unable to get {listener} (for {pod})"))]
     GetPodListener {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         listener: ObjectRef<Listener>,
         pod: ObjectRef<Pod>,
     },
@@ -99,6 +99,11 @@ pub enum Error {
 
     #[snafu(display("failed to build role-group selector label"))]
     BuildRoleGroupSelectorLabel { source: LabelError },
+
+    #[snafu(display("configuration had validation errors"))]
+    ConfigurationValidation {
+        source: stackable_operator::product_config_utils::Error,
+    },
 }
 
 /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.

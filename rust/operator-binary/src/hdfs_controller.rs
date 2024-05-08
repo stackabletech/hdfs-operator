@@ -10,13 +10,11 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{
-    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
-};
 use stackable_operator::{
     builder::{
-        ConfigMapBuilder, ObjectMetaBuilder, ObjectMetaBuilderError, PodBuilder,
-        PodSecurityContextBuilder,
+        configmap::ConfigMapBuilder,
+        meta::ObjectMetaBuilder,
+        pod::{security::PodSecurityContextBuilder, PodBuilder},
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -49,6 +47,10 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
+use stackable_hdfs_crd::{
+    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
+};
+
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
@@ -73,41 +75,41 @@ const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 pub enum Error {
     #[snafu(display("invalid role configuration"))]
     InvalidRoleConfig {
-        source: stackable_operator::product_config_utils::ConfigError,
+        source: stackable_operator::product_config_utils::Error,
     },
 
     #[snafu(display("invalid product configuration"))]
     InvalidProductConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::product_config_utils::Error,
     },
 
     #[snafu(display("cannot create rolegroup service {name:?}"))]
     ApplyRoleGroupService {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         name: String,
     },
 
     #[snafu(display("cannot create role group config map {name:?}"))]
     ApplyRoleGroupConfigMap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         name: String,
     },
 
     #[snafu(display("cannot create role group stateful set {name:?}"))]
     ApplyRoleGroupStatefulSet {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         name: String,
     },
 
     #[snafu(display("cannot create discovery config map {name:?}"))]
     ApplyDiscoveryConfigMap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         name: String,
     },
 
     #[snafu(display("no metadata for {obj_ref:?}"))]
     ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::meta::Error,
         obj_ref: ObjectRef<HdfsCluster>,
     },
 
@@ -122,7 +124,7 @@ pub enum Error {
 
     #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
     BuildRoleGroupConfigMap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::configmap::Error,
         role: String,
         role_group: String,
     },
@@ -135,22 +137,22 @@ pub enum Error {
 
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to create pod references"))]
@@ -186,12 +188,12 @@ pub enum Error {
 
     #[snafu(display("failed to update status"))]
     ApplyStatus {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
 
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::rbac::Error,
     },
 
     #[snafu(display(
@@ -222,7 +224,9 @@ pub enum Error {
     BuildRoleGroupVolumeClaimTemplates { source: container::Error },
 
     #[snafu(display("failed to build object meta data"))]
-    ObjectMeta { source: ObjectMetaBuilderError },
+    ObjectMeta {
+        source: stackable_operator::builder::meta::Error,
+    },
 
     #[snafu(display("failed to build security config"))]
     BuildSecurityConfig { source: kerberos::Error },
@@ -251,7 +255,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let resolved_product_image = hdfs
         .spec
         .image
-        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
+        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
         .await

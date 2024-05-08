@@ -8,7 +8,7 @@ use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
 pub enum Error {
     #[snafu(display("failed to construct OPA endpoint URL for authorizer"))]
     ConstructOpaEndpointForAuthorizer {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::opa::Error,
     },
 }
 
