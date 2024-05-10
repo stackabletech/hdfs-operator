@@ -182,10 +182,11 @@ impl HdfsStorageType {
 mod test {
     use std::collections::BTreeMap;
 
+    use stackable_operator::k8s_openapi::api::core::v1::VolumeResourceRequirements;
     use stackable_operator::{
         commons::resources::PvcConfig,
         k8s_openapi::{
-            api::core::v1::{PersistentVolumeClaimSpec, ResourceRequirements},
+            api::core::v1::PersistentVolumeClaimSpec,
             apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
         },
     };
@@ -217,12 +218,12 @@ mod test {
         assert_eq!(
             pvcs[0].spec,
             Some(PersistentVolumeClaimSpec {
-                resources: Some(ResourceRequirements {
+                resources: Some(VolumeResourceRequirements {
                     requests: Some(BTreeMap::from([(
                         "storage".to_string(),
                         Quantity("5Gi".to_string())
                     )])),
-                    ..ResourceRequirements::default()
+                    ..VolumeResourceRequirements::default()
                 }),
                 access_modes: Some(vec!["ReadWriteOnce".to_string()]),
                 storage_class_name: None,
@@ -276,12 +277,12 @@ mod test {
         assert_eq!(
             pvcs[0].spec,
             Some(PersistentVolumeClaimSpec {
-                resources: Some(ResourceRequirements {
+                resources: Some(VolumeResourceRequirements {
                     requests: Some(BTreeMap::from([(
                         "storage".to_string(),
                         Quantity("12Ti".to_string())
                     )])),
-                    ..ResourceRequirements::default()
+                    ..VolumeResourceRequirements::default()
                 }),
                 access_modes: Some(vec!["ReadWriteOnce".to_string()]),
                 storage_class_name: Some("hdd-storage-class".to_string()),
