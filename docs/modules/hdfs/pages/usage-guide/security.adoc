@@ -115,7 +115,7 @@ In case you really need users to be part of the `superusers` group, you can use 
 === Fine-granular rego rules
 
 The hdfs-utils repository contains a more production-ready rego-rule https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs.rego[here].
-With a few minor differences (e.g. pod names) it is the same rego rule that is used in this https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/12-rego-rules.txt.j2[integration test].
+With a few minor differences (e.g. Pod names) it is the same rego rule that is used in this https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/12-rego-rules.txt.j2[integration test].
 
 Access is granted by looking at three bits of information that must be supplied for every rego-rule callout:
 
