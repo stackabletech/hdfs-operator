@@ -9,30 +9,24 @@
 //! - Set resources
 //! - Add tcp probes and container ports (to the main containers)
 //!
+use crate::DATANODE_ROOT_DATA_DIR_PREFIX;
+use crate::JVM_SECURITY_PROPERTIES_FILE;
+use crate::LOG4J_PROPERTIES;
+use stackable_operator::utils::COMMON_BASH_TRAP_FUNCTIONS;
 use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{
-    constants::{
-        DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
-        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
-        JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
-        LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
-        LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
-        READINESS_PROBE_FAILURE_THRESHOLD, READINESS_PROBE_INITIAL_DELAY_SECONDS,
-        READINESS_PROBE_PERIOD_SECONDS, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
-        SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
-    },
-    storage::DataNodeStorageConfig,
-    AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
-};
 use stackable_operator::{
     builder::{
-        resources::ResourceRequirementsBuilder, ContainerBuilder,
-        ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-        ListenerReference, PodBuilder, SecretFormat, SecretOperatorVolumeSourceBuilder,
-        SecretOperatorVolumeSourceBuilderError, VolumeBuilder, VolumeMountBuilder,
+        pod::container::ContainerBuilder,
+        pod::resources::ResourceRequirementsBuilder,
+        pod::volume::{
+            ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+            ListenerReference, SecretFormat, SecretOperatorVolumeSourceBuilder,
+            SecretOperatorVolumeSourceBuilderError, VolumeBuilder, VolumeMountBuilder,
+        },
+        pod::PodBuilder,
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
@@ -56,9 +50,22 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
+
+use stackable_hdfs_crd::{
+    constants::{
+        DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
+        DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+        LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
+        LIVENESS_PROBE_PERIOD_SECONDS, NAMENODE_ROOT_DATA_DIR, READINESS_PROBE_FAILURE_THRESHOLD,
+        READINESS_PROBE_INITIAL_DELAY_SECONDS, READINESS_PROBE_PERIOD_SECONDS,
+        SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
+        SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
+    },
+    storage::DataNodeStorageConfig,
+    AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
+};
 
 use crate::product_logging::{
     FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE, HDFS_LOG4J_CONFIG_FILE,
@@ -82,7 +89,7 @@ pub enum Error {
 
     #[snafu(display("invalid java heap config for {role:?}"))]
     InvalidJavaHeapConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::memory::Error,
         role: String,
     },
 
@@ -91,7 +98,7 @@ pub enum Error {
 
     #[snafu(display("invalid container name {name:?}"))]
     InvalidContainerName {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::pod::container::Error,
         name: String,
     },
 

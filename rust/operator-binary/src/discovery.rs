@@ -4,7 +4,8 @@ use stackable_hdfs_crd::{
     HdfsCluster, HdfsPodRef, HdfsRole,
 };
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ObjectMetaBuilder, ObjectMetaBuilderError},
+    builder::configmap::ConfigMapBuilder,
+    builder::meta::ObjectMetaBuilder,
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::{runtime::reflector::ObjectRef, ResourceExt},
@@ -23,17 +24,19 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[snafu(display("object {hdfs} is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::meta::Error,
         hdfs: ObjectRef<HdfsCluster>,
     },
 
     #[snafu(display("failed to build ConfigMap"))]
     BuildConfigMap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::configmap::Error,
     },
 
     #[snafu(display("failed to build object meta data"))]
-    ObjectMeta { source: ObjectMetaBuilderError },
+    ObjectMeta {
+        source: stackable_operator::builder::meta::Error,
+    },
 
     #[snafu(display("failed to build security discovery config map"))]
     BuildSecurityDiscoveryConfigMap { source: kerberos::Error },
