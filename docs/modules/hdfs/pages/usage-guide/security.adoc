@@ -2,14 +2,14 @@
 
 == Authentication
 Currently the only supported authentication mechanism is Kerberos, which is disabled by default.
-For Kerberos to work a Kerberos KDC is needed, which the users needs to provide.
+For Kerberos to work a Kerberos KDC is needed, which the user needs to provide.
 The xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation] states which kind of Kerberos servers are supported and how they can be configured.
 
 IMPORTANT: Kerberos is supported starting from HDFS version 3.3.x
 
 === 1. Prepare Kerberos server
 To configure HDFS to use Kerberos you first need to collect information about your Kerberos server, e.g. hostname and port.
-Additionally you need a service-user, which the secret-operator uses to create create principals for the HDFS services.
+Additionally you need a service-user, which the secret-operator uses to create principals for the HDFS services.
 
 === 2. Create Kerberos SecretClass
 Afterwards you need to enter all the needed information into a SecretClass, as described in xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
@@ -69,7 +69,9 @@ include::example$usage-guide/hdfs-regorules.yaml[]
 ----
 
 This rego rule is intended for demonstration purposes and allows every operation.
-For a production setup you probably want to take a look at our integration tests for a more secure set of rego rules.
+For a production setup you will probably need to have something much more granular.
+We provide a more representative rego rule in our integration tests and in the aforementioned hdfs-utils repository.
+Details can be found below in the <<fine-granular-rego-rules, fine-granular rego rules>> section.
 Reference the rego rule as follows in your HdfsCluster:
 
 [source,yaml]
@@ -108,6 +110,140 @@ This has the downside that the group memberships used in OPA for authorization a
 The implication is thus that you cannot add users to the `superuser` group, which is needed for certain administrative actions in HDFS.
 We have decided that this is an acceptable approach as normal operations will not be affected.
 In case you really need users to be part of the `superusers` group, you can use a configOverride on `hadoop.user.group.static.mapping.overrides` for that.
+
+[#fine-granular-rego-rules]
+=== Fine-granular rego rules
+
+The hdfs-utils repository contains a more production-ready rego-rule https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs.rego[here].
+With a few minor differences (e.g. Pod names) it is the same rego rule that is used in this https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/12-rego-rules.txt.j2[integration test].
+
+Access is granted by looking at three bits of information that must be supplied for every rego-rule callout:
+
+* the *identity* of the user
+* the *resource* requested by the user
+* the *operation* which the user wants to perform on the resource
+
+Each operation has an implicit action-level attribute e.g. `create` requires at least read-write permissions.
+This action attribute is then checked against the permissions assigned to the user by an ACL and the operation is permitted if this check is fulfilled.
+
+The basic structure of this rego rule is shown below (you can refer to the full https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs.rego[here]).
+
+.Rego rule outline
+[source]
+----
+package hdfs
+
+import rego.v1
+
+# Turn off access by default.
+default allow := false
+default matches_identity(identity) := false
+
+# Check access in order of increasing specificity (i.e. identity first).
+# Deny access as "early" as possible.
+allow if {
+    some acl in acls
+    matches_identity(acl.identity)
+    matches_resource(input.path, acl.resource)
+    action_sufficient_for_operation(acl.action, input.operationName)
+}
+
+# Identity checks based on e.g.
+# - explicit matches on the (long) userName or shortUsername
+# - regex matches
+# - the group membership (simple- or regex-matches on long-or short-username)
+matches_identity(identity) if {
+    ...
+}
+
+# Resource checks on e.g.
+# - explicit file- or directory-mentions
+# - inclusion of the file in recursively applied access rights
+matches_resource(file, resource) if {
+    ...
+}
+
+# Check the operation and its implicit action against an ACL
+action_sufficient_for_operation(action, operation) if {
+    action_hierarchy[action][_] == action_for_operation[operation]
+}
+
+action_hierarchy := {
+    "full": ["full", "rw", "ro"],
+    "rw": ["rw", "ro"],
+    "ro": ["ro"],
+}
+
+
+# This should contain a list of all HDFS actions relevant to the application
+action_for_operation := {
+    "abandonBlock": "rw",
+    ...
+}
+
+acls := [
+    {
+        "identity": "group:admins",
+        "action": "full",
+        "resource": "hdfs:dir:/",
+    },
+    ...
+]
+----
+
+The full file in the hdfs-utils repository contains extra documentary information such as a https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs.rego#L186-L204[listing] of HDFS actions that would not typically be subject to an ACL.
+In hdfs-utils there is also a https://github.com/stackabletech/hdfs-utils/blob/main/rego/hdfs_test.rego[test file] to verify the rules, where different asserts are applied to the rules.
+Take the test case below as an example:
+
+[source]
+----
+test_admin_access_to_developers if {
+    allow with input as {
+        "callerUgi": {
+            "shortUserName": "admin",
+            "userName": "admin/test-hdfs-permissions.default.svc.cluster.local@CLUSTER.LOCAL",
+        },
+        "path": "/developers/file",
+        "operationName": "create",
+    }
+}
+----
+
+This test passes through the following steps:
+
+==== 1. Does the user or group exist in the ACL?
+
+Yes, a match is found on userName via the corresponding group (`admins`, yielded by the mapping `groups_for_user`).
+
+==== 2. Does this user/group have permission to fulfill the specified operation on the given path?
+
+Yes, as this ACL item
+
+[source]
+----
+{
+    "identity": "group:admins",
+    "action": "full",
+    "resource": "hdfs:dir:/",
+},
+----
+
+matches the resource on
+
+[source]
+----
+# Resource mentions a folder higher up the tree, which will will grant access recursively
+matches_resource(file, resource) if {
+    startswith(resource, "hdfs:dir:/")
+    # directories need to have a trailing slash
+    endswith(resource, "/")
+    startswith(file, trim_prefix(resource, "hdfs:dir:"))
+}
+----
+
+and the action permission required for the operation `create` (`rw`) is a subset of the ACL grant (`full`).
+
+NOTE: The various checks for `matches_identity` and `matches_resource` are generic, given that the internal list of HDFS actions is comprehensive and the `input` structure is an internal implementation. This means that only the ACL needs to be adapted to specific customer needs.
 
 == Wire encryption
 In case Kerberos is enabled, `Privacy` mode is used for best security.
