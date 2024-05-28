@@ -39,6 +39,7 @@ use stackable_operator::{
         apimachinery::pkg::util::intstr::IntOrString,
     },
     kube::{core::ObjectMeta, ResourceExt},
+    kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::framework::{
         create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
@@ -200,6 +201,7 @@ impl ContainerConfig {
         zk_config_map_name: &str,
         object_name: &str,
         namenode_podrefs: &[HdfsPodRef],
+        recommended_labels: ObjectLabels<HdfsCluster>,
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(role.clone());
@@ -211,6 +213,7 @@ impl ContainerConfig {
             zk_config_map_name,
             env_overrides,
             merged_config,
+            recommended_labels.clone(),
         )?);
 
         // Vector side container
@@ -279,6 +282,7 @@ impl ContainerConfig {
                     zk_config_map_name,
                     env_overrides,
                     merged_config,
+                    recommended_labels.clone(),
                 )?);
 
                 // Format namenode init container
@@ -295,6 +299,7 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    recommended_labels.clone(),
                 )?);
 
                 // Format ZooKeeper init container
@@ -311,6 +316,7 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    recommended_labels,
                 )?);
             }
             HdfsRole::DataNode => {
@@ -328,6 +334,7 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    recommended_labels,
                 )?);
             }
             HdfsRole::JournalNode => {}
@@ -338,12 +345,15 @@ impl ContainerConfig {
 
     pub fn volume_claim_templates(
         merged_config: &AnyNodeConfig,
+        recommended_labels: ObjectLabels<HdfsCluster>,
     ) -> Result<Vec<PersistentVolumeClaim>> {
         match merged_config {
             AnyNodeConfig::NameNode(node) => {
                 let listener = ListenerOperatorVolumeSourceBuilder::new(
                     &ListenerReference::ListenerClass(node.listener_class.to_string()),
                 )
+                .with_recommended_labels(recommended_labels)
+                .context(BuildListenerVolumeSnafu)?
                 .build_ephemeral()
                 .context(BuildListenerVolumeSnafu)?
                 .volume_claim_template
@@ -382,6 +392,7 @@ impl ContainerConfig {
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
+    #[allow(clippy::too_many_arguments)]
     fn main_container(
         &self,
         hdfs: &HdfsCluster,
@@ -390,6 +401,7 @@ impl ContainerConfig {
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         merged_config: &AnyNodeConfig,
+        recommended_labels: ObjectLabels<HdfsCluster>,
     ) -> Result<Container, Error> {
         let mut cb =
             ContainerBuilder::new(self.name()).with_context(|_| InvalidContainerNameSnafu {
@@ -407,7 +419,7 @@ impl ContainerConfig {
                 env_overrides,
                 resources.as_ref(),
             ))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config)?)
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config, recommended_labels)?)
             .add_container_ports(self.container_ports(hdfs));
 
         if let Some(resources) = resources {
@@ -447,6 +459,7 @@ impl ContainerConfig {
         env_overrides: Option<&BTreeMap<String, String>>,
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &AnyNodeConfig,
+        recommended_labels: ObjectLabels<HdfsCluster>,
     ) -> Result<Container, Error> {
         let mut cb = ContainerBuilder::new(self.name())
             .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?;
@@ -455,7 +468,7 @@ impl ContainerConfig {
             .command(Self::command())
             .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config)?);
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config, recommended_labels)?);
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
@@ -986,6 +999,7 @@ wait_for_termination $!
         &self,
         hdfs: &HdfsCluster,
         merged_config: &AnyNodeConfig,
+        recommended_labels: ObjectLabels<HdfsCluster>,
     ) -> Result<Vec<VolumeMount>> {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
@@ -1040,7 +1054,8 @@ wait_for_termination $!
                         );
                     }
                     HdfsRole::DataNode => {
-                        for pvc in Self::volume_claim_templates(merged_config)? {
+                        for pvc in Self::volume_claim_templates(merged_config, recommended_labels)?
+                        {
                             let pvc_name = pvc.name_any();
                             volume_mounts.push(VolumeMount {
                                 mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),

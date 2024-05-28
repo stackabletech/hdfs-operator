@@ -771,6 +771,14 @@ fn rolegroup_statefulset(
                 .build(),
         );
 
+    let recommended_labels = build_recommended_labels(
+        hdfs,
+        RESOURCE_MANAGER_HDFS_CONTROLLER,
+        &resolved_product_image.app_version_label,
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    );
+
     // Adds all containers and volumes to the pod builder
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
@@ -782,6 +790,7 @@ fn rolegroup_statefulset(
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
         &object_name,
         namenode_podrefs,
+        recommended_labels.clone(),
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
@@ -803,13 +812,7 @@ fn rolegroup_statefulset(
         .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?
-        .with_recommended_labels(build_recommended_labels(
-            hdfs,
-            RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &resolved_product_image.app_version_label,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        ))
+        .with_recommended_labels(recommended_labels.clone())
         .context(ObjectMetaSnafu)?
         .build();
 
@@ -821,7 +824,7 @@ fn rolegroup_statefulset(
     )
     .context(BuildRoleGroupSelectorLabelSnafu)?;
 
-    let pvcs = ContainerConfig::volume_claim_templates(merged_config)
+    let pvcs = ContainerConfig::volume_claim_templates(merged_config, recommended_labels)
         .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
 
     let statefulset_spec = StatefulSetSpec {
@@ -917,6 +920,14 @@ properties: []
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
         let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME, "0.0.0-dev");
 
+        let recommended_labels = build_recommended_labels(
+            &hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            "datanode",
+            "default",
+        );
+
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
         ContainerConfig::add_containers_and_volumes(
@@ -929,6 +940,7 @@ properties: []
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
             "todo",
             &[],
+            recommended_labels,
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;
