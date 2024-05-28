@@ -113,6 +113,11 @@ pub enum Error {
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
+
+    #[snafu(display("missing or invalid labels for the listener volume"))]
+    ListenerVolumeLabels {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    }
 }
 
 /// ContainerConfig contains information to create all main, side and init containers for
@@ -205,7 +210,7 @@ impl ContainerConfig {
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(role.clone());
-        pb.add_volumes(main_container_config.volumes(merged_config, object_name)?);
+        pb.add_volumes(main_container_config.volumes(merged_config, object_name, recommended_labels.clone())?);
         pb.add_container(main_container_config.main_container(
             hdfs,
             role,
@@ -274,7 +279,7 @@ impl ContainerConfig {
             HdfsRole::NameNode => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
-                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name)?);
+                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name, recommended_labels.clone())?);
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
                     role,
@@ -289,7 +294,7 @@ impl ContainerConfig {
                 let format_namenodes_container_config =
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
                 pb.add_volumes(
-                    format_namenodes_container_config.volumes(merged_config, object_name)?,
+                    format_namenodes_container_config.volumes(merged_config, object_name, recommended_labels.clone())?,
                 );
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
@@ -306,7 +311,7 @@ impl ContainerConfig {
                 let format_zookeeper_container_config =
                     Self::try_from(NameNodeContainer::FormatZooKeeper.to_string())?;
                 pb.add_volumes(
-                    format_zookeeper_container_config.volumes(merged_config, object_name)?,
+                    format_zookeeper_container_config.volumes(merged_config, object_name, recommended_labels.clone())?,
                 );
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
@@ -324,7 +329,7 @@ impl ContainerConfig {
                 let wait_for_namenodes_container_config =
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
                 pb.add_volumes(
-                    wait_for_namenodes_container_config.volumes(merged_config, object_name)?,
+                    wait_for_namenodes_container_config.volumes(merged_config, object_name, recommended_labels.clone())?,
                 );
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
@@ -930,7 +935,7 @@ wait_for_termination $!
     }
 
     /// Return the container volumes.
-    fn volumes(&self, merged_config: &AnyNodeConfig, object_name: &str) -> Result<Vec<Volume>> {
+    fn volumes(&self, merged_config: &AnyNodeConfig, object_name: &str, recommended_labels: ObjectLabels<HdfsCluster>) -> Result<Vec<Volume>> {
         let mut volumes = vec![];
 
         if let ContainerConfig::Hdfs { .. } = self {
@@ -941,6 +946,7 @@ wait_for_termination $!
                             ListenerOperatorVolumeSourceBuilder::new(
                                 &ListenerReference::ListenerClass(node.listener_class.to_string()),
                             )
+                            .with_recommended_labels(recommended_labels).context(ListenerVolumeLabelsSnafu)?
                             .build_ephemeral()
                             .context(BuildListenerVolumeSnafu)?,
                         )
