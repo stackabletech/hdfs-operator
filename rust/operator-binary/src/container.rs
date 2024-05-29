@@ -94,7 +94,10 @@ pub enum Error {
         role: String,
     },
 
-    #[snafu(display("could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."))]
+    #[snafu(
+        display("could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."
+        )
+    )]
     UnrecognizedContainerName { container_name: String },
 
     #[snafu(display("invalid container name {name:?}"))]
@@ -370,8 +373,8 @@ impl ContainerConfig {
             AnyNodeConfig::NameNode(node) => {
                 let listener = ListenerOperatorVolumeSourceBuilder::new(
                     &ListenerReference::ListenerClass(node.listener_class.to_string()),
+                    recommended_labels,
                 )
-                .with_recommended_labels(recommended_labels)
                 .context(BuildListenerVolumeSnafu)?
                 .build_ephemeral()
                 .context(BuildListenerVolumeSnafu)?
@@ -964,8 +967,8 @@ wait_for_termination $!
                         .ephemeral(
                             ListenerOperatorVolumeSourceBuilder::new(
                                 &ListenerReference::ListenerClass(node.listener_class.to_string()),
+                                recommended_labels,
                             )
-                            .with_recommended_labels(recommended_labels)
                             .context(ListenerVolumeLabelsSnafu)?
                             .build_ephemeral()
                             .context(BuildListenerVolumeSnafu)?,
@@ -1484,7 +1487,7 @@ impl TryFrom<&str> for ContainerVolumeDirs {
             _ => {
                 return Err(Error::UnrecognizedContainerName {
                     container_name: container_name.to_string(),
-                })
+                });
             }
         };
 
