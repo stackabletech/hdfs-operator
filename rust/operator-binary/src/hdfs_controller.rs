@@ -918,14 +918,6 @@ properties: []
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
         let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME, "0.0.0-dev");
 
-        let recommended_labels = build_recommended_labels(
-            &hdfs,
-            RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &resolved_product_image.app_version_label,
-            "datanode",
-            "default",
-        );
-
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
         ContainerConfig::add_containers_and_volumes(
@@ -938,7 +930,7 @@ properties: []
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
             "todo",
             &[],
-            recommended_labels,
+            &Labels::new(),
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;
