@@ -750,12 +750,12 @@ fn rolegroup_statefulset(
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
 
+    let rolegroup_selector_labels: Labels = hdfs
+        .rolegroup_selector_labels(rolegroup_ref)
+        .context(RoleGroupSelectorLabelsSnafu)?;
+
     let pb_metadata = ObjectMeta {
-        labels: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
-                .context(RoleGroupSelectorLabelsSnafu)?
-                .into(),
-        ),
+        labels: Some(rolegroup_selector_labels.clone().into()),
         ..ObjectMeta::default()
     };
 
@@ -771,14 +771,6 @@ fn rolegroup_statefulset(
                 .build(),
         );
 
-    let recommended_labels = build_recommended_labels(
-        hdfs,
-        RESOURCE_MANAGER_HDFS_CONTROLLER,
-        &resolved_product_image.app_version_label,
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    );
-
     // Adds all containers and volumes to the pod builder
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
@@ -790,7 +782,7 @@ fn rolegroup_statefulset(
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
         &object_name,
         namenode_podrefs,
-        recommended_labels.clone(),
+        &rolegroup_selector_labels,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
@@ -812,7 +804,13 @@ fn rolegroup_statefulset(
         .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?
-        .with_recommended_labels(recommended_labels.clone())
+        .with_recommended_labels(build_recommended_labels(
+            hdfs,
+            RESOURCE_MANAGER_HDFS_CONTROLLER,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
         .context(ObjectMetaSnafu)?
         .build();
 
@@ -824,7 +822,7 @@ fn rolegroup_statefulset(
     )
     .context(BuildRoleGroupSelectorLabelSnafu)?;
 
-    let pvcs = ContainerConfig::volume_claim_templates(merged_config, recommended_labels)
+    let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels)
         .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
 
     let statefulset_spec = StatefulSetSpec {
