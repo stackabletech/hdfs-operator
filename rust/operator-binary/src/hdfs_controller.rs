@@ -349,11 +349,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            // The "met_builder" variable is needed to keep the rust compiler happy.
-            // Without it, an error is thrown that the "metadata" variable is dropped
-            // while still being in use.
-            let mut met_builder = ObjectMetaBuilder::new();
-            let metadata = met_builder
+            // We need to split the creation and the usage of the "metadata" variable in two statements.
+            // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
+            let mut metadata = ObjectMetaBuilder::new();
+            let metadata = metadata
                 .name_and_namespace(hdfs.as_ref())
                 .name(&rolegroup_ref.object_name())
                 .ownerreference_from_resource(hdfs.as_ref(), None, Some(true))
