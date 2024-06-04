@@ -349,15 +349,34 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service =
-                rolegroup_service(&hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
+            // We need to split the creation and the usage of the "metadata" variable in two statements.
+            // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
+            let mut metadata = ObjectMetaBuilder::new();
+            let metadata = metadata
+                .name_and_namespace(hdfs.as_ref())
+                .name(&rolegroup_ref.object_name())
+                .ownerreference_from_resource(hdfs.as_ref(), None, Some(true))
+                .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+                    obj_ref: ObjectRef::from_obj(hdfs.as_ref()),
+                })?
+                .with_recommended_labels(build_recommended_labels(
+                    hdfs.as_ref(),
+                    RESOURCE_MANAGER_HDFS_CONTROLLER,
+                    &resolved_product_image.app_version_label,
+                    &rolegroup_ref.role,
+                    &rolegroup_ref.role_group,
+                ))
+                .context(ObjectMetaSnafu)?;
+
+            let rg_service = rolegroup_service(&hdfs, metadata, &role, &rolegroup_ref)?;
+
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
+                metadata,
                 &rolegroup_ref,
                 rolegroup_config,
                 &namenode_podrefs,
                 &journalnode_podrefs,
-                &resolved_product_image,
                 &merged_config,
                 &hdfs_opa_config,
                 vector_aggregator_address.as_deref(),
@@ -365,6 +384,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
+                metadata,
                 &role,
                 &rolegroup_ref,
                 &resolved_product_image,
@@ -455,32 +475,16 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
 fn rolegroup_service(
     hdfs: &HdfsCluster,
+    metadata: &ObjectMetaBuilder,
     role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
-    resolved_product_image: &ResolvedProductImage,
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
 
     let prometheus_label =
         Label::try_from(("prometheus.io/scrape", "true")).context(BuildPrometheusLabelSnafu)?;
-
-    let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(hdfs)
-        .name(&rolegroup_ref.object_name())
-        .ownerreference_from_resource(hdfs, None, Some(true))
-        .context(ObjectMissingMetadataForOwnerRefSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?
-        .with_recommended_labels(build_recommended_labels(
-            hdfs,
-            RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &resolved_product_image.app_version_label,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        ))
-        .context(ObjectMetaSnafu)?
-        .with_label(prometheus_label)
-        .build();
+    let mut metadata_with_prometheus_label = metadata.clone();
+    metadata_with_prometheus_label.with_label(prometheus_label);
 
     let service_spec = ServiceSpec {
         // Internal communication does not need to be exposed
@@ -507,7 +511,7 @@ fn rolegroup_service(
     };
 
     Ok(Service {
-        metadata,
+        metadata: metadata_with_prometheus_label.build(),
         spec: Some(service_spec),
         status: None,
     })
@@ -516,11 +520,11 @@ fn rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
+    metadata: &ObjectMetaBuilder,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
-    resolved_product_image: &ResolvedProductImage,
     merged_config: &AnyNodeConfig,
     hdfs_opa_config: &Option<HdfsOpaConfig>,
     vector_aggregator_address: Option<&str>,
@@ -683,25 +687,8 @@ fn rolegroup_config_map(
         .map(|(k, v)| (k, Some(v)))
         .collect();
 
-    let cm_metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(hdfs)
-        .name(&rolegroup_ref.object_name())
-        .ownerreference_from_resource(hdfs, None, Some(true))
-        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?
-        .with_recommended_labels(build_recommended_labels(
-            hdfs,
-            RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &resolved_product_image.app_version_label,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        ))
-        .context(ObjectMetaSnafu)?
-        .build();
-
     builder
-        .metadata(cm_metadata)
+        .metadata(metadata.build())
         .add_data(CORE_SITE_XML.to_string(), core_site_xml)
         .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
         .add_data(HADOOP_POLICY_XML.to_string(), hadoop_policy_xml)
@@ -737,6 +724,7 @@ fn rolegroup_config_map(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
+    metadata: &ObjectMetaBuilder,
     role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
@@ -750,12 +738,12 @@ fn rolegroup_statefulset(
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
 
+    let rolegroup_selector_labels: Labels = hdfs
+        .rolegroup_selector_labels(rolegroup_ref)
+        .context(RoleGroupSelectorLabelsSnafu)?;
+
     let pb_metadata = ObjectMeta {
-        labels: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
-                .context(RoleGroupSelectorLabelsSnafu)?
-                .into(),
-        ),
+        labels: Some(rolegroup_selector_labels.clone().into()),
         ..ObjectMeta::default()
     };
 
@@ -772,6 +760,11 @@ fn rolegroup_statefulset(
         );
 
     // Adds all containers and volumes to the pod builder
+    // We must use the selector labels ("rolegroup_selector_labels") and not the recommended labels
+    // for the ephemeral listener volumes created by this function.
+    // This is because the recommended set contains a "managed-by" label. This labels triggers
+    // the cluster resources to "manage" listeners which is wrong and leads to errors.
+    // The listeners are managed by the listener-operator.
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
         hdfs,
@@ -782,6 +775,7 @@ fn rolegroup_statefulset(
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
         &object_name,
         namenode_podrefs,
+        &rolegroup_selector_labels,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
@@ -796,32 +790,8 @@ fn rolegroup_statefulset(
         pod_template.merge_from(pod_overrides.clone());
     }
 
-    let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(hdfs)
-        .name(&rolegroup_ref.object_name())
-        .ownerreference_from_resource(hdfs, None, Some(true))
-        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?
-        .with_recommended_labels(build_recommended_labels(
-            hdfs,
-            RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &resolved_product_image.app_version_label,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        ))
-        .context(ObjectMetaSnafu)?
-        .build();
-
-    let match_labels = Labels::role_group_selector(
-        hdfs,
-        APP_NAME,
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    )
-    .context(BuildRoleGroupSelectorLabelSnafu)?;
-
-    let pvcs = ContainerConfig::volume_claim_templates(merged_config)
+    // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
+    let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels)
         .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
 
     let statefulset_spec = StatefulSetSpec {
@@ -830,7 +800,7 @@ fn rolegroup_statefulset(
             .role_group_replicas(hdfs, &rolegroup_ref.role_group)
             .map(i32::from),
         selector: LabelSelector {
-            match_labels: Some(match_labels.into()),
+            match_labels: Some(rolegroup_selector_labels.into()),
             ..LabelSelector::default()
         },
         service_name: object_name,
@@ -841,7 +811,7 @@ fn rolegroup_statefulset(
     };
 
     Ok(StatefulSet {
-        metadata,
+        metadata: metadata.build(),
         spec: Some(statefulset_spec),
         status: None,
     })
@@ -929,6 +899,7 @@ properties: []
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
             "todo",
             &[],
+            &Labels::new(),
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;

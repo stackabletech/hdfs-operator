@@ -17,6 +17,7 @@ use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::kvp::Labels;
 use stackable_operator::{
     builder::{
         pod::container::ContainerBuilder,
@@ -93,7 +94,10 @@ pub enum Error {
         role: String,
     },
 
-    #[snafu(display("could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."))]
+    #[snafu(
+        display("could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."
+        )
+    )]
     UnrecognizedContainerName { container_name: String },
 
     #[snafu(display("invalid container name {name:?}"))]
@@ -110,6 +114,11 @@ pub enum Error {
 
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("missing or invalid labels for the listener volume"))]
+    ListenerVolumeLabels {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
 }
@@ -200,10 +209,11 @@ impl ContainerConfig {
         zk_config_map_name: &str,
         object_name: &str,
         namenode_podrefs: &[HdfsPodRef],
+        labels: &Labels,
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(role.clone());
-        pb.add_volumes(main_container_config.volumes(merged_config, object_name)?);
+        pb.add_volumes(main_container_config.volumes(merged_config, object_name, labels)?);
         pb.add_container(main_container_config.main_container(
             hdfs,
             role,
@@ -211,6 +221,7 @@ impl ContainerConfig {
             zk_config_map_name,
             env_overrides,
             merged_config,
+            labels,
         )?);
 
         // Vector side container
@@ -271,7 +282,11 @@ impl ContainerConfig {
             HdfsRole::NameNode => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
-                pb.add_volumes(zkfc_container_config.volumes(merged_config, object_name)?);
+                pb.add_volumes(zkfc_container_config.volumes(
+                    merged_config,
+                    object_name,
+                    labels,
+                )?);
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
                     role,
@@ -279,14 +294,17 @@ impl ContainerConfig {
                     zk_config_map_name,
                     env_overrides,
                     merged_config,
+                    labels,
                 )?);
 
                 // Format namenode init container
                 let format_namenodes_container_config =
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
-                pb.add_volumes(
-                    format_namenodes_container_config.volumes(merged_config, object_name)?,
-                );
+                pb.add_volumes(format_namenodes_container_config.volumes(
+                    merged_config,
+                    object_name,
+                    labels,
+                )?);
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
                     role,
@@ -295,14 +313,17 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    labels,
                 )?);
 
                 // Format ZooKeeper init container
                 let format_zookeeper_container_config =
                     Self::try_from(NameNodeContainer::FormatZooKeeper.to_string())?;
-                pb.add_volumes(
-                    format_zookeeper_container_config.volumes(merged_config, object_name)?,
-                );
+                pb.add_volumes(format_zookeeper_container_config.volumes(
+                    merged_config,
+                    object_name,
+                    labels,
+                )?);
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
                     role,
@@ -311,15 +332,18 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    labels,
                 )?);
             }
             HdfsRole::DataNode => {
                 // Wait for namenode init container
                 let wait_for_namenodes_container_config =
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
-                pb.add_volumes(
-                    wait_for_namenodes_container_config.volumes(merged_config, object_name)?,
-                );
+                pb.add_volumes(wait_for_namenodes_container_config.volumes(
+                    merged_config,
+                    object_name,
+                    labels,
+                )?);
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
                     role,
@@ -328,6 +352,7 @@ impl ContainerConfig {
                     env_overrides,
                     namenode_podrefs,
                     merged_config,
+                    labels,
                 )?);
             }
             HdfsRole::JournalNode => {}
@@ -338,12 +363,15 @@ impl ContainerConfig {
 
     pub fn volume_claim_templates(
         merged_config: &AnyNodeConfig,
+        labels: &Labels,
     ) -> Result<Vec<PersistentVolumeClaim>> {
         match merged_config {
             AnyNodeConfig::NameNode(node) => {
                 let listener = ListenerOperatorVolumeSourceBuilder::new(
                     &ListenerReference::ListenerClass(node.listener_class.to_string()),
+                    labels,
                 )
+                .context(BuildListenerVolumeSnafu)?
                 .build_ephemeral()
                 .context(BuildListenerVolumeSnafu)?
                 .volume_claim_template
@@ -382,6 +410,7 @@ impl ContainerConfig {
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
+    #[allow(clippy::too_many_arguments)]
     fn main_container(
         &self,
         hdfs: &HdfsCluster,
@@ -390,6 +419,7 @@ impl ContainerConfig {
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         merged_config: &AnyNodeConfig,
+        labels: &Labels,
     ) -> Result<Container, Error> {
         let mut cb =
             ContainerBuilder::new(self.name()).with_context(|_| InvalidContainerNameSnafu {
@@ -407,7 +437,7 @@ impl ContainerConfig {
                 env_overrides,
                 resources.as_ref(),
             ))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config)?)
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .add_container_ports(self.container_ports(hdfs));
 
         if let Some(resources) = resources {
@@ -447,6 +477,7 @@ impl ContainerConfig {
         env_overrides: Option<&BTreeMap<String, String>>,
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &AnyNodeConfig,
+        labels: &Labels,
     ) -> Result<Container, Error> {
         let mut cb = ContainerBuilder::new(self.name())
             .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?;
@@ -455,7 +486,7 @@ impl ContainerConfig {
             .command(Self::command())
             .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config)?);
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?);
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
@@ -917,7 +948,12 @@ wait_for_termination $!
     }
 
     /// Return the container volumes.
-    fn volumes(&self, merged_config: &AnyNodeConfig, object_name: &str) -> Result<Vec<Volume>> {
+    fn volumes(
+        &self,
+        merged_config: &AnyNodeConfig,
+        object_name: &str,
+        labels: &Labels,
+    ) -> Result<Vec<Volume>> {
         let mut volumes = vec![];
 
         if let ContainerConfig::Hdfs { .. } = self {
@@ -927,7 +963,9 @@ wait_for_termination $!
                         .ephemeral(
                             ListenerOperatorVolumeSourceBuilder::new(
                                 &ListenerReference::ListenerClass(node.listener_class.to_string()),
+                                labels,
                             )
+                            .context(ListenerVolumeLabelsSnafu)?
                             .build_ephemeral()
                             .context(BuildListenerVolumeSnafu)?,
                         )
@@ -986,6 +1024,7 @@ wait_for_termination $!
         &self,
         hdfs: &HdfsCluster,
         merged_config: &AnyNodeConfig,
+        labels: &Labels,
     ) -> Result<Vec<VolumeMount>> {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
@@ -1040,7 +1079,7 @@ wait_for_termination $!
                         );
                     }
                     HdfsRole::DataNode => {
-                        for pvc in Self::volume_claim_templates(merged_config)? {
+                        for pvc in Self::volume_claim_templates(merged_config, labels)? {
                             let pvc_name = pvc.name_any();
                             volume_mounts.push(VolumeMount {
                                 mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
@@ -1443,7 +1482,7 @@ impl TryFrom<&str> for ContainerVolumeDirs {
             _ => {
                 return Err(Error::UnrecognizedContainerName {
                     container_name: container_name.to_string(),
-                })
+                });
             }
         };
 
