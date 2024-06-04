@@ -2,7 +2,7 @@
 
 The operator deploys a xref:listener-operator:listener.adoc[Listener] for each DataNode and NameNode pod. They both default to only being accessible from within the Kubernetes cluster, but this can be changed by setting `.spec.{data,name}Nodes.config.listenerClass`.
 
-Please note that JournalNodes are not accessible from outside of the Kubernetes cluster.
+Note that JournalNodes are not accessible from outside the Kubernetes cluster.
 
 The cluster can be configured to be accessible from outside of Kubernetes like this:
 
