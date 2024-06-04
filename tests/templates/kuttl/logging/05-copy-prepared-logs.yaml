@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >
+      kubectl cp ./prepared-logs.log4j.xml
+      $NAMESPACE/test-hdfs-automatic-log-namenode-default-0:/stackable/log/hdfs/prepared-logs.log4j.xml
+      --container vector

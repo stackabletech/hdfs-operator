@@ -1,0 +1,55 @@
+<log4j:event logger="TestLogger"
+             timestamp="1704063600000" level="INFO" thread="main">
+  <log4j:message>Valid log event with all possible tags and attributes</log4j:message>
+  <log4j:throwable>TestException</log4j:throwable>
+
+</log4j:event>
+
+<log4j:event logger="TestLogger"
+             level="INFO" thread="main">
+  <log4j:message>Invalid log event without a timestamp</log4j:message>
+
+</log4j:event>
+
+<log4j:event
+             timestamp="1704063600000" level="INFO" thread="main">
+  <log4j:message>Invalid log event without a logger</log4j:message>
+
+</log4j:event>
+
+<log4j:event logger="TestLogger"
+             timestamp="1704063600000" thread="main">
+  <log4j:message>Invalid log event without a level</log4j:message>
+
+</log4j:event>
+
+<log4j:event logger="TestLogger"
+             timestamp="1704063600000" level="INFO" thread="main">
+  <!-- <log4j:message>Invalid log event without a message</log4j:message> -->
+
+</log4j:event>
+
+<log4j:event logger="TestLogger"
+             timestamp="1704063600000" level="INFO" thread="main">
+  <log4j:message>Valid log event before the one with the noevent tag</log4j:message>
+
+</log4j:event>
+
+<log4j:noevent logger="TestLogger"
+             timestamp="1704063600000" level="INFO" thread="main">
+  <log4j:message>Invalid log event without the event tag</log4j:message>
+
+</log4j:noevent>
+
+<log4j:event logger="TestLogger"
+             timestamp="1704063600000" level="INFO" thread="main">
+  <log4j:message>Unparsable log event</log4j:message>
+  <Invalid tag ...
+
+</log4j:event>
+
+<log4j:event logger="TestLogger"
+             timestamp="1704063600000" level="INFO" thread="main">
+  <log4j:message>Valid log event after the unparsable one</log4j:message>
+
+</log4j:event>
