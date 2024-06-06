@@ -11,6 +11,12 @@
 
 </log4j:event>
 
+<log4j:event logger="TestLogger"
+             timestamp="unparsable timestamp" level="INFO" thread="main">
+  <log4j:message>Invalid log event with an unparsable timestamp</log4j:message>
+
+</log4j:event>
+
 <log4j:event
              timestamp="1704063600000" level="INFO" thread="main">
   <log4j:message>Invalid log event without a logger</log4j:message>
@@ -20,6 +26,12 @@
 <log4j:event logger="TestLogger"
              timestamp="1704063600000" thread="main">
   <log4j:message>Invalid log event without a level</log4j:message>
+
+</log4j:event>
+
+<log4j:event logger="TestLogger"
+             timestamp="1704063600000" level="CRITICAL" thread="main">
+  <log4j:message>Invalid log event with an unknown level</log4j:message>
 
 </log4j:event>
 
