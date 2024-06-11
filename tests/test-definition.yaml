@@ -16,6 +16,9 @@ dimensions:
   - name: zookeeper-latest
     values:
       - 3.9.1
+  - name: krb5
+    values:
+      - 1.21.1
   - name: number-of-datanodes
     values:
       - "1"
@@ -56,6 +59,7 @@ tests:
     dimensions:
       - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
       - zookeeper-latest
+      - krb5
       - kerberos-realm
       - kerberos-backend
       - openshift
@@ -63,6 +67,7 @@ tests:
     dimensions:
       - hadoop-latest
       - zookeeper-latest
+      - krb5
       - kerberos-backend
       - openshift
   - name: orphaned-resources
