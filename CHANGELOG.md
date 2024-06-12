@@ -9,10 +9,13 @@ All notable changes to this project will be documented in this file.
 - Revert changing the getting started script to use the listener class `cluster-internal` ([#492]) ([#493]).
 - Fix HDFS pods crashing on launch when any port names contain dashes ([#517]).
 - Add labels to ephemeral (listener) volumes. These allow `stackablectl stack list` to display datanode endpoints ([#534])
+- Processing of corrupted log events fixed; If errors occur, the error
+  messages are added to the log event ([#536]).
 
 [#493]: https://github.com/stackabletech/hdfs-operator/pull/493
 [#517]: https://github.com/stackabletech/hdfs-operator/pull/517
 [#534]: https://github.com/stackabletech/hdfs-operator/pull/534
+[#536]: https://github.com/stackabletech/hdfs-operator/pull/536
 
 ## [24.3.0] - 2024-03-20
 
