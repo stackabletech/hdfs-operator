@@ -2,8 +2,8 @@
 dimensions:
   - name: hadoop
     values:
-      # - 3.3.4
-      # - 3.3.6
+      - 3.3.4
+      - 3.3.6
       - 3.4.0
   - name: hadoop-latest
     values:
