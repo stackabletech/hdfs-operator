@@ -835,7 +835,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.3.6
+    productVersion: 3.4.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   nameNodes:
@@ -868,7 +868,7 @@ properties: []
             transform_all_roles_to_config(&hdfs, hdfs.build_role_properties().unwrap()).unwrap();
 
         let validated_config = validate_all_roles_and_groups_config(
-            "3.3.6",
+            "3.4.0",
             &config,
             &ProductConfigManager::from_str(product_config).unwrap(),
             false,
