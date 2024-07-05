@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add support for version `3.4.0` ([#545]).
+
 ### Fixed
 
 - Revert changing the getting started script to use the listener class `cluster-internal` ([#492]) ([#493]).
@@ -16,6 +20,7 @@ All notable changes to this project will be documented in this file.
 [#517]: https://github.com/stackabletech/hdfs-operator/pull/517
 [#534]: https://github.com/stackabletech/hdfs-operator/pull/534
 [#536]: https://github.com/stackabletech/hdfs-operator/pull/536
+[#545]: https://github.com/stackabletech/hdfs-operator/pull/545
 
 ## [24.3.0] - 2024-03-20
 
