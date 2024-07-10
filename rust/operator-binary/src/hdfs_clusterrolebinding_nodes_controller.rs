@@ -24,21 +24,16 @@ pub async fn reconcile(
     ev: watcher::Result<watcher::Event<PartialObjectMeta<HdfsCluster>>>,
 ) {
     match ev {
-        Ok(watcher::Event::Applied(o)) => {
+        Ok(watcher::Event::Apply(o)) => {
             info!(object = %ObjectRef::from_obj(&o), "saw updated object")
         }
-        Ok(watcher::Event::Deleted(o)) => {
+        Ok(watcher::Event::Delete(o)) => {
             info!(object = %ObjectRef::from_obj(&o), "saw deleted object")
         }
-        Ok(watcher::Event::Restarted(os)) => {
-            let objects = os
-                .iter()
-                .map(ObjectRef::from_obj)
-                .map(|o| o.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            info!(objects, "restarted reflector")
+        Ok(watcher::Event::InitApply(o)) => {
+            info!(object = %ObjectRef::from_obj(&o), "restarted reflector")
         }
+        Ok(watcher::Event::Init) | Ok(watcher::Event::InitDone) => {}
         Err(error) => {
             error!(
                 error = &error as &dyn std::error::Error,

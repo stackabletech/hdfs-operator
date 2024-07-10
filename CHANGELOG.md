@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - Add support for version `3.4.0` ([#545]).
 
+### Changed
+
+- Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#xxx]).
+- Bump `product-config` from `0.6.0` to `0.7.0` ([#xxx]).
+
+[#xxx]: https://github.com/stackabletech/airflow-operator/pull/xxx
+
 ### Fixed
 
 - Revert changing the getting started script to use the listener class `cluster-internal` ([#492]) ([#493]).
