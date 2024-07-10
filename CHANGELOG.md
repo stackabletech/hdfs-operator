@@ -10,10 +10,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#xxx]).
-- Bump `product-config` from `0.6.0` to `0.7.0` ([#xxx]).
+- Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#546]).
+- Bump `product-config` from `0.6.0` to `0.7.0` ([#546]).
 
-[#xxx]: https://github.com/stackabletech/airflow-operator/pull/xxx
+[#546]: https://github.com/stackabletech/airflow-operator/pull/546
 
 ### Fixed
 
