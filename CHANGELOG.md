@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 
 - Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#546]).
 - Bump `product-config` from `0.6.0` to `0.7.0` ([#546]).
-- Bump `tokio` to `1.38`, `clap` to `4.5` ([#549]).
+- Bump other dependencies ([#549]).
 
 ### Fixed
 
