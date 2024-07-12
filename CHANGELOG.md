@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 - Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#546]).
 - Bump `product-config` from `0.6.0` to `0.7.0` ([#546]).
+- Bump `tokio` to `1.38`, `clap` to `4.5` ([#549]).
 
 ### Fixed
 
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 [#536]: https://github.com/stackabletech/hdfs-operator/pull/536
 [#545]: https://github.com/stackabletech/hdfs-operator/pull/545
 [#546]: https://github.com/stackabletech/hdfs-operator/pull/546
+[#549]: https://github.com/stackabletech/hdfs-operator/pull/549
 
 ## [24.3.0] - 2024-03-20
 
