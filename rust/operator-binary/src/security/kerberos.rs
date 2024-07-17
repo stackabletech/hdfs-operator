@@ -108,7 +108,13 @@ impl CoreSiteConfigBuilder {
 
     pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self> {
         if hdfs.has_kerberos_enabled() {
-            let principal_host_part = principal_host_part(hdfs)?;
+            // `principal_host_part` returns a string that contains variables using the format
+            // `${env.VARNAME}` - which is compatible with Hadoop's configuration
+            // Stackable's config-util however uses variable notation that was inspired by Druid's
+            // config interpolation: https://druid.apache.org/docs/latest/configuration/#configuration-interpolation
+            // so for use in the discovery config map we replace "env." with "env:" in order to be
+            // compatible with config-utils, which is used by other operators
+            let principal_host_part = principal_host_part(hdfs)?.replace("${env.", "${env:");
 
             self.add("hadoop.security.authentication", "kerberos")
                 .add(
