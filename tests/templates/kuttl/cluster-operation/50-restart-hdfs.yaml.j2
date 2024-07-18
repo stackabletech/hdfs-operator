@@ -9,7 +9,12 @@ metadata:
   name: hdfs
 spec:
   image:
+{% if test_scenario['values']['hadoop-latest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hadoop-latest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hadoop-latest'].split(',')[0] }}"
+{% else %}
     productVersion: "{{ test_scenario['values']['hadoop-latest'] }}"
+{% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
     dfsReplication: 1
