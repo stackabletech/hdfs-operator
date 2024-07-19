@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Add support for version `3.4.0` ([#545]).
+- Add experimental support for version `3.4.0` ([#545]). We do NOT support upgrading from 3.3 to 3.4 yet!
 
 ### Changed
 
