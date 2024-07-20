@@ -1,4 +1,4 @@
-<!-- markdownlint-disable MD041 -->
+<!-- markdownlint-disable MD041 --><!-- markdownlint-disable MD041 -->
 <p align="center">
   <img width="150" src="./.readme/static/borrowed/Icon_Stackable.svg" alt="Stackable Logo"/>
 </p>
@@ -13,6 +13,7 @@
 
 [Documentation](https://docs.stackable.tech/home/stable/hdfs) | [Stackable Data Platform](https://stackable.tech/) | [Platform Docs](https://docs.stackable.tech/) | [Discussions](https://github.com/orgs/stackabletech/discussions) | [Discord](https://discord.gg/7kZ3BNnCAF)
 
+<!-- markdownlint-disable MD041 -->
 This is a Kubernetes operator to manage [Apache Hadoop](https://hadoop.apache.org/).
 
 <!-- markdownlint-disable MD041 MD051 -->
