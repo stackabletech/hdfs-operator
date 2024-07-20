@@ -5,7 +5,7 @@ commands:
   - script: >-
       helm install hdfs-vector-aggregator vector
       --namespace $NAMESPACE
-      --version 0.26.0
+      --version 0.34.0
       --repo https://helm.vector.dev
       --values hdfs-vector-aggregator-values.yaml
 ---
