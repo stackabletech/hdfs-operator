@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [24.7.0] - 2024-07-24
+
 ### Added
 
 - Add experimental support for version `3.4.0` ([#545], [#557]). We do NOT support upgrading from 3.3 to 3.4 yet!
