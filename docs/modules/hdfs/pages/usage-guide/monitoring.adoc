@@ -6,4 +6,4 @@ All services (with the exception of the Zookeeper daemon on the node names) run 
 
 The metrics endpoints are also used as liveliness probes by K8S.
 
-See xref:home:operators:monitoring.adoc[] for more details.
+See xref:operators:monitoring.adoc[] for more details.
