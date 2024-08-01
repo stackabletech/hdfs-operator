@@ -6,7 +6,7 @@ NOTE: This operator only works with images from the https://repo.stackable.tech/
 
 == Roles
 
-Three xref:home:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster are implemented:
+Three xref:concepts:roles-and-role-groups.adoc[roles] of the HDFS cluster are implemented:
 
 * DataNode - responsible for storing the actual data.
 * JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode
