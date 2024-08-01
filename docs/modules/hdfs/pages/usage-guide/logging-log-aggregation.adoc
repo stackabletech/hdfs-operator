@@ -23,4 +23,4 @@ spec:
 ----
 
 Further information on how to configure logging, can be found in
-xref:home:concepts:logging.adoc[].
+xref:concepts:logging.adoc[].

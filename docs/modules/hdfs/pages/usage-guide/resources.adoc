@@ -67,7 +67,7 @@ The hdfs-operator will re-create the StatefulSet automatically.
 
 == Resource Requests
 
-include::home:concepts:stackable_resource_requests.adoc[]
+include::concepts:stackable_resource_requests.adoc[]
 
 A minimal HA setup consisting of 3 journalnodes, 2 namenodes and 2 datanodes has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
 
