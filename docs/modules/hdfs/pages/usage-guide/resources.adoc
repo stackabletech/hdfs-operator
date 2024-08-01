@@ -67,7 +67,7 @@ The hdfs-operator will re-create the StatefulSet automatically.
 
 == Resource Requests
 
-include::home:concepts:stackable_resource_requests.adoc[]
+include::concepts:stackable_resource_requests.adoc[]
 
 If no resource requests are configured explicitly, the HDFS operator uses the following defaults:
 
