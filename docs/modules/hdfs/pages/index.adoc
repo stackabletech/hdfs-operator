@@ -19,7 +19,7 @@ your needs, or have a look at the <<demos, demos>> for some example setups.
 == Operator model
 
 The Operator manages the _HdfsCluster_ custom resource. The cluster implements three
-xref:home:concepts:roles-and-role-groups.adoc[roles]:
+xref:concepts:roles-and-role-groups.adoc[roles]:
 
 * DataNode - responsible for storing the actual data.
 * JournalNode - responsible for keeping track of HDFS blocks and used to perform failovers in case the active NameNode
