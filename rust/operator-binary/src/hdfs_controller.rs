@@ -492,13 +492,21 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             hdfs.as_ref(),
             &[&ss_cond_builder, &cluster_operation_cond_builder],
         ),
-        deployed_product_version: if deploy_done {
-            Some(hdfs.spec.image.product_version().to_string())
-        } else {
+        // FIXME: We can't currently leave upgrade mode automatically, since we don't know when an upgrade is finalized
+        deployed_product_version: Some(
             hdfs.status
                 .as_ref()
-                .and_then(|status| status.deployed_product_version.clone())
-        },
+                .and_then(|status| status.deployed_product_version.as_deref())
+                .unwrap_or(hdfs.spec.image.product_version())
+                .to_string(),
+        ),
+        // deployed_product_version: if deploy_done {
+        //     Some(hdfs.spec.image.product_version().to_string())
+        // } else {
+        //     hdfs.status
+        //         .as_ref()
+        //         .and_then(|status| status.deployed_product_version.clone())
+        // },
     };
 
     // During upgrades we do partial deployments, we don't want to garbage collect after those
