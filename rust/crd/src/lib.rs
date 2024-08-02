@@ -41,7 +41,7 @@ use stackable_operator::{
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
 };
-use strum::{Display, EnumIter, EnumString};
+use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 
 use crate::{
     affinity::get_affinity,
@@ -129,6 +129,9 @@ pub struct HdfsClusterSpec {
 
     // no doc string - See ProductImage struct
     pub image: ProductImage,
+
+    #[serde(default)]
+    pub upgrading: bool,
 
     // no doc string - See ClusterOperation struct
     #[serde(default)]
@@ -312,11 +315,13 @@ impl AnyNodeConfig {
 
 #[derive(
     Clone,
+    Copy,
     Debug,
     Deserialize,
     Display,
     EnumIter,
     EnumString,
+    IntoStaticStr,
     Eq,
     Hash,
     JsonSchema,
@@ -324,15 +329,15 @@ impl AnyNodeConfig {
     Serialize,
 )]
 pub enum HdfsRole {
+    #[serde(rename = "journalnode")]
+    #[strum(serialize = "journalnode")]
+    JournalNode,
     #[serde(rename = "namenode")]
     #[strum(serialize = "namenode")]
     NameNode,
     #[serde(rename = "datanode")]
     #[strum(serialize = "datanode")]
     DataNode,
-    #[serde(rename = "journalnode")]
-    #[strum(serialize = "journalnode")]
-    JournalNode,
 }
 
 impl HdfsRole {
@@ -800,6 +805,17 @@ impl HdfsCluster {
         }
 
         Ok(result)
+    }
+
+    pub fn is_upgrading(&self) -> bool {
+        // *Ideally* we'd detect this from the version mismatch, but we need manual intervention to confirm that the upgrade is done
+        self.spec.upgrading
+        // self.status
+        //     .as_ref()
+        //     .and_then(|status| status.deployed_product_version.as_deref())
+        //     .map_or(false, |deployed_version| {
+        //         deployed_version != self.spec.image.product_version()
+        //     })
     }
 
     pub fn authentication_config(&self) -> Option<&AuthenticationConfig> {
@@ -1322,6 +1338,8 @@ impl Configuration for JournalNodeConfigFragment {
 pub struct HdfsClusterStatus {
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
+
+    pub deployed_product_version: Option<String>,
 }
 
 impl HasStatusCondition for HdfsCluster {

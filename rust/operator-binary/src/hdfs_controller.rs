@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -45,7 +44,7 @@ use stackable_operator::{
     },
     time::Duration,
 };
-use strum::{EnumDiscriminants, IntoStaticStr};
+use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use stackable_hdfs_crd::{
     constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
@@ -323,10 +322,15 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    for (role_name, group_config) in validated_config.iter() {
-        let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {
-            role: role_name.to_string(),
-        })?;
+    let mut deploy_done = true;
+
+    // Roles must be deployed in order during rolling upgrades
+    'roles: for role in HdfsRole::iter() {
+        let role_name: &str = role.into();
+        let Some(group_config) = validated_config.get(role_name) else {
+            tracing::debug!(?role, "role has no configuration, skipping");
+            continue;
+        };
 
         if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {
             publish_event(
@@ -408,14 +412,43 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     name: rg_configmap_name,
                 })?;
             let rg_statefulset_name = rg_statefulset.name_any();
-            ss_cond_builder.add(
-                cluster_resources
-                    .add(client, rg_statefulset.clone())
-                    .await
-                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                        name: rg_statefulset_name,
-                    })?,
-            );
+            let mut deployed_rg_statefulset = cluster_resources
+                .add(client, rg_statefulset.clone())
+                .await
+                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                    name: rg_statefulset_name,
+                })?;
+            ss_cond_builder.add(deployed_rg_statefulset.clone());
+            if hdfs.is_upgrading() {
+                tracing::info!("aaaaaaa UPGRADING");
+                let status = deployed_rg_statefulset.status.take().unwrap_or_default();
+
+                let current_generation = dbg!(deployed_rg_statefulset.metadata.generation);
+                let observed_generation = dbg!(status.observed_generation);
+                if current_generation != observed_generation {
+                    tracing::info!(
+                        object = %ObjectRef::from_obj(&deployed_rg_statefulset),
+                        generation.current = current_generation,
+                        generation.observed = observed_generation,
+                        "rolegroup is still upgrading, waiting... (generation not yet observed by statefulset controller)",
+                    );
+                    deploy_done = false;
+                    break 'roles;
+                }
+
+                let total_replicas = dbg!(status.replicas);
+                let updated_replicas = dbg!(status.updated_replicas.unwrap_or(0));
+                if total_replicas != updated_replicas {
+                    tracing::info!(
+                        object = %ObjectRef::from_obj(&deployed_rg_statefulset),
+                        replicas.total = total_replicas,
+                        replicas.updated = updated_replicas,
+                        "rolegroup is still upgrading, waiting... (not all replicas are updated)",
+                    );
+                    deploy_done = false;
+                    break 'roles;
+                }
+            }
         }
 
         let role_config = hdfs.role_config(&role);
@@ -459,12 +492,23 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             hdfs.as_ref(),
             &[&ss_cond_builder, &cluster_operation_cond_builder],
         ),
+        deployed_product_version: if deploy_done {
+            Some(hdfs.spec.image.product_version().to_string())
+        } else {
+            hdfs.status
+                .as_ref()
+                .and_then(|status| status.deployed_product_version.clone())
+        },
     };
 
-    cluster_resources
-        .delete_orphaned_resources(client)
-        .await
-        .context(DeleteOrphanedResourcesSnafu)?;
+    // During upgrades we do partial deployments, we don't want to garbage collect after those
+    // since we *will* redeploy (or properly orphan) the remaining resources layer.
+    if deploy_done {
+        cluster_resources
+            .delete_orphaned_resources(client)
+            .await
+            .context(DeleteOrphanedResourcesSnafu)?;
+    }
     client
         .apply_patch_status(OPERATOR_NAME, &*hdfs, &status)
         .await
