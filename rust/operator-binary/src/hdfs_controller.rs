@@ -420,11 +420,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 })?;
             ss_cond_builder.add(deployed_rg_statefulset.clone());
             if hdfs.is_upgrading() {
-                tracing::info!("aaaaaaa UPGRADING");
                 let status = deployed_rg_statefulset.status.take().unwrap_or_default();
 
-                let current_generation = dbg!(deployed_rg_statefulset.metadata.generation);
-                let observed_generation = dbg!(status.observed_generation);
+                let current_generation = deployed_rg_statefulset.metadata.generation;
+                let observed_generation = status.observed_generation;
                 if current_generation != observed_generation {
                     tracing::info!(
                         object = %ObjectRef::from_obj(&deployed_rg_statefulset),
@@ -436,8 +435,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     break 'roles;
                 }
 
-                let total_replicas = dbg!(status.replicas);
-                let updated_replicas = dbg!(status.updated_replicas.unwrap_or(0));
+                let total_replicas = status.replicas;
+                let updated_replicas = status.updated_replicas.unwrap_or(0);
                 if total_replicas != updated_replicas {
                     tracing::info!(
                         object = %ObjectRef::from_obj(&deployed_rg_statefulset),
