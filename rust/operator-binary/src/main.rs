@@ -34,6 +34,7 @@ mod hdfs_controller;
 mod operations;
 mod product_logging;
 mod security;
+mod utils;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));

@@ -62,6 +62,7 @@ use crate::{
     },
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     security::{self, kerberos, opa::HdfsOpaConfig},
+    utils::statefulset::check_all_replicas_updated,
     OPERATOR_NAME,
 };
 
@@ -412,7 +413,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     name: rg_configmap_name,
                 })?;
             let rg_statefulset_name = rg_statefulset.name_any();
-            let mut deployed_rg_statefulset = cluster_resources
+            let deployed_rg_statefulset = cluster_resources
                 .add(client, rg_statefulset.clone())
                 .await
                 .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
@@ -420,29 +421,11 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 })?;
             ss_cond_builder.add(deployed_rg_statefulset.clone());
             if hdfs.is_upgrading() {
-                let status = deployed_rg_statefulset.status.take().unwrap_or_default();
-
-                let current_generation = deployed_rg_statefulset.metadata.generation;
-                let observed_generation = status.observed_generation;
-                if current_generation != observed_generation {
+                if let Err(reason) = check_all_replicas_updated(&deployed_rg_statefulset) {
                     tracing::info!(
                         object = %ObjectRef::from_obj(&deployed_rg_statefulset),
-                        generation.current = current_generation,
-                        generation.observed = observed_generation,
-                        "rolegroup is still upgrading, waiting... (generation not yet observed by statefulset controller)",
-                    );
-                    deploy_done = false;
-                    break 'roles;
-                }
-
-                let total_replicas = status.replicas;
-                let updated_replicas = status.updated_replicas.unwrap_or(0);
-                if total_replicas != updated_replicas {
-                    tracing::info!(
-                        object = %ObjectRef::from_obj(&deployed_rg_statefulset),
-                        replicas.total = total_replicas,
-                        replicas.updated = updated_replicas,
-                        "rolegroup is still upgrading, waiting... (not all replicas are updated)",
+                        reason = &reason as &dyn std::error::Error,
+                        "rolegroup is still upgrading, waiting..."
                     );
                     deploy_done = false;
                     break 'roles;
