@@ -1,0 +1,78 @@
+= Upgrading HDFS
+
+IMPORTANT: HDFS upgrades are experimental, and details may change at any time
+
+HDFS currently requires a manual process to upgrade. This guide will take you through an example case, upgrading an example cluster (from our xref:getting_started/index.adoc[Getting Started] guide) from HDFS 3.3.6 to 3.4.0.
+
+== Preparing HDFS
+
+HDFS must be configured to initiate the upgrade process. To do this, run the following commands in a HDFS superuser environment
+(either a client configured with a superuser account, or from inside NameNode pod):
+
+[source,terminal]
+----
+$ hdfs dfsadmin -rollingUpgrade prepare
+PREPARE rolling upgrade ...
+Preparing for upgrade. Data is being saved for rollback.
+Run "dfsadmin -rollingUpgrade query" to check the status
+for proceeding with rolling upgrade
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: <NOT FINALIZED>
+
+$ # Then run query until the HDFS is ready to proceed
+$ hdfs dfsadmin -rollingUpgrade query
+QUERY rolling upgrade ...
+Preparing for upgrade. Data is being saved for rollback.
+Run "dfsadmin -rollingUpgrade query" to check the status
+for proceeding with rolling upgrade
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: <NOT FINALIZED>
+
+$ # It should look like this once ready
+$ hdfs dfsadmin -rollingUpgrade query
+QUERY rolling upgrade ...
+Proceed with rolling upgrade:
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: <NOT FINALIZED>
+----
+
+== Starting the upgrade
+
+Once ready, the HdfsCluster can be updated with the new product version:
+
+[source,terminal]
+----
+$ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": "3.4.0"}}}' --type=merge
+hdfscluster.hdfs.stackable.tech/simple-hdfs patched
+----
+
+Then wait until all pods are ready and running the new HDFS version.
+
+NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then DataNodes.
+
+== Finalizing the upgrade
+
+Once all HDFS pods are running the new version, the HDFS upgrade can be finalized (from the HDFS superuser environment):
+
+[source,terminal]
+----
+$ hdfs dfsadmin -rollingUpgrade finalize
+FINALIZE rolling upgrade ...
+Rolling upgrade is finalized.
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: Fri Aug 02 15:58:39 GMT 2024 (=1722614319854)
+----
+
+Finally, the operator and cluster should be taken out of upgrade mode, by marking the HdfsCluster as upgraded to the new version:
+
+[source,terminal]
+----
+$ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"deployedProductVersion": "3.4.0"}}' --type=merge
+hdfscluster.hdfs.stackable.tech/simple-hdfs patched
+----
+
+NOTE: The NameNodes will be restarted a final time, taking them out of upgrade mode.
