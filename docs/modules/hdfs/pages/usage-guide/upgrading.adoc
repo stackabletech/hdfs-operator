@@ -12,7 +12,7 @@ HDFS must be configured to initiate the upgrade process. To do this, run the fol
 // This could be automated by the operator, but dfsadmin does not have good machine-readable output.
 // It *can* be queried over JMX, but we're not so lucky for finalization.
 
-[source,terminal]
+[source,shell]
 ----
 $ hdfs dfsadmin -rollingUpgrade prepare
 PREPARE rolling upgrade ...
@@ -46,7 +46,7 @@ Proceed with rolling upgrade:
 
 Once ready, the HdfsCluster can be updated with the new product version:
 
-[source,terminal]
+[source,shell]
 ----
 $ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": "3.4.0"}}}' --type=merge
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
@@ -60,7 +60,7 @@ NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then Dat
 
 Once all HDFS pods are running the new version, the HDFS upgrade can be finalized (from the HDFS superuser environment):
 
-[source,terminal]
+[source,shell]
 ----
 $ hdfs dfsadmin -rollingUpgrade finalize
 FINALIZE rolling upgrade ...
@@ -76,7 +76,7 @@ WARNING: Please ensure that all NameNodes are running and available before proce
 
 Finally, the operator and cluster should be taken out of upgrade mode, by marking the HdfsCluster as upgraded to the new version:
 
-[source,terminal]
+[source,shell]
 ----
 $ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"deployedProductVersion": "3.4.0"}}' --type=merge
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
