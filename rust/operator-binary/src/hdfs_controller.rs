@@ -904,7 +904,7 @@ properties: []
         let validated_config = validate_all_roles_and_groups_config(
             "3.4.0",
             &config,
-            &ProductConfigManager::from_str(product_config).unwrap(),
+            &product_config.parse::<ProductConfigManager>().unwrap(),
             false,
             false,
         )
