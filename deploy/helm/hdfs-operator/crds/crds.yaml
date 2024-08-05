@@ -22033,6 +22033,9 @@ spec:
                       - type
                     type: object
                   type: array
+                deployedProductVersion:
+                  nullable: true
+                  type: string
               type: object
           required:
             - spec
