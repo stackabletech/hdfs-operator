@@ -494,7 +494,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     };
 
     // During upgrades we do partial deployments, we don't want to garbage collect after those
-    // since we *will* redeploy (or properly orphan) the remaining resources layer.
+    // since we *will* redeploy (or properly orphan) the remaining resources later.
     if deploy_done {
         cluster_resources
             .delete_orphaned_resources(client)
