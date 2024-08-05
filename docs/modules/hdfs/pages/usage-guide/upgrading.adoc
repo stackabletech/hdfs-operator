@@ -9,6 +9,9 @@ HDFS currently requires a manual process to upgrade. This guide will take you th
 HDFS must be configured to initiate the upgrade process. To do this, run the following commands in a HDFS superuser environment
 (either a client configured with a superuser account, or from inside NameNode pod):
 
+// This could be automated by the operator, but dfsadmin does not have good machine-readable output.
+// It *can* be queried over JMX, but we're not so lucky for finalization.
+
 [source,terminal]
 ----
 $ hdfs dfsadmin -rollingUpgrade prepare
@@ -66,6 +69,10 @@ Rolling upgrade is finalized.
      Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
   Finalize Time: Fri Aug 02 15:58:39 GMT 2024 (=1722614319854)
 ----
+
+// We can't safely automate this, because finalize is asynchronous and doesn't tell us whether all NameNodes have even received the request to finalize.
+
+WARNING: Please ensure that all NameNodes are running and available before proceeding. NameNodes that have not finalized yet will crash on launch when taken out of upgrade mode.
 
 Finally, the operator and cluster should be taken out of upgrade mode, by marking the HdfsCluster as upgraded to the new version:
 

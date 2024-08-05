@@ -421,6 +421,8 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 })?;
             ss_cond_builder.add(deployed_rg_statefulset.clone());
             if hdfs.is_upgrading() {
+                // When upgrading, ensure that each role is upgraded before moving on to the next as recommended by
+                // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
                 if let Err(reason) = check_all_replicas_updated(&deployed_rg_statefulset) {
                     tracing::info!(
                         object = %ObjectRef::from_obj(&deployed_rg_statefulset),
