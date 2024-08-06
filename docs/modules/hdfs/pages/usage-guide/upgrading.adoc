@@ -33,7 +33,7 @@ for proceeding with rolling upgrade
      Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
   Finalize Time: <NOT FINALIZED>
 
-$ # It should look like this once ready
+$ # It is safe to proceed when the output indicates so, like this:
 $ hdfs dfsadmin -rollingUpgrade query
 QUERY rolling upgrade ...
 Proceed with rolling upgrade:
