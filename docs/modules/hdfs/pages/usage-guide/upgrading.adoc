@@ -6,8 +6,8 @@ HDFS currently requires a manual process to upgrade. This guide will take you th
 
 == Preparing HDFS
 
-HDFS must be configured to initiate the upgrade process. To do this, run the following commands in a HDFS superuser environment
-(either a client configured with a superuser account, or from inside NameNode pod):
+HDFS must be configured to initiate the upgrade process. To do this, run the following commands in an HDFS superuser environment
+(either a client configured with a superuser account, or from inside a NameNode pod):
 
 // This could be automated by the operator, but dfsadmin does not have good machine-readable output.
 // It *can* be queried over JMX, but we're not so lucky for finalization.
