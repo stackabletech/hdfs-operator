@@ -6,8 +6,8 @@ HDFS currently requires a manual process to upgrade. This guide will take you th
 
 == Preparing HDFS
 
-HDFS must be configured to initiate the upgrade process. To do this, run the following commands in a HDFS superuser environment
-(either a client configured with a superuser account, or from inside NameNode pod):
+HDFS must be configured to initiate the upgrade process. To do this, run the following commands in an HDFS superuser environment
+(either a client configured with a superuser account, or from inside a NameNode pod):
 
 // This could be automated by the operator, but dfsadmin does not have good machine-readable output.
 // It *can* be queried over JMX, but we're not so lucky for finalization.
@@ -33,7 +33,7 @@ for proceeding with rolling upgrade
      Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
   Finalize Time: <NOT FINALIZED>
 
-$ # It should look like this once ready
+$ # It is safe to proceed when the output indicates so, like this:
 $ hdfs dfsadmin -rollingUpgrade query
 QUERY rolling upgrade ...
 Proceed with rolling upgrade:
@@ -44,7 +44,7 @@ Proceed with rolling upgrade:
 
 == Starting the upgrade
 
-Once ready, the HdfsCluster can be updated with the new product version:
+Once HDFS is ready to upgrade, the HdfsCluster can be updated with the new product version:
 
 [source,shell]
 ----
@@ -52,13 +52,13 @@ $ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": 
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 
-Then wait until all pods are ready and running the new HDFS version.
+Then wait until all pods have restarted, are in the Ready state, and running the new HDFS version.
 
 NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then DataNodes.
 
 == Finalizing the upgrade
 
-Once all HDFS pods are running the new version, the HDFS upgrade can be finalized (from the HDFS superuser environment):
+Once all HDFS pods are running the new version, the HDFS upgrade can be finalized (from the HDFS superuser environment as described in the preparation step):
 
 [source,shell]
 ----
