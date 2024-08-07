@@ -548,6 +548,12 @@ impl ContainerConfig {
             args.push_str(&Self::export_kerberos_real_env_var_command());
         }
 
+        let upgrade_args = if hdfs.is_upgrading() && *role == HdfsRole::NameNode {
+            "-rollingUpgrade started"
+        } else {
+            ""
+        };
+
         match self {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push_str(&self.copy_log4j_properties_cmd(
@@ -571,11 +577,6 @@ wait_for_termination $!
 {create_vector_shutdown_file_command}
 "#,
                     hadoop_home = Self::HADOOP_HOME,
-                    upgrade_args = if hdfs.is_upgrading() && *role == HdfsRole::NameNode {
-                        "-rollingUpgrade started"
-                    } else {
-                        ""
-                    },
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
                     create_vector_shutdown_file_command =
