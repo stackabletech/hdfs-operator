@@ -52,7 +52,7 @@ $ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": 
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 
-Then wait until all pods are ready and running the new HDFS version.
+Then wait until all pods have restarted, are in the Ready state, and running the new HDFS version.
 
 NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then DataNodes.
 
