@@ -58,7 +58,7 @@ NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then Dat
 
 == Finalizing the upgrade
 
-Once all HDFS pods are running the new version, the HDFS upgrade can be finalized (from the HDFS superuser environment):
+Once all HDFS pods are running the new version, the HDFS upgrade can be finalized (from the HDFS superuser environment as described in the preparation step):
 
 [source,shell]
 ----
