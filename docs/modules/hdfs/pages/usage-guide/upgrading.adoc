@@ -44,7 +44,7 @@ Proceed with rolling upgrade:
 
 == Starting the upgrade
 
-Once ready, the HdfsCluster can be updated with the new product version:
+Once HDFS is ready to upgrade, the HdfsCluster can be updated with the new product version:
 
 [source,shell]
 ----
