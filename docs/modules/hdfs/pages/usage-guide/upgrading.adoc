@@ -6,7 +6,7 @@ HDFS currently requires a manual process to upgrade. This guide will take you th
 
 == Preparing HDFS
 
-HDFS must be configured to initiate the upgrade process. To do this, run the following commands in an HDFS superuser environment
+HDFS must be configured to initiate the upgrade process. To do this, put the cluster into upgrade mode by running the following commands in an HDFS superuser environment
 (either a client configured with a superuser account, or from inside a NameNode pod):
 
 // This could be automated by the operator, but dfsadmin does not have good machine-readable output.
@@ -54,6 +54,8 @@ hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 
 Then wait until all pods have restarted, are in the Ready state, and running the new HDFS version.
 
+NOTE: This will automatically enable the NameNodes' compatibility mode, allowing them to start despite the fsImage version mismatch.
+
 NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then DataNodes.
 
 == Finalizing the upgrade
@@ -72,9 +74,9 @@ Rolling upgrade is finalized.
 
 // We can't safely automate this, because finalize is asynchronous and doesn't tell us whether all NameNodes have even received the request to finalize.
 
-WARNING: Please ensure that all NameNodes are running and available before proceeding. NameNodes that have not finalized yet will crash on launch when taken out of upgrade mode.
+WARNING: Please ensure that all NameNodes are running and available before proceeding. NameNodes that have not finalized yet will crash on launch when taken out of compatibility mode.
 
-Finally, the operator and cluster should be taken out of upgrade mode, by marking the HdfsCluster as upgraded to the new version:
+Finally, we mark the cluster as upgraded:
 
 [source,shell]
 ----
@@ -82,4 +84,4 @@ $ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"depl
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 
-NOTE: The NameNodes will be restarted a final time, taking them out of upgrade mode.
+NOTE: The NameNodes will be restarted a final time, taking them out of compatibility mode.
