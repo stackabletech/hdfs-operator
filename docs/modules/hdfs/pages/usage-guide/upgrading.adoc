@@ -76,7 +76,7 @@ Rolling upgrade is finalized.
 
 WARNING: Please ensure that all NameNodes are running and available before proceeding. NameNodes that have not finalized yet will crash on launch when taken out of compatibility mode.
 
-Finally, we mark the cluster as upgraded:
+Finally, mark the cluster as upgraded:
 
 [source,shell]
 ----
