@@ -38,9 +38,12 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
-    status::condition::{
-        compute_conditions, operations::ClusterOperationsConditionBuilder,
-        statefulset::StatefulSetConditionBuilder,
+    status::{
+        condition::{
+            compute_conditions, operations::ClusterOperationsConditionBuilder,
+            statefulset::StatefulSetConditionBuilder,
+        },
+        rollout::check_statefulset_rollout_complete,
     },
     time::Duration,
 };
@@ -62,7 +65,6 @@ use crate::{
     },
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     security::{self, kerberos, opa::HdfsOpaConfig},
-    utils::statefulset::check_all_replicas_updated,
     OPERATOR_NAME,
 };
 
@@ -423,7 +425,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             if hdfs.is_upgrading() {
                 // When upgrading, ensure that each role is upgraded before moving on to the next as recommended by
                 // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
-                if let Err(reason) = check_all_replicas_updated(&deployed_rg_statefulset) {
+                if let Err(reason) = check_statefulset_rollout_complete(&deployed_rg_statefulset) {
                     tracing::info!(
                         object = %ObjectRef::from_obj(&deployed_rg_statefulset),
                         reason = &reason as &dyn std::error::Error,
