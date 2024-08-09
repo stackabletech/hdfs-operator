@@ -804,13 +804,22 @@ impl HdfsCluster {
         Ok(result)
     }
 
-    pub fn is_upgrading(&self) -> bool {
-        self.status
-            .as_ref()
-            .and_then(|status| status.deployed_product_version.as_deref())
-            .map_or(false, |deployed_version| {
-                deployed_version != self.spec.image.product_version()
-            })
+    pub fn upgrade_state(&self) -> Option<UpgradeState> {
+        let status = self.status.as_ref()?;
+        let requested_version = self.spec.image.product_version();
+
+        if requested_version != status.deployed_product_version.as_deref()? {
+            // If we're requesting a different version than what is deployed, assume that we're upgrading.
+            // Could also be a downgrade to an older version, but we don't support downgrades after upgrade finalization.
+            Some(UpgradeState::Upgrading)
+        } else if requested_version != status.upgrading_product_version.as_deref()? {
+            // If we're requesting the old version mid-upgrade, assume that we're downgrading.
+            // We only support downgrading to the exact previous version.
+            Some(UpgradeState::Downgrading)
+        } else {
+            // All three versions match, upgrade was completed without clearing `upgrading_product_version`.
+            None
+        }
     }
 
     pub fn authentication_config(&self) -> Option<&AuthenticationConfig> {
@@ -964,6 +973,14 @@ impl HdfsPodRef {
             Cow::Borrowed,
         )
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpgradeState {
+    /// The cluster is currently being upgraded to a new version.
+    Upgrading,
+    /// The cluster is currently being downgraded to the previous version.
+    Downgrading,
 }
 
 #[derive(
@@ -1334,7 +1351,13 @@ pub struct HdfsClusterStatus {
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
 
+    /// The product version that the HDFS cluster is currently running.
+    ///
+    /// During upgrades, this field contains the *old* version.
     pub deployed_product_version: Option<String>,
+
+    /// The product version that is currently being upgraded to, otherwise null.
+    pub upgrading_product_version: Option<String>,
 }
 
 impl HasStatusCondition for HdfsCluster {

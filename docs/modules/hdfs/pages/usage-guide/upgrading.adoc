@@ -21,8 +21,6 @@ $ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": 
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 
-WARNING: The Stackable Operator for HDFS will _not_ currently roll downgrades in order, they will incur some downtime.
-
 == Preparing HDFS
 
 HDFS must be configured to initiate the upgrade process. To do this, put the cluster into upgrade mode by running the following commands in an HDFS superuser environment

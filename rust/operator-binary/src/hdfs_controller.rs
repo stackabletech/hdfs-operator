@@ -21,6 +21,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         rbac::{build_rbac_resources, service_account_name},
     },
+    iter::reverse_if,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -50,7 +51,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use stackable_hdfs_crd::{
-    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
+    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, UpgradeState,
 };
 
 use crate::{
@@ -325,10 +326,23 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
+    let upgrade_state = hdfs.upgrade_state();
     let mut deploy_done = true;
 
-    // Roles must be deployed in order during rolling upgrades
-    'roles: for role in HdfsRole::iter() {
+    // Roles must be deployed in order during rolling upgrades,
+    // namenode version must be >= datanode version (and so on).
+    let roles = reverse_if(
+        match upgrade_state {
+            // Downgrades have the opposite version relationship, so they need to be rolled out in reverse order.
+            Some(UpgradeState::Downgrading) => {
+                tracing::info!("HdfsCluster is being downgraded, deploying in reverse order");
+                true
+            }
+            _ => false,
+        },
+        HdfsRole::iter(),
+    );
+    'roles: for role in roles {
         let role_name: &str = role.into();
         let Some(group_config) = validated_config.get(role_name) else {
             tracing::debug!(?role, "role has no configuration, skipping");
@@ -422,12 +436,12 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     name: rg_statefulset_name,
                 })?;
             ss_cond_builder.add(deployed_rg_statefulset.clone());
-            if hdfs.is_upgrading() {
+            if upgrade_state.is_some() {
                 // When upgrading, ensure that each role is upgraded before moving on to the next as recommended by
                 // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
                 if let Err(reason) = check_statefulset_rollout_complete(&deployed_rg_statefulset) {
                     tracing::info!(
-                        object = %ObjectRef::from_obj(&deployed_rg_statefulset),
+                        rolegroup.statefulset = %ObjectRef::from_obj(&deployed_rg_statefulset),
                         reason = &reason as &dyn std::error::Error,
                         "rolegroup is still upgrading, waiting..."
                     );
@@ -482,17 +496,30 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         deployed_product_version: Some(
             hdfs.status
                 .as_ref()
+                // Keep current version if set
                 .and_then(|status| status.deployed_product_version.as_deref())
+                // Otherwise (on initial deploy) fall back to user's specified version
                 .unwrap_or(hdfs.spec.image.product_version())
                 .to_string(),
         ),
-        // deployed_product_version: if deploy_done {
-        //     Some(hdfs.spec.image.product_version().to_string())
-        // } else {
-        //     hdfs.status
-        //         .as_ref()
-        //         .and_then(|status| status.deployed_product_version.clone())
-        // },
+        upgrading_product_version: match upgrade_state {
+            // User is upgrading, whatever they're upgrading to is (by definition) the target
+            Some(UpgradeState::Upgrading) => Some(hdfs.spec.image.product_version().to_string()),
+            Some(UpgradeState::Downgrading) => {
+                if deploy_done {
+                    // Downgrade is done, clear
+                    tracing::info!("downgrade deployed, clearing upgrade state");
+                    None
+                } else {
+                    // Downgrade is still in progress, preserve the current value
+                    hdfs.status
+                        .as_ref()
+                        .and_then(|status| status.upgrading_product_version.clone())
+                }
+            }
+            // Upgrade is complete (if any), clear
+            None => None,
+        },
     };
 
     // During upgrades we do partial deployments, we don't want to garbage collect after those

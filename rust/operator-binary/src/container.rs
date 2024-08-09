@@ -12,6 +12,7 @@
 use crate::DATANODE_ROOT_DATA_DIR_PREFIX;
 use crate::JVM_SECURITY_PROPERTIES_FILE;
 use crate::LOG4J_PROPERTIES;
+use stackable_hdfs_crd::UpgradeState;
 use stackable_operator::utils::COMMON_BASH_TRAP_FUNCTIONS;
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -548,7 +549,9 @@ impl ContainerConfig {
             args.push_str(&Self::export_kerberos_real_env_var_command());
         }
 
-        let upgrade_args = if hdfs.is_upgrading() && *role == HdfsRole::NameNode {
+        let upgrade_args = if hdfs.upgrade_state() == Some(UpgradeState::Upgrading)
+            && *role == HdfsRole::NameNode
+        {
             "-rollingUpgrade started"
         } else {
             ""

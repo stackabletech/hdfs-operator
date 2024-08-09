@@ -1,5 +1,5 @@
 {
-  "git+https://github.com/stackabletech//operator-rs.git?branch=revert%2Flazylock#stackable-operator-derive@0.3.1": "0rnqlyj9ymagw4m6gv01jfwa3zvicsw6n5sfd0rlh3wslgn46bbc",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=revert%2Flazylock#stackable-operator@0.72.0": "0rnqlyj9ymagw4m6gv01jfwa3zvicsw6n5sfd0rlh3wslgn46bbc",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feature%2Fiter-reverse-if#stackable-operator-derive@0.3.1": "0vm2xcyr1sn97hhd1jj95jg6rl9y5z8a1d4pv292g8ivw9alq7qz",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feature%2Fiter-reverse-if#stackable-operator@0.73.0": "0vm2xcyr1sn97hhd1jj95jg6rl9y5z8a1d4pv292g8ivw9alq7qz",
   "git+https://github.com/stackabletech/product-config.git?tag=0.7.0#product-config@0.7.0": "0gjsm80g6r75pm3824dcyiz4ysq1ka4c1if6k1mjm9cnd5ym0gny"
 }
