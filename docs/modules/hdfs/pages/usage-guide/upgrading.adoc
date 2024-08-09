@@ -102,4 +102,6 @@ $ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"depl
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 
-NOTE: The NameNodes will be restarted a final time, taking them out of compatibility mode.
+NOTE: `deployedProductVersion` is located in the _status_ subresource, which will not be modified by most graphical editors, and `kubectl` requires the `--subresource=status` flag.
+
+The NameNodes will then be restarted a final time, taking them out of compatibility mode.
