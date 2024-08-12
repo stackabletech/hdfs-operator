@@ -502,7 +502,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 .unwrap_or(hdfs.spec.image.product_version())
                 .to_string(),
         ),
-        upgrading_product_version: match upgrade_state {
+        upgrade_target_product_version: match upgrade_state {
             // User is upgrading, whatever they're upgrading to is (by definition) the target
             Some(UpgradeState::Upgrading) => Some(hdfs.spec.image.product_version().to_string()),
             Some(UpgradeState::Downgrading) => {
@@ -514,7 +514,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     // Downgrade is still in progress, preserve the current value
                     hdfs.status
                         .as_ref()
-                        .and_then(|status| status.upgrading_product_version.clone())
+                        .and_then(|status| status.upgrade_target_product_version.clone())
                 }
             }
             // Upgrade is complete (if any), clear

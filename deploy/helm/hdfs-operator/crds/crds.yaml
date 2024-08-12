@@ -1814,7 +1814,7 @@ spec:
                     During upgrades, this field contains the *old* version.
                   nullable: true
                   type: string
-                upgradingProductVersion:
+                upgradeTargetProductVersion:
                   description: The product version that is currently being upgraded to, otherwise null.
                   nullable: true
                   type: string

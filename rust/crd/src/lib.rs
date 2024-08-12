@@ -812,7 +812,7 @@ impl HdfsCluster {
             // If we're requesting a different version than what is deployed, assume that we're upgrading.
             // Could also be a downgrade to an older version, but we don't support downgrades after upgrade finalization.
             Some(UpgradeState::Upgrading)
-        } else if requested_version != status.upgrading_product_version.as_deref()? {
+        } else if requested_version != status.upgrade_target_product_version.as_deref()? {
             // If we're requesting the old version mid-upgrade, assume that we're downgrading.
             // We only support downgrading to the exact previous version.
             Some(UpgradeState::Downgrading)
@@ -1357,7 +1357,7 @@ pub struct HdfsClusterStatus {
     pub deployed_product_version: Option<String>,
 
     /// The product version that is currently being upgraded to, otherwise null.
-    pub upgrading_product_version: Option<String>,
+    pub upgrade_target_product_version: Option<String>,
 }
 
 impl HasStatusCondition for HdfsCluster {
