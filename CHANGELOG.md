@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce CRD size from `1.4MB` to `136KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#574]):
+  - `podOverrides`
+  - `affinity`
+
+[#574]: https://github.com/stackabletech/hdfs-operator/pull/574
+
 ## [24.7.0] - 2024-07-24
 
 ### Added
