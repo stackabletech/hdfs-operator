@@ -847,11 +847,14 @@ spec:
       default:
         replicas: 1
   dataNodes:
+    envOverrides:
+      COMMON_VAR: role-value # overridden by role group below
+      ROLE_VAR: role-value   # only defined here at role level
     roleGroups:
       default:
         envOverrides:
-          MY_ENV: my-value
-          HADOOP_HOME: /not/the/default/path
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
         replicas: 1
 ";
         let product_config = "
@@ -903,33 +906,38 @@ properties: []
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;
-        let main_container = containers
+        let env_vars = containers
             .iter()
             .find(|c| c.name == role.to_string())
+            .unwrap()
+            .env
+            .clone()
             .unwrap();
 
         assert_eq!(
-            main_container
-                .env
-                .clone()
-                .unwrap()
-                .into_iter()
-                .find(|e| e.name == "MY_ENV")
+            env_vars
+                .iter()
+                .find(|e| e.name == "COMMON_VAR")
                 .unwrap()
                 .value,
-            Some("my-value".to_string())
+            Some("group-value".to_string())
         );
 
         assert_eq!(
-            main_container
-                .env
-                .clone()
-                .unwrap()
-                .into_iter()
-                .find(|e| e.name == "HADOOP_HOME")
+            env_vars
+                .iter()
+                .find(|e| e.name == "ROLE_VAR")
                 .unwrap()
                 .value,
-            Some("/not/the/default/path".to_string())
+            Some("role-value".to_string())
+        );
+        assert_eq!(
+            env_vars
+                .iter()
+                .find(|e| e.name == "GROUP_VAR")
+                .unwrap()
+                .value,
+            Some("group-value".to_string())
         );
     }
 }
