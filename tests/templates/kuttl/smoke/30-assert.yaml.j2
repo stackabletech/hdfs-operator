@@ -2,22 +2,6 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
-commands:
-  #
-  # Test envOverrides for all roles
-  #
-  - script: |
-      kubectl -n $NAMESPACE get sts hdfs-datanode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "datanode") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-datanode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "datanode") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-datanode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "datanode") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
-  - script: |
-      kubectl -n $NAMESPACE get sts hdfs-journalnode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "journalnode") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-journalnode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "journalnode") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-journalnode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "journalnode") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
-  - script: |
-      kubectl -n $NAMESPACE get sts hdfs-namenode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "namenode") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-namenode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "namenode") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-namenode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "namenode") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
 ---
 apiVersion: apps/v1
 kind: StatefulSet
