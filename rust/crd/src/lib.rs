@@ -979,6 +979,7 @@ impl HdfsPodRef {
 pub enum UpgradeState {
     /// The cluster is currently being upgraded to a new version.
     Upgrading,
+
     /// The cluster is currently being downgraded to the previous version.
     Downgrading,
 }
