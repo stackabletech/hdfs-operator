@@ -354,7 +354,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             let mut metadata = ObjectMetaBuilder::new();
             let metadata = metadata
                 .name_and_namespace(hdfs.as_ref())
-                .name(&rolegroup_ref.object_name())
+                .name(rolegroup_ref.object_name())
                 .ownerreference_from_resource(hdfs.as_ref(), None, Some(true))
                 .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                     obj_ref: ObjectRef::from_obj(hdfs.as_ref()),
