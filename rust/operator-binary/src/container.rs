@@ -549,7 +549,7 @@ impl ContainerConfig {
             args.push_str(&Self::export_kerberos_real_env_var_command());
         }
 
-        let upgrade_args = if hdfs.upgrade_state() == Some(UpgradeState::Upgrading)
+        let upgrade_args = if hdfs.upgrade_state().ok() == Some(Some(UpgradeState::Upgrading))
             && *role == HdfsRole::NameNode
         {
             "-rollingUpgrade started"

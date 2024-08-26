@@ -51,7 +51,8 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use stackable_hdfs_crd::{
-    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole, UpgradeState,
+    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
+    UpgradeState, UpgradeStateError,
 };
 
 use crate::{
@@ -85,6 +86,9 @@ pub enum Error {
     InvalidProductConfig {
         source: stackable_operator::product_config_utils::Error,
     },
+
+    #[snafu(display("invalid upgrade state"))]
+    InvalidUpgradeState { source: UpgradeStateError },
 
     #[snafu(display("cannot create rolegroup service {name:?}"))]
     ApplyRoleGroupService {
@@ -326,7 +330,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    let upgrade_state = hdfs.upgrade_state();
+    let upgrade_state = hdfs.upgrade_state().context(InvalidUpgradeStateSnafu)?;
     let mut deploy_done = true;
 
     // Roles must be deployed in order during rolling upgrades,

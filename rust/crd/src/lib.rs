@@ -804,21 +804,40 @@ impl HdfsCluster {
         Ok(result)
     }
 
-    pub fn upgrade_state(&self) -> Option<UpgradeState> {
-        let status = self.status.as_ref()?;
+    pub fn upgrade_state(&self) -> Result<Option<UpgradeState>, UpgradeStateError> {
+        use upgrade_state_error::*;
+        let Some(status) = self.status.as_ref() else {
+            return Ok(None);
+        };
         let requested_version = self.spec.image.product_version();
+        let Some(deployed_version) = status.deployed_product_version.as_deref() else {
+            // If no deployed version, fresh install -> no upgrade
+            return Ok(None);
+        };
+        let current_upgrade_target_version = status.upgrade_target_product_version.as_deref();
 
-        if requested_version != status.deployed_product_version.as_deref()? {
+        if requested_version != deployed_version {
             // If we're requesting a different version than what is deployed, assume that we're upgrading.
             // Could also be a downgrade to an older version, but we don't support downgrades after upgrade finalization.
-            Some(UpgradeState::Upgrading)
-        } else if requested_version != status.upgrade_target_product_version.as_deref()? {
+            match current_upgrade_target_version {
+                Some(upgrading_version) if requested_version != upgrading_version => {
+                    // If we're in an upgrade, do not allow switching to a third version
+                    InvalidCrossgradeSnafu {
+                        requested_version,
+                        deployed_version,
+                        upgrading_version,
+                    }
+                    .fail()
+                }
+                _ => Ok(Some(UpgradeState::Upgrading)),
+            }
+        } else if current_upgrade_target_version.is_some_and(|x| requested_version != x) {
             // If we're requesting the old version mid-upgrade, assume that we're downgrading.
             // We only support downgrading to the exact previous version.
-            Some(UpgradeState::Downgrading)
+            Ok(Some(UpgradeState::Downgrading))
         } else {
             // All three versions match, upgrade was completed without clearing `upgrading_product_version`.
-            None
+            Ok(None)
         }
     }
 
@@ -982,6 +1001,17 @@ pub enum UpgradeState {
 
     /// The cluster is currently being downgraded to the previous version.
     Downgrading,
+}
+
+#[derive(Debug, Snafu)]
+#[snafu(module)]
+pub enum UpgradeStateError {
+    #[snafu(display("requested version {requested_version:?} while still upgrading from {deployed_version:?} to {upgrading_version:?}, please finish the upgrade or downgrade first"))]
+    InvalidCrossgrade {
+        requested_version: String,
+        deployed_version: String,
+        upgrading_version: String,
+    },
 }
 
 #[derive(
