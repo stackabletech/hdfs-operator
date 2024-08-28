@@ -1,0 +1,107 @@
+= Upgrading HDFS
+
+IMPORTANT: HDFS upgrades are experimental, and details may change at any time
+
+HDFS currently requires a manual process to upgrade. This guide will take you through an example case, upgrading an example cluster (from our xref:getting_started/index.adoc[Getting Started] guide) from HDFS 3.3.6 to 3.4.0.
+
+== Preparing for the worst
+
+Upgrades can fail, and it is important to prepare for when that happens. Apache HDFS supports https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Downgrade_and_Rollback[two ways to revert an upgrade]:
+
+Rollback:: Reverts all user data to the pre-upgrade state. Requires taking the cluster offline.
+Downgrade:: Downgrades the HDFS software but preserves all changes made by users. Can be performed as a rolling change, keeping the cluster online.
+
+The Stackable Operator for HDFS supports downgrading but not rollbacks.
+
+In order to downgrade, revert the `.spec.image.productVersion` field, and then proceed to xref:#finalize[finalizing] once the cluster is downgraded:
+
+[source,shell]
+----
+$ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": "3.3.6"}}}' --type=merge
+hdfscluster.hdfs.stackable.tech/simple-hdfs patched
+----
+
+== Preparing HDFS
+
+HDFS must be configured to initiate the upgrade process. To do this, put the cluster into upgrade mode by running the following commands in an HDFS superuser environment
+(either a client configured with a superuser account, or from inside a NameNode pod):
+
+// This could be automated by the operator, but dfsadmin does not have good machine-readable output.
+// It *can* be queried over JMX, but we're not so lucky for finalization.
+
+[source,shell]
+----
+$ hdfs dfsadmin -rollingUpgrade prepare
+PREPARE rolling upgrade ...
+Preparing for upgrade. Data is being saved for rollback.
+Run "dfsadmin -rollingUpgrade query" to check the status
+for proceeding with rolling upgrade
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: <NOT FINALIZED>
+
+$ # Then run query until the HDFS is ready to proceed
+$ hdfs dfsadmin -rollingUpgrade query
+QUERY rolling upgrade ...
+Preparing for upgrade. Data is being saved for rollback.
+Run "dfsadmin -rollingUpgrade query" to check the status
+for proceeding with rolling upgrade
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: <NOT FINALIZED>
+
+$ # It is safe to proceed when the output indicates so, like this:
+$ hdfs dfsadmin -rollingUpgrade query
+QUERY rolling upgrade ...
+Proceed with rolling upgrade:
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: <NOT FINALIZED>
+----
+
+== Starting the upgrade
+
+Once HDFS is ready to upgrade, the HdfsCluster can be updated with the new product version:
+
+[source,shell]
+----
+$ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": "3.4.0"}}}' --type=merge
+hdfscluster.hdfs.stackable.tech/simple-hdfs patched
+----
+
+Then wait until all pods have restarted, are in the Ready state, and running the new HDFS version.
+
+NOTE: This will automatically enable the NameNodes' compatibility mode, allowing them to start despite the fsImage version mismatch.
+
+NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then DataNodes.
+
+[#finalize]
+== Finalizing the upgrade
+
+Once all HDFS pods are running the new version, the HDFS upgrade can be finalized (from the HDFS superuser environment as described in the preparation step):
+
+[source,shell]
+----
+$ hdfs dfsadmin -rollingUpgrade finalize
+FINALIZE rolling upgrade ...
+Rolling upgrade is finalized.
+  Block Pool ID: BP-841432641-10.244.0.29-1722612757853
+     Start Time: Fri Aug 02 15:49:12 GMT 2024 (=1722613752341)
+  Finalize Time: Fri Aug 02 15:58:39 GMT 2024 (=1722614319854)
+----
+
+// We can't safely automate this, because finalize is asynchronous and doesn't tell us whether all NameNodes have even received the request to finalize.
+
+WARNING: Please ensure that all NameNodes are running and available before proceeding. NameNodes that have not finalized yet will crash on launch when taken out of compatibility mode.
+
+Finally, mark the cluster as upgraded:
+
+[source,shell]
+----
+$ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"deployedProductVersion": "3.4.0"}}' --type=merge
+hdfscluster.hdfs.stackable.tech/simple-hdfs patched
+----
+
+NOTE: `deployedProductVersion` is located in the _status_ subresource, which will not be modified by most graphical editors, and `kubectl` requires the `--subresource=status` flag.
+
+The NameNodes will then be restarted a final time, taking them out of compatibility mode.

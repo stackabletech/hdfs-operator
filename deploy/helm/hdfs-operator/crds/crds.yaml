@@ -1807,6 +1807,17 @@ spec:
                       - type
                     type: object
                   type: array
+                deployedProductVersion:
+                  description: |-
+                    The product version that the HDFS cluster is currently running.
+
+                    During upgrades, this field contains the *old* version.
+                  nullable: true
+                  type: string
+                upgradeTargetProductVersion:
+                  description: The product version that is currently being upgraded to, otherwise null.
+                  nullable: true
+                  type: string
               type: object
           required:
             - spec
