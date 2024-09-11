@@ -14,7 +14,7 @@ dimensions:
       # - 3.4.0,docker.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
   - name: hadoop-external-client-docker-image
     values:
-      - 3.4.0
+      - 3.3.6
   - name: zookeeper
     values:
       - 3.9.2

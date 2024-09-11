@@ -12,6 +12,7 @@
 use crate::DATANODE_ROOT_DATA_DIR_PREFIX;
 use crate::JVM_SECURITY_PROPERTIES_FILE;
 use crate::LOG4J_PROPERTIES;
+use stackable_hdfs_crd::UpgradeState;
 use stackable_operator::utils::COMMON_BASH_TRAP_FUNCTIONS;
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -212,7 +213,7 @@ impl ContainerConfig {
         labels: &Labels,
     ) -> Result<(), Error> {
         // HDFS main container
-        let main_container_config = Self::from(role.clone());
+        let main_container_config = Self::from(*role);
         pb.add_volumes(main_container_config.volumes(merged_config, object_name, labels)?);
         pb.add_container(main_container_config.main_container(
             hdfs,
@@ -548,6 +549,14 @@ impl ContainerConfig {
             args.push_str(&Self::export_kerberos_real_env_var_command());
         }
 
+        let upgrade_args = if hdfs.upgrade_state().ok() == Some(Some(UpgradeState::Upgrading))
+            && *role == HdfsRole::NameNode
+        {
+            "-rollingUpgrade started"
+        } else {
+            ""
+        };
+
         match self {
             ContainerConfig::Hdfs { role, .. } => {
                 args.push_str(&self.copy_log4j_properties_cmd(
@@ -566,7 +575,7 @@ if [[ -d {LISTENER_VOLUME_DIR} ]]; then
         export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
     done
 fi
-{hadoop_home}/bin/hdfs {role} &
+{hadoop_home}/bin/hdfs {role} {upgrade_args} &
 wait_for_termination $!
 {create_vector_shutdown_file_command}
 "#,
@@ -1317,7 +1326,7 @@ impl From<HdfsRole> for ContainerConfig {
     fn from(role: HdfsRole) -> Self {
         match role {
             HdfsRole::NameNode => Self::Hdfs {
-                role: role.clone(),
+                role,
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
@@ -1327,7 +1336,7 @@ impl From<HdfsRole> for ContainerConfig {
                 metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
             },
             HdfsRole::DataNode => Self::Hdfs {
-                role: role.clone(),
+                role,
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
                 ipc_port_name: SERVICE_PORT_NAME_IPC,
@@ -1337,7 +1346,7 @@ impl From<HdfsRole> for ContainerConfig {
                 metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
             },
             HdfsRole::JournalNode => Self::Hdfs {
-                role: role.clone(),
+                role,
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
                 ipc_port_name: SERVICE_PORT_NAME_RPC,

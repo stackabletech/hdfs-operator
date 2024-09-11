@@ -25,6 +25,9 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   nameNodes:
+    envOverrides:
+      COMMON_VAR: role-value # overridden by role group below
+      ROLE_VAR: role-value   # only defined here at role level
     config:
       listenerClass: {{ test_scenario['values']['listener-class'] }}
       logging:
@@ -32,7 +35,13 @@ spec:
     roleGroups:
       default:
         replicas: 2
+        envOverrides:
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
   dataNodes:
+    envOverrides:
+      COMMON_VAR: role-value # overridden by role group below
+      ROLE_VAR: role-value   # only defined here at role level
     config:
       listenerClass: {{ test_scenario['values']['listener-class'] }}
       logging:
@@ -54,13 +63,22 @@ spec:
 {% endif %}
     roleGroups:
       default:
+        envOverrides:
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
         replicas: {{ test_scenario['values']['number-of-datanodes'] }}
   journalNodes:
+    envOverrides:
+      COMMON_VAR: role-value # overridden by role group below
+      ROLE_VAR: role-value   # only defined here at role level
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
       default:
+        envOverrides:
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
         replicas: 1
         podOverrides:
           spec:

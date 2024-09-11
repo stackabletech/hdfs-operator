@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -22,6 +21,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         rbac::{build_rbac_resources, service_account_name},
     },
+    iter::reverse_if,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -39,16 +39,20 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
-    status::condition::{
-        compute_conditions, operations::ClusterOperationsConditionBuilder,
-        statefulset::StatefulSetConditionBuilder,
+    status::{
+        condition::{
+            compute_conditions, operations::ClusterOperationsConditionBuilder,
+            statefulset::StatefulSetConditionBuilder,
+        },
+        rollout::check_statefulset_rollout_complete,
     },
     time::Duration,
 };
-use strum::{EnumDiscriminants, IntoStaticStr};
+use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use stackable_hdfs_crd::{
     constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
+    UpgradeState, UpgradeStateError,
 };
 
 use crate::{
@@ -82,6 +86,9 @@ pub enum Error {
     InvalidProductConfig {
         source: stackable_operator::product_config_utils::Error,
     },
+
+    #[snafu(display("invalid upgrade state"))]
+    InvalidUpgradeState { source: UpgradeStateError },
 
     #[snafu(display("cannot create rolegroup service {name:?}"))]
     ApplyRoleGroupService {
@@ -323,10 +330,28 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    for (role_name, group_config) in validated_config.iter() {
-        let role: HdfsRole = HdfsRole::from_str(role_name).with_context(|_| InvalidRoleSnafu {
-            role: role_name.to_string(),
-        })?;
+    let upgrade_state = hdfs.upgrade_state().context(InvalidUpgradeStateSnafu)?;
+    let mut deploy_done = true;
+
+    // Roles must be deployed in order during rolling upgrades,
+    // namenode version must be >= datanode version (and so on).
+    let roles = reverse_if(
+        match upgrade_state {
+            // Downgrades have the opposite version relationship, so they need to be rolled out in reverse order.
+            Some(UpgradeState::Downgrading) => {
+                tracing::info!("HdfsCluster is being downgraded, deploying in reverse order");
+                true
+            }
+            _ => false,
+        },
+        HdfsRole::iter(),
+    );
+    'roles: for role in roles {
+        let role_name: &str = role.into();
+        let Some(group_config) = validated_config.get(role_name) else {
+            tracing::debug!(?role, "role has no configuration, skipping");
+            continue;
+        };
 
         if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {
             publish_event(
@@ -354,7 +379,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             let mut metadata = ObjectMetaBuilder::new();
             let metadata = metadata
                 .name_and_namespace(hdfs.as_ref())
-                .name(&rolegroup_ref.object_name())
+                .name(rolegroup_ref.object_name())
                 .ownerreference_from_resource(hdfs.as_ref(), None, Some(true))
                 .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                     obj_ref: ObjectRef::from_obj(hdfs.as_ref()),
@@ -408,14 +433,26 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                     name: rg_configmap_name,
                 })?;
             let rg_statefulset_name = rg_statefulset.name_any();
-            ss_cond_builder.add(
-                cluster_resources
-                    .add(client, rg_statefulset.clone())
-                    .await
-                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                        name: rg_statefulset_name,
-                    })?,
-            );
+            let deployed_rg_statefulset = cluster_resources
+                .add(client, rg_statefulset.clone())
+                .await
+                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                    name: rg_statefulset_name,
+                })?;
+            ss_cond_builder.add(deployed_rg_statefulset.clone());
+            if upgrade_state.is_some() {
+                // When upgrading, ensure that each role is upgraded before moving on to the next as recommended by
+                // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
+                if let Err(reason) = check_statefulset_rollout_complete(&deployed_rg_statefulset) {
+                    tracing::info!(
+                        rolegroup.statefulset = %ObjectRef::from_obj(&deployed_rg_statefulset),
+                        reason = &reason as &dyn std::error::Error,
+                        "rolegroup is still upgrading, waiting..."
+                    );
+                    deploy_done = false;
+                    break 'roles;
+                }
+            }
         }
 
         let role_config = hdfs.role_config(&role);
@@ -459,12 +496,44 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             hdfs.as_ref(),
             &[&ss_cond_builder, &cluster_operation_cond_builder],
         ),
+        // FIXME: We can't currently leave upgrade mode automatically, since we don't know when an upgrade is finalized
+        deployed_product_version: Some(
+            hdfs.status
+                .as_ref()
+                // Keep current version if set
+                .and_then(|status| status.deployed_product_version.as_deref())
+                // Otherwise (on initial deploy) fall back to user's specified version
+                .unwrap_or(hdfs.spec.image.product_version())
+                .to_string(),
+        ),
+        upgrade_target_product_version: match upgrade_state {
+            // User is upgrading, whatever they're upgrading to is (by definition) the target
+            Some(UpgradeState::Upgrading) => Some(hdfs.spec.image.product_version().to_string()),
+            Some(UpgradeState::Downgrading) => {
+                if deploy_done {
+                    // Downgrade is done, clear
+                    tracing::info!("downgrade deployed, clearing upgrade state");
+                    None
+                } else {
+                    // Downgrade is still in progress, preserve the current value
+                    hdfs.status
+                        .as_ref()
+                        .and_then(|status| status.upgrade_target_product_version.clone())
+                }
+            }
+            // Upgrade is complete (if any), clear
+            None => None,
+        },
     };
 
-    cluster_resources
-        .delete_orphaned_resources(client)
-        .await
-        .context(DeleteOrphanedResourcesSnafu)?;
+    // During upgrades we do partial deployments, we don't want to garbage collect after those
+    // since we *will* redeploy (or properly orphan) the remaining resources later.
+    if deploy_done {
+        cluster_resources
+            .delete_orphaned_resources(client)
+            .await
+            .context(DeleteOrphanedResourcesSnafu)?;
+    }
     client
         .apply_patch_status(OPERATOR_NAME, &*hdfs, &status)
         .await
@@ -847,11 +916,14 @@ spec:
       default:
         replicas: 1
   dataNodes:
+    envOverrides:
+      COMMON_VAR: role-value # overridden by role group below
+      ROLE_VAR: role-value   # only defined here at role level
     roleGroups:
       default:
         envOverrides:
-          MY_ENV: my-value
-          HADOOP_HOME: /not/the/default/path
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
         replicas: 1
 ";
         let product_config = "
@@ -870,7 +942,7 @@ properties: []
         let validated_config = validate_all_roles_and_groups_config(
             "3.4.0",
             &config,
-            &ProductConfigManager::from_str(product_config).unwrap(),
+            &product_config.parse::<ProductConfigManager>().unwrap(),
             false,
             false,
         )
@@ -903,33 +975,38 @@ properties: []
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;
-        let main_container = containers
+        let env_vars = containers
             .iter()
             .find(|c| c.name == role.to_string())
+            .unwrap()
+            .env
+            .clone()
             .unwrap();
 
         assert_eq!(
-            main_container
-                .env
-                .clone()
-                .unwrap()
-                .into_iter()
-                .find(|e| e.name == "MY_ENV")
+            env_vars
+                .iter()
+                .find(|e| e.name == "COMMON_VAR")
                 .unwrap()
                 .value,
-            Some("my-value".to_string())
+            Some("group-value".to_string())
         );
 
         assert_eq!(
-            main_container
-                .env
-                .clone()
-                .unwrap()
-                .into_iter()
-                .find(|e| e.name == "HADOOP_HOME")
+            env_vars
+                .iter()
+                .find(|e| e.name == "ROLE_VAR")
                 .unwrap()
                 .value,
-            Some("/not/the/default/path".to_string())
+            Some("role-value".to_string())
+        );
+        assert_eq!(
+            env_vars
+                .iter()
+                .find(|e| e.name == "GROUP_VAR")
+                .unwrap()
+                .value,
+            Some("group-value".to_string())
         );
     }
 }

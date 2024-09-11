@@ -25,7 +25,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: '0'
   CARGO_PROFILE_DEV_DEBUG: '0'
-  RUST_TOOLCHAIN_VERSION: "1.79.0"
+  RUST_TOOLCHAIN_VERSION: "1.80.0"
   RUSTFLAGS: "-D warnings"
   RUSTDOCFLAGS: "-D warnings"
   RUST_LOG: "info"
@@ -57,7 +57,7 @@ jobs:
           key: udeps
           cache-all-crates: "true"
       - uses: stackabletech/cargo-install-action@cargo-udeps
-      - run: cargo udeps --workspace
+      - run: cargo udeps --workspace --all-targets
 
   # This job evaluates the github environment to determine why this action is running and selects the appropriate
   # target repository for published Helm charts based on this.
@@ -368,7 +368,13 @@ jobs:
           make -e build
       - name: Publish Docker image and Helm chart
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: make -e publish
+        run: |
+          # We want to publish helmcharts only once as they have a common name, while still publishing both images with architecture specific tags
+          if [ "$(uname -m)" = "x86_64" ]; then
+            make -e publish
+          else
+            make -e docker-publish
+          fi
         # Output the name of the published image to the Job output for later use
       - id: printtag
         name: Output image name and tag
@@ -424,7 +430,7 @@ jobs:
     steps:
       - name: Install preflight
         run: |
-          wget https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/download/1.9.4/preflight-linux-amd64
+          wget https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/download/1.10.0/preflight-linux-amd64
           chmod +x preflight-linux-amd64
       - name: Check container
         run: |
