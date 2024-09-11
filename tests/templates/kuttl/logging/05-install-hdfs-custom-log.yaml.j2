@@ -62,7 +62,12 @@ metadata:
   name: test-hdfs-custom-log
 spec:
   image:
+{% if test_scenario['values']['hadoop'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hadoop'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hadoop'].split(',')[0] }}"
+{% else %}
     productVersion: "{{ test_scenario['values']['hadoop'] }}"
+{% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
     vectorAggregatorConfigMapName: hdfs-vector-aggregator-discovery
