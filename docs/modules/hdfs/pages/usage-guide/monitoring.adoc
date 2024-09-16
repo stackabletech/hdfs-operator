@@ -1,9 +1,11 @@
 = Monitoring
+:description: The HDFS cluster can be monitored with Prometheus from inside or outside the K8S cluster.
 
 The cluster can be monitored with Prometheus from inside or outside the K8S cluster.
 
-All services (with the exception of the Zookeeper daemon on the node names) run with the JMX exporter agent enabled and expose metrics on the `metrics` port. This port is available from the container level up to the NodePort services.
+All services (with the exception of the Zookeeper daemon on the node names) run with the JMX exporter agent enabled and expose metrics on the `metrics` port.
+This port is available from the container level up to the NodePort services.
 
-The metrics endpoints are also used as liveliness probes by K8S.
+The metrics endpoints are also used as liveliness probes by Kubernetes.
 
 See xref:operators:monitoring.adoc[] for more details.

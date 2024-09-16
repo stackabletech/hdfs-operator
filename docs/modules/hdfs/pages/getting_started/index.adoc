@@ -1,6 +1,8 @@
 = Getting started
+:description: Start with HDFS using the Stackable Operator. Install the Operator, set up your HDFS cluster, and verify its operation with this guide.
 
-This guide will get you started with HDFS using the Stackable Operator. It will guide you through the installation of the Operator and its dependencies, setting up your first HDFS cluster and verifying its operation.
+This guide will get you started with HDFS using the Stackable Operator.
+It will guide you through the installation of the Operator and its dependencies, setting up your first HDFS cluster and verifying its operation.
 
 == Prerequisites
 

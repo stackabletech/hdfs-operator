@@ -1,4 +1,5 @@
 = Installation
+:description: Install the Stackable HDFS operator and dependencies using stackablectl or Helm. Follow steps for setup and verification in Kubernetes.
 
 On this page you will install the Stackable HDFS operator and its dependency, the Zookeeper operator, as well as the
 commons, secret and listener operators which are required by all Stackable operators.

@@ -1,4 +1,5 @@
 = Security
+:description: Secure HDFS with Kerberos authentication and OPA authorization. Use tlsSecretClass for TLS and configure fine-grained access with Rego rules.
 
 == Authentication
 Currently the only supported authentication mechanism is Kerberos, which is disabled by default.
