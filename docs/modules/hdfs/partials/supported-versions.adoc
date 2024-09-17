@@ -2,6 +2,6 @@
 // This is a separate file, since it is used by both the direct HDFS-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
-- 3.4.0 (experimental) - We do ship 3.4.0 but we do _not_ support upgrading to 3.4 at the moment. If you are currently on 3.3 please do not attempt to upgrade but stay on 3.3.
-- 3.3.6 (LTS) - Please note that there is a https://github.com/stackabletech/hdfs-operator/issues/440[known issue] related to NameNode bootstrapping which can happen in rare cases. It is therefore recommended to use `3.3.4` until the problem is resolved.
-- 3.3.4 (LTS)
+- 3.4.0 (LTS)
+- 3.3.6 - Please note that there is a https://github.com/stackabletech/hdfs-operator/issues/440[known issue] related to NameNode bootstrapping which can happen in rare cases.
+- 3.3.4
