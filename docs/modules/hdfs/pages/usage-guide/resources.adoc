@@ -1,4 +1,5 @@
 = Resources
+:description: Configure HDFS storage with PersistentVolumeClaims for custom data volumes and multiple disk types. Set resource requests for HA setups in Kubernetes.
 
 == Storage for data volumes
 

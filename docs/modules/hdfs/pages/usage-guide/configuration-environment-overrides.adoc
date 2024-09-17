@@ -1,21 +1,22 @@
-
 = Configuration & Environment Overrides
+:description: Override HDFS config properties and environment variables per role or role group. Manage settings like DNS cache and environment variables efficiently.
+:java-security-overview: https://docs.oracle.com/en/java/javase/11/security/java-security-overview1.html
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 
-IMPORTANT: Overriding certain properties can lead to faulty clusters. In general this means, do not change ports, hostnames or properties related to data dirs, high-availability or security.
+IMPORTANT: Overriding certain properties can lead to faulty clusters.
+In general this means, do not change ports, hostnames or properties related to data dirs, high-availability or security.
 
 == Configuration Properties
 
 For a role or role group, at the same level of `config`, you can specify `configOverrides` for the following files:
 
-- `hdfs-site.xml`
-- `core-site.xml`
-- `hadoop-policy.xml`
-- `ssl-server.xml`
-- `ssl-client.xml`
-- `security.properties`
-
+* `hdfs-site.xml`
+* `core-site.xml`
+* `hadoop-policy.xml`
+* `ssl-server.xml`
+* `ssl-client.xml`
+* `security.properties`
 
 For example, if you want to set additional properties on the namenode servers, adapt the `nameNodes` section of the cluster resource like so:
 
@@ -51,13 +52,17 @@ nameNodes:
 
 All override property values must be strings. The properties will be formatted and escaped correctly into the XML file.
 
-For a full list of configuration options we refer to the Apache Hdfs documentation for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs-site.xml] and https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/core-default.xml[core-site.xml]
+For a full list of configuration options we refer to the Apache Hdfs documentation for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs-site.xml] and https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/core-default.xml[core-site.xml].
 
 === The security.properties file
 
-The `security.properties` file is used to configure JVM security properties. It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
+The `security.properties` file is used to configure JVM security properties.
+It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
 
-The JVM manages it's own cache of successfully resolved host names as well as a cache of host names that cannot be resolved. Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them. As of version 3.3.4 HDFS performs poorly if the positive cache is disabled. To cache resolved host names, and thus speeding up Hbase queries you can configure the TTL of entries in the positive cache like this:
+The JVM manages it's own cache of successfully resolved host names as well as a cache of host names that cannot be resolved.
+Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them.
+As of version 3.3.4 HDFS performs poorly if the positive cache is disabled.
+To cache resolved host names, and thus speeding up Hbase queries you can configure the TTL of entries in the positive cache like this:
 
 [source,yaml]
 ----
@@ -80,12 +85,13 @@ The JVM manages it's own cache of successfully resolved host names as well as a 
 
 NOTE: The operator configures DNS caching by default as shown in the example above.
 
-For details on the JVM security see https://docs.oracle.com/en/java/javase/11/security/java-security-overview1.html
+For details on the JVM security consult the {java-security-overview}[Java Security overview documentation].
 
 
 == Environment Variables
 
-In a similar fashion, environment variables can be (over)written. For example per role group:
+In a similar fashion, environment variables can be (over)written.
+For example per role group:
 
 [source,yaml]
 ----

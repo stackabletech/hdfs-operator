@@ -1,5 +1,5 @@
 = Stackable Operator for Apache HDFS
-:description: The Stackable Operator for Apache HDFS is a Kubernetes operator that can manage Apache HDFS clusters. Learn about its features, resources, dependencies and demos, and see the list of supported HDFS versions.
+:description: Manage Apache HDFS with the Stackable Operator for Kubernetes. Set up clusters, configure roles, and explore demos and supported versions.
 :keywords: Stackable Operator, Hadoop, Apache HDFS, Kubernetes, k8s, operator, big data, metadata, storage, cluster, distributed storage
 :hdfs-docs: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html
 :github: https://github.com/stackabletech/hdfs-operator/

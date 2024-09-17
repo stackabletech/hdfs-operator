@@ -1,12 +1,14 @@
 = Upgrading HDFS
+:description: Upgrade HDFS with the Stackable Operator: Prepare, initiate, and finalize upgrades. Rollback and downgrade supported.
 
-IMPORTANT: HDFS upgrades are experimental, and details may change at any time
+IMPORTANT: HDFS upgrades are experimental, and details may change at any time.
 
 HDFS currently requires a manual process to upgrade. This guide will take you through an example case, upgrading an example cluster (from our xref:getting_started/index.adoc[Getting Started] guide) from HDFS 3.3.6 to 3.4.0.
 
 == Preparing for the worst
 
-Upgrades can fail, and it is important to prepare for when that happens. Apache HDFS supports https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Downgrade_and_Rollback[two ways to revert an upgrade]:
+Upgrades can fail, and it is important to prepare for when that happens.
+Apache HDFS supports https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Downgrade_and_Rollback[two ways to revert an upgrade]:
 
 Rollback:: Reverts all user data to the pre-upgrade state. Requires taking the cluster offline.
 Downgrade:: Downgrades the HDFS software but preserves all changes made by users. Can be performed as a rolling change, keeping the cluster online.
@@ -23,7 +25,8 @@ hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 
 == Preparing HDFS
 
-HDFS must be configured to initiate the upgrade process. To do this, put the cluster into upgrade mode by running the following commands in an HDFS superuser environment
+HDFS must be configured to initiate the upgrade process.
+To do this, put the cluster into upgrade mode by running the following commands in an HDFS superuser environment
 (either a client configured with a superuser account, or from inside a NameNode pod):
 
 // This could be automated by the operator, but dfsadmin does not have good machine-readable output.
@@ -92,7 +95,8 @@ Rolling upgrade is finalized.
 
 // We can't safely automate this, because finalize is asynchronous and doesn't tell us whether all NameNodes have even received the request to finalize.
 
-WARNING: Please ensure that all NameNodes are running and available before proceeding. NameNodes that have not finalized yet will crash on launch when taken out of compatibility mode.
+WARNING: Please ensure that all NameNodes are running and available before proceeding.
+NameNodes that have not finalized yet will crash on launch when taken out of compatibility mode.
 
 Finally, mark the cluster as upgraded:
 

@@ -1,4 +1,7 @@
 = Usage guide
+:description: Learn to configure and use the Stackable Operator for Apache HDFS. Ensure basic setup knowledge from the Getting Started guide before proceeding.
 :page-aliases: ROOT:usage.adoc
 
-This Section will help you to use and configure the Stackable Operator for Apache HDFS in various ways. You should already be familiar with how to set up a basic instance. Follow the xref:getting_started/index.adoc[] guide to learn how to set up a basic instance with all the required dependencies (for example ZooKeeper).
+This Section will help you to use and configure the Stackable Operator for Apache HDFS in various ways.
+You should already be familiar with how to set up a basic instance.
+Follow the xref:getting_started/index.adoc[] guide to learn how to set up a basic instance with all the required dependencies (for example ZooKeeper).

@@ -1,3 +1,4 @@
 = Scaling
+:description: When scaling namenodes up, make sure to increase the replica count only by one and not more nodes at once.
 
 When scaling namenodes up, make sure to increase the replica count only by one and not more nodes at once.

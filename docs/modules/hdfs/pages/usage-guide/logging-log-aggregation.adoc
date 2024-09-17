@@ -1,7 +1,7 @@
 = Logging & log aggregation
+:description: The logs can be forwarded to a Vector log aggregator by providing a discovery ConfigMap for the aggregator and by enabling the log agent.
 
-The logs can be forwarded to a Vector log aggregator by providing a discovery
-ConfigMap for the aggregator and by enabling the log agent:
+The logs can be forwarded to a Vector log aggregator by providing a discovery ConfigMap for the aggregator and by enabling the log agent:
 
 [source,yaml]
 ----
