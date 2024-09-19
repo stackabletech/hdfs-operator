@@ -1264,7 +1264,7 @@ wait_for_termination $!
                 name: "ZOOKEEPER".to_string(),
                 value_from: Some(EnvVarSource {
                     config_map_key_ref: Some(ConfigMapKeySelector {
-                        name: Some(String::from(zk_config_map_name)),
+                        name: String::from(zk_config_map_name),
                         key: "ZOOKEEPER".to_string(),
                         ..ConfigMapKeySelector::default()
                     }),
@@ -1287,7 +1287,7 @@ wait_for_termination $!
             volumes.push(
                 VolumeBuilder::new(config_volume_name)
                     .config_map(ConfigMapVolumeSource {
-                        name: Some(object_name.to_string()),
+                        name: object_name.to_string(),
                         ..ConfigMapVolumeSource::default()
                     })
                     .build(),
@@ -1302,7 +1302,7 @@ wait_for_termination $!
                 volumes.push(
                     VolumeBuilder::new(log_volume_name)
                         .config_map(ConfigMapVolumeSource {
-                            name: Some(config_map.clone()),
+                            name: config_map.clone(),
                             ..ConfigMapVolumeSource::default()
                         })
                         .build(),
@@ -1311,7 +1311,7 @@ wait_for_termination $!
                 volumes.push(
                     VolumeBuilder::new(log_volume_name)
                         .config_map(ConfigMapVolumeSource {
-                            name: Some(object_name.to_string()),
+                            name: object_name.to_string(),
                             ..ConfigMapVolumeSource::default()
                         })
                         .build(),
