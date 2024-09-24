@@ -1,18 +1,17 @@
 = HDFS Rack Awareness
+:rack-awareness-docs: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/RackAwareness.html
+:hdfs-topology-provider: https://github.com/stackabletech/hdfs-topology-provider
 
-Apache Hadoop supports a feature called Rack Awareness, which allows users to define a topology for the nodes making up a cluster.
-Hadoop then uses that topology to spread out replicas of blocks in a fashion that maximizes fault tolerance.
+{rack-awareness-docs}[Rack awareness] is a feature in Apache Hadoop that allows users to define a cluster's node topology.
+Hadoop uses that topology to distribute block replicas in a way that maximizes fault tolerance.
 
-The default write path, for example, is to put replicas of a newly created block first on a different node, but within the same rack, and the second copy on a node in a remote rack.
-In order for this to work properly, Hadoop needs to have access to the information about the underlying infrastructure it runs on. In a Kubernetes environment, this means obtaining information from the pods or nodes of the cluster.
+For example, when a new block is created, the default behavior is to place one replica on a different node within the same rack, and another on a node in a remote rack.
+To do this effectively, Hadoop must access information about the underlying infrastructure.
+In a Kubernetes environment, this involves retrieving data from Pods or Nodes in the cluster.
 
-In order to enable gathering this information the Hadoop images contain https://github.com/stackabletech/hdfs-topology-provider on the classpath, which can be configured to read labels from Kubernetes objects.
+== Configuring rack awareness
 
-In the current version of the SDP this is now exposed as fully integrated functionality in the operator, and no longer needs to be configured via config overrides.
-
-NOTE: Prior to SDP release 24.3, it was necessary to manually deploy RBAC objects to allow the Hadoop pods access to the necessary Kubernetes objects. This ClusterRole allows the reading of pods and nodes and needs to be bound to the individual ServiceAccounts that are deployed per Hadoop cluster: this is now performed by the operator itself.
-
-Configuration of the tool is done by using the field `rackAwareness` under the cluster configuration:
+To configure rack awareness, use the `rackAwareness` field in the cluster configuration:
 
 [source,yaml]
 ----
@@ -29,4 +28,10 @@ spec:
     ...
 ----
 
-Internally this is used to create a topology label consisting of the value of the node label `topology.kubernetes.io/zone` and the pod label `app.kubernetes.io/role-group`, e.g. `/eu-central-1/rg1`.
+This creates an internal topology label by combining the values of the `topology.kubernetes.io/zone` Node label and the `app.kubernetes.io/role-group` Pod label (e.g. `/eu-central-1/rg1`).
+
+== How it works
+
+In order to enable gathering this information the Hadoop images contain the {hdfs-topology-provider}[hdfs-topology-provider] on the classpath, which can be configured to read labels from Kubernetes objects.
+
+The operator deploys ClusterRoles and ServicesAccounts with the relevant RBAC rules to allow the Hadoop Pod to access the necessary Kubernetes objects.
