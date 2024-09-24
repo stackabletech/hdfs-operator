@@ -53,7 +53,7 @@ nameNodes:
 All override property values must be strings.
 The properties are formatted and escaped correctly into the XML file.
 
-For a full list of configuration options we refer to the Apache Hdfs documentation for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs-site.xml] and https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/core-default.xml[core-site.xml].
+For a full list of configuration options refer to the Apache Hdfs documentation for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs-site.xml] and https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/core-default.xml[core-site.xml].
 
 === The security.properties file
 

@@ -56,7 +56,7 @@ There is an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templ
 
 == Authorization
 For authorization we developed https://github.com/stackabletech/hdfs-utils[hdfs-utils], which contains an OPA authorizer and group mapper.
-This matches our general xref:concepts:opa.adoc[] mechanisms.
+This matches the general xref:concepts:opa.adoc[] mechanisms.
 
 IMPORTANT: It is recommended to enable Kerberos when doing Authorization, as otherwise you don't have any security measures at all.
 There still might be cases where you want authorization on top of a cluster without authentication, as you don't want to accidentally drop files and therefore use different users for different use-cases.

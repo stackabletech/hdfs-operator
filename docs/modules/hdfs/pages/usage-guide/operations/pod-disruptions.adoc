@@ -3,7 +3,7 @@
 
 You can configure the permitted Pod disruptions for HDFS nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
 
-Unless you configure something else or disable our PodDisruptionBudgets (PDBs), the operator write the following PDBs:
+Unless you configure something else or disable the default PodDisruptionBudgets (PDBs), the operator writes the following PDBs:
 
 == JournalNodes
 Only a single JournalNode is allowed to be offline at any given time, regardless of the number of replicas or `roleGroups`.
@@ -20,7 +20,7 @@ The default replication factor is `3` - which can be configured using `spec.clus
 When you have a replication of `3`, you can safely take down 2 DataNodes, as there is always a third DataNode holding a copy of each block currently assigned to one of the unavailable DataNodes.
 However, you need to be aware that you are now down to a single point of failure -- the last of three replicas!
 
-Taking this into consideration, our operator uses the following algorithm to determine the maximum number of DataNodes allowed to be unavailable at the same time:
+Taking this into consideration, the operator uses the following algorithm to determine the maximum number of DataNodes allowed to be unavailable at the same time:
 
 `num_datanodes` is the number of DataNodes in the HDFS cluster, summed over all `roleGroups`.
 
