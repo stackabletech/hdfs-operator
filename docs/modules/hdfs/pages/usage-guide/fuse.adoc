@@ -1,11 +1,9 @@
 = FUSE
 :description: Use HDFS FUSE driver to mount HDFS filesystems into Linux environments via a Kubernetes Pod with necessary privileges and configurations.
 
-Our images of Apache Hadoop do contain the necessary binaries and libraries to use the HDFS FUSE driver.
+HDFS contains a native FUSE driver/application, enabling you to mout an existing HDFS filesystem into a Linux environment.
 
-FUSE is short for _Filesystem in Userspace_ and allows a user to export a filesystem into the Linux kernel, which can then be mounted.
-HDFS contains a native FUSE driver/application, which means that an existing HDFS filesystem can be mounted into a Linux environment.
-
+Stackable images of Apache Hadoop contain the necessary binaries and libraries to use the HDFS FUSE driver.
 To use the FUSE driver you can either copy the required files out of the image and run it on a host outside of Kubernetes or you can run it in a Pod.
 This Pod, however, needs some extra capabilities.
 
@@ -39,8 +37,9 @@ spec:
       configMap:
         name: <your hdfs here> <2>
 ----
-<1> Ideally use the same version your HDFS is using. FUSE is baked in to our images as of SDP 23.11.
-<2> This needs to be a reference to a discovery ConfigMap as written by our HDFS operator.
+<1> Ideally use the same version your HDFS is using.
+    Stackable HDFS images contain the FUSE driver since 23.11.
+<2> This needs to be a reference to a discovery ConfigMap as written by the HDFS operator.
 
 [TIP]
 .Privileged Pods
