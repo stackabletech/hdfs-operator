@@ -52,7 +52,7 @@ You should get the error message `org.apache.hadoop.security.AccessControlExcept
 
 === 5. Access HDFS
 In case you want to access your HDFS it is recommended to start up a client Pod that connects to HDFS, rather than shelling into the namenode.
-We have an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/20-access-hdfs.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
+There is an https://github.com/stackabletech/hdfs-operator/blob/main/tests/templates/kuttl/kerberos/20-access-hdfs.yaml.j2[integration test] for this exact purpose, where you can see how to connect and get a valid keytab.
 
 == Authorization
 For authorization we developed https://github.com/stackabletech/hdfs-utils[hdfs-utils], which contains an OPA authorizer and group mapper.
@@ -69,9 +69,9 @@ In addition to this you need a OpaCluster that serves the rego rules - this guid
 include::example$usage-guide/hdfs-regorules.yaml[]
 ----
 
-This rego rule is intended for demonstration purposes and allows every operation.
-For a production setup you will probably need to have something much more granular.
-We provide a more representative rego rule in our integration tests and in the aforementioned hdfs-utils repository.
+This Rego rule is for demonstration purposes and allows all operations.
+For production, you'll need a much more granular rule setup.
+A more representative rego rule is available in our integration tests and in the aforementioned hdfs-utils repository.
 Details can be found below in the <<fine-granular-rego-rules, fine-granular rego rules>> section.
 Reference the rego rule as follows in your HdfsCluster:
 
@@ -87,19 +87,19 @@ spec:
 
 === How it works
 WARNING: Take all your knowledge about HDFS authorization and throw it in the bin.
-The approach we are taking for our authorization paradigm departs significantly from traditional Hadoop patterns and POSIX-style permissions.
+The approach taken for the authorization paradigm here departs significantly from traditional Hadoop patterns and POSIX-style permissions.
 
 In short, the current rego rules ignore the file ownership, permissions, ACLs and all other attributes files can have.
 All of this is state in HDFS and clashes with the infrastructure-as-code approach (IaC).
 
-Instead, HDFS will send a request detailing who (e.g. `alice/test-hdfs-permissions.default.svc.cluster.local@CLUSTER.LOCAL`) is trying to do what (e.g. `open`, `create`, `delete` or `append`) on what file (e.g. `/foo/bar`).
+Instead, HDFS sends a request detailing who (e.g. `alice/test-hdfs-permissions.default.svc.cluster.local@CLUSTER.LOCAL`) is trying to do what (e.g. `open`, `create`, `delete` or `append`) on what file (e.g. `/foo/bar`).
 OPA then makes a decision if this action is allowed or not.
 
 Instead of `chown`-ing a directory to a different user to assign write permissions, you should go to your IaC Git repository and add a rego rule entry specifying that the user is allowed to read and write to that directory.
 
 === Group memberships
 We encountered several challenges while implementing the group mapper, the most serious of which being that the `GroupMappingServiceProvider` interface only passes the `shortUsername` when https://github.com/apache/hadoop/blob/a897e745f598ef05fc0c253b2a776100e48688d2/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/security/GroupMappingServiceProvider.java#L45[asking for group memberships].
-This does not allow us to differentiate between e.g. `hbase/hbase-prod.prod-namespace.svc.cluster.local@CLUSTER.LOCAL` and `hbase/hbase-dev.dev-namespace.svc.cluster.local@CLUSTER.LOCAL`, as the GroupMapper will get asked for `hbase` group memberships in both cases.
+This does not allow us to differentiate between e.g. `hbase/hbase-prod.prod-namespace.svc.cluster.local@CLUSTER.LOCAL` and `hbase/hbase-dev.dev-namespace.svc.cluster.local@CLUSTER.LOCAL`, as the GroupMapper gets asked for `hbase` group memberships in both cases.
 
 Users could work around this to assign unique shortNames by using https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SecureMode.html#Mapping_from_Kerberos_principals_to_OS_user_accounts[`hadoop.security.auth_to_local`].
 This is however a potentially complex and error-prone process.
@@ -109,7 +109,7 @@ However, this did not work, as HDFS only allows "simple usernames", https://gith
 Because of these issues we do not use a custom GroupMapper and only rely on the authorizer, which in turn receives a complete `UserGroupInformation` object, including the `shortUserName` and the precious full `userName`.
 This has the downside that the group memberships used in OPA for authorization are not known to HDFS.
 The implication is thus that you cannot add users to the `superuser` group, which is needed for certain administrative actions in HDFS.
-We have decided that this is an acceptable approach as normal operations will not be affected.
+We have decided that this is an acceptable approach as normal operations are not affected.
 In case you really need users to be part of the `superusers` group, you can use a configOverride on `hadoop.user.group.static.mapping.overrides` for that.
 
 [#fine-granular-rego-rules]
@@ -233,7 +233,7 @@ matches the resource on
 
 [source]
 ----
-# Resource mentions a folder higher up the tree, which will will grant access recursively
+# Resource mentions a folder higher up the tree, which grants access recursively
 matches_resource(file, resource) if {
     startswith(resource, "hdfs:dir:/")
     # directories need to have a trailing slash

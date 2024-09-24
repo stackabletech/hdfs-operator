@@ -18,9 +18,7 @@ The operator depends on the xref:zookeeper:index.adoc[] to operate a ZooKeeper c
 
 == Getting started
 
-Follow the xref:getting_started/index.adoc[Getting started guide] which will guide you through installing the Stackable
-HDFS and ZooKeeper operators, setting up ZooKeeper and HDFS and writing a file to HDFS to verify that everything is set
-up correctly.
+Follow the xref:getting_started/index.adoc[Getting started guide] which guides you through installing the Stackable HDFS and ZooKeeper operators, setting up ZooKeeper and HDFS and writing a file to HDFS to verify that everything is set up correctly.
 
 Afterwards you can consult the xref:usage-guide/index.adoc[] to learn more about tailoring your HDFS configuration to
 your needs, or have a look at the <<demos, demos>> for some example setups.

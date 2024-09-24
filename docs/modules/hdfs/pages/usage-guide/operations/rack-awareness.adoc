@@ -1,7 +1,7 @@
 = HDFS Rack Awareness
 
 Apache Hadoop supports a feature called Rack Awareness, which allows users to define a topology for the nodes making up a cluster.
-Hadoop will then use that topology to spread out replicas of blocks in a fashion that maximizes fault tolerance.
+Hadoop then uses that topology to spread out replicas of blocks in a fashion that maximizes fault tolerance.
 
 The default write path, for example, is to put replicas of a newly created block first on a different node, but within the same rack, and the second copy on a node in a remote rack.
 In order for this to work properly, Hadoop needs to have access to the information about the underlying infrastructure it runs on. In a Kubernetes environment, this means obtaining information from the pods or nodes of the cluster.
@@ -29,4 +29,4 @@ spec:
     ...
 ----
 
-Internally this will be used to create a topology label consisting of the value of the node label `topology.kubernetes.io/zone` and the pod label `app.kubernetes.io/role-group`, e.g. `/eu-central-1/rg1`.
+Internally this is used to create a topology label consisting of the value of the node label `topology.kubernetes.io/zone` and the pod label `app.kubernetes.io/role-group`, e.g. `/eu-central-1/rg1`.

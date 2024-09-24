@@ -1,18 +1,18 @@
 = Getting started
 :description: Start with HDFS using the Stackable Operator. Install the Operator, set up your HDFS cluster, and verify its operation with this guide.
 
-This guide will get you started with HDFS using the Stackable Operator.
-It will guide you through the installation of the Operator and its dependencies, setting up your first HDFS cluster and verifying its operation.
+This guide gets you started with HDFS using the Stackable operator.
+It guides you through the installation of the operator and its dependencies, setting up your first HDFS cluster and verifying its operation.
 
 == Prerequisites
 
-You will need:
+You need:
 
 * a Kubernetes cluster
 * kubectl
 * optional: Helm
 
-Resource sizing depends on cluster type(s), usage and scope, but as a starting point we recommend a minimum of the following resources for this operator:
+Resource sizing depends on cluster type(s), usage and scope, but as a starting point the following resources are recommended as a minium requirement for this operator:
 
 * 0.2 cores (e.g. i5 or similar)
 * 256MB RAM

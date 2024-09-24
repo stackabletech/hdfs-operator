@@ -1,7 +1,7 @@
 = First steps
 :description: Deploy and verify an HDFS cluster with Stackable by setting up Zookeeper and HDFS components, then test file operations using WebHDFS API.
 
-Once you have followed the steps in the xref:getting_started/installation.adoc[] section to install the operator and its dependencies, you will now deploy an HDFS cluster and its dependencies.
+Once you have followed the steps in the xref:getting_started/installation.adoc[] section to install the operator and its dependencies, now deploy an HDFS cluster and its dependencies.
 Afterward, you can <<_verify_that_it_works, verify that it works>> by creating, verifying and deleting a test file in HDFS.
 
 == Setup
@@ -13,7 +13,7 @@ To deploy a Zookeeper cluster create one file called `zk.yaml`:
 [source,yaml]
 include::example$getting_started/zk.yaml[]
 
-We also need to define a ZNode that will be used by the HDFS cluster to reference Zookeeper.
+Define a ZNode that is used by the HDFS cluster to reference Zookeeper.
 Create another file called `znode.yaml`:
 
 [source,yaml]
@@ -94,7 +94,7 @@ Then use `curl` to issue a `PUT` command:
 [source]
 include::example$getting_started/getting_started.sh[tag=create-file]
 
-This will return a location that will look something like this:
+This returns a location that looks similar to this:
 
 [source]
 http://simple-hdfs-datanode-default-0.simple-hdfs-datanode-default.default.svc.cluster.local:9864/webhdfs/v1/testdata.txt?op=CREATE&user.name=stackable&namenoderpcaddress=simple-hdfs&createflag=&createparent=true&overwrite=false
@@ -109,7 +109,7 @@ Rechecking the status again with:
 [source]
 include::example$getting_started/getting_started.sh[tag=file-status]
 
-will now display some metadata about the file that was created in the HDFS cluster:
+now displays some metadata about the file that was created in the HDFS cluster:
 
 [source,json]
 {

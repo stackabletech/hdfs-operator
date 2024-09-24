@@ -19,4 +19,4 @@ spec:
       listenerClass: external-stable # <2>
 ----
 <1> DataNode listeners should prioritize having a direct connection, to minimize network transfer overhead.
-<2> NameNode listeners should prioritize having a stable address, since they will be baked into the client configuration.
+<2> NameNode listeners should prioritize having a stable address, since they are baked into the client configuration.

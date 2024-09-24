@@ -7,9 +7,9 @@ FUSE is short for _Filesystem in Userspace_ and allows a user to export a filesy
 HDFS contains a native FUSE driver/application, which means that an existing HDFS filesystem can be mounted into a Linux environment.
 
 To use the FUSE driver you can either copy the required files out of the image and run it on a host outside of Kubernetes or you can run it in a Pod.
-This Pod, however, will need some extra capabilities.
+This Pod, however, needs some extra capabilities.
 
-This is an example Pod that will work _as long as the host system that is running the kubelet does support FUSE_:
+This is an example Pod that works _as long as the host system that is running the kubelet does support FUSE_:
 
 [source,yaml]
 ----
@@ -57,7 +57,7 @@ securityContext:
 ----
 
 Unfortunately, there is no way around some extra privileges.
-In Kubernetes the Pods usually share the Kernel with the host running the Kubelet, which means a Pod wanting to use FUSE will need access to the underlying Kernel modules.
+In Kubernetes the Pods usually share the Kernel with the host running the Kubelet, which means a Pod wanting to use FUSE needs access to the underlying Kernel modules.
 ====
 
 Inside this Pod you can get a shell (e.g. using `kubectl exec --stdin --tty hdfs-fuse -- /bin/bash`) to get access to a script called `fuse_dfs_wrapper` (it is in the `PATH` of our Hadoop images).
@@ -70,14 +70,14 @@ To mount HDFS call the script like this:
 ----
 fuse_dfs_wrapper dfs://<your hdfs> <target> <1> <2>
 
-# This will run in debug mode and stay in the foreground
+# This runs in debug mode and stays in the foreground
 fuse_dfs_wrapper -odebug dfs://<your hdfs> <target>
 
 # Example:
 mkdir simple-hdfs
 fuse_dfs_wrapper dfs://simple-hdfs simple-hdfs
 cd simple-hdfs
-# Any operations in this directory will now happen in HDFS
+# Any operations in this directory now happens in HDFS
 ----
 <1> Again, use the name of the HDFS service as above
-<2> `target` is the directory in which HDFS will be mounted, it must exist otherwise this command will fail
+<2> `target` is the directory in which HDFS is mounted, it must exist otherwise this command fails

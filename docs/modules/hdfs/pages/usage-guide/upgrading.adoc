@@ -3,7 +3,8 @@
 
 IMPORTANT: HDFS upgrades are experimental, and details may change at any time.
 
-HDFS currently requires a manual process to upgrade. This guide will take you through an example case, upgrading an example cluster (from our xref:getting_started/index.adoc[Getting Started] guide) from HDFS 3.3.6 to 3.4.0.
+HDFS currently requires a manual process to upgrade.
+This guide takes you through an example case, upgrading an example cluster (from our xref:getting_started/index.adoc[Getting Started] guide) from HDFS 3.3.6 to 3.4.0.
 
 == Preparing for the worst
 
@@ -13,7 +14,7 @@ Apache HDFS supports https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/h
 Rollback:: Reverts all user data to the pre-upgrade state. Requires taking the cluster offline.
 Downgrade:: Downgrades the HDFS software but preserves all changes made by users. Can be performed as a rolling change, keeping the cluster online.
 
-The Stackable Operator for HDFS supports downgrading but not rollbacks.
+The Stackable operator for HDFS supports downgrading but not rollbacks.
 
 In order to downgrade, revert the `.spec.image.productVersion` field, and then proceed to xref:#finalize[finalizing] once the cluster is downgraded:
 
@@ -74,9 +75,9 @@ hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 
 Then wait until all pods have restarted, are in the Ready state, and running the new HDFS version.
 
-NOTE: This will automatically enable the NameNodes' compatibility mode, allowing them to start despite the fsImage version mismatch.
+NOTE: This automatically enables the NameNodes' compatibility mode, allowing them to start despite the fsImage version mismatch.
 
-NOTE: Services will be upgraded in order: JournalNodes, then NameNodes, then DataNodes.
+NOTE: Services are upgraded in order: JournalNodes, then NameNodes, then DataNodes.
 
 [#finalize]
 == Finalizing the upgrade
@@ -96,7 +97,7 @@ Rolling upgrade is finalized.
 // We can't safely automate this, because finalize is asynchronous and doesn't tell us whether all NameNodes have even received the request to finalize.
 
 WARNING: Please ensure that all NameNodes are running and available before proceeding.
-NameNodes that have not finalized yet will crash on launch when taken out of compatibility mode.
+NameNodes that have not finalized yet crash on launch when taken out of compatibility mode.
 
 Finally, mark the cluster as upgraded:
 
@@ -106,6 +107,6 @@ $ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"depl
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 
-NOTE: `deployedProductVersion` is located in the _status_ subresource, which will not be modified by most graphical editors, and `kubectl` requires the `--subresource=status` flag.
+NOTE: `deployedProductVersion` is located in the _status_ subresource, which is not modified by most graphical editors, and `kubectl` requires the `--subresource=status` flag.
 
-The NameNodes will then be restarted a final time, taking them out of compatibility mode.
+The NameNodes are then restarted a final time, taking them out of compatibility mode.
