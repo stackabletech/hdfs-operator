@@ -17,8 +17,8 @@ HDFS stores your blocks on the DataNodes.
 Every block can be replicated multiple times (to multiple DataNodes) to ensure maximum availability.
 The default replication factor is `3` - which can be configured using `spec.clusterConfig.dfsReplication`. However, it is also possible to change the replication factor for a specific file or directory to something other than the cluster default.
 
-When you have a replication of `3`, you can safely take down 2 DataNodes, as there is always a third DataNode holding a copy of each block currently assigned to one of the unavailable DataNodes.
-However, you need to be aware that you are now down to a single point of failure -- the last of three replicas!
+With a replication of `3`, at most 2 data nodes may be down, as the third one is holding a copy of each block currently assigned to the unavailable nodes.
+However, the last data node running is now a single point of failure -- the last of three replicas!
 
 Taking this into consideration, the operator uses the following algorithm to determine the maximum number of DataNodes allowed to be unavailable at the same time:
 
