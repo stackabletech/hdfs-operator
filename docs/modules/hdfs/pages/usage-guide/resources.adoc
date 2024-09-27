@@ -5,7 +5,7 @@
 
 You can mount volumes where data is stored by specifying https://kubernetes.io/docs/concepts/storage/persistent-volumes[PersistentVolumeClaims] for each individual role group.
 
-In case nothing is configured in the custom resource for a certain role group, each Pod has one volume mount with `10Gi` capacity and storage type `Disk`:
+By default, each Pod has one volume mount with `10Gi` capacity and storage type `Disk`:
 
 [source,yaml]
 ----
