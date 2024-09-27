@@ -22,5 +22,4 @@ spec:
         enableVectorAgent: true
 ----
 
-Further information on how to configure logging, can be found in
-xref:concepts:logging.adoc[].
+Further information on how to configure logging, can be found in xref:concepts:logging.adoc[].

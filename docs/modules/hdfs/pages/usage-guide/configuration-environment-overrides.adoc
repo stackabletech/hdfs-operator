@@ -50,9 +50,10 @@ nameNodes:
       replicas: 2
 ----
 
-All override property values must be strings. The properties will be formatted and escaped correctly into the XML file.
+All override property values must be strings.
+The properties are formatted and escaped correctly into the XML file.
 
-For a full list of configuration options we refer to the Apache Hdfs documentation for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs-site.xml] and https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/core-default.xml[core-site.xml].
+For a full list of configuration options refer to the Apache Hdfs documentation for https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs-site.xml] and https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/core-default.xml[core-site.xml].
 
 === The security.properties file
 
@@ -117,4 +118,10 @@ nameNodes:
       replicas: 1
 ----
 
-IMPORTANT: Some environment variables will be overriden by the operator and cannot be set manually by the user. These are `HADOOP_HOME`, `HADOOP_CONF_DIR`, `POD_NAME` and `ZOOKEEPER`.
+IMPORTANT: Some environment variables are overridden by the operator and cannot be set manually by the user.
+These are `HADOOP_HOME`, `HADOOP_CONF_DIR`, `POD_NAME` and `ZOOKEEPER`.
+
+== Pod overrides
+
+The HDFS operator also supports Pod overrides, allowing you to override any property that you can set on a Kubernetes Pod.
+Read the xref:concepts:overrides.adoc#pod-overrides[Pod overrides documentation] to learn more about this feature.

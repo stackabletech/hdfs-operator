@@ -5,7 +5,7 @@
 
 You can mount volumes where data is stored by specifying https://kubernetes.io/docs/concepts/storage/persistent-volumes[PersistentVolumeClaims] for each individual role group.
 
-In case nothing is configured in the custom resource for a certain role group, each Pod will have one volume mount with `10Gi` capacity and storage type `Disk`:
+By default, each Pod has one volume mount with `10Gi` capacity and storage type `Disk`:
 
 [source,yaml]
 ----
@@ -35,7 +35,7 @@ dataNodes:
               capacity: 128Gi
 ----
 
-In the above example, all DataNodes in the default group will store data (the location of `dfs.datanode.name.dir`) on a `128Gi` volume.
+In the above example, all DataNodes in the default group store data (the location of `dfs.datanode.name.dir`) on a `128Gi` volume.
 
 === Multiple storage volumes
 
@@ -61,13 +61,13 @@ dataNodes:
               capacity: 5Ti
               storageClass: premium-ssd
               hdfsStorageType: SSD
-            # The default "data" PVC will still be created.
+            # The default "data" PVC is still created.
             # If this is not desired then the count must be set to 0.
             data:
               count: 0
 ----
 
-This will create the following PVCs:
+This creates the following PVCs:
 
 1. `my-disks-hdfs-datanode-default-0` (12Ti)
 2. `my-disks-1-hdfs-datanode-default-0` (12Ti)
@@ -81,7 +81,7 @@ By configuring and using a dedicated https://kubernetes.io/docs/concepts/storage
 ====
 You might need to re-create the StatefulSet to apply the new PVC configuration because of https://github.com/kubernetes/kubernetes/issues/68737[this Kubernetes issue].
 You can delete the StatefulSet using `kubectl delete statefulsets --cascade=orphan <statefulset>`.
-The hdfs-operator will re-create the StatefulSet automatically.
+The hdfs-operator recreates the StatefulSet automatically.
 ====
 
 == Resource Requests
