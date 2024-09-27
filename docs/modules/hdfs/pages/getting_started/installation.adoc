@@ -6,7 +6,7 @@ Install the Stackable HDFS operator and its dependency, the Zookeeper operator, 
 commons, secret and listener operators which are required by all Stackable operators.
 
 There are multiple ways to install the Stackable operators.
-xref:management:stackablectl:index.adoc[] is the preferred way but Helm is also supported.
+xref:management:stackablectl:index.adoc[] is the preferred way, but Helm is also supported.
 OpenShift users may prefer installing the operator from the RedHat Certified Operator catalog using the OpenShift web console.
 
 [tabs]
