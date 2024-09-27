@@ -8,7 +8,7 @@ As a default, JournalNodes have `15 minutes` to shut down gracefully.
 
 The JournalNode process receives a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
 It logs the received signal as shown in the log below and initiate a graceful shutdown.
-After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes issues a `SIGKILL` signal.
+After the graceful shutdown timeout runs out, and the process is still running, Kubernetes issues a `SIGKILL` signal.
 
 https://github.com/apache/hadoop/blob/a585a73c3e02ac62350c136643a5e7f6095a3dbb/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/qjournal/server/JournalNode.java#L272[This] is the relevant code that gets executed in the JournalNodes as of HDFS version `3.3.4`.
 
