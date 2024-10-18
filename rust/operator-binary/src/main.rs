@@ -8,6 +8,7 @@ use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     client::{self, Client},
+    commons::scaling::RoleGroupScaler,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
@@ -119,6 +120,10 @@ pub async fn create_controller(
     )
     .owns(
         namespace.get_api::<ConfigMap>(&client),
+        watcher::Config::default(),
+    )
+    .owns(
+        namespace.get_api::<RoleGroupScaler>(&client),
         watcher::Config::default(),
     )
     .shutdown_on_signal()

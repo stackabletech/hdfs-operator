@@ -8,6 +8,7 @@ use product_config::{
     writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
     ProductConfigManager,
 };
+use product_config::PropertyValidationResult::Default;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -48,6 +49,7 @@ use stackable_operator::{
     },
     time::Duration,
 };
+use stackable_operator::commons::scaling::{RoleGroupScaler, RoleGroupScalerSpec};
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use stackable_hdfs_crd::{
@@ -69,6 +71,7 @@ use crate::{
     security::{self, kerberos, opa::HdfsOpaConfig},
     OPERATOR_NAME,
 };
+use crate::hdfs_controller::Error::ObjectMeta;
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 const HDFS_CONTROLLER: &str = "hdfs-controller";
@@ -406,6 +409,31 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 &hdfs_opa_config,
                 vector_aggregator_address.as_deref(),
             )?;
+
+            if let Some(scaler) = role.role_group_scaling(&hdfs, &rolegroup_ref.role_group) {
+              // Scaler configured, write the HPA as well as a rolegroup scaler
+                cluster_resources.add(client, scaler).await
+                    .with_context(|_| ApplyRoleGroupServiceSnafu {
+                        name: "test",
+                    })?;
+                let rg_scaler = RoleGroupScaler {
+                    metadata: ObjectMeta {
+                        name: Some("test".to_string()),
+                        ..ObjectMeta::default()
+                    },
+                    spec: RoleGroupScalerSpec {
+                        label_selector: build_recommended_labels(
+                            hdfs.as_ref(),
+                            RESOURCE_MANAGER_HDFS_CONTROLLER,
+                            &resolved_product_image.app_version_label,
+                            &rolegroup_ref.role,
+                            &rolegroup_ref.role_group,
+                        ).to_string(),
+                        ..RoleGroupScalerSpec::default(),
+                    },
+                    status: None,
+                }
+            };
 
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
@@ -862,6 +890,25 @@ fn rolegroup_statefulset(
     // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
     let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels)
         .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
+
+    let replicas =
+        role
+            .role_group_replicas(hdfs, &rolegroup_ref.role_group)
+            .map(i32::from);
+
+    if let Some(auto_scaler) = role.role_group_scaling(hdfs, &rolegroup_ref.role_group) {
+        // Scaling configured for this roleGroup, we need to write two objects:
+        //   - RoleGroupScaler - this is the target for the HPA - HPA will configure replicas on
+        //      this object and the operator will read them
+        //   - HPA - this targets the RoleGroupScaler and sets replica counts - just pass this
+        //      through from the clusterconfig
+        // Those objects have to be written in the main loop though, as we don't have the
+        // resources object here.
+        // At this point we only need to check if there are replicas configured on the Scaler
+        // and if they are different to what is deployed in our statefulset in k8s at the moment.
+
+    };
+
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),

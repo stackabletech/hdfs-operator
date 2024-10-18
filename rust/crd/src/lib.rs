@@ -55,6 +55,8 @@ use crate::{
 
 #[cfg(doc)]
 use stackable_operator::commons::listener::ListenerClass;
+use stackable_operator::commons::scaling::ScalingConfig;
+use stackable_operator::k8s_openapi::api::autoscaling::v1::HorizontalPodAutoscaler;
 
 pub mod affinity;
 pub mod constants;
@@ -487,6 +489,21 @@ impl HdfsRole {
             HdfsRole::JournalNode => hdfs
                 .journalnode_rolegroup(role_group)
                 .and_then(|rg| rg.replicas),
+        }
+    }
+
+    /// Return replicas for a certain rolegroup.
+    pub fn role_group_scaling(&self, hdfs: &HdfsCluster, role_group: &str) -> Option<HorizontalPodAutoscaler> {
+        match self {
+            HdfsRole::NameNode => hdfs
+                .namenode_rolegroup(role_group)
+                .and_then(|rg| rg.scaling_config.clone()),
+            HdfsRole::DataNode => hdfs
+                .datanode_rolegroup(role_group)
+                .and_then(|rg| rg.scaling_config.clone()),
+            HdfsRole::JournalNode => hdfs
+                .journalnode_rolegroup(role_group)
+                .and_then(|rg| rg.scaling_config.clone()),
         }
     }
 }
