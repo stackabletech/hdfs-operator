@@ -3,7 +3,10 @@ use stackable_hdfs_crd::{
     constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
     HdfsCluster,
 };
-use stackable_operator::kube::{runtime::reflector::ObjectRef, ResourceExt};
+use stackable_operator::{
+    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    utils::cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
+};
 
 use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
 
@@ -155,6 +158,9 @@ fn principal_host_part(hdfs: &HdfsCluster) -> Result<String> {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
     Ok(format!(
-        "{hdfs_name}.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}"
+        "{hdfs_name}.{hdfs_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}",
+        cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+            .get()
+            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator"),
     ))
 }

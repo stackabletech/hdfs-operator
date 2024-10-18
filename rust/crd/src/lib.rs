@@ -23,8 +23,7 @@ use stackable_operator::{
         },
     },
     config::{
-        fragment,
-        fragment::{Fragment, ValidationError},
+        fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
     k8s_openapi::{
@@ -34,12 +33,15 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     kvp::{LabelError, Labels},
     product_config_utils::{Configuration, Error as ConfigError},
-    product_logging,
-    product_logging::spec::{ContainerLogConfig, Logging},
+    product_logging::{
+        self,
+        spec::{ContainerLogConfig, Logging},
+    },
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
+    utils::cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
 };
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 
@@ -985,8 +987,9 @@ impl HdfsPodRef {
         self.fqdn_override.as_deref().map_or_else(
             || {
                 Cow::Owned(format!(
-                    "{}.{}.{}.svc.cluster.local",
-                    self.pod_name, self.role_group_service_name, self.namespace
+                    "{}.{}.{}.svc.{}",
+                    self.pod_name, self.role_group_service_name, self.namespace,
+                    KUBERNETES_CLUSTER_DOMAIN.get().expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator"),
                 ))
             },
             Cow::Borrowed,
