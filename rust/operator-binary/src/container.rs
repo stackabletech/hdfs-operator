@@ -784,14 +784,14 @@ wait_for_termination $!
     /// Needs the KERBEROS_REALM env var, which will be written with `export_kerberos_real_env_var_command`
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
     fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole) -> Result<String, Error> {
+        let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+            .get()
+            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
         let principal = format!(
             "{service_name}/{hdfs_name}.{namespace}.svc.{cluster_domain}@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
             hdfs_name = hdfs.name_any(),
             namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
-            cluster_domain = KUBERNETES_CLUSTER_DOMAIN.get().expect(
-                "KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator"
-            ),
         );
         Ok(formatdoc!(
             r###"

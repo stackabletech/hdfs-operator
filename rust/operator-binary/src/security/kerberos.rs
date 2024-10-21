@@ -157,10 +157,10 @@ fn principal_host_part(hdfs: &HdfsCluster) -> Result<String> {
         .with_context(|_| ObjectHasNoNamespaceSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
+    let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+        .get()
+        .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
     Ok(format!(
         "{hdfs_name}.{hdfs_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}",
-        cluster_domain = KUBERNETES_CLUSTER_DOMAIN
-            .get()
-            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator"),
     ))
 }
