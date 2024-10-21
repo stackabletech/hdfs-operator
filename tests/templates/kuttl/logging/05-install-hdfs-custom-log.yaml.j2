@@ -74,6 +74,7 @@ spec:
     zookeeperConfigMapName: test-hdfs-custom-log-znode
   nameNodes:
     config:
+      gracefulShutdownTimeout: 1m
       resources:
         cpu:
           max: 250m
@@ -99,6 +100,7 @@ spec:
                   configMap: hdfs-format-zookeeper-log-config
   dataNodes:
     config:
+      gracefulShutdownTimeout: 1m
       resources:
         cpu:
           max: 250m
@@ -118,6 +120,7 @@ spec:
                   configMap: hdfs-wait-for-namenodes-log-config
   journalNodes:
     config:
+      gracefulShutdownTimeout: 1m
       resources:
         cpu:
           max: 250m
