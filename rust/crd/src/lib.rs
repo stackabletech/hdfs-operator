@@ -986,10 +986,14 @@ impl HdfsPodRef {
     pub fn fqdn(&self) -> Cow<str> {
         self.fqdn_override.as_deref().map_or_else(
             || {
+                let cluster_domain = KUBERNETES_CLUSTER_DOMAIN.get().expect(
+                    "KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator",
+                );
                 Cow::Owned(format!(
-                    "{}.{}.{}.svc.{}",
-                    self.pod_name, self.role_group_service_name, self.namespace,
-                    KUBERNETES_CLUSTER_DOMAIN.get().expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator"),
+                    "{pod_name}.{role_group_service_name}.{namespace}.svc.{cluster_domain}",
+                    pod_name = self.pod_name,
+                    role_group_service_name = self.role_group_service_name,
+                    namespace = self.namespace,
                 ))
             },
             Cow::Borrowed,
