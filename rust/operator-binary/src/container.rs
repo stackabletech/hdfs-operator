@@ -9,52 +9,10 @@
 //! - Set resources
 //! - Add tcp probes and container ports (to the main containers)
 //!
-use crate::DATANODE_ROOT_DATA_DIR_PREFIX;
-use crate::JVM_SECURITY_PROPERTIES_FILE;
-use crate::LOG4J_PROPERTIES;
-use stackable_hdfs_crd::UpgradeState;
-use stackable_operator::utils::COMMON_BASH_TRAP_FUNCTIONS;
 use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::kvp::Labels;
-use stackable_operator::{
-    builder::{
-        pod::container::ContainerBuilder,
-        pod::resources::ResourceRequirementsBuilder,
-        pod::volume::{
-            ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-            ListenerReference, SecretFormat, SecretOperatorVolumeSourceBuilder,
-            SecretOperatorVolumeSourceBuilderError, VolumeBuilder, VolumeMountBuilder,
-        },
-        pod::PodBuilder,
-    },
-    commons::product_image_selection::ResolvedProductImage,
-    k8s_openapi::{
-        api::core::v1::{
-            ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
-            EmptyDirVolumeSource, EnvVar, EnvVarSource, HTTPGetAction, ObjectFieldSelector,
-            PersistentVolumeClaim, Probe, ResourceRequirements, TCPSocketAction, Volume,
-            VolumeMount,
-        },
-        apimachinery::pkg::util::intstr::IntOrString,
-    },
-    kube::{core::ObjectMeta, ResourceExt},
-    memory::{BinaryMultiple, MemoryQuantity},
-    product_logging::framework::{
-        create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
-    },
-    product_logging::{
-        self,
-        spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig,
-        },
-    },
-};
-use strum::{Display, EnumDiscriminants, IntoStaticStr};
-
 use stackable_hdfs_crd::{
     constants::{
         DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
@@ -67,13 +25,58 @@ use stackable_hdfs_crd::{
     },
     storage::DataNodeStorageConfig,
     AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
+    UpgradeState,
 };
+use stackable_operator::{
+    builder::{
+        self,
+        pod::{
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, SecretFormat, SecretOperatorVolumeSourceBuilder,
+                SecretOperatorVolumeSourceBuilderError, VolumeBuilder, VolumeMountBuilder,
+            },
+            PodBuilder,
+        },
+    },
+    commons::product_image_selection::ResolvedProductImage,
+    k8s_openapi::{
+        api::core::v1::{
+            ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
+            EmptyDirVolumeSource, EnvVar, EnvVarSource, HTTPGetAction, ObjectFieldSelector,
+            PersistentVolumeClaim, Probe, ResourceRequirements, TCPSocketAction, Volume,
+            VolumeMount,
+        },
+        apimachinery::pkg::util::intstr::IntOrString,
+    },
+    kube::{core::ObjectMeta, ResourceExt},
+    kvp::Labels,
+    memory::{BinaryMultiple, MemoryQuantity},
+    product_logging::{
+        self,
+        framework::{
+            create_vector_shutdown_file_command, remove_vector_shutdown_file_command, LoggingError,
+        },
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig,
+        },
+    },
+    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
+};
+use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
-use crate::product_logging::{
-    FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE, HDFS_LOG4J_CONFIG_FILE,
-    MAX_FORMAT_NAMENODE_LOG_FILE_SIZE, MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-    MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
-    WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+use crate::{
+    product_logging::{
+        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+        HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
+        MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
+        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+    },
+    DATANODE_ROOT_DATA_DIR_PREFIX, JVM_SECURITY_PROPERTIES_FILE, LOG4J_PROPERTIES,
 };
 
 pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
@@ -121,6 +124,17 @@ pub enum Error {
     #[snafu(display("missing or invalid labels for the listener volume"))]
     ListenerVolumeLabels {
         source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to configure logging"))]
+    ConfigureLogging { source: LoggingError },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
     },
 }
 
@@ -203,6 +217,7 @@ impl ContainerConfig {
     pub fn add_containers_and_volumes(
         pb: &mut PodBuilder,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
@@ -214,9 +229,11 @@ impl ContainerConfig {
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(*role);
-        pb.add_volumes(main_container_config.volumes(merged_config, object_name, labels)?);
+        pb.add_volumes(main_container_config.volumes(merged_config, object_name, labels)?)
+            .context(AddVolumeSnafu)?;
         pb.add_container(main_container_config.main_container(
             hdfs,
+            cluster_info,
             role,
             resolved_product_image,
             zk_config_map_name,
@@ -227,18 +244,21 @@ impl ContainerConfig {
 
         // Vector side container
         if merged_config.vector_logging_enabled() {
-            pb.add_container(product_logging::framework::vector_container(
-                resolved_product_image,
-                ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-                ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
-                Some(&merged_config.vector_logging()),
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
-                    .build(),
-            ));
+            pb.add_container(
+                product_logging::framework::vector_container(
+                    resolved_product_image,
+                    ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
+                    ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
+                    Some(&merged_config.vector_logging()),
+                    ResourceRequirementsBuilder::new()
+                        .with_cpu_request("250m")
+                        .with_cpu_limit("500m")
+                        .with_memory_request("128Mi")
+                        .with_memory_limit("128Mi")
+                        .build(),
+                )
+                .context(ConfigureLoggingSnafu)?,
+            );
         }
 
         if let Some(authentication_config) = hdfs.authentication_config() {
@@ -258,7 +278,8 @@ impl ContainerConfig {
                         })?,
                     )
                     .build(),
-            );
+            )
+            .context(AddVolumeSnafu)?;
 
             pb.add_volume(
                 VolumeBuilder::new(KERBEROS_VOLUME_NAME)
@@ -275,7 +296,8 @@ impl ContainerConfig {
                         })?,
                     )
                     .build(),
-            );
+            )
+            .context(AddVolumeSnafu)?;
         }
 
         // role specific pod settings configured here
@@ -287,9 +309,11 @@ impl ContainerConfig {
                     merged_config,
                     object_name,
                     labels,
-                )?);
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -305,9 +329,11 @@ impl ContainerConfig {
                     merged_config,
                     object_name,
                     labels,
-                )?);
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -324,9 +350,11 @@ impl ContainerConfig {
                     merged_config,
                     object_name,
                     labels,
-                )?);
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -344,9 +372,11 @@ impl ContainerConfig {
                     merged_config,
                     object_name,
                     labels,
-                )?);
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -415,6 +445,7 @@ impl ContainerConfig {
     fn main_container(
         &self,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
@@ -431,7 +462,7 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
-            .args(self.args(hdfs, role, merged_config, &[])?)
+            .args(self.args(hdfs, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(
                 hdfs,
                 zookeeper_config_map_name,
@@ -439,6 +470,7 @@ impl ContainerConfig {
                 resources.as_ref(),
             ))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
+            .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(hdfs));
 
         if let Some(resources) = resources {
@@ -472,6 +504,7 @@ impl ContainerConfig {
     fn init_container(
         &self,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
@@ -485,9 +518,10 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
-            .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
+            .args(self.args(hdfs, cluster_info, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
-            .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?);
+            .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
+            .context(AddVolumeMountSnafu)?;
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
@@ -536,6 +570,7 @@ impl ContainerConfig {
     fn args(
         &self,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         merged_config: &AnyNodeConfig,
         namenode_podrefs: &[HdfsPodRef],
@@ -618,7 +653,7 @@ wait_for_termination $!
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
                 if hdfs.has_kerberos_enabled() {
-                    args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
+                    args.push_str(&Self::get_kerberos_ticket(hdfs, role, cluster_info)?);
                 }
                 args.push_str(&formatdoc!(
                     r###"
@@ -705,7 +740,7 @@ wait_for_termination $!
                     ));
                 }
                 if hdfs.has_kerberos_enabled() {
-                    args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
+                    args.push_str(&Self::get_kerberos_ticket(hdfs, role, cluster_info)?);
                 }
                 args.push_str(&formatdoc!(
                     r###"
@@ -757,12 +792,17 @@ wait_for_termination $!
     /// Command to `kinit` a ticket using the principal created for the specified hdfs role
     /// Needs the KERBEROS_REALM env var, which will be written with `export_kerberos_real_env_var_command`
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
-    fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole) -> Result<String, Error> {
+    fn get_kerberos_ticket(
+        hdfs: &HdfsCluster,
+        role: &HdfsRole,
+        cluster_info: &KubernetesClusterInfo,
+    ) -> Result<String, Error> {
         let principal = format!(
-            "{service_name}/{hdfs_name}.{namespace}.svc.cluster.local@${{KERBEROS_REALM}}",
+            "{service_name}/{hdfs_name}.{namespace}.svc.{cluster_domain}@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
             hdfs_name = hdfs.name_any(),
             namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
+            cluster_domain = cluster_info.cluster_domain,
         );
         Ok(formatdoc!(
             r###"

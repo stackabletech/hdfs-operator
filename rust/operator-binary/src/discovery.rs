@@ -4,11 +4,11 @@ use stackable_hdfs_crd::{
     HdfsCluster, HdfsPodRef, HdfsRole,
 };
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder,
-    builder::meta::ObjectMetaBuilder,
+    builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::{runtime::reflector::ObjectRef, ResourceExt},
+    utils::cluster_info::KubernetesClusterInfo,
 };
 
 use crate::{
@@ -46,6 +46,7 @@ pub enum Error {
 /// for clients.
 pub fn build_discovery_configmap(
     hdfs: &HdfsCluster,
+    cluster_info: &KubernetesClusterInfo,
     controller: &str,
     namenode_podrefs: &[HdfsPodRef],
     resolved_product_image: &ResolvedProductImage,
@@ -70,11 +71,11 @@ pub fn build_discovery_configmap(
         .metadata(metadata)
         .add_data(
             HDFS_SITE_XML,
-            build_discovery_hdfs_site_xml(hdfs, hdfs.name_any(), namenode_podrefs),
+            build_discovery_hdfs_site_xml(hdfs, cluster_info, hdfs.name_any(), namenode_podrefs),
         )
         .add_data(
             CORE_SITE_XML,
-            build_discovery_core_site_xml(hdfs, hdfs.name_any())?,
+            build_discovery_core_site_xml(hdfs, cluster_info, hdfs.name_any())?,
         )
         .build()
         .context(BuildConfigMapSnafu)
@@ -82,23 +83,28 @@ pub fn build_discovery_configmap(
 
 fn build_discovery_hdfs_site_xml(
     hdfs: &HdfsCluster,
+    cluster_info: &KubernetesClusterInfo,
     logical_name: String,
     namenode_podrefs: &[HdfsPodRef],
 ) -> String {
     HdfsSiteConfigBuilder::new(logical_name)
         .dfs_name_services()
         .dfs_ha_namenodes(namenode_podrefs)
-        .dfs_namenode_rpc_address_ha(namenode_podrefs)
-        .dfs_namenode_http_address_ha(hdfs, namenode_podrefs)
+        .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
+        .dfs_namenode_http_address_ha(hdfs, cluster_info, namenode_podrefs)
         .dfs_client_failover_proxy_provider()
         .security_discovery_config(hdfs)
         .build_as_xml()
 }
 
-fn build_discovery_core_site_xml(hdfs: &HdfsCluster, logical_name: String) -> Result<String> {
+fn build_discovery_core_site_xml(
+    hdfs: &HdfsCluster,
+    cluster_info: &KubernetesClusterInfo,
+    logical_name: String,
+) -> Result<String> {
     Ok(CoreSiteConfigBuilder::new(logical_name)
         .fs_default_fs()
-        .security_discovery_config(hdfs)
+        .security_discovery_config(hdfs, cluster_info)
         .context(BuildSecurityDiscoveryConfigMapSnafu)?
         .build_as_xml())
 }

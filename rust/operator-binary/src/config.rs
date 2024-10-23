@@ -10,6 +10,7 @@ use stackable_hdfs_crd::constants::{
 };
 use stackable_hdfs_crd::storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType};
 use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef};
+use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
@@ -102,6 +103,7 @@ impl HdfsSiteConfigBuilder {
 
     pub fn dfs_namenode_shared_edits_dir(
         &mut self,
+        cluster_info: &KubernetesClusterInfo,
         journalnode_podrefs: &[HdfsPodRef],
     ) -> &mut Self {
         self.config.insert(
@@ -112,7 +114,7 @@ impl HdfsSiteConfigBuilder {
                     .iter()
                     .map(|jnid| format!(
                         "{}:{}",
-                        jnid.fqdn(),
+                        jnid.fqdn(cluster_info),
                         jnid.ports
                             .get(&String::from(DFS_JOURNALNODE_RPC_ADDRESS))
                             .map_or(DEFAULT_JOURNAL_NODE_RPC_PORT, |p| *p)
@@ -138,8 +140,13 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn dfs_namenode_rpc_address_ha(&mut self, namenode_podrefs: &[HdfsPodRef]) -> &mut Self {
+    pub fn dfs_namenode_rpc_address_ha(
+        &mut self,
+        cluster_info: &KubernetesClusterInfo,
+        namenode_podrefs: &[HdfsPodRef],
+    ) -> &mut Self {
         self.dfs_namenode_address_ha(
+            cluster_info,
             namenode_podrefs,
             DFS_NAMENODE_RPC_ADDRESS,
             SERVICE_PORT_NAME_RPC,
@@ -151,10 +158,12 @@ impl HdfsSiteConfigBuilder {
     pub fn dfs_namenode_http_address_ha(
         &mut self,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         namenode_podrefs: &[HdfsPodRef],
     ) -> &mut Self {
         if hdfs.has_https_enabled() {
             self.dfs_namenode_address_ha(
+                cluster_info,
                 namenode_podrefs,
                 DFS_NAMENODE_HTTPS_ADDRESS,
                 SERVICE_PORT_NAME_HTTPS,
@@ -162,6 +171,7 @@ impl HdfsSiteConfigBuilder {
             );
         } else {
             self.dfs_namenode_address_ha(
+                cluster_info,
                 namenode_podrefs,
                 DFS_NAMENODE_HTTP_ADDRESS,
                 SERVICE_PORT_NAME_HTTP,
@@ -173,6 +183,7 @@ impl HdfsSiteConfigBuilder {
 
     fn dfs_namenode_address_ha(
         &mut self,
+        cluster_info: &KubernetesClusterInfo,
         namenode_podrefs: &[HdfsPodRef],
         address: &str,
         port_name: &str,
@@ -180,11 +191,15 @@ impl HdfsSiteConfigBuilder {
     ) -> &mut Self {
         for nn in namenode_podrefs {
             self.config.insert(
-                format!("{}.{}.{}", address, self.logical_name, nn.pod_name),
                 format!(
-                    "{}:{}",
-                    nn.fqdn(),
-                    nn.ports.get(port_name).map_or(default_port, |p| *p)
+                    "{address}.{logical_name}.{pod_name}",
+                    logical_name = self.logical_name,
+                    pod_name = nn.pod_name,
+                ),
+                format!(
+                    "{fqdn}:{port}",
+                    fqdn = nn.fqdn(cluster_info),
+                    port = nn.ports.get(port_name).map_or(default_port, |p| *p)
                 ),
             );
         }

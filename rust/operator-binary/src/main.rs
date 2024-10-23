@@ -57,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
             product_config,
             watch_namespace,
             tracing_target,
+            cluster_info_opts,
         }) => {
             stackable_operator::logging::initialize_logging(
                 "HDFS_OPERATOR_LOG",
@@ -76,7 +77,9 @@ async fn main() -> anyhow::Result<()> {
                 "deploy/config-spec/properties.yaml",
                 "/etc/stackable/hdfs-operator/config-spec/properties.yaml",
             ])?;
-            let client = client::create_client(Some(OPERATOR_NAME.to_string())).await?;
+            let client =
+                client::initialize_operator(Some(OPERATOR_NAME.to_string()), &cluster_info_opts)
+                    .await?;
             create_controller(client, product_config, watch_namespace).await;
         }
     };
