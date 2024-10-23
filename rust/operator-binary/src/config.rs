@@ -191,11 +191,15 @@ impl HdfsSiteConfigBuilder {
     ) -> &mut Self {
         for nn in namenode_podrefs {
             self.config.insert(
-                format!("{}.{}.{}", address, self.logical_name, nn.pod_name),
                 format!(
-                    "{}:{}",
-                    nn.fqdn(cluster_info),
-                    nn.ports.get(port_name).map_or(default_port, |p| *p)
+                    "{address}.{logical_name}.{pod_name}",
+                    logical_name = self.logical_name,
+                    pod_name = nn.pod_name,
+                ),
+                format!(
+                    "{fqdn}:{port}",
+                    fqdn = nn.fqdn(cluster_info),
+                    port = nn.ports.get(port_name).map_or(default_port, |p| *p)
                 ),
             );
         }
