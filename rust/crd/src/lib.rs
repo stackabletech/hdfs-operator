@@ -23,8 +23,7 @@ use stackable_operator::{
         },
     },
     config::{
-        fragment,
-        fragment::{Fragment, ValidationError},
+        fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
     k8s_openapi::{
@@ -34,12 +33,15 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     kvp::{LabelError, Labels},
     product_config_utils::{Configuration, Error as ConfigError},
-    product_logging,
-    product_logging::spec::{ContainerLogConfig, Logging},
+    product_logging::{
+        self,
+        spec::{ContainerLogConfig, Logging},
+    },
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
+    utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 
@@ -981,12 +983,15 @@ pub struct HdfsPodRef {
 }
 
 impl HdfsPodRef {
-    pub fn fqdn(&self) -> Cow<str> {
+    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Cow<str> {
         self.fqdn_override.as_deref().map_or_else(
             || {
                 Cow::Owned(format!(
-                    "{}.{}.{}.svc.cluster.local",
-                    self.pod_name, self.role_group_service_name, self.namespace
+                    "{pod_name}.{role_group_service_name}.{namespace}.svc.{cluster_domain}",
+                    pod_name = self.pod_name,
+                    role_group_service_name = self.role_group_service_name,
+                    namespace = self.namespace,
+                    cluster_domain = cluster_info.cluster_domain,
                 ))
             },
             Cow::Borrowed,

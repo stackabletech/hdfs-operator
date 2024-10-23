@@ -3,7 +3,10 @@ use stackable_hdfs_crd::{
     constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
     HdfsCluster,
 };
-use stackable_operator::kube::{runtime::reflector::ObjectRef, ResourceExt};
+use stackable_operator::{
+    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    utils::cluster_info::KubernetesClusterInfo,
+};
 
 use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
 
@@ -50,9 +53,13 @@ impl HdfsSiteConfigBuilder {
 }
 
 impl CoreSiteConfigBuilder {
-    pub fn security_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self> {
+    pub fn security_config(
+        &mut self,
+        hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
+    ) -> Result<&mut Self> {
         if hdfs.authentication_config().is_some() {
-            let principal_host_part = principal_host_part(hdfs)?;
+            let principal_host_part = principal_host_part(hdfs, cluster_info)?;
 
             self.add("hadoop.security.authentication", "kerberos")
                 // Not adding hadoop.registry.kerberos.realm, as it seems to not be used by our customers
@@ -106,9 +113,13 @@ impl CoreSiteConfigBuilder {
         Ok(self)
     }
 
-    pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> Result<&mut Self> {
+    pub fn security_discovery_config(
+        &mut self,
+        hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
+    ) -> Result<&mut Self> {
         if hdfs.has_kerberos_enabled() {
-            let principal_host_part = principal_host_part(hdfs)?;
+            let principal_host_part = principal_host_part(hdfs, cluster_info)?;
 
             self.add("hadoop.security.authentication", "kerberos")
                 .add(
@@ -147,14 +158,15 @@ impl CoreSiteConfigBuilder {
 /// ```
 ///
 /// After we have switched to using the following principals everything worked without problems
-fn principal_host_part(hdfs: &HdfsCluster) -> Result<String> {
+fn principal_host_part(hdfs: &HdfsCluster, cluster_info: &KubernetesClusterInfo) -> Result<String> {
     let hdfs_name = hdfs.name_any();
     let hdfs_namespace = hdfs
         .namespace_or_error()
         .with_context(|_| ObjectHasNoNamespaceSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
+    let cluster_domain = &cluster_info.cluster_domain;
     Ok(format!(
-        "{hdfs_name}.{hdfs_namespace}.svc.cluster.local@${{env.KERBEROS_REALM}}"
+        "{hdfs_name}.{hdfs_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}",
     ))
 }

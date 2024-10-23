@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The operator can now run on Kubernetes clusters using a non-default cluster domain.
+  Use the env var `KUBERNETES_CLUSTER_DOMAIN` or the operator Helm chart property `kubernetesClusterDomain` to set a non-default cluster domain ([#591]).
+
 ### Changed
 
 - Reduce CRD size from `1.4MB` to `136KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#574]):
@@ -15,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - An invalid `HdfsCluster` doesn't cause the operator to stop functioning (#[594]).
 
 [#574]: https://github.com/stackabletech/hdfs-operator/pull/574
+[#591]: https://github.com/stackabletech/hdfs-operator/pull/591
 
 ## [24.7.0] - 2024-07-24
 
