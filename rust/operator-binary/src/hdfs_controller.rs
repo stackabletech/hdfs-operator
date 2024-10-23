@@ -47,6 +47,7 @@ use stackable_operator::{
         rollout::check_statefulset_rollout_complete,
     },
     time::Duration,
+    utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
@@ -397,6 +398,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rg_configmap = rolegroup_config_map(
                 &hdfs,
+                &client.kubernetes_cluster_info,
                 metadata,
                 &rolegroup_ref,
                 rolegroup_config,
@@ -409,6 +411,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
             let rg_statefulset = rolegroup_statefulset(
                 &hdfs,
+                &client.kubernetes_cluster_info,
                 metadata,
                 &role,
                 &rolegroup_ref,
@@ -470,6 +473,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     // so that failure won't inhibit the rest of the cluster from booting up.
     let discovery_cm = build_discovery_configmap(
         &hdfs,
+        &client.kubernetes_cluster_info,
         HDFS_CONTROLLER,
         &hdfs
             .namenode_listener_refs(client)
@@ -589,6 +593,7 @@ fn rolegroup_service(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
     hdfs: &HdfsCluster,
+    cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -640,10 +645,10 @@ fn rolegroup_config_map(
                     .dfs_replication(hdfs.spec.cluster_config.dfs_replication)
                     .dfs_name_services()
                     .dfs_ha_namenodes(namenode_podrefs)
-                    .dfs_namenode_shared_edits_dir(journalnode_podrefs)
+                    .dfs_namenode_shared_edits_dir(cluster_info, journalnode_podrefs)
                     .dfs_namenode_name_dir_ha(namenode_podrefs)
-                    .dfs_namenode_rpc_address_ha(namenode_podrefs)
-                    .dfs_namenode_http_address_ha(hdfs, namenode_podrefs)
+                    .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
+                    .dfs_namenode_http_address_ha(hdfs, cluster_info, namenode_podrefs)
                     .dfs_client_failover_proxy_provider()
                     .security_config(hdfs)
                     .add("dfs.ha.fencing.methods", "shell(/bin/true)")
@@ -672,7 +677,7 @@ fn rolegroup_config_map(
                 core_site
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
-                    .security_config(hdfs)
+                    .security_config(hdfs, cluster_info)
                     .context(BuildSecurityConfigSnafu)?;
                 if let Some(hdfs_opa_config) = hdfs_opa_config {
                     hdfs_opa_config.add_core_site_config(&mut core_site);
@@ -793,6 +798,7 @@ fn rolegroup_config_map(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
+    cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
     role: &HdfsRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
@@ -837,6 +843,7 @@ fn rolegroup_statefulset(
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
         hdfs,
+        cluster_info,
         role,
         resolved_product_image,
         merged_config,
@@ -892,6 +899,8 @@ pub fn error_policy(_obj: Arc<HdfsCluster>, _error: &Error, _ctx: Arc<Ctx>) -> A
 
 #[cfg(test)]
 mod test {
+    use stackable_operator::commons::networking::DomainName;
+
     use super::*;
 
     #[test]
@@ -964,6 +973,9 @@ properties: []
         ContainerConfig::add_containers_and_volumes(
             &mut pb,
             &hdfs,
+            &KubernetesClusterInfo {
+                cluster_domain: DomainName::try_from("cluster.local").unwrap(),
+            },
             &role,
             &resolved_product_image,
             &merged_config,

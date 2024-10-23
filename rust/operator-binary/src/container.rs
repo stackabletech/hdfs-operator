@@ -64,7 +64,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    utils::{cluster_domain::KUBERNETES_CLUSTER_DOMAIN, COMMON_BASH_TRAP_FUNCTIONS},
+    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
@@ -217,6 +217,7 @@ impl ContainerConfig {
     pub fn add_containers_and_volumes(
         pb: &mut PodBuilder,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
@@ -232,6 +233,7 @@ impl ContainerConfig {
             .context(AddVolumeSnafu)?;
         pb.add_container(main_container_config.main_container(
             hdfs,
+            cluster_info,
             role,
             resolved_product_image,
             zk_config_map_name,
@@ -311,6 +313,7 @@ impl ContainerConfig {
                 .context(AddVolumeSnafu)?;
                 pb.add_container(zkfc_container_config.main_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -330,6 +333,7 @@ impl ContainerConfig {
                 .context(AddVolumeSnafu)?;
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -350,6 +354,7 @@ impl ContainerConfig {
                 .context(AddVolumeSnafu)?;
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -371,6 +376,7 @@ impl ContainerConfig {
                 .context(AddVolumeSnafu)?;
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     hdfs,
+                    cluster_info,
                     role,
                     resolved_product_image,
                     zk_config_map_name,
@@ -439,6 +445,7 @@ impl ContainerConfig {
     fn main_container(
         &self,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
@@ -455,7 +462,7 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
-            .args(self.args(hdfs, role, merged_config, &[])?)
+            .args(self.args(hdfs, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(
                 hdfs,
                 zookeeper_config_map_name,
@@ -497,6 +504,7 @@ impl ContainerConfig {
     fn init_container(
         &self,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
@@ -510,7 +518,7 @@ impl ContainerConfig {
 
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
-            .args(self.args(hdfs, role, merged_config, namenode_podrefs)?)
+            .args(self.args(hdfs, cluster_info, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?;
@@ -562,6 +570,7 @@ impl ContainerConfig {
     fn args(
         &self,
         hdfs: &HdfsCluster,
+        cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
         merged_config: &AnyNodeConfig,
         namenode_podrefs: &[HdfsPodRef],
@@ -644,7 +653,7 @@ wait_for_termination $!
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
                 if hdfs.has_kerberos_enabled() {
-                    args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
+                    args.push_str(&Self::get_kerberos_ticket(hdfs, role, cluster_info)?);
                 }
                 args.push_str(&formatdoc!(
                     r###"
@@ -731,7 +740,7 @@ wait_for_termination $!
                     ));
                 }
                 if hdfs.has_kerberos_enabled() {
-                    args.push_str(&Self::get_kerberos_ticket(hdfs, role)?);
+                    args.push_str(&Self::get_kerberos_ticket(hdfs, role, cluster_info)?);
                 }
                 args.push_str(&formatdoc!(
                     r###"
@@ -783,15 +792,17 @@ wait_for_termination $!
     /// Command to `kinit` a ticket using the principal created for the specified hdfs role
     /// Needs the KERBEROS_REALM env var, which will be written with `export_kerberos_real_env_var_command`
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
-    fn get_kerberos_ticket(hdfs: &HdfsCluster, role: &HdfsRole) -> Result<String, Error> {
-        let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
-            .get()
-            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
+    fn get_kerberos_ticket(
+        hdfs: &HdfsCluster,
+        role: &HdfsRole,
+        cluster_info: &KubernetesClusterInfo,
+    ) -> Result<String, Error> {
         let principal = format!(
             "{service_name}/{hdfs_name}.{namespace}.svc.{cluster_domain}@${{KERBEROS_REALM}}",
             service_name = role.kerberos_service_name(),
             hdfs_name = hdfs.name_any(),
             namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?,
+            cluster_domain = cluster_info.cluster_domain,
         );
         Ok(formatdoc!(
             r###"

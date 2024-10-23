@@ -41,7 +41,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
-    utils::cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
+    utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 
@@ -983,17 +983,15 @@ pub struct HdfsPodRef {
 }
 
 impl HdfsPodRef {
-    pub fn fqdn(&self) -> Cow<str> {
+    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Cow<str> {
         self.fqdn_override.as_deref().map_or_else(
             || {
-                let cluster_domain = KUBERNETES_CLUSTER_DOMAIN.get().expect(
-                    "KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator",
-                );
                 Cow::Owned(format!(
                     "{pod_name}.{role_group_service_name}.{namespace}.svc.{cluster_domain}",
                     pod_name = self.pod_name,
                     role_group_service_name = self.role_group_service_name,
                     namespace = self.namespace,
+                    cluster_domain = cluster_info.cluster_domain,
                 ))
             },
             Cow::Borrowed,
