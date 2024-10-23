@@ -32,6 +32,7 @@ use stackable_operator::{
     },
     kube::{
         api::ObjectMeta,
+        core::{error_boundary, DeserializeGuard},
         runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
@@ -240,6 +241,11 @@ pub enum Error {
 
     #[snafu(display("invalid OPA configuration"))]
     InvalidOpaConfig { source: security::opa::Error },
+
+    #[snafu(display("HdfsCluster object is invalid"))]
+    InvalidHdfsCluster {
+        source: error_boundary::InvalidObject,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -255,8 +261,17 @@ pub struct Ctx {
     pub product_config: ProductConfigManager,
 }
 
-pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperatorResult<Action> {
+pub async fn reconcile_hdfs(
+    hdfs: Arc<DeserializeGuard<HdfsCluster>>,
+    ctx: Arc<Ctx>,
+) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
+
+    let hdfs = hdfs
+        .0
+        .as_ref()
+        .map_err(error_boundary::InvalidObject::clone)
+        .context(InvalidHdfsClusterSnafu)?;
     let client = &ctx.client;
 
     let resolved_product_image = hdfs
@@ -264,14 +279,14 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(&hdfs, client)
+    let vector_aggregator_address = resolve_vector_aggregator_address(hdfs, client)
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
         &transform_all_roles_to_config(
-            hdfs.as_ref(),
+            hdfs,
             hdfs.build_role_properties()
                 .context(BuildRolePropertiesSnafu)?,
         )
@@ -301,7 +316,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     // The service account and rolebinding will be created per cluster
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        hdfs.as_ref(),
+        hdfs,
         APP_NAME,
         cluster_resources
             .get_required_labels()
@@ -320,7 +335,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
     let hdfs_opa_config = match &hdfs.spec.cluster_config.authorization {
         Some(opa_config) => Some(
-            HdfsOpaConfig::from_opa_config(client, &hdfs, opa_config)
+            HdfsOpaConfig::from_opa_config(client, hdfs, opa_config)
                 .await
                 .context(InvalidOpaConfigSnafu)?,
         ),
@@ -353,9 +368,9 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             continue;
         };
 
-        if let Some(content) = build_invalid_replica_message(&hdfs, &role, dfs_replication) {
+        if let Some(content) = build_invalid_replica_message(hdfs, &role, dfs_replication) {
             publish_event(
-                &hdfs,
+                hdfs,
                 client,
                 "Reconcile",
                 "Invalid replicas",
@@ -367,7 +382,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
             let merged_config = role
-                .merged_config(&hdfs, rolegroup_name)
+                .merged_config(hdfs, rolegroup_name)
                 .context(ConfigMergeSnafu)?;
 
             let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
@@ -378,14 +393,14 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
             let mut metadata = ObjectMetaBuilder::new();
             let metadata = metadata
-                .name_and_namespace(hdfs.as_ref())
+                .name_and_namespace(hdfs)
                 .name(rolegroup_ref.object_name())
-                .ownerreference_from_resource(hdfs.as_ref(), None, Some(true))
+                .ownerreference_from_resource(hdfs, None, Some(true))
                 .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                    obj_ref: ObjectRef::from_obj(hdfs.as_ref()),
+                    obj_ref: ObjectRef::from_obj(hdfs),
                 })?
                 .with_recommended_labels(build_recommended_labels(
-                    hdfs.as_ref(),
+                    hdfs,
                     RESOURCE_MANAGER_HDFS_CONTROLLER,
                     &resolved_product_image.app_version_label,
                     &rolegroup_ref.role,
@@ -393,10 +408,10 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
                 ))
                 .context(ObjectMetaSnafu)?;
 
-            let rg_service = rolegroup_service(&hdfs, metadata, &role, &rolegroup_ref)?;
+            let rg_service = rolegroup_service(hdfs, metadata, &role, &rolegroup_ref)?;
 
             let rg_configmap = rolegroup_config_map(
-                &hdfs,
+                hdfs,
                 metadata,
                 &rolegroup_ref,
                 rolegroup_config,
@@ -408,7 +423,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             )?;
 
             let rg_statefulset = rolegroup_statefulset(
-                &hdfs,
+                hdfs,
                 metadata,
                 &role,
                 &rolegroup_ref,
@@ -460,7 +475,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             pod_disruption_budget: pdb,
         }) = role_config
         {
-            add_pdbs(pdb, &hdfs, &role, client, &mut cluster_resources)
+            add_pdbs(pdb, hdfs, &role, client, &mut cluster_resources)
                 .await
                 .context(FailedToCreatePdbSnafu)?;
         }
@@ -469,7 +484,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
     // Discovery CM will fail to build until the rest of the cluster has been deployed, so do it last
     // so that failure won't inhibit the rest of the cluster from booting up.
     let discovery_cm = build_discovery_configmap(
-        &hdfs,
+        hdfs,
         HDFS_CONTROLLER,
         &hdfs
             .namenode_listener_refs(client)
@@ -492,10 +507,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
         ClusterOperationsConditionBuilder::new(&hdfs.spec.cluster_operation);
 
     let status = HdfsClusterStatus {
-        conditions: compute_conditions(
-            hdfs.as_ref(),
-            &[&ss_cond_builder, &cluster_operation_cond_builder],
-        ),
+        conditions: compute_conditions(hdfs, &[&ss_cond_builder, &cluster_operation_cond_builder]),
         // FIXME: We can't currently leave upgrade mode automatically, since we don't know when an upgrade is finalized
         deployed_product_version: Some(
             hdfs.status
@@ -535,7 +547,7 @@ pub async fn reconcile_hdfs(hdfs: Arc<HdfsCluster>, ctx: Arc<Ctx>) -> HdfsOperat
             .context(DeleteOrphanedResourcesSnafu)?;
     }
     client
-        .apply_patch_status(OPERATOR_NAME, &*hdfs, &status)
+        .apply_patch_status(OPERATOR_NAME, hdfs, &status)
         .await
         .context(ApplyStatusSnafu)?;
 
@@ -886,8 +898,15 @@ fn rolegroup_statefulset(
     })
 }
 
-pub fn error_policy(_obj: Arc<HdfsCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(*Duration::from_secs(5))
+pub fn error_policy(
+    _obj: Arc<DeserializeGuard<HdfsCluster>>,
+    error: &Error,
+    _ctx: Arc<Ctx>,
+) -> Action {
+    match error {
+        Error::InvalidHdfsCluster { .. } => Action::await_change(),
+        _ => Action::requeue(*Duration::from_secs(5)),
+    }
 }
 
 #[cfg(test)]

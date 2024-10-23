@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
   - `podOverrides`
   - `affinity`
 
+### Fixed
+
+- An invalid `HdfsCluster` doesn't cause the operator to stop functioning (#[594]).
+
 [#574]: https://github.com/stackabletech/hdfs-operator/pull/574
 
 ## [24.7.0] - 2024-07-24
