@@ -67,6 +67,25 @@ spec:
           COMMON_VAR: group-value # overrides role value
           GROUP_VAR: group-value # only defined here at group level
         replicas: {{ test_scenario['values']['number-of-datanodes'] }}
+        config:
+          logging:
+            containers:
+              hdfs:
+                console:
+                  level: DEBUG
+                file:
+                  level: DEBUG
+                loggers:
+                  ROOT:
+                    level: DEBUG
+              vector:
+                console:
+                  level: DEBUG
+                file:
+                  level: DEBUG
+                loggers:
+                  ROOT:
+                    level: DEBUG
   journalNodes:
     envOverrides:
       COMMON_VAR: role-value # overridden by role group below
