@@ -33,6 +33,7 @@ commands:
 {% endif %}
         nameNodes:
           config:
+            gracefulShutdownTimeout: 1m
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
               containers:
@@ -52,6 +53,7 @@ commands:
               replicas: 2
         dataNodes:
           config:
+            gracefulShutdownTimeout: 1m
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
           configOverrides: *configOverrides
@@ -60,6 +62,7 @@ commands:
               replicas: 3
         journalNodes:
           config:
+            gracefulShutdownTimeout: 1m
             logging:
               enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
           configOverrides: *configOverrides
