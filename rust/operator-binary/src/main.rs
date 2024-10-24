@@ -12,6 +12,7 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
+    kube::core::DeserializeGuard,
     kube::{
         api::PartialObjectMeta,
         runtime::{reflector, watcher, Controller},
@@ -109,19 +110,19 @@ pub async fn create_controller(
     });
 
     let hdfs_controller = Controller::new(
-        namespace.get_api::<HdfsCluster>(&client),
+        namespace.get_api::<DeserializeGuard<HdfsCluster>>(&client),
         watcher::Config::default(),
     )
     .owns(
-        namespace.get_api::<StatefulSet>(&client),
+        namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
         watcher::Config::default(),
     )
     .owns(
-        namespace.get_api::<Service>(&client),
+        namespace.get_api::<DeserializeGuard<Service>>(&client),
         watcher::Config::default(),
     )
     .owns(
-        namespace.get_api::<ConfigMap>(&client),
+        namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
         watcher::Config::default(),
     )
     .shutdown_on_signal()
