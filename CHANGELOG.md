@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- An invalid `HdfsCluster` doesn't cause the operator to stop functioning (#[594]).
+- An invalid `HdfsCluster` doesn't cause the operator to stop functioning ([#594]).
 
 [#574]: https://github.com/stackabletech/hdfs-operator/pull/574
 [#591]: https://github.com/stackabletech/hdfs-operator/pull/591
