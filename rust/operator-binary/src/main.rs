@@ -101,7 +101,7 @@ pub async fn create_controller(
     let reflector = reflector::reflector(
         store_w,
         watcher(
-            Api::<PartialObjectMeta<DeserializeGuard<HdfsCluster>>>::all(client.as_kube_client()),
+            Api::<PartialObjectMeta<HdfsCluster>>::all(client.as_kube_client()),
             watcher::Config::default(),
         ),
     )

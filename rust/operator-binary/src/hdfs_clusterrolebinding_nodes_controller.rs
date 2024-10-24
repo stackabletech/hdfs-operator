@@ -8,7 +8,7 @@ use stackable_operator::{
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
     kube::{
         api::{Patch, PatchParams},
-        core::{DeserializeGuard, PartialObjectMeta},
+        core::PartialObjectMeta,
         runtime::{
             reflector::{ObjectRef, Store},
             watcher,
@@ -20,8 +20,8 @@ use tracing::{error, info};
 
 pub async fn reconcile(
     client: Client,
-    store: &Store<PartialObjectMeta<DeserializeGuard<HdfsCluster>>>,
-    ev: watcher::Result<watcher::Event<PartialObjectMeta<DeserializeGuard<HdfsCluster>>>>,
+    store: &Store<PartialObjectMeta<HdfsCluster>>,
+    ev: watcher::Result<watcher::Event<PartialObjectMeta<HdfsCluster>>>,
 ) {
     match ev {
         Ok(watcher::Event::Apply(o)) => {
