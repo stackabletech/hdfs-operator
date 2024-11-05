@@ -62,7 +62,7 @@ tests:
       - openshift
   - name: kerberos
     dimensions:
-      - hadoop-latest # We only support Kerberos for HDFS >= 3.3.x. See rust/operator/src/kerberos.rs for details
+      - hadoop
       - zookeeper-latest
       - krb5
       - kerberos-realm
