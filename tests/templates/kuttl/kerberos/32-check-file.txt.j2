@@ -9,10 +9,10 @@ spec:
       serviceAccountName: test-sa
       containers:
         - name: check-hdfs
-{% if test_scenario['values']['hadoop-latest'].find(",") > 0 %}
-          image: "{{ test_scenario['values']['hadoop-latest'].split(',')[1] }}"
+{% if test_scenario['values']['hadoop'].find(",") > 0 %}
+          image: "{{ test_scenario['values']['hadoop'].split(',')[1] }}"
 {% else %}
-          image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
+          image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop'] }}-stackable0.0.0-dev
 {% endif %}
           env:
             - name: HADOOP_CONF_DIR
