@@ -2,19 +2,21 @@
 dimensions:
   - name: hadoop
     values:
-      - 3.3.4
-      - 3.3.6
-      - 3.4.0
+      #- 3.3.4
+      #- 3.3.6
+      #- 3.4.0
       # To use a custom image, add a comma and the full name after the product version
-      # - 3.4.0,docker.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
+      - 3.3.6,docker.stackable.tech/sandbox/hadoop:3.3.6-CVE-2023-34455
   - name: hadoop-latest
     values:
-      - 3.4.0
+      #- 3.4.0
       # To use a custom image, add a comma and the full name after the product version
       # - 3.4.0,docker.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
+      - 3.3.6,docker.stackable.tech/sandbox/hadoop:3.3.6-CVE-2023-34455
   - name: hadoop-external-client-docker-image
     values:
-      - 3.3.6
+      #- 3.3.6
+      - 3.3.6,docker.stackable.tech/sandbox/hadoop:3.3.6-CVE-2023-34455
   - name: zookeeper
     values:
       - 3.9.2
