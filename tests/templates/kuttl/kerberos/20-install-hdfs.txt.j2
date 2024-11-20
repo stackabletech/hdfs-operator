@@ -27,6 +27,7 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   nameNodes:
+    minSecretLifetime: "7d"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -43,6 +44,7 @@ spec:
       default:
         replicas: 2
   dataNodes:
+    minSecretLifetime: "7d"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -50,6 +52,7 @@ spec:
       default:
         replicas: 2
   journalNodes:
+    minSecretLifetime: "7d"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

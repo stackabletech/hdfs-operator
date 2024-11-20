@@ -272,6 +272,7 @@ impl ContainerConfig {
                         .with_node_scope()
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
+                        .with_secret_lifetime(hdfs.min_secret_lifetime_for_role(role))
                         .build()
                         .context(BuildSecretVolumeSnafu {
                             volume_name: TLS_STORE_VOLUME_NAME,

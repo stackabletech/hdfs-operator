@@ -494,6 +494,29 @@ impl HdfsRole {
 }
 
 impl HdfsCluster {
+    /// Requests a minumum secret lifetime from the secret operator for the generated
+    /// secrets.
+    /// Currently only valid for TLS certificates.
+    pub fn min_secret_lifetime_for_role(&self, role: &HdfsRole) -> Option<Duration> {
+        match role {
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .map(|n| n.config.min_secret_lifetime),
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .map(|n| n.config.min_secret_lifetime),
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .map(|n| n.config.min_secret_lifetime),
+        }
+    }
+
     /// Return the namespace of the cluster or an error in case it is not set.
     pub fn namespace_or_error(&self) -> Result<String, Error> {
         self.namespace().context(NoNamespaceSnafu)
