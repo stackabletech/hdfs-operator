@@ -4,7 +4,7 @@ use stackable_hdfs_crd::{
     HdfsCluster,
 };
 use stackable_operator::{
-    commons::rbac::service_account_name,
+    commons::rbac::build_rbac_resources,
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
     kube::{
         api::{Patch, PatchParams},
@@ -15,6 +15,7 @@ use stackable_operator::{
         },
         Api, Client,
     },
+    kvp::Labels,
 };
 use tracing::{error, info};
 
@@ -41,16 +42,27 @@ pub async fn reconcile(
             )
         }
     }
+
     // Build a list of SubjectRef objects for all deployed HdfsClusters.
     // To do this we only need the metadata for that, as we only really
     // need name and namespace of the objects
     let subjects: Vec<Subject> = store
         .state()
         .into_iter()
-        .map(|object| object.metadata.clone())
-        .map(|meta| Subject {
+        .map(|object| {
+            (
+                object.metadata.clone(),
+                build_rbac_resources(&*object, APP_NAME, Labels::default())
+                    .expect("failed to get serviceAccount for object")
+                    .0
+                    .metadata
+                    .name
+                    .unwrap(),
+            )
+        })
+        .map(|(meta, sa_name)| Subject {
             kind: "ServiceAccount".to_string(),
-            name: service_account_name(APP_NAME),
+            name: sa_name,
             namespace: meta.namespace.clone(),
             ..Subject::default()
         })
