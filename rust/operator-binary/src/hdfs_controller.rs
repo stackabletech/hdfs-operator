@@ -9,6 +9,7 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::k8s_openapi::api::core::v1::ServiceAccount;
 use stackable_operator::{
     builder::{
         configmap::ConfigMapBuilder,
@@ -17,10 +18,7 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        product_image_selection::ResolvedProductImage,
-        rbac::build_rbac_resources,
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     iter::reverse_if,
     k8s_openapi::{
         api::{
@@ -50,7 +48,6 @@ use stackable_operator::{
     time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
 };
-use stackable_operator::k8s_openapi::api::core::v1::ServiceAccount;
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use stackable_hdfs_crd::{
@@ -436,7 +433,7 @@ pub async fn reconcile_hdfs(
                 env_overrides,
                 &merged_config,
                 &namenode_podrefs,
-                &rbac_sa
+                &rbac_sa,
             )?;
 
             let rg_service_name = rg_service.name_any();
