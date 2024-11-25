@@ -324,7 +324,6 @@ pub async fn reconcile_hdfs(
     .context(BuildRbacResourcesSnafu)?;
 
     cluster_resources
-        // We clone here because we need to use rbac_sa further down
         .add(client, rbac_sa.clone())
         .await
         .context(ApplyServiceAccountSnafu)?;

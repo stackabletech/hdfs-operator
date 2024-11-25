@@ -65,14 +65,14 @@ pub async fn reconcile(
                 Err(e) => {
                     error!(
                         ?object,
-                        ?e,
+                        error = &e as &dyn std::error::Error,
                         "Failed to build serviceAccount name for hdfs cluster"
                     );
                     None
                 }
             }
         })
-        .map(|(meta, sa_name)| {
+        .flat_map(|(meta, sa_name)| {
             let mut result = vec![
                 Subject {
                     kind: "ServiceAccount".to_string(),
@@ -100,7 +100,6 @@ pub async fn reconcile(
             result.dedup();
             result
         })
-        .flat_map(|vec| vec.into_iter())
         .collect();
 
     let patch = Patch::Apply(json!({
