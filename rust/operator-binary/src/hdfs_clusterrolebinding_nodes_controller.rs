@@ -3,6 +3,7 @@ use stackable_hdfs_crd::{
     constants::{APP_NAME, FIELD_MANAGER_SCOPE},
     HdfsCluster,
 };
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
     commons::rbac::build_rbac_resources,
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
@@ -49,16 +50,27 @@ pub async fn reconcile(
     let subjects: Vec<Subject> = store
         .state()
         .into_iter()
-        .map(|object| {
-            (
-                object.metadata.clone(),
-                build_rbac_resources(&*object, APP_NAME, Labels::default())
-                    .expect("failed to get serviceAccount for object")
-                    .0
-                    .metadata
-                    .name
-                    .unwrap(),
-            )
+        .filter_map(|object| {
+            // The call to 'build_rbac_resources' can fail, so we
+            // use filter_map here, log an error for any failures and keep
+            // going with all the non-broken elements
+            // Usually we'd rather opt for failing completely here, but in this specific instance
+            // this could mean that one broken cluster somewhere could impact other working clusters
+            // within the namespace, so we opted for doing everything we can here, instead of failing
+            // completely.
+            match build_rbac_resources(&*object, APP_NAME, Labels::default()) {
+                Ok((service_account, _role_binding)) => {
+                    Some((object.metadata.clone(), service_account.name_any()))
+                }
+                Err(e) => {
+                    error!(
+                        ?object,
+                        ?e,
+                        "Failed to build serviceAccount name for hdfs cluster"
+                    );
+                    None
+                }
+            }
         })
         .map(|(meta, sa_name)| Subject {
             kind: "ServiceAccount".to_string(),
