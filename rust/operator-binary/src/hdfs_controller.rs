@@ -9,6 +9,7 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::k8s_openapi::api::core::v1::ServiceAccount;
 use stackable_operator::{
     builder::{
         configmap::ConfigMapBuilder,
@@ -17,10 +18,7 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        product_image_selection::ResolvedProductImage,
-        rbac::{build_rbac_resources, service_account_name},
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     iter::reverse_if,
     k8s_openapi::{
         api::{
@@ -326,7 +324,7 @@ pub async fn reconcile_hdfs(
     .context(BuildRbacResourcesSnafu)?;
 
     cluster_resources
-        .add(client, rbac_sa)
+        .add(client, rbac_sa.clone())
         .await
         .context(ApplyServiceAccountSnafu)?;
     cluster_resources
@@ -434,6 +432,7 @@ pub async fn reconcile_hdfs(
                 env_overrides,
                 &merged_config,
                 &namenode_podrefs,
+                &rbac_sa,
             )?;
 
             let rg_service_name = rg_service.name_any();
@@ -818,6 +817,7 @@ fn rolegroup_statefulset(
     env_overrides: Option<&BTreeMap<String, String>>,
     merged_config: &AnyNodeConfig,
     namenode_podrefs: &[HdfsPodRef],
+    service_account: &ServiceAccount,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
 
@@ -837,7 +837,7 @@ fn rolegroup_statefulset(
     pb.metadata(pb_metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .affinity(&merged_config.affinity)
-        .service_account_name(service_account_name(APP_NAME))
+        .service_account_name(service_account.name_any())
         .security_context(
             PodSecurityContextBuilder::new()
                 .run_as_user(HDFS_UID)
