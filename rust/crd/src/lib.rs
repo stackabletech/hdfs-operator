@@ -238,6 +238,10 @@ pub struct CommonNodeConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+    /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
+    /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
+    #[fragment_attrs(serde(default))]
+    pub requested_secret_lifetime: Option<Duration>,
 }
 
 /// Configuration for a rolegroup of an unknown type.
@@ -308,6 +312,13 @@ impl AnyNodeConfig {
             AnyNodeConfig::NameNode(node) => node.logging.enable_vector_agent,
             AnyNodeConfig::DataNode(node) => node.logging.enable_vector_agent,
             AnyNodeConfig::JournalNode(node) => node.logging.enable_vector_agent,
+        }
+    }
+    pub fn requested_secret_lifetime(&self) -> Option<Duration> {
+        match self {
+            AnyNodeConfig::NameNode(node) => node.common.requested_secret_lifetime,
+            AnyNodeConfig::DataNode(node) => node.common.requested_secret_lifetime,
+            AnyNodeConfig::JournalNode(node) => node.common.requested_secret_lifetime,
         }
     }
 }
@@ -1098,6 +1109,7 @@ impl NameNodeConfigFragment {
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+                requested_secret_lifetime: Some(DEFAULT_NAME_NODE_SECRET_LIFETIME),
             },
         }
     }
@@ -1237,6 +1249,7 @@ impl DataNodeConfigFragment {
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+                requested_secret_lifetime: Some(DEFAULT_DATA_NODE_SECRET_LIFETIME),
             },
         }
     }
@@ -1347,6 +1360,7 @@ impl JournalNodeConfigFragment {
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+                requested_secret_lifetime: Some(DEFAULT_JOURNAL_NODE_SECRET_LIFETIME),
             },
         }
     }

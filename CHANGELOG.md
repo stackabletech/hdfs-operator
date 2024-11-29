@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup config property `requestedSecretLifetime` ([#619])
+
 ### Fixed
 
 - BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
@@ -11,6 +15,7 @@ All notable changes to this project will be documented in this file.
   restart ([#616]).
 
 [#616]: https://github.com/stackabletech/hdfs-operator/pull/616
+[#619]: https://github.com/stackabletech/hdfs-operator/pull/619
 
 ## [24.11.0] - 2024-11-18
 
