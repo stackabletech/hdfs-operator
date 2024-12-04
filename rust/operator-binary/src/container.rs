@@ -89,6 +89,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
 
@@ -272,6 +275,11 @@ impl ContainerConfig {
                         .with_node_scope()
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
+                        .with_auto_tls_cert_lifetime(
+                            merged_config
+                                .requested_secret_lifetime()
+                                .context(MissingSecretLifetimeSnafu)?,
+                        )
                         .build()
                         .context(BuildSecretVolumeSnafu {
                             volume_name: TLS_STORE_VOLUME_NAME,
