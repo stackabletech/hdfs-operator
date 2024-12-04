@@ -1086,6 +1086,8 @@ pub struct NameNodeConfig {
 }
 
 impl NameNodeConfigFragment {
+    const DEFAULT_NAME_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: ResourcesFragment {
@@ -1110,7 +1112,7 @@ impl NameNodeConfigFragment {
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
-                requested_secret_lifetime: Some(DEFAULT_NAME_NODE_SECRET_LIFETIME),
+                requested_secret_lifetime: Some(Self::DEFAULT_NAME_NODE_SECRET_LIFETIME),
             },
         }
     }
@@ -1221,6 +1223,8 @@ pub struct DataNodeConfig {
 }
 
 impl DataNodeConfigFragment {
+    const DEFAULT_DATA_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: ResourcesFragment {
@@ -1250,7 +1254,7 @@ impl DataNodeConfigFragment {
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
-                requested_secret_lifetime: Some(DEFAULT_DATA_NODE_SECRET_LIFETIME),
+                requested_secret_lifetime: Some(Self::DEFAULT_DATA_NODE_SECRET_LIFETIME),
             },
         }
     }
@@ -1338,6 +1342,7 @@ pub struct JournalNodeConfig {
 }
 
 impl JournalNodeConfigFragment {
+    const DEFAULT_JOURNAL_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: ResourcesFragment {
@@ -1361,7 +1366,7 @@ impl JournalNodeConfigFragment {
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
-                requested_secret_lifetime: Some(DEFAULT_JOURNAL_NODE_SECRET_LIFETIME),
+                requested_secret_lifetime: Some(Self::DEFAULT_JOURNAL_NODE_SECRET_LIFETIME),
             },
         }
     }

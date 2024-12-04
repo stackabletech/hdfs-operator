@@ -87,7 +87,3 @@ pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 pub const HDFS_UID: i64 = 1000;
-
-pub const DEFAULT_NAME_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
-pub const DEFAULT_DATA_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
-pub const DEFAULT_JOURNAL_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
