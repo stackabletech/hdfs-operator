@@ -143,3 +143,12 @@ status:
   expectedPods: {{ test_scenario['values']['number-of-datanodes'] }}
   currentHealthy: {{ test_scenario['values']['number-of-datanodes'] }}
   disruptionsAllowed: 1
+---
+# This test checks if the containerdebug-state.json file is present and valid
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  - script: kubectl exec -n $NAMESPACE --container namenode hdfs-namenode-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status
+  - script: kubectl exec -n $NAMESPACE --container datanode hdfs-datanode-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status
+  - script: kubectl exec -n $NAMESPACE --container journalnode hdfs-journalnode-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status
