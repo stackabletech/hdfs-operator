@@ -1086,7 +1086,7 @@ pub struct NameNodeConfig {
 }
 
 impl NameNodeConfigFragment {
-    const DEFAULT_NAME_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+    const DEFAULT_NAME_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
@@ -1223,7 +1223,7 @@ pub struct DataNodeConfig {
 }
 
 impl DataNodeConfigFragment {
-    const DEFAULT_DATA_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+    const DEFAULT_DATA_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
@@ -1342,7 +1342,7 @@ pub struct JournalNodeConfig {
 }
 
 impl JournalNodeConfigFragment {
-    const DEFAULT_JOURNAL_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+    const DEFAULT_JOURNAL_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
     pub fn default_config(cluster_name: &str, role: &HdfsRole) -> Self {
         Self {
             resources: ResourcesFragment {
