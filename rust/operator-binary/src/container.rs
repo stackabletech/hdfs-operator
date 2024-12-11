@@ -612,7 +612,7 @@ impl ContainerConfig {
 {COMMON_BASH_TRAP_FUNCTIONS}
 {remove_vector_shutdown_file_command}
 prepare_signal_handlers
-CONTAINERDEBUG_LOG_DIRECTORY={STACKABLE_LOG_DIR}/containerdebug containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
 if [[ -d {LISTENER_VOLUME_DIR} ]]; then
     export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
     for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
