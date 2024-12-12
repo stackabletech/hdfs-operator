@@ -2,18 +2,7 @@
 set -euo pipefail
 
 # DO NOT EDIT THE SCRIPT
-# Instead, update the j2 template, and regenerate it for dev:
-# cat <<EOF | jinja2 --format yaml getting_started.sh.j2 -o getting_started.sh
-# helm:
-#   repo_name: stackable-dev
-#   repo_url: https://repo.stackable.tech/repository/helm-dev/
-# versions:
-#   commons: 0.0.0-dev
-#   hdfs: 0.0.0-dev
-#   listener: 0.0.0-dev
-#   secret: 0.0.0-dev
-#   zookeeper: 0.0.0-dev
-# EOF
+# Instead, update the j2 template, and regenerate it for dev with `make render-docs`.
 
 # This script contains all the code snippets from the guide, as well as some assert tests
 # to test if the instructions in the guide work. The user *could* use it, but it is intended
@@ -108,9 +97,9 @@ done
 
 echo "Awaiting HDFS rollout finish"
 # tag::watch-hdfs-rollout[]
-kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-datanode-default
-kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-namenode-default
-kubectl rollout status --watch --timeout=5m statefulset/simple-hdfs-journalnode-default
+kubectl rollout status --watch --timeout=10m statefulset/simple-hdfs-datanode-default
+kubectl rollout status --watch --timeout=10m statefulset/simple-hdfs-namenode-default
+kubectl rollout status --watch --timeout=10m statefulset/simple-hdfs-journalnode-default
 # end::watch-hdfs-rollout[]
 
 echo "Creating Helper"

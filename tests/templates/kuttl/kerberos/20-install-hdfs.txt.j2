@@ -44,6 +44,7 @@ spec:
         replicas: 2
   dataNodes:
     config:
+      requestedSecretLifetime: 2d
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
@@ -56,3 +57,5 @@ spec:
     roleGroups:
       default:
         replicas: 3
+        config:
+          requestedSecretLifetime: 3d

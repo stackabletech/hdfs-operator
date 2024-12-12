@@ -3,8 +3,9 @@ use stackable_hdfs_crd::{
     constants::{APP_NAME, FIELD_MANAGER_SCOPE},
     HdfsCluster,
 };
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
-    commons::rbac::service_account_name,
+    commons::rbac::build_rbac_resources,
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
     kube::{
         api::{Patch, PatchParams},
@@ -15,6 +16,7 @@ use stackable_operator::{
         },
         Api, Client,
     },
+    kvp::Labels,
 };
 use tracing::{error, info};
 
@@ -41,18 +43,62 @@ pub async fn reconcile(
             )
         }
     }
+
     // Build a list of SubjectRef objects for all deployed HdfsClusters.
     // To do this we only need the metadata for that, as we only really
     // need name and namespace of the objects
     let subjects: Vec<Subject> = store
         .state()
         .into_iter()
-        .map(|object| object.metadata.clone())
-        .map(|meta| Subject {
-            kind: "ServiceAccount".to_string(),
-            name: service_account_name(APP_NAME),
-            namespace: meta.namespace.clone(),
-            ..Subject::default()
+        .filter_map(|object| {
+            // The call to 'build_rbac_resources' can fail, so we
+            // use filter_map here, log an error for any failures and keep
+            // going with all the non-broken elements
+            // Usually we'd rather opt for failing completely here, but in this specific instance
+            // this could mean that one broken cluster somewhere could impact other working clusters
+            // within the namespace, so we opted for doing everything we can here, instead of failing
+            // completely.
+            match build_rbac_resources(&*object, APP_NAME, Labels::default()) {
+                Ok((service_account, _role_binding)) => {
+                    Some((object.metadata.clone(), service_account.name_any()))
+                }
+                Err(e) => {
+                    error!(
+                        ?object,
+                        error = &e as &dyn std::error::Error,
+                        "Failed to build serviceAccount name for hdfs cluster"
+                    );
+                    None
+                }
+            }
+        })
+        .flat_map(|(meta, sa_name)| {
+            let mut result = vec![
+                Subject {
+                    kind: "ServiceAccount".to_string(),
+                    name: sa_name,
+                    namespace: meta.namespace.clone(),
+                    ..Subject::default()
+                },
+                // This extra Serviceaccount is being written for legacy/compatibility purposes
+                // to ensure that running clusters don't lose access to anything during an upgrade
+                // of the Stackable operators, this code can be removed in later releases
+                // The value is hardcoded here, as we have removed access to the private fns that
+                // would have built it, since this is a known target though, and will be removed soon
+                // this should not be an issue.
+                Subject {
+                    kind: "ServiceAccount".to_string(),
+                    name: "hdfs-serviceaccount".to_string(),
+                    namespace: meta.namespace.clone(),
+                    ..Subject::default()
+                },
+            ];
+            // If a cluster is called hdfs this would result in the same subject
+            // being written twicex.
+            // Since we know this vec only contains two elements we can use dedup for
+            // simply removing this duplicate.
+            result.dedup();
+            result
         })
         .collect();
 

@@ -26,3 +26,11 @@ metadata:
 status:
   readyReplicas: 2
   replicas: 2
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  - script: kubectl -n $NAMESPACE get sts/hdfs-namenode-default -o yaml | yq -e '.spec.template.spec.volumes.[] | select(.name == "tls" and .ephemeral.volumeClaimTemplate.metadata.annotations."secrets.stackable.tech/backend.autotls.cert.lifetime" == "1d")'
+  - script: kubectl -n $NAMESPACE get sts/hdfs-datanode-default -o yaml | yq -e '.spec.template.spec.volumes.[] | select(.name == "tls" and .ephemeral.volumeClaimTemplate.metadata.annotations."secrets.stackable.tech/backend.autotls.cert.lifetime" == "2d")'
+  - script: kubectl -n $NAMESPACE get sts/hdfs-journalnode-default -o yaml | yq -e '.spec.template.spec.volumes.[] | select(.name == "tls" and .ephemeral.volumeClaimTemplate.metadata.annotations."secrets.stackable.tech/backend.autotls.cert.lifetime" == "3d")'
