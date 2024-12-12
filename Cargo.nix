@@ -6678,7 +6678,7 @@ rec {
       };
       "stackable-hdfs-crd" = rec {
         crateName = "stackable-hdfs-crd";
-        version = "24.11.1-rc1";
+        version = "24.11.1-rc2";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./rust/crd; };
         libName = "stackable_hdfs_crd";
@@ -6740,7 +6740,7 @@ rec {
       };
       "stackable-hdfs-operator" = rec {
         crateName = "stackable-hdfs-operator";
-        version = "24.11.1-rc1";
+        version = "24.11.1-rc2";
         edition = "2021";
         crateBin = [
           {
