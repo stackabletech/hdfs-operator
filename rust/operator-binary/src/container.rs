@@ -904,6 +904,15 @@ wait_for_termination $!
                 },
             );
         }
+        // Needed for the `containerdebug` process to log it's tracing information to.
+        env.insert(
+            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            EnvVar {
+                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+                value_from: None,
+            },
+        );
 
         // Overrides need to come last
         let mut env_override_vars: BTreeMap<String, EnvVar> =
