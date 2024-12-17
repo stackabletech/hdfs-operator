@@ -15,9 +15,11 @@ spec:
       labels:
         app: webhdfs
     spec:
+      shareProcessNamespace: true
       containers:
         - name: webhdfs
           image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
+          args: [sleep, infinity]
           stdin: true
           tty: true
           resources:
