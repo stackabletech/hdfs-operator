@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+  - script: |
+{% if test_scenario['values']['hadoop'].find(",") > 0 %}
+      PRODUCT_VERSION={{ test_scenario['values']['hadoop'].split(',')[0] }}
+{% else %}
+      PRODUCT_VERSION={{ test_scenario['values']['hadoop'] }}
+{% endif %}
+      kubectl exec --namespace=$NAMESPACE test-runner-0 -- \
+      python /tmp/test_metrics.py $NAMESPACE $PRODUCT_VERSION
