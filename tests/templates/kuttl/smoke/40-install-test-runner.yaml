@@ -2,21 +2,21 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: webhdfs
+  name: test-runner
   labels:
-    app: webhdfs
+    app: test-runner
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: webhdfs
+      app: test-runner
   template:
     metadata:
       labels:
-        app: webhdfs
+        app: test-runner
     spec:
       containers:
-        - name: webhdfs
+        - name: test-runner
           image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
           stdin: true
           tty: true

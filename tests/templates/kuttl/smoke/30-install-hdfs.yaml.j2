@@ -252,6 +252,18 @@ data:
           kind: 'MetricsSystem'
           sub: $2
         type: GAUGE
+      # FSDatasetState with _total suffix (also extracts the FSDataset ID),
+      # e.g. Hadoop:name=FSDatasetState,attribute=EstimatedCapacityLostTotal
+      - pattern: 'Hadoop<service=(.*), name=FSDatasetState-(.*)><>(.*_total): (\d+)'
+        attrNameSnakeCase: true
+        name: hadoop_$1_$3
+        value: $4
+        labels:
+          service: HDFS
+          role: $1
+          fsdatasetid: $2
+          kind: 'FSDatasetState'
+        type: COUNTER
       # FSDatasetState (also extracts the FSDataset ID)
       - pattern: 'Hadoop<service=(.*), name=FSDatasetState-(.*)><>(.*): (\d+)'
         attrNameSnakeCase: true
@@ -263,7 +275,19 @@ data:
           fsdatasetid: $2
           kind: 'FSDatasetState'
         type: GAUGE
-      # DataNodeActivity (also extracts hostname and port)
+      # DataNodeActivity with _info suffix (also extracts hostname and port),
+      # e.g. Hadoop:name=DataNodeActivity-hdfs-datanode-default-0-9866,attribute=BlocksGetLocalPathInfo
+      - pattern: 'Hadoop<service=(.*), name=DataNodeActivity-(.*)-(\d+)><>(.*_info): (\d+)'
+        attrNameSnakeCase: true
+        name: hadoop_$1_$4_
+        value: $5
+        labels:
+          service: HDFS
+          role: $1
+          host: $2
+          port: $3
+          kind: 'DataNodeActivity'
+        type: GAUGE
       - pattern: 'Hadoop<service=(.*), name=DataNodeActivity-(.*)-(\d+)><>(.*): (\d+)'
         attrNameSnakeCase: true
         name: hadoop_$1_$4
