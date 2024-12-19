@@ -612,6 +612,7 @@ impl ContainerConfig {
 {COMMON_BASH_TRAP_FUNCTIONS}
 {remove_vector_shutdown_file_command}
 prepare_signal_handlers
+containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
 if [[ -d {LISTENER_VOLUME_DIR} ]]; then
     export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
     for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
@@ -903,6 +904,15 @@ wait_for_termination $!
                 },
             );
         }
+        // Needed for the `containerdebug` process to log it's tracing information to.
+        env.insert(
+            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            EnvVar {
+                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+                value_from: None,
+            },
+        );
 
         // Overrides need to come last
         let mut env_override_vars: BTreeMap<String, EnvVar> =

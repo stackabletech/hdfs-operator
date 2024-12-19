@@ -15,9 +15,11 @@ spec:
       labels:
         app: test-runner
     spec:
+      shareProcessNamespace: true
       containers:
         - name: test-runner
           image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
+          args: [sleep, infinity]
           stdin: true
           tty: true
           resources:
