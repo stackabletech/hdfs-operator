@@ -2,6 +2,6 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - script: kubectl cp -n $NAMESPACE ./webhdfs.py  webhdfs-0:/tmp
-  - script: kubectl cp -n $NAMESPACE ./testdata.txt webhdfs-0:/tmp
-  - script: kubectl exec -n $NAMESPACE webhdfs-0 -- python /tmp/webhdfs.py $NAMESPACE create
+  - script: kubectl cp -n $NAMESPACE ./webhdfs.py  test-runner-0:/tmp
+  - script: kubectl cp -n $NAMESPACE ./testdata.txt test-runner-0:/tmp
+  - script: kubectl exec -n $NAMESPACE test-runner-0 -- python /tmp/webhdfs.py $NAMESPACE create

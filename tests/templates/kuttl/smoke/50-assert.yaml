@@ -2,4 +2,4 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
-  - script: kubectl exec -n $NAMESPACE webhdfs-0 -- python /tmp/webhdfs.py $NAMESPACE ls
+  - script: kubectl exec -n $NAMESPACE test-runner-0 -- python /tmp/webhdfs.py $NAMESPACE ls
