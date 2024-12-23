@@ -1,0 +1,639 @@
+➜  hdfs-operator git:(main) ✗ k -n kuttl-test-comic-muskox logs hdfs-namenode-default-1 -c format-namenodes -f                                                       kind-kind
++ mkdir -p /stackable/config/format-namenodes
++ cp /stackable/mount/config/format-namenodes/core-site.xml /stackable/mount/config/format-namenodes/hadoop-policy.xml /stackable/mount/config/format-namenodes/hdfs-site.xml /stackable/mount/config/format-namenodes/ssl-client.xml /stackable/mount/config/format-namenodes/ssl-server.xml /stackable/config/format-namenodes
+++ grep -oP 'default_realm = \K.*' /stackable/kerberos/krb5.conf
++ export KERBEROS_REALM=CLUSTER.LOCAL
++ KERBEROS_REALM=CLUSTER.LOCAL
++ cp /stackable/mount/config/format-namenodes/format-namenodes.log4j.properties /stackable/config/format-namenodes/log4j.properties
++ echo 'Getting ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL' from /stackable/kerberos/keytab
+Getting ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL from /stackable/kerberos/keytab
++ kinit nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL -kt /stackable/kerberos/keytab
+Start formatting namenode hdfs-namenode-default-1. Checking for active namenodes:
++ echo 'Start formatting namenode hdfs-namenode-default-1. Checking for active namenodes:'
++ for namenode_id in hdfs-namenode-default-0 hdfs-namenode-default-1
++ echo -n 'Checking pod hdfs-namenode-default-0... '
+++ /stackable/hadoop/bin/hdfs haadmin -getServiceState hdfs-namenode-default-0
+++ tail -n1
++ SERVICE_STATE=active
++ '[' active == active ']'
++ ACTIVE_NAMENODE=hdfs-namenode-default-0
++ echo active
+Checking pod hdfs-namenode-default-0... active
++ break
++ '[' '!' -f /stackable/data/namenode/current/VERSION ']'
++ '[' -z x ']'
++ echo 'Create pod hdfs-namenode-default-1 as standby namenode.'
+Create pod hdfs-namenode-default-1 as standby namenode.
++ /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive
+WARNING: /stackable/hadoop/logs does not exist. Creating.
+2024-12-23 09:07:18,122 INFO  namenode.NameNode (StringUtils.java:startupShutdownMessage(787)) - STARTUP_MSG: 
+/************************************************************
+STARTUP_MSG: Starting NameNode
+STARTUP_MSG:   host = hdfs-namenode-default-1/10.244.0.67
+STARTUP_MSG:   args = [-bootstrapStandby, -nonInteractive]
+STARTUP_MSG:   version = 3.4.0
+STARTUP_MSG:   classpath = /stackable/config/format-namenodes:/stackable/hadoop/share/hadoop/common/lib/kerb-simplekdc-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-webapp-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/curator-framework-5.2.0.jar:/stackable/hadoop/share/hadoop/common/lib/woodstox-core-5.4.0.jar:/stackable/hadoop/share/hadoop/common/lib/jakarta.activation-api-1.2.1.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-security-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/netty-common-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/jersey-json-1.20.jar:/stackable/hadoop/share/hadoop/common/lib/jersey-core-1.19.4.jar:/stackable/hadoop/share/hadoop/common/lib/jackson-databind-2.12.7.1.jar:/stackable/hadoop/share/hadoop/common/lib/netty-resolver-dns-native-macos-4.1.100.Final-osx-x86_64.jar:/stackable/hadoop/share/hadoop/common/lib/commons-cli-1.5.0.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar:/stackable/hadoop/share/hadoop/common/lib/jsch-0.1.55.jar:/stackable/hadoop/share/hadoop/common/lib/jersey-servlet-1.19.4.jar:/stackable/hadoop/share/hadoop/common/lib/bcprov-jdk15on-1.70.jar:/stackable/hadoop/share/hadoop/common/lib/metrics-core-3.2.4.jar:/stackable/hadoop/share/hadoop/common/lib/kerby-util-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-native-unix-common-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/commons-codec-1.15.jar:/stackable/hadoop/share/hadoop/common/lib/checker-qual-2.5.2.jar:/stackable/hadoop/share/hadoop/common/lib/guava-27.0-jre.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-util-ajax-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-client-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/nimbus-jose-jwt-9.31.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-server-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-rxtx-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-identity-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/netty-buffer-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-io-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/netty-all-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/reload4j-1.2.22.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-admin-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/jsr305-3.0.2.jar:/stackable/hadoop/share/hadoop/common/lib/jackson-annotations-2.12.7.jar:/stackable/hadoop/share/hadoop/common/lib/httpclient-4.5.13.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-classes-epoll-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-resolver-dns-classes-macos-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/commons-logging-1.2.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-xml-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-haproxy-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-native-kqueue-4.1.100.Final-osx-aarch_64.jar:/stackable/hadoop/share/hadoop/common/lib/re2j-1.1.jar:/stackable/hadoop/share/hadoop/common/lib/kerby-config-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/dnsjava-3.4.0.jar:/stackable/hadoop/share/hadoop/common/lib/jackson-core-2.12.7.jar:/stackable/hadoop/share/hadoop/common/lib/audience-annotations-0.12.0.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-socks-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-mqtt-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/snappy-java-1.1.10.4.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-http2-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-http-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/hadoop-annotations-3.4.0.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar:/stackable/hadoop/share/hadoop/common/lib/jsr311-api-1.1.1.jar:/stackable/hadoop/share/hadoop/common/lib/failureaccess-1.0.jar:/stackable/hadoop/share/hadoop/common/lib/jaxb-api-2.2.11.jar:/stackable/hadoop/share/hadoop/common/lib/netty-handler-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/hadoop-auth-3.4.0.jar:/stackable/hadoop/share/hadoop/common/lib/commons-configuration2-2.8.0.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-udt-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/jcip-annotations-1.0-1.jar:/stackable/hadoop/share/hadoop/common/lib/jersey-server-1.19.4.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-stomp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/curator-recipes-5.2.0.jar:/stackable/hadoop/share/hadoop/common/lib/kerby-pkix-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/netty-handler-proxy-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/j2objc-annotations-1.1.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-server-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/commons-lang3-3.12.0.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-servlet-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/commons-beanutils-1.9.4.jar:/stackable/hadoop/share/hadoop/common/lib/commons-text-1.10.0.jar:/stackable/hadoop/share/hadoop/common/lib/commons-daemon-1.0.13.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-util-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/gson-2.9.0.jar:/stackable/hadoop/share/hadoop/common/lib/jline-3.9.0.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-classes-kqueue-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-native-kqueue-4.1.100.Final-osx-x86_64.jar:/stackable/hadoop/share/hadoop/common/lib/curator-client-5.2.0.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-util-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/zookeeper-3.8.3.jar:/stackable/hadoop/share/hadoop/common/lib/slf4j-api-1.7.36.jar:/stackable/hadoop/share/hadoop/common/lib/jaxb-impl-2.2.3-1.jar:/stackable/hadoop/share/hadoop/common/lib/hadoop-shaded-protobuf_3_21-1.2.0.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-common-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/zookeeper-jute-3.8.3.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-dns-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-http-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/commons-io-2.14.0.jar:/stackable/hadoop/share/hadoop/common/lib/httpcore-4.4.13.jar:/stackable/hadoop/share/hadoop/common/lib/avro-1.9.2.jar:/stackable/hadoop/share/hadoop/common/lib/kerby-asn1-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-redis-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/commons-compress-1.24.0.jar:/stackable/hadoop/share/hadoop/common/lib/jul-to-slf4j-1.7.36.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-native-epoll-4.1.100.Final-linux-aarch_64.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-core-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/hadoop-shaded-guava-1.2.0.jar:/stackable/hadoop/share/hadoop/common/lib/kerb-crypto-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/kerby-xdr-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/jettison-1.5.4.jar:/stackable/hadoop/share/hadoop/common/lib/jsp-api-2.1.jar:/stackable/hadoop/share/hadoop/common/lib/stax2-api-4.2.1.jar:/stackable/hadoop/share/hadoop/common/lib/netty-resolver-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/commons-net-3.9.0.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-sctp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-resolver-dns-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/slf4j-reload4j-1.7.36.jar:/stackable/hadoop/share/hadoop/common/lib/token-provider-2.0.3.jar:/stackable/hadoop/share/hadoop/common/lib/commons-collections-3.2.2.jar:/stackable/hadoop/share/hadoop/common/lib/jetty-xml-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/common/lib/netty-handler-ssl-ocsp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-smtp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-transport-native-epoll-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-codec-memcache-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/common/lib/netty-resolver-dns-native-macos-4.1.100.Final-osx-aarch_64.jar:/stackable/hadoop/share/hadoop/common/lib/animal-sniffer-annotations-1.17.jar:/stackable/hadoop/share/hadoop/common/lib/commons-math3-3.6.1.jar:/stackable/hadoop/share/hadoop/common/lib/javax.servlet-api-3.1.0.jar:/stackable/hadoop/share/hadoop/common/lib/hdfs-utils-0.4.0.jar:/stackable/hadoop/share/hadoop/common/hadoop-kms-3.4.0.jar:/stackable/hadoop/share/hadoop/common/hadoop-nfs-3.4.0.jar:/stackable/hadoop/share/hadoop/common/hadoop-common-3.4.0.jar:/stackable/hadoop/share/hadoop/common/hadoop-registry-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-simplekdc-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-webapp-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/curator-framework-5.2.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/woodstox-core-5.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jakarta.activation-api-1.2.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-security-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-common-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jersey-json-1.20.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jersey-core-1.19.4.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jackson-databind-2.12.7.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-resolver-dns-native-macos-4.1.100.Final-osx-x86_64.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-cli-1.5.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar:/stackable/hadoop/share/hadoop/hdfs/lib/leveldbjni-all-1.8.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jsch-0.1.55.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jersey-servlet-1.19.4.jar:/stackable/hadoop/share/hadoop/hdfs/lib/HikariCP-4.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/metrics-core-3.2.4.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerby-util-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-native-unix-common-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-codec-1.15.jar:/stackable/hadoop/share/hadoop/hdfs/lib/checker-qual-2.5.2.jar:/stackable/hadoop/share/hadoop/hdfs/lib/guava-27.0-jre.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-util-ajax-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-client-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/nimbus-jose-jwt-9.31.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-server-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-rxtx-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-identity-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-buffer-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-io-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-all-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/reload4j-1.2.22.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-admin-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jsr305-3.0.2.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jackson-annotations-2.12.7.jar:/stackable/hadoop/share/hadoop/hdfs/lib/httpclient-4.5.13.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-classes-epoll-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-resolver-dns-classes-macos-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-logging-1.2.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-xml-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-haproxy-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-native-kqueue-4.1.100.Final-osx-aarch_64.jar:/stackable/hadoop/share/hadoop/hdfs/lib/re2j-1.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerby-config-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/dnsjava-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jackson-core-2.12.7.jar:/stackable/hadoop/share/hadoop/hdfs/lib/audience-annotations-0.12.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-socks-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-mqtt-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/snappy-java-1.1.10.4.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-http2-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-http-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/hadoop-annotations-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jsr311-api-1.1.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/failureaccess-1.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jaxb-api-2.2.11.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-handler-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/hadoop-auth-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-configuration2-2.8.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-udt-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jcip-annotations-1.0-1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jersey-server-1.19.4.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-stomp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/curator-recipes-5.2.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerby-pkix-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-handler-proxy-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/j2objc-annotations-1.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-server-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-lang3-3.12.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-servlet-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-beanutils-1.9.4.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-text-1.10.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-daemon-1.0.13.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-util-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/gson-2.9.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jline-3.9.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-classes-kqueue-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-native-kqueue-4.1.100.Final-osx-x86_64.jar:/stackable/hadoop/share/hadoop/hdfs/lib/curator-client-5.2.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-util-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/json-simple-1.1.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/zookeeper-3.8.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jaxb-impl-2.2.3-1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/hadoop-shaded-protobuf_3_21-1.2.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-common-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/zookeeper-jute-3.8.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-dns-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-http-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-io-2.14.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/httpcore-4.4.13.jar:/stackable/hadoop/share/hadoop/hdfs/lib/avro-1.9.2.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerby-asn1-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-redis-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-compress-1.24.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-native-epoll-4.1.100.Final-linux-aarch_64.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-core-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/hadoop-shaded-guava-1.2.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerb-crypto-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/kerby-xdr-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jettison-1.5.4.jar:/stackable/hadoop/share/hadoop/hdfs/lib/stax2-api-4.2.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-resolver-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-net-3.9.0.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-sctp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-resolver-dns-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/token-provider-2.0.3.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-collections-3.2.2.jar:/stackable/hadoop/share/hadoop/hdfs/lib/jetty-xml-9.4.53.v20231009.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-handler-ssl-ocsp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-smtp-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-transport-native-epoll-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-codec-memcache-4.1.100.Final.jar:/stackable/hadoop/share/hadoop/hdfs/lib/netty-resolver-dns-native-macos-4.1.100.Final-osx-aarch_64.jar:/stackable/hadoop/share/hadoop/hdfs/lib/animal-sniffer-annotations-1.17.jar:/stackable/hadoop/share/hadoop/hdfs/lib/commons-math3-3.6.1.jar:/stackable/hadoop/share/hadoop/hdfs/lib/javax.servlet-api-3.1.0.jar:/stackable/hadoop/share/hadoop/hdfs/hadoop-hdfs-rbf-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/hadoop-hdfs-httpfs-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/hadoop-hdfs-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/hadoop-hdfs-client-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/hadoop-hdfs-native-client-3.4.0.jar:/stackable/hadoop/share/hadoop/hdfs/hadoop-hdfs-nfs-3.4.0.jar
+STARTUP_MSG:   build = Unknown -r Unknown; compiled by 'root' on 2024-12-20T10:15Z
+STARTUP_MSG:   java = 11.0.25
+************************************************************/
+2024-12-23 09:07:18,182 INFO  namenode.NameNode (SignalLogger.java:register(91)) - registered UNIX signal handlers for [TERM, HUP, INT]
+2024-12-23 09:07:18,298 INFO  namenode.NameNode (NameNode.java:createNameNode(1846)) - createNameNode [-bootstrapStandby, -nonInteractive]
+2024-12-23 09:07:18,583 INFO  ha.BootstrapStandby (BootstrapStandby.java:parseConfAndFindOtherNN(458)) - Found nn: hdfs-namenode-default-0, ipc: hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local/10.244.0.62:8020
+Java config name: /stackable/kerberos/krb5.conf
+Loading krb5 profile at /stackable/kerberos/krb5.conf
+Loaded from Java config
+2024-12-23 09:07:18,894 INFO  common.Util (Util.java:stringAsURI(105)) - Assuming 'file' scheme for path /stackable/data/namenode in configuration.
+2024-12-23 09:07:18,894 INFO  common.Util (Util.java:stringAsURI(105)) - Assuming 'file' scheme for path /stackable/data/namenode in configuration.
+Java config name: /stackable/kerberos/krb5.conf
+Loading krb5 profile at /stackable/kerberos/krb5.conf
+Loaded from Java config
+>>> KdcAccessibility: reset
+>>> KdcAccessibility: reset
+>>> KeyTab: load() entry length: -53; type: 0
+>>> KeyTabInputStream, readName(): CLUSTER.LOCAL
+>>> KeyTabInputStream, readName(): nn
+>>> KeyTabInputStream, readName(): hdfs.kuttl-test-comic-muskox.svc.cluster.local
+>>> KeyTab: load() entry length: 118; type: 18
+>>> KeyTabInputStream, readName(): CLUSTER.LOCAL
+>>> KeyTabInputStream, readName(): nn
+>>> KeyTabInputStream, readName(): hdfs.kuttl-test-comic-muskox.svc.cluster.local
+>>> KeyTab: load() entry length: 102; type: 17
+>>> KeyTabInputStream, readName(): CLUSTER.LOCAL
+>>> KeyTabInputStream, readName(): HTTP
+>>> KeyTabInputStream, readName(): hdfs.kuttl-test-comic-muskox.svc.cluster.local
+>>> KeyTab: load() entry length: 120; type: 18
+>>> KeyTabInputStream, readName(): CLUSTER.LOCAL
+>>> KeyTabInputStream, readName(): HTTP
+>>> KeyTabInputStream, readName(): hdfs.kuttl-test-comic-muskox.svc.cluster.local
+>>> KeyTab: load() entry length: 104; type: 17
+Looking for keys for: nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+Added key: 17version: 1
+Added key: 18version: 1
+Looking for keys for: nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+Added key: 17version: 1
+Added key: 18version: 1
+Using builtin default etypes for default_tkt_enctypes
+default etypes for default_tkt_enctypes: 18 17 20 19.
+>>> KrbAsReq creating message
+>>> KrbKdcReq send: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000, number of retries =3, #bytes=186
+>>> KDCCommunication: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000,Attempt =1, #bytes=186
+>>>DEBUG: TCPClient reading 980 bytes
+>>> KrbKdcReq send: #bytes read=980
+>>> KdcAccessibility: remove krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local
+Looking for keys for: nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+Added key: 17version: 1
+Added key: 18version: 1
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> KrbAsRep cons in KrbAsReq.getReply nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local
+2024-12-23 09:07:19,097 INFO  security.UserGroupInformation (UserGroupInformation.java:loginUserFromKeytab(1143)) - Login successful for user nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL using keytab file keytab. Keytab auto renewal enabled : true
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to krbtgt/CLUSTER.LOCAL@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Entered Krb5Context.initSecContext with state=STATE_NEW
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to krbtgt/CLUSTER.LOCAL@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Service ticket not found in the subject
+>>> Credentials serviceCredsSingle: same realm
+Using builtin default etypes for default_tgs_enctypes
+default etypes for default_tgs_enctypes: 18 17 20 19.
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> CksumType: sun.security.krb5.internal.crypto.HmacSha1Aes256CksumType
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> KrbKdcReq send: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000, number of retries =3, #bytes=956
+>>> KDCCommunication: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000,Attempt =1, #bytes=956
+>>>DEBUG: TCPClient reading 1024 bytes
+>>> KrbKdcReq send: #bytes read=1024
+>>> KdcAccessibility: remove krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> TGS credentials serviceCredsSingle:
+>>> DEBUG: ----Credentials----
+        client: nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+        server: nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+        ticket: sname: nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+        endTime: 1735031239000
+        ----Credentials end----
+>>> KrbApReq: APOptions are 00100000 00000000 00000000 00000000
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+Krb5Context setting mySeqNumber to: 131287277
+Created InitSecContextToken:
+0000: 01 00 6E 82 03 AA 30 82   03 A6 A0 03 02 01 05 A1  ..n...0.........
+0010: 03 02 01 0E A2 07 03 05   00 20 00 00 00 A3 82 02  ......... ......
+0020: 8F 61 82 02 8B 30 82 02   87 A0 03 02 01 05 A1 0F  .a...0..........
+0030: 1B 0D 43 4C 55 53 54 45   52 2E 4C 4F 43 41 4C A2  ..CLUSTER.LOCAL.
+0040: 3F 30 3D A0 03 02 01 00   A1 36 30 34 1B 02 6E 6E  ?0=......604..nn
+0050: 1B 2E 68 64 66 73 2E 6B   75 74 74 6C 2D 74 65 73  ..hdfs.kuttl-tes
+0060: 74 2D 63 6F 6D 69 63 2D   6D 75 73 6B 6F 78 2E 73  t-comic-muskox.s
+0070: 76 63 2E 63 6C 75 73 74   65 72 2E 6C 6F 63 61 6C  vc.cluster.local
+0080: A3 82 02 2C 30 82 02 28   A0 03 02 01 12 A1 03 02  ...,0..(........
+0090: 01 01 A2 82 02 1A 04 82   02 16 80 D3 66 E8 59 15  ............f.Y.
+00A0: F1 B6 9A 0D 72 93 C9 90   E7 88 74 3A 32 62 A9 E2  ....r.....t:2b..
+00B0: D8 8D D6 3A D9 89 94 47   D9 6D 8D 8F 4B 82 DE EA  ...:...G.m..K...
+00C0: A5 FD 5F 60 96 6E E0 AC   42 10 9E 36 2A 7A 9C AD  .._`.n..B..6*z..
+00D0: 6F 96 DB 2B 36 A9 23 74   3D E8 7A AE B3 F8 DE BE  o..+6.#t=.z.....
+00E0: 5B 94 0D 57 13 99 26 66   33 F6 3C 53 43 B2 B5 0E  [..W..&f3.<SC...
+00F0: FA EC 8D 48 D5 12 EF 3C   5E 12 EB A1 5D 75 81 D7  ...H...<^...]u..
+0100: 92 C9 6D A1 02 9D 3E E6   DC 3F 67 93 A7 77 D0 27  ..m...>..?g..w.'
+0110: 3B FF 60 05 FF D1 DE EE   8A E5 0D FF E8 21 81 7C  ;.`..........!..
+0120: 17 09 3E 01 F8 C4 80 02   D3 D9 E7 41 39 8F 77 96  ..>........A9.w.
+0130: F7 59 71 54 5D D8 A4 AA   75 A2 3E D7 BB E1 43 31  .YqT]...u.>...C1
+0140: 7D BB 49 CF BF D0 C7 0A   9C F8 4F E2 2C 68 64 37  ..I.......O.,hd7
+0150: 33 3E 50 E3 35 19 E2 07   2A A6 25 FF D2 A3 F0 0C  3>P.5...*.%.....
+0160: 53 15 2D 08 CE 82 99 B2   88 BF A4 79 AC 97 72 EC  S.-........y..r.
+0170: E6 81 73 82 EA 12 FE 7E   CF 43 9E 90 99 93 8D C8  ..s......C......
+0180: E0 65 B5 08 84 4F 58 01   18 B9 8C F0 C5 3E 59 EE  .e...OX......>Y.
+0190: A7 30 29 B8 57 E8 28 1E   81 59 2A 75 DE E0 53 A8  .0).W.(..Y*u..S.
+01A0: 99 9E EA FF BF 37 9B 5A   C9 78 9E B9 42 FC 93 24  .....7.Z.x..B..$
+01B0: 3A D8 3F 73 42 B2 D9 CC   E3 C0 CE 18 5C 0C 44 58  :.?sB.......\.DX
+01C0: CD 13 6B CD 51 80 00 FE   FE 7B 86 CF CA 9D F1 4F  ..k.Q..........O
+01D0: 0F 27 65 8A F8 EE AF DE   68 B9 54 A4 B0 EB 87 FD  .'e.....h.T.....
+01E0: 53 67 F7 DE A9 92 17 78   FC 69 68 44 A0 C9 31 2E  Sg.....x.ihD..1.
+01F0: EF A7 15 48 D1 94 64 38   65 9A 13 A3 3C 94 11 D8  ...H..d8e...<...
+0200: 99 ED E5 21 E7 66 B7 45   63 AC E3 B1 C3 62 24 E3  ...!.f.Ec....b$.
+0210: 7B 4F D9 66 5E 69 D4 77   74 13 1F 0D 3B 12 9E 01  .O.f^i.wt...;...
+0220: 3F E2 F4 B7 1C 9A 46 ED   9F C1 BE 98 11 40 75 6C  ?.....F......@ul
+0230: 28 C0 BA 83 47 48 20 16   F2 6D 66 F9 F4 A4 6C 98  (...GH ..mf...l.
+0240: 04 29 BA B1 1D A6 FD 36   0F 24 27 6A CA 94 4A BD  .).....6.$'j..J.
+0250: 19 2F BE B7 7A 0B F6 ED   3B 06 A5 9F FA E2 44 ED  ./..z...;.....D.
+0260: B2 5D A1 95 FB 74 92 1E   59 33 1C 3B 29 7A CB D0  .]...t..Y3.;)z..
+0270: 46 22 BB 45 D2 85 B3 22   9B CF 34 B7 12 35 C2 12  F".E..."..4..5..
+0280: 31 15 97 F8 AA D5 6B 38   D2 3D E7 A6 BF 5C E5 E3  1.....k8.=...\..
+0290: A5 BA 21 17 92 E6 0B 50   6B BB BB A4 1F F5 DB 47  ..!....Pk......G
+02A0: 88 09 03 7E 8D 61 7D B1   56 1C 93 ED AD 14 07 E1  .....a..V.......
+02B0: A4 81 FD 30 81 FA A0 03   02 01 12 A2 81 F2 04 81  ...0............
+02C0: EF 38 BB 3D 51 18 4D 9D   71 07 B4 AE AE B3 EB 82  .8.=Q.M.q.......
+02D0: E7 50 B0 21 6C F6 5D FA   E4 44 62 43 81 40 D7 74  .P.!l.]..DbC.@.t
+02E0: 6C 67 81 C6 73 39 8C 48   D5 18 CC 83 8B B7 E4 15  lg..s9.H........
+02F0: 70 09 FA DC 0F 9B 2E 95   CA 69 77 91 F6 12 40 F9  p........iw...@.
+0300: 3D D2 5D 68 41 13 18 58   DB C8 BD 81 4F F5 E4 67  =.]hA..X....O..g
+0310: 0A 6D 23 00 09 63 A0 64   CB 00 D9 30 26 E5 15 E5  .m#..c.d...0&...
+0320: 48 17 FD 03 80 49 12 E2   D5 21 E8 6C A4 3F F9 FE  H....I...!.l.?..
+0330: E1 F8 A6 F3 D1 A5 2B 9F   46 4B 70 FE 5D 6B 81 3A  ......+.FKp.]k.:
+0340: FB E0 69 48 71 38 9E DB   D7 18 B1 BF 9E 1D FB C8  ..iHq8..........
+0350: 66 E4 F5 62 75 DA 62 16   79 6B FA 52 EA 08 B6 14  f..bu.b.yk.R....
+0360: 03 AB A0 8E E0 2C 9F 05   FC EF 16 5A A2 DB CD FF  .....,.....Z....
+0370: F9 BB 30 76 9F 65 61 0A   C5 F9 DF 77 AF 71 01 6F  ..0v.ea....w.q.o
+0380: B5 57 7C E8 AC 1E F8 3C   98 99 30 F8 CB 96 D1 F2  .W.....<..0.....
+0390: 3F 91 63 99 12 4C EE 62   51 20 A9 EB 65 F2 C9 C5  ?.c..L.bQ ..e...
+03A0: E1 09 F3 BC 86 4F 03 2B   D8 D4 D5 93 5B 60 E4 5C  .....O.+....[`.\
+
+Entered Krb5Context.initSecContext with state=STATE_IN_PROCESS
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+Krb5Context setting peerSeqNumber to: 144751260
+Krb5Context.unwrap: token=[05 04 01 ff 00 0c 00 00 00 00 00 00 08 a0 ba 9c 04 01 00 00 19 ef 11 e8 76 62 69 13 66 9f 77 51 ]
+Krb5Context.wrap: token=[05 04 00 ff 00 0c 00 00 00 00 00 00 07 d3 48 ed 04 01 00 00 3e 0c 9f 7a 16 96 97 b2 4c 34 7a 08 ]
+Krb5Context.wrap: token=[05 04 02 ff 00 00 00 00 00 00 00 00 07 d3 48 ee a4 79 4e 93 a5 9b 84 9c b5 82 c4 10 0d 26 4b d7 01 6d 65 b7 38 45 e7 0d 85 36 b1 eb 74 e9 06 9f f2 f4 8c 12 45 4b 04 6b 90 c6 bf e5 1e df de fa ed 4c 10 23 e0 46 28 65 38 de d6 48 07 1e be f2 49 a7 02 fd d5 14 38 75 15 77 8e 26 3c c2 d2 e9 39 a3 c9 b2 1a 3e 5a 64 63 ef 3d d8 f2 17 e2 40 ac 79 d7 9e a2 2e 59 66 32 cf fa 24 c2 0b d0 a4 9f 68 f0 8f 8e 9b 06 36 68 c7 7c 88 3d 53 41 b2 61 d6 78 5f 81 6b 4b ed 8e 66 7d e2 36 77 81 85 e9 23 f8 2a 5d 06 30 1e ca b0 30 00 17 e2 a7 a5 07 89 66 d3 e6 57 b2 bf 52 8a 39 74 75 77 89 f1 01 9e c1 1f 45 ce c5 09 eb 66 cb a1 78 dd cd 1e fb ca 60 19 bf fa d6 d2 24 4f 18 a3 1d 28 85 07 da d6 8e ff 89 5b ad 23 c3 cb 95 09 da 35 43 ea b4 17 26 b9 fe 71 ff 36 27 1a 08 41 38 7e f6 f2 6a cf 17 c6 23 79 df 79 30 db f2 2b bc ef f5 67 aa 4d 87 d9 af 7d f0 4a 7c 0f 99 54 af b3 10 7c fd c4 2d d8 51 98 0f 7f 1f 92 7c 0f e9 b8 dc 12 45 12 81 0b 53 1a 6c 37 3c 34 ee d0 c3 6c 51 1a 81 3d 7a 14 c8 20 ea a9 87 c1 b1 bc 28 c7 e5 28 54 c5 ]
+Krb5Context.unwrap: token=[05 04 03 ff 00 00 00 00 00 00 00 00 08 a0 ba 9d 2c 10 32 59 d4 5a 59 9c 46 2c c0 da 5f d6 8c cf 15 96 40 7c b6 7e d0 7d aa 4a 26 f0 47 d4 26 be e7 c3 b9 56 9a 71 ca 15 89 a5 54 ab 07 5c 78 c1 67 0a 3f d0 69 f5 56 68 81 57 78 f1 68 31 0a c8 d3 bf f3 94 17 eb d0 5f e1 bd 05 97 be 95 1b d7 79 c8 6e e6 db b0 60 81 d4 73 74 1f a4 e4 8f 6a 24 cf ce 88 7f 68 e1 ed 34 be dd 45 10 55 b4 a5 d7 ed 0f 83 b6 48 35 af 6a 60 c1 b6 f6 4a e5 62 f4 81 7c 69 b0 3b 20 3f 5b a7 25 db 33 96 84 9b 75 5f 14 51 95 72 7d ec 62 9e 22 ee 37 c2 70 de 09 a4 7e e9 90 95 6f 9a a8 73 33 98 08 51 ee a4 2f b8 2d 93 b4 b8 5e ad 85 05 17 16 c4 02 b6 9a 09 18 f2 18 87 eb 7a 0a 9d 5b f2 ]
+Krb5Context.wrap: token=[05 04 02 ff 00 00 00 00 00 00 00 00 07 d3 48 ef 73 c6 6d 35 3b 48 9e 24 1c 3d 8c b7 af c5 30 1a 64 54 31 a3 1f 2b 73 25 1d 4f 66 27 34 16 ec 30 df 90 d2 7d f2 52 66 b0 44 6c 31 66 a7 a5 69 c6 63 b0 df 2b f8 0a d1 20 08 3b e7 8a 8e 98 20 81 49 da 73 da 54 36 c5 58 a0 b3 f8 cf fa a9 3a 79 ae ab 76 9f b5 e0 9f b1 eb 88 d8 67 6f dd e0 9c f4 2d 71 8f c6 09 62 6e f2 9b 52 ea 4c 80 41 b9 0c cb 42 1a fd 9c 89 2a d5 ef 5c 04 7d 2d dc 4f 55 80 ab 9e 27 1b 59 50 b5 08 a4 83 31 d5 cb 9b fc 4c 32 36 23 59 55 34 30 44 79 a2 0e 10 c7 24 61 72 d9 ]
+Krb5Context.unwrap: token=[05 04 03 ff 00 00 00 00 00 00 00 00 08 a0 ba 9e c6 37 de 72 3e ce 4b 13 0a d0 31 3a 0c 66 c8 2a 4f 64 62 b4 24 fc ee 60 af df ef 8a d6 ca 5b d6 ad 65 7a bf 17 d3 de 74 f2 26 0f c1 18 d2 ce c7 79 b6 b0 01 bf 2a 66 c8 ba 9b f1 bc 06 bd b1 94 46 4b 59 e1 89 0f 70 5d 60 44 c5 02 ee 73 ]
+Krb5Context.wrap: token=[05 04 02 ff 00 00 00 00 00 00 00 00 07 d3 48 f0 51 71 8d 83 3b 40 ac 11 f6 9d 4a bf 6e 78 26 fe f8 1a 09 ef 9e ec eb 59 0e c3 69 96 a3 72 df f6 e2 cc 57 a6 c8 c9 2e 44 a7 55 a9 f1 09 60 c8 7c 4d 38 8a 04 5b 5d 88 e6 9c 3d f2 b5 32 5d 6f c6 e2 d6 d6 2f 77 08 03 c9 cf 4e f2 dd b1 06 a2 ef 9f 7e 3b fb 7b 64 28 7f 7a 8c 27 50 ee 24 99 83 1d a9 94 35 ac 5e a0 14 80 bb 9d a0 ad c9 b2 91 f1 c3 a9 a6 0c 62 f5 82 f0 79 6e 32 ac 9e c2 c3 02 4e 5d 16 c4 36 c2 bb 58 f3 e2 5f 31 b4 11 c6 f1 65 6f 48 e1 61 d0 bc d5 44 55 82 f6 ec c0 7a db ]
+Krb5Context.unwrap: token=[05 04 03 ff 00 00 00 00 00 00 00 00 08 a0 ba 9f a8 4b d9 9c 2b 4f 98 d5 35 f5 7f 99 41 f4 38 f4 f8 2a 74 5b 0c 25 93 50 e4 38 50 b6 e2 97 65 38 60 28 f3 7a bc a1 71 35 e5 87 9e ab fc 34 c1 19 36 56 6f 2f c2 04 01 d5 ec a9 7a fa 97 5a 94 4a 61 03 b5 b5 1b b5 c0 c7 07 be 8a 65 01 20 ]
+=====================================================
+About to bootstrap Standby ID hdfs-namenode-default-1 from:
+           Nameservice ID: hdfs
+        Other Namenode ID: hdfs-namenode-default-0
+  Other NN's HTTP address: https://hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local:9871
+  Other NN's IPC  address: hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local/10.244.0.62:8020
+             Namespace ID: 827886254
+            Block pool ID: BP-829372115-10.244.0.62-1734944811526
+               Cluster ID: CID-ba2bba50-5642-49da-9da1-651088ad95e3
+           Layout version: -67
+   Service Layout version: -67
+       isUpgradeFinalized: true
+         isRollingUpgrade: false
+=====================================================
+2024-12-23 09:07:19,584 INFO  common.Storage (NNStorage.java:format(595)) - Storage directory /stackable/data/namenode has been successfully formatted.
+Krb5Context.wrap: token=[05 04 02 ff 00 00 00 00 00 00 00 00 07 d3 48 f1 99 1a 4d 5e 09 bf 6d 14 9c a7 30 e6 2e 86 b8 ae e7 3d 30 74 bf cb 34 90 ce a2 95 19 e5 44 7d 80 54 f8 b9 27 2d 7e 52 19 36 66 18 eb 6d 93 52 0e a2 02 2c c8 b4 11 b8 48 04 b7 ee 3d 49 df ac 38 2e f4 4a 81 af 2d d9 63 21 b9 57 80 df 75 cf ed 31 fd 55 a6 04 14 8a d3 ea 8c 17 5f f9 52 7d 7e 3c da d6 3a b5 29 b5 b5 79 71 93 c6 f1 22 0a 35 a8 e0 e5 c4 f5 bd 66 90 b1 ee 53 f4 58 13 91 8f 55 ac 88 bd d7 ac 3c 8c a8 44 b6 dc 58 50 98 ff 00 aa 10 76 d3 e8 06 8a a4 a2 43 62 73 65 f2 8e 85 de 4d 6e 6b 6d 9e b7 28 d6 2e 1e ]
+Krb5Context.unwrap: token=[05 04 03 ff 00 00 00 00 00 00 00 00 08 a0 ba a0 c0 e3 83 56 4f c3 2d a4 91 57 73 f5 1f eb a9 4b f5 7a dc 4d a2 2d 73 b2 3e ea 53 f3 76 d6 09 7a e2 58 f3 72 75 8c 1a 38 c0 64 22 1d cf d0 50 e0 18 bd b7 da 78 96 d5 de 80 69 07 06 6f e9 65 04 35 18 ea 26 c0 fa c4 d1 30 46 6d 87 6e c6 ]
+Krb5Context.wrap: token=[05 04 02 ff 00 00 00 00 00 00 00 00 07 d3 48 f2 23 6a f1 91 da 93 0b dd fa 23 7c 74 7d cf ee 86 9d f9 2f 1b 92 2f 6e dc fc c2 ec 21 97 66 89 67 e3 3b 02 cf 96 b4 e4 0a 2c a8 50 1c 3a c8 41 d4 1c 89 7e a9 32 d6 9b 66 cf 23 83 5f a5 31 f8 96 17 63 71 9d ec 18 d6 2e 2a 11 58 73 c0 5f 00 c6 f2 e3 0c 93 0b 5a dc 68 58 00 52 95 7f 1a 9f 7f 5b 2d df c4 4a f0 03 0b 4d 85 0f 0d 9c 3c 00 64 65 c6 9e a2 52 fc fc a6 b4 4d a6 90 32 9b e5 84 e2 85 c6 ac 26 86 7f bf 68 69 8f 89 dd 68 cf a9 f4 99 32 e1 8a b9 73 63 b1 4d ff 45 06 af 22 e0 22 ]
+Krb5Context.unwrap: token=[05 04 03 ff 00 00 00 00 00 00 00 00 08 a0 ba a1 dd bb 1d f2 b3 0f 97 6a 04 41 13 ea c7 65 ab e5 e3 20 69 8d bb a6 89 d0 a8 0c 5d 03 26 a5 49 be 29 71 b8 94 76 6a 25 39 f2 5d 22 5b 14 ab cd 66 d3 8f a1 3c 49 19 30 d3 4e 8f 13 1e 0e 04 f4 f9 2a 83 bb 90 33 53 6a 1a cb f5 dc 9e a7 7a ]
+2024-12-23 09:07:19,603 INFO  common.Util (Util.java:stringAsURI(105)) - Assuming 'file' scheme for path /stackable/data/namenode in configuration.
+2024-12-23 09:07:19,604 INFO  common.Util (Util.java:stringAsURI(105)) - Assuming 'file' scheme for path /stackable/data/namenode in configuration.
+2024-12-23 09:07:19,630 INFO  namenode.FSEditLog (FSEditLog.java:newInstance(238)) - Edit logging is async:true
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to krbtgt/CLUSTER.LOCAL@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Entered Krb5Context.initSecContext with state=STATE_NEW
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to krbtgt/CLUSTER.LOCAL@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Service ticket not found in the subject
+>>> Credentials serviceCredsSingle: same realm
+Using builtin default etypes for default_tgs_enctypes
+default etypes for default_tgs_enctypes: 18 17 20 19.
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> CksumType: sun.security.krb5.internal.crypto.HmacSha1Aes256CksumType
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> KrbKdcReq send: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000, number of retries =3, #bytes=956
+>>> KDCCommunication: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000,Attempt =1, #bytes=956
+>>>DEBUG: TCPClient reading 1024 bytes
+>>> KrbKdcReq send: #bytes read=1024
+>>> KdcAccessibility: remove krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> TGS credentials serviceCredsSingle:
+>>> DEBUG: ----Credentials----
+        client: nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+        server: jn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+        ticket: sname: jn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+        endTime: 1735031239000
+        ----Credentials end----
+>>> KrbApReq: APOptions are 00100000 00000000 00000000 00000000
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+Krb5Context setting mySeqNumber to: 116063771
+Created InitSecContextToken:
+0000: 01 00 6E 82 03 AA 30 82   03 A6 A0 03 02 01 05 A1  ..n...0.........
+0010: 03 02 01 0E A2 07 03 05   00 20 00 00 00 A3 82 02  ......... ......
+0020: 8F 61 82 02 8B 30 82 02   87 A0 03 02 01 05 A1 0F  .a...0..........
+0030: 1B 0D 43 4C 55 53 54 45   52 2E 4C 4F 43 41 4C A2  ..CLUSTER.LOCAL.
+0040: 3F 30 3D A0 03 02 01 00   A1 36 30 34 1B 02 6A 6E  ?0=......604..jn
+0050: 1B 2E 68 64 66 73 2E 6B   75 74 74 6C 2D 74 65 73  ..hdfs.kuttl-tes
+0060: 74 2D 63 6F 6D 69 63 2D   6D 75 73 6B 6F 78 2E 73  t-comic-muskox.s
+0070: 76 63 2E 63 6C 75 73 74   65 72 2E 6C 6F 63 61 6C  vc.cluster.local
+0080: A3 82 02 2C 30 82 02 28   A0 03 02 01 12 A1 03 02  ...,0..(........
+0090: 01 01 A2 82 02 1A 04 82   02 16 36 C8 4B 4E 19 D8  ..........6.KN..
+00A0: 6D E1 88 91 69 89 56 75   75 10 39 24 1F C5 93 57  m...i.Vuu.9$...W
+00B0: A6 CE B7 54 8E CC 3D 59   F9 6E F1 95 09 C2 76 1C  ...T..=Y.n....v.
+00C0: 9F B9 EC A1 0B 5A B9 33   B1 DF 8C 03 CA E9 1A C0  .....Z.3........
+00D0: 4E FE C4 39 4D 6A 92 56   DF 78 78 E2 8E 44 0A B6  N..9Mj.V.xx..D..
+00E0: 99 F2 12 A6 C3 FF 3B 16   67 5B F8 2F 3A A9 07 40  ......;.g[./:..@
+00F0: 96 95 E5 84 31 38 95 6B   AE AD F3 E4 C3 BA E8 FB  ....18.k........
+0100: 9C AE 64 40 8F 6B B2 29   1F 74 80 04 80 AC 67 B6  ..d@.k.).t....g.
+0110: 0E F7 F5 CC 45 FF A1 61   D4 BF 71 CF 2F 79 2B 07  ....E..a..q./y+.
+0120: B0 7E 2D 57 8D 98 6C 83   AF 81 EC 65 81 9E AD 02  ..-W..l....e....
+0130: 7B 7B 4E 56 F1 D5 A0 19   6B 63 CB DC C3 25 EC 37  ..NV....kc...%.7
+0140: 42 DC 52 36 3F 1B 50 3F   FF 14 12 9D C0 3B BC A1  B.R6?.P?.....;..
+0150: F1 A5 A7 98 4F 0C 9B CA   BC 4F E4 CA D7 19 C6 3E  ....O....O.....>
+0160: 12 6C 24 2C A9 F5 E0 83   02 A8 5F DC C0 F5 60 47  .l$,......_...`G
+0170: 31 69 10 A5 2F FA 87 FB   4E 7A DA 82 3E 0A AA 31  1i../...Nz..>..1
+0180: 03 DD D0 A7 5C 63 56 E2   B6 B9 46 79 81 24 B4 E6  ....\cV...Fy.$..
+0190: C8 35 5E 03 1A 70 08 9B   75 76 BE 2F 7B 25 6F 70  .5^..p..uv./.%op
+01A0: EA DF EC 57 62 DE C9 12   49 88 EC 82 95 6C 63 55  ...Wb...I....lcU
+01B0: 6A 3B 64 77 78 EA FE 06   70 46 AD E8 ED 2A D5 46  j;dwx...pF...*.F
+01C0: 1A 4E 93 83 8D AD 51 3C   90 06 C4 4D 3B 72 F0 51  .N....Q<...M;r.Q
+01D0: E8 7A FD F2 EA 4B 9C 17   32 16 60 F4 30 90 56 7A  .z...K..2.`.0.Vz
+01E0: 32 70 C4 8D 3E 7D B3 B1   00 7C B3 51 93 BE 12 DB  2p..>......Q....
+01F0: 6A 55 D9 41 65 E4 AA 85   37 0B 9A D8 F3 81 29 70  jU.Ae...7.....)p
+0200: F0 60 26 19 5C 25 AD 60   57 10 51 B9 E4 5C 49 4D  .`&.\%.`W.Q..\IM
+0210: 7F 0B A4 15 F5 50 FC B6   B8 F8 04 1F F2 0D 20 2B  .....P........ +
+0220: E8 ED C6 4B 33 C7 59 EA   67 40 8E E0 96 2C 19 FC  ...K3.Y.g@...,..
+0230: F9 BE 80 12 D2 B0 7B 3F   EA D5 32 44 CD 94 A6 EE  .......?..2D....
+0240: 66 D7 B5 9E 9C D4 EC 63   D2 0E AB 4B B3 92 D6 55  f......c...K...U
+0250: CA 2F B3 33 E1 14 5F D6   86 82 BD 4B 1D 92 6D 21  ./.3.._....K..m!
+0260: 8A 8C 37 8E 67 27 74 CE   2F 2E 6A BB 38 9E A8 0D  ..7.g't./.j.8...
+0270: DC 1E FE AD 15 B7 A8 E0   85 29 F3 F2 5E 0E 53 99  .........)..^.S.
+0280: DA 02 B6 5C C3 D5 A9 83   CC 49 85 10 B4 C8 29 D9  ...\.....I....).
+0290: F9 B6 34 AE 03 0A 0A 10   21 12 AC DC BF 9C 3A F1  ..4.....!.....:.
+02A0: F0 D2 08 E9 24 C0 1F 55   29 E4 DA E2 E5 11 30 A8  ....$..U).....0.
+02B0: A4 81 FD 30 81 FA A0 03   02 01 12 A2 81 F2 04 81  ...0............
+02C0: EF 83 85 5A 74 4D EC 8E   36 E9 2F 84 17 FF C5 1B  ...ZtM..6./.....
+02D0: DF D8 77 36 CF 5D 1D 96   95 A1 31 3E BB 94 2B F7  ..w6.]....1>..+.
+02E0: 56 DD 97 5D 2C 57 F8 B5   3A 0C B3 6A F7 8D D8 62  V..],W..:..j...b
+02F0: 3E EC 0B 84 10 A0 C4 FF   8D 38 10 36 FF 2B 82 90  >........8.6.+..
+0300: DF DD 57 E9 7D 73 75 69   E3 08 55 FE 8E 8D 9A ED  ..W..sui..U.....
+0310: C9 EF F3 D8 AE 41 EA D7   7F 05 6B 33 BA 40 22 66  .....A....k3.@"f
+0320: F5 C9 9E 35 58 59 33 16   9C 36 B2 9B 6F B3 00 A6  ...5XY3..6..o...
+0330: DE E7 17 80 C4 CF E0 93   9C 47 AA 9F DE A6 9B D7  .........G......
+0340: 15 7B 6E 1F EC 8D 6C 4E   D7 E3 54 D1 91 A6 8C 42  ..n...lN..T....B
+0350: 3B 49 1C DC 1B AE 2A 95   F7 12 78 36 F5 C9 8D 9F  ;I....*...x6....
+0360: 29 29 5F DE A8 FE E7 FA   23 0E 6A 9C 24 5B 84 06  ))_.....#.j.$[..
+0370: 8C 01 88 72 A1 8E 88 B5   2D A1 C3 22 18 94 F7 9A  ...r....-.."....
+0380: 9C 8C B3 99 F0 3C 73 D9   67 40 F7 92 5A 29 A1 51  .....<s.g@..Z).Q
+0390: A6 43 04 76 37 A9 EB ED   93 E2 A8 91 28 1B F9 C3  .C.v7.......(...
+03A0: 2B F2 AD 4E EA 81 C7 6B   D8 A5 87 B6 5C 55 68 5A  +..N...k....\UhZ
+
+Entered Krb5Context.initSecContext with state=STATE_IN_PROCESS
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+Krb5Context setting peerSeqNumber to: 911085391
+Krb5Context.unwrap: token=[05 04 01 ff 00 0c 00 00 00 00 00 00 36 4e 0f 4f 04 01 00 00 24 7c ff 8a 41 8b 07 6e 92 ff e9 6a ]
+Krb5Context.wrap: token=[05 04 00 ff 00 0c 00 00 00 00 00 00 06 ea fe 1b 04 01 00 00 4c bf e7 92 06 a8 9f fb 23 1e 17 d2 ]
+Krb5Context.wrap: token=[05 04 02 ff 00 00 00 00 00 00 00 00 06 ea fe 1c fc d1 75 c0 21 cd b4 2f c6 03 9e 2e 3a ea 64 75 28 00 85 8b 29 1e 98 ff 3d 54 6a 6e 7c 42 f6 7d 68 41 d4 37 5d 2e 52 d2 dc f6 f5 d5 21 b2 06 9d 58 1f 0e e3 18 d6 72 c4 a9 91 9e 68 23 0c f0 e9 65 5b db 82 8f 20 13 da 9e 7e e8 d8 b7 52 44 8b e1 11 c2 62 02 36 c7 d8 07 da c5 20 c5 8e 11 b2 f3 cc a3 6a bc 99 84 8f 2e 7b ab 52 8e 74 72 1d b5 1b 86 7e 5b 9b 61 09 1f a4 51 59 84 a1 12 65 fa ee b9 57 c1 3b ab ff 72 68 0d 2d 1f b7 f6 38 dd 81 d7 e9 f2 fa 0c e9 bf 4a 42 8d 23 9b 65 6e ac 0e 6d 01 ec 01 2c 2a f0 40 bb da a5 6c cd b5 aa 02 f6 21 f8 5b d4 ca ca f4 35 51 c3 1f a7 e5 c2 72 74 a4 76 09 f9 98 d4 b9 f3 09 5a 0a d6 08 a2 bc 04 98 b4 bd c2 f9 2a 67 09 c6 e5 c4 d5 ef eb 61 1e bb 5f 7d 89 4d 45 aa c6 72 de db 0c c5 cc 4f 71 d5 0f 20 fc 25 be 89 7a dc 1d 52 f1 78 db eb d9 7b 6b 91 33 6f d0 5f d5 1e 7d 70 b3 ad 7f ec 83 7a 57 41 e4 71 e9 be 97 fe 25 4c 75 a2 69 b2 e5 1d b7 67 ec 73 3c 97 66 fb fd be 81 b4 7e 8e 81 b3 79 92 b9 17 54 d8 91 fe 8a 18 de 55 a8 6c cf 0c b2 2d 11 0e dc 32 6a dd 94 df f7 81 f5 c1 0b b3 75 53 1a 7f 61 15 fc e0 ]
+Krb5Context.unwrap: token=[05 04 03 ff 00 00 00 00 00 00 00 00 36 4e 0f 50 b1 89 fe e8 c8 7e 63 bb e1 88 95 3d c3 08 71 35 b3 be e0 c8 ba f9 db 9c 40 3a cd d6 9b 10 28 5a d6 ba 83 2c 5d 9a 89 f0 54 46 c9 b2 3e 02 64 b8 29 03 b1 db a3 36 16 87 05 f8 f6 69 81 58 65 da de 15 a1 5c 23 44 ae 1b 46 70 c7 94 d0 c5 0e 8d ed 53 21 40 85 bc 58 da f3 68 41 bf 31 1e 2e 30 96 4a df f6 ff f6 03 96 5b 3f 41 bd 77 e0 99 65 09 ]
+2024-12-23 09:07:19,899 INFO  namenode.TransferFsImage (TransferFsImage.java:getFileClient(435)) - Opening connection to https://hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local:9871/imagetransfer?getimage=1&txid=0&storageInfo=-67:827886254:1734944811526:CID-ba2bba50-5642-49da-9da1-651088ad95e3&bootstrapstandby=true
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to krbtgt/CLUSTER.LOCAL@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Entered Krb5Context.initSecContext with state=STATE_NEW
+Service ticket not found in the subject
+>>> Credentials serviceCredsSingle: same realm
+Using builtin default etypes for default_tgs_enctypes
+default etypes for default_tgs_enctypes: 18 17 20 19.
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> CksumType: sun.security.krb5.internal.crypto.HmacSha1Aes256CksumType
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> KrbKdcReq send: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000, number of retries =3, #bytes=999
+>>> KDCCommunication: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000,Attempt =1, #bytes=999
+>>>DEBUG: TCPClient reading 277 bytes
+>>> KrbKdcReq send: #bytes read=277
+>>> KdcAccessibility: remove krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local
+>>> KDCRep: init() encoding tag is 126 req type is 13
+>>>KRBError:
+         sTime is Mon Dec 23 09:07:20 UTC 2024 1734944840000
+         suSec is 91083
+         error code is 7
+         error Message is Server not found in Kerberos database
+         crealm is CLUSTER.LOCAL
+         cname is nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         sname is HTTP/hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         msgType is 30
+>>> Credentials serviceCredsSingle: same realm
+Using builtin default etypes for default_tgs_enctypes
+default etypes for default_tgs_enctypes: 18 17 20 19.
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> CksumType: sun.security.krb5.internal.crypto.HmacSha1Aes256CksumType
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> KrbKdcReq send: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000, number of retries =3, #bytes=999
+>>> KDCCommunication: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000,Attempt =1, #bytes=999
+>>>DEBUG: TCPClient reading 277 bytes
+>>> KrbKdcReq send: #bytes read=277
+>>> KdcAccessibility: remove krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local
+>>> KDCRep: init() encoding tag is 126 req type is 13
+>>>KRBError:
+         sTime is Mon Dec 23 09:07:20 UTC 2024 1734944840000
+         suSec is 91084
+         error code is 7
+         error Message is Server not found in Kerberos database
+         crealm is CLUSTER.LOCAL
+         cname is nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         sname is HTTP/hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         msgType is 30
+KrbException: Server not found in Kerberos database (7) - LOOKING_UP_SERVER
+        at java.security.jgss/sun.security.krb5.KrbTgsRep.<init>(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.getReply(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.sendAndGetCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCredsSingle(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.acquireServiceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.Credentials.acquireServiceCreds(Unknown Source)
+        at java.security.jgss/sun.security.jgss.krb5.Krb5Context.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.spnego.SpNegoContext.GSS_initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.spnego.SpNegoContext.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.net.www.protocol.http.spnego.NegotiatorImpl.init(Unknown Source)
+        at java.security.jgss/sun.net.www.protocol.http.spnego.NegotiatorImpl.<init>(Unknown Source)
+        at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance(Unknown Source)
+        at java.base/jdk.internal.reflect.DelegatingConstructorAccessorImpl.newInstance(Unknown Source)
+        at java.base/java.lang.reflect.Constructor.newInstance(Unknown Source)
+        at java.base/sun.net.www.protocol.http.Negotiator.getNegotiator(Unknown Source)
+        at java.base/sun.net.www.protocol.http.NegotiateAuthentication.isSupported(Unknown Source)
+        at java.base/sun.net.www.protocol.http.AuthenticationHeader.parse(Unknown Source)
+        at java.base/sun.net.www.protocol.http.AuthenticationHeader.<init>(Unknown Source)
+        at java.base/sun.net.www.protocol.http.AuthenticationHeader.<init>(Unknown Source)
+        at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream0(Unknown Source)
+        at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream(Unknown Source)
+        at java.base/java.net.HttpURLConnection.getResponseCode(Unknown Source)
+        at java.base/sun.net.www.protocol.https.HttpsURLConnectionImpl.getResponseCode(Unknown Source)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.authenticate(KerberosAuthenticator.java:193)
+        at org.apache.hadoop.security.authentication.client.AuthenticatedURL.openConnection(AuthenticatedURL.java:353)
+        at org.apache.hadoop.hdfs.web.URLConnectionFactory.openConnection(URLConnectionFactory.java:186)
+        at org.apache.hadoop.hdfs.server.common.Util.doGetUrl(Util.java:163)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.doGetUrl(TransferFsImage.java:441)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.getFileClient(TransferFsImage.java:436)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.downloadImageToStorage(TransferFsImage.java:123)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.downloadImage(BootstrapStandby.java:375)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.doRun(BootstrapStandby.java:251)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.access$000(BootstrapStandby.java:83)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:126)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:122)
+        at java.base/java.security.AccessController.doPrivileged(Native Method)
+        at java.base/javax.security.auth.Subject.doAs(Unknown Source)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1930)
+        at org.apache.hadoop.security.SecurityUtil.doAsLoginUserOrFatal(SecurityUtil.java:518)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:122)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:82)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:97)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:568)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1878)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1971)
+Caused by: KrbException: Identifier doesn't match expected value (906)
+        at java.security.jgss/sun.security.krb5.internal.KDCRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.<init>(Unknown Source)
+        ... 52 more
+Negotiate support not initiated, will fallback to other scheme if allowed. Reason:
+GSSException: No valid credentials provided (Mechanism level: No valid credentials provided (Mechanism level: Server not found in Kerberos database (7) - LOOKING_UP_SERVER))
+        at java.security.jgss/sun.security.jgss.spnego.SpNegoContext.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.net.www.protocol.http.spnego.NegotiatorImpl.init(Unknown Source)
+        at java.security.jgss/sun.net.www.protocol.http.spnego.NegotiatorImpl.<init>(Unknown Source)
+        at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance(Unknown Source)
+        at java.base/jdk.internal.reflect.DelegatingConstructorAccessorImpl.newInstance(Unknown Source)
+        at java.base/java.lang.reflect.Constructor.newInstance(Unknown Source)
+        at java.base/sun.net.www.protocol.http.Negotiator.getNegotiator(Unknown Source)
+        at java.base/sun.net.www.protocol.http.NegotiateAuthentication.isSupported(Unknown Source)
+        at java.base/sun.net.www.protocol.http.AuthenticationHeader.parse(Unknown Source)
+        at java.base/sun.net.www.protocol.http.AuthenticationHeader.<init>(Unknown Source)
+        at java.base/sun.net.www.protocol.http.AuthenticationHeader.<init>(Unknown Source)
+        at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream0(Unknown Source)
+        at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream(Unknown Source)
+        at java.base/java.net.HttpURLConnection.getResponseCode(Unknown Source)
+        at java.base/sun.net.www.protocol.https.HttpsURLConnectionImpl.getResponseCode(Unknown Source)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.authenticate(KerberosAuthenticator.java:193)
+        at org.apache.hadoop.security.authentication.client.AuthenticatedURL.openConnection(AuthenticatedURL.java:353)
+        at org.apache.hadoop.hdfs.web.URLConnectionFactory.openConnection(URLConnectionFactory.java:186)
+        at org.apache.hadoop.hdfs.server.common.Util.doGetUrl(Util.java:163)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.doGetUrl(TransferFsImage.java:441)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.getFileClient(TransferFsImage.java:436)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.downloadImageToStorage(TransferFsImage.java:123)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.downloadImage(BootstrapStandby.java:375)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.doRun(BootstrapStandby.java:251)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.access$000(BootstrapStandby.java:83)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:126)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:122)
+        at java.base/java.security.AccessController.doPrivileged(Native Method)
+        at java.base/javax.security.auth.Subject.doAs(Unknown Source)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1930)
+        at org.apache.hadoop.security.SecurityUtil.doAsLoginUserOrFatal(SecurityUtil.java:518)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:122)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:82)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:97)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:568)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1878)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1971)
+Caused by: GSSException: No valid credentials provided (Mechanism level: Server not found in Kerberos database (7) - LOOKING_UP_SERVER)
+        at java.security.jgss/sun.security.jgss.krb5.Krb5Context.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.spnego.SpNegoContext.GSS_initSecContext(Unknown Source)
+        ... 40 more
+Caused by: KrbException: Server not found in Kerberos database (7) - LOOKING_UP_SERVER
+        at java.security.jgss/sun.security.krb5.KrbTgsRep.<init>(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.getReply(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.sendAndGetCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCredsSingle(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.acquireServiceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.Credentials.acquireServiceCreds(Unknown Source)
+        ... 44 more
+Caused by: KrbException: Identifier doesn't match expected value (906)
+        at java.security.jgss/sun.security.krb5.internal.KDCRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.<init>(Unknown Source)
+        ... 52 more
+WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.hadoop.security.authentication.util.KerberosUtil (file:/stackable/hadoop-3.4.0/share/hadoop/common/lib/hadoop-auth-3.4.0.jar) to field sun.security.krb5.PrincipalName.KRB_NT_SRV_HST
+WARNING: Please consider reporting this to the maintainers of org.apache.hadoop.security.authentication.util.KerberosUtil
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to krbtgt/CLUSTER.LOCAL@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Entered Krb5Context.initSecContext with state=STATE_NEW
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to krbtgt/CLUSTER.LOCAL@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Found ticket for nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL to go to jn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL expiring on Tue Dec 24 09:07:19 UTC 2024
+Service ticket not found in the subject
+>>> Credentials serviceCredsSingle: same realm
+Using builtin default etypes for default_tgs_enctypes
+default etypes for default_tgs_enctypes: 18 17 20 19.
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> CksumType: sun.security.krb5.internal.crypto.HmacSha1Aes256CksumType
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> KrbKdcReq send: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000, number of retries =3, #bytes=999
+>>> KDCCommunication: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000,Attempt =1, #bytes=999
+>>>DEBUG: TCPClient reading 277 bytes
+>>> KrbKdcReq send: #bytes read=277
+>>> KdcAccessibility: remove krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local
+>>> KDCRep: init() encoding tag is 126 req type is 13
+>>>KRBError:
+         sTime is Mon Dec 23 09:07:20 UTC 2024 1734944840000
+         suSec is 91085
+         error code is 7
+         error Message is Server not found in Kerberos database
+         crealm is CLUSTER.LOCAL
+         cname is nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         sname is HTTP/hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         msgType is 30
+>>> Credentials serviceCredsSingle: same realm
+Using builtin default etypes for default_tgs_enctypes
+default etypes for default_tgs_enctypes: 18 17 20 19.
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> CksumType: sun.security.krb5.internal.crypto.HmacSha1Aes256CksumType
+>>> EType: sun.security.krb5.internal.crypto.Aes256CtsHmacSha1EType
+>>> KrbKdcReq send: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000, number of retries =3, #bytes=999
+>>> KDCCommunication: kdc=krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local TCP:88, timeout=30000,Attempt =1, #bytes=999
+>>>DEBUG: TCPClient reading 277 bytes
+>>> KrbKdcReq send: #bytes read=277
+>>> KdcAccessibility: remove krb5-kdc.kuttl-test-comic-muskox.svc.cluster.local
+>>> KDCRep: init() encoding tag is 126 req type is 13
+>>>KRBError:
+         sTime is Mon Dec 23 09:07:20 UTC 2024 1734944840000
+         suSec is 91086
+         error code is 7
+         error Message is Server not found in Kerberos database
+         crealm is CLUSTER.LOCAL
+         cname is nn/hdfs.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         sname is HTTP/hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local@CLUSTER.LOCAL
+         msgType is 30
+KrbException: Server not found in Kerberos database (7) - LOOKING_UP_SERVER
+        at java.security.jgss/sun.security.krb5.KrbTgsRep.<init>(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.getReply(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.sendAndGetCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCredsSingle(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.acquireServiceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.Credentials.acquireServiceCreds(Unknown Source)
+        at java.security.jgss/sun.security.jgss.krb5.Krb5Context.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator$1.run(KerberosAuthenticator.java:344)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator$1.run(KerberosAuthenticator.java:318)
+        at java.base/java.security.AccessController.doPrivileged(Native Method)
+        at java.base/javax.security.auth.Subject.doAs(Unknown Source)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.doSpnegoSequence(KerberosAuthenticator.java:318)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.authenticate(KerberosAuthenticator.java:205)
+        at org.apache.hadoop.security.authentication.client.AuthenticatedURL.openConnection(AuthenticatedURL.java:353)
+        at org.apache.hadoop.hdfs.web.URLConnectionFactory.openConnection(URLConnectionFactory.java:186)
+        at org.apache.hadoop.hdfs.server.common.Util.doGetUrl(Util.java:163)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.doGetUrl(TransferFsImage.java:441)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.getFileClient(TransferFsImage.java:436)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.downloadImageToStorage(TransferFsImage.java:123)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.downloadImage(BootstrapStandby.java:375)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.doRun(BootstrapStandby.java:251)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.access$000(BootstrapStandby.java:83)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:126)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:122)
+        at java.base/java.security.AccessController.doPrivileged(Native Method)
+        at java.base/javax.security.auth.Subject.doAs(Unknown Source)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1930)
+        at org.apache.hadoop.security.SecurityUtil.doAsLoginUserOrFatal(SecurityUtil.java:518)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:122)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:82)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:97)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:568)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1878)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1971)
+Caused by: KrbException: Identifier doesn't match expected value (906)
+        at java.security.jgss/sun.security.krb5.internal.KDCRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.<init>(Unknown Source)
+        ... 38 more
+2024-12-23 09:07:20,111 ERROR namenode.NameNode (NameNode.java:main(1976)) - Failed to start namenode.
+java.io.IOException: java.lang.RuntimeException: java.io.IOException: org.apache.hadoop.security.authentication.client.AuthenticationException: Error while authenticating with endpoint: https://hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local:9871/imagetransfer?getimage=1&txid=0&storageInfo=-67:827886254:1734944811526:CID-ba2bba50-5642-49da-9da1-651088ad95e3&bootstrapstandby=true
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:573)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1878)
+        at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1971)
+Caused by: java.lang.RuntimeException: java.io.IOException: org.apache.hadoop.security.authentication.client.AuthenticationException: Error while authenticating with endpoint: https://hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local:9871/imagetransfer?getimage=1&txid=0&storageInfo=-67:827886254:1734944811526:CID-ba2bba50-5642-49da-9da1-651088ad95e3&bootstrapstandby=true
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:128)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:122)
+        at java.base/java.security.AccessController.doPrivileged(Native Method)
+        at java.base/javax.security.auth.Subject.doAs(Unknown Source)
+        at org.apache.hadoop.security.UserGroupInformation.doAs(UserGroupInformation.java:1930)
+        at org.apache.hadoop.security.SecurityUtil.doAsLoginUserOrFatal(SecurityUtil.java:518)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:122)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:82)
+        at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:97)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.run(BootstrapStandby.java:568)
+        ... 2 more
+Caused by: java.io.IOException: org.apache.hadoop.security.authentication.client.AuthenticationException: Error while authenticating with endpoint: https://hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local:9871/imagetransfer?getimage=1&txid=0&storageInfo=-67:827886254:1734944811526:CID-ba2bba50-5642-49da-9da1-651088ad95e3&bootstrapstandby=true
+        at org.apache.hadoop.hdfs.server.common.Util.doGetUrl(Util.java:165)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.doGetUrl(TransferFsImage.java:441)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.getFileClient(TransferFsImage.java:436)
+        at org.apache.hadoop.hdfs.server.namenode.TransferFsImage.downloadImageToStorage(TransferFsImage.java:123)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.downloadImage(BootstrapStandby.java:375)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.doRun(BootstrapStandby.java:251)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby.access$000(BootstrapStandby.java:83)
+        at org.apache.hadoop.hdfs.server.namenode.ha.BootstrapStandby$1.run(BootstrapStandby.java:126)
+        ... 11 more
+Caused by: org.apache.hadoop.security.authentication.client.AuthenticationException: Error while authenticating with endpoint: https://hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local:9871/imagetransfer?getimage=1&txid=0&storageInfo=-67:827886254:1734944811526:CID-ba2bba50-5642-49da-9da1-651088ad95e3&bootstrapstandby=true
+        at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+        at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance(Unknown Source)
+        at java.base/jdk.internal.reflect.DelegatingConstructorAccessorImpl.newInstance(Unknown Source)
+        at java.base/java.lang.reflect.Constructor.newInstance(Unknown Source)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.wrapExceptionWithMessage(KerberosAuthenticator.java:237)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.authenticate(KerberosAuthenticator.java:220)
+        at org.apache.hadoop.security.authentication.client.AuthenticatedURL.openConnection(AuthenticatedURL.java:353)
+        at org.apache.hadoop.hdfs.web.URLConnectionFactory.openConnection(URLConnectionFactory.java:186)
+        at org.apache.hadoop.hdfs.server.common.Util.doGetUrl(Util.java:163)
+        ... 18 more
+Caused by: org.apache.hadoop.security.authentication.client.AuthenticationException: GSSException: No valid credentials provided (Mechanism level: Server not found in Kerberos database (7) - LOOKING_UP_SERVER)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.doSpnegoSequence(KerberosAuthenticator.java:368)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.authenticate(KerberosAuthenticator.java:205)
+        ... 21 more
+Caused by: GSSException: No valid credentials provided (Mechanism level: Server not found in Kerberos database (7) - LOOKING_UP_SERVER)
+        at java.security.jgss/sun.security.jgss.krb5.Krb5Context.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at java.security.jgss/sun.security.jgss.GSSContextImpl.initSecContext(Unknown Source)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator$1.run(KerberosAuthenticator.java:344)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator$1.run(KerberosAuthenticator.java:318)
+        at java.base/java.security.AccessController.doPrivileged(Native Method)
+        at java.base/javax.security.auth.Subject.doAs(Unknown Source)
+        at org.apache.hadoop.security.authentication.client.KerberosAuthenticator.doSpnegoSequence(KerberosAuthenticator.java:318)
+        ... 22 more
+Caused by: KrbException: Server not found in Kerberos database (7) - LOOKING_UP_SERVER
+        at java.security.jgss/sun.security.krb5.KrbTgsRep.<init>(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.getReply(Unknown Source)
+        at java.security.jgss/sun.security.krb5.KrbTgsReq.sendAndGetCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCredsSingle(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.serviceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.CredentialsUtil.acquireServiceCreds(Unknown Source)
+        at java.security.jgss/sun.security.krb5.Credentials.acquireServiceCreds(Unknown Source)
+        ... 30 more
+Caused by: KrbException: Identifier doesn't match expected value (906)
+        at java.security.jgss/sun.security.krb5.internal.KDCRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.init(Unknown Source)
+        at java.security.jgss/sun.security.krb5.internal.TGSRep.<init>(Unknown Source)
+        ... 38 more
+2024-12-23 09:07:20,113 INFO  util.ExitUtil (ExitUtil.java:terminate(241)) - Exiting with status 1: java.io.IOException: java.lang.RuntimeException: java.io.IOException: org.apache.hadoop.security.authentication.client.AuthenticationException: Error while authenticating with endpoint: https://hdfs-namenode-default-0.hdfs-namenode-default.kuttl-test-comic-muskox.svc.cluster.local:9871/imagetransfer?getimage=1&txid=0&storageInfo=-67:827886254:1734944811526:CID-ba2bba50-5642-49da-9da1-651088ad95e3&bootstrapstandby=true
+2024-12-23 09:07:20,115 INFO  namenode.NameNode (StringUtils.java:run(800)) - SHUTDOWN_MSG: 
+/************************************************************
+SHUTDOWN_MSG: Shutting down NameNode at hdfs-namenode-default-1/10.244.0.67
+************************************************************/

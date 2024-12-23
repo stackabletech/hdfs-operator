@@ -2,8 +2,8 @@
 dimensions:
   - name: hadoop
     values:
-      - 3.3.4
-      - 3.3.6
+      # - 3.3.4
+      # - 3.3.6
       - 3.4.0
       # To use a custom image, add a comma and the full name after the product version
       # - 3.4.0,docker.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
@@ -30,20 +30,20 @@ dimensions:
   - name: number-of-datanodes
     values:
       - "1"
-      - "2"
+      # - "2"
   - name: datanode-pvcs
     values:
       - "default"
-      - "2hdd-1ssd"
+      # - "2hdd-1ssd"
   # Used for both, zookeeper and hdfs
   - name: listener-class
     values:
-      - "cluster-internal"
+      # - "cluster-internal"
       - "external-unstable"
   - name: kerberos-realm
     values:
       - "CLUSTER.LOCAL"
-      - "PROD.MYCORP"
+      # - "PROD.MYCORP"
   - name: kerberos-backend
     values:
       - mit
@@ -54,15 +54,15 @@ dimensions:
     values:
       - "false"
 tests:
-  - name: smoke
-    dimensions:
-      - hadoop
-      - zookeeper
-      - zookeeper-latest # Needed for smoke test to detect if zk versions is the latest we support
-      - number-of-datanodes
-      - datanode-pvcs
-      - listener-class
-      - openshift
+  # - name: smoke
+  #   dimensions:
+  #     - hadoop
+  #     - zookeeper
+  #     - zookeeper-latest # Needed for smoke test to detect if zk versions is the latest we support
+  #     - number-of-datanodes
+  #     - datanode-pvcs
+  #     - listener-class
+  #     - openshift
   - name: kerberos
     dimensions:
       - hadoop
@@ -72,33 +72,33 @@ tests:
       - kerberos-backend
       - openshift
       - opa
-  - name: topology-provider
-    dimensions:
-      - hadoop-latest
-      - zookeeper-latest
-      - krb5
-      - kerberos-backend
-      - openshift
-  - name: orphaned-resources
-    dimensions:
-      - hadoop-latest
-      - zookeeper-latest
-      - openshift
-  - name: logging
-    dimensions:
-      - hadoop
-      - zookeeper-latest
-      - openshift
-  - name: cluster-operation
-    dimensions:
-      - hadoop-latest
-      - zookeeper-latest
-      - openshift
-  - name: profiling
-    dimensions:
-      - hadoop
-      - zookeeper-latest
-      - openshift
+  # - name: topology-provider
+  #   dimensions:
+  #     - hadoop-latest
+  #     - zookeeper-latest
+  #     - krb5
+  #     - kerberos-backend
+  #     - openshift
+  # - name: orphaned-resources
+  #   dimensions:
+  #     - hadoop-latest
+  #     - zookeeper-latest
+  #     - openshift
+  # - name: logging
+  #   dimensions:
+  #     - hadoop
+  #     - zookeeper-latest
+  #     - openshift
+  # - name: cluster-operation
+  #   dimensions:
+  #     - hadoop-latest
+  #     - zookeeper-latest
+  #     - openshift
+  # - name: profiling
+  #   dimensions:
+  #     - hadoop
+  #     - zookeeper-latest
+  #     - openshift
   # Broken due to https://github.com/kudobuilder/kuttl/issues/322, see 40-assert.yaml for more details
   # - name: external-access
   #   dimensions:

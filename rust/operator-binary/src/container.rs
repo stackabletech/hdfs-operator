@@ -658,9 +658,12 @@ wait_for_termination $!
                 // for e.g. scaling. It may fail if the active namenode is restarted and the standby
                 // namenode takes over.
                 // This is why in the second part we check if the node is formatted already via
-                // $NAMENODE_DIR/current/VERSION. Then we don't do anything.
+                // $NAMENODE_DIR/current/fsimage_*. Then we don't do anything.
                 // If there is no active namenode, the current pod is not formatted we format as
                 // active namenode. Otherwise as standby node.
+                //
+                // Note: We can *not* rely on the presence of VERSION and seen_txid, as these are created even when the
+                // formatting failed (e.g. because of Kerberos errors). Instead, we search for `fsimage_*` files.
                 if hdfs.has_kerberos_enabled() {
                     args.push_str(&Self::get_kerberos_ticket(hdfs, role, cluster_info)?);
                 }
@@ -680,6 +683,7 @@ wait_for_termination $!
                       echo ""
                     done
 
+                    # if ! test -n "$(find {NAMENODE_ROOT_DATA_DIR}/current/ -maxdepth 1 -name 'fsimage_*' -print -quit)"
                     if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
                     then
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
@@ -692,6 +696,7 @@ wait_for_termination $!
                       fi
                     else
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
+                      cat "{NAMENODE_ROOT_DATA_DIR}/current/seen_txid"
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi
                     "###,
@@ -881,7 +886,7 @@ wait_for_termination $!
                 EnvVar {
                     name: "HADOOP_OPTS".to_string(),
                     value: Some(
-                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
+                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf -Dsun.security.krb5.debug=true".to_string(),
                     ),
                     ..EnvVar::default()
                 },

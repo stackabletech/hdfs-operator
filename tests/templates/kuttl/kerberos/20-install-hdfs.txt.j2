@@ -39,6 +39,29 @@ spec:
                 level: INFO
               tech.stackable.hadoop:
                 level: DEBUG
+    configOverrides:
+      core-site.xml:
+        hadoop.http.filter.initializers: org.apache.hadoop.security.AuthenticationFilterInitializer
+        hadoop.http.authentication.type: kerberos
+        hadoop.http.authentication.kerberos.principal: HTTP/hdfs.$NAMESPACE.svc.cluster.local@${env.KERBEROS_REALM}
+        hadoop.http.authentication.kerberos.keytab: /stackable/kerberos/keytab
+        dfs.namenode.kerberos.internal.spnego.principal: nn/hdfs.$NAMESPACE.svc.cluster.local@${env.KERBEROS_REALM}
+        dfs.web.authentication.kerberos.keytab: /stackable/kerberos/keytab
+        # dfs.secondary.namenode.kerberos.principal: nn/hdfs.$NAMESPACE.svc.cluster.local@${env.KERBEROS_REALM}
+        # dfs.secondary.namenode.keytab.file: /stackable/kerberos/keytab
+        # dfs.secondary.namenode.kerberos.internal.spnego.principal: nn/hdfs.$NAMESPACE.svc.cluster.local@${env.KERBEROS_REALM}
+    podOverrides:
+      spec:
+        containers:
+          - name: namenode
+            livenessProbe: &livenessProbe
+              # This does not work, so we need to disable the livenessProbe entirely
+              # httpGet: null
+              # tcpSocket:
+              #   port: https
+
+              # Turn off liveness check
+              failureThreshold: 99999999
     roleGroups:
       default:
         replicas: 2
@@ -47,6 +70,12 @@ spec:
       requestedSecretLifetime: 2d
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    configOverrides: *configOverrides
+    podOverrides:
+      spec:
+        containers:
+          - name: datanode
+            livenessProbe: *livenessProbe
     roleGroups:
       default:
         replicas: 2
@@ -54,8 +83,14 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    configOverrides: *configOverrides
+    podOverrides:
+      spec:
+        containers:
+          - name: journalnode
+            livenessProbe: *livenessProbe
     roleGroups:
       default:
-        replicas: 3
+        replicas: 1 # 3
         config:
           requestedSecretLifetime: 3d

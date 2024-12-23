@@ -88,6 +88,10 @@ impl CoreSiteConfigBuilder {
                 .add("dfs.journalnode.keytab.file", "/stackable/kerberos/keytab")
                 .add("dfs.namenode.keytab.file", "/stackable/kerberos/keytab")
                 .add("dfs.datanode.keytab.file", "/stackable/kerberos/keytab")
+                // .add(
+                //     "dfs.web.authentication.kerberos.keytab",
+                //     "/stackable/kerberos/keytab",
+                // )
                 .add(
                     "dfs.journalnode.kerberos.principal.pattern",
                     format!("jn/{principal_host_part}"),
@@ -96,6 +100,20 @@ impl CoreSiteConfigBuilder {
                     "dfs.namenode.kerberos.principal.pattern",
                     format!("nn/{principal_host_part}"),
                 );
+
+            // self.add(
+            //     "hadoop.http.filter.initializers",
+            //     "org.apache.hadoop.security.AuthenticationFilterInitializer",
+            // )
+            // .add("hadoop.http.authentication.type", "kerberos")
+            // .add(
+            //     "hadoop.http.authentication.kerberos.principal",
+            //     format!("HTTP/{principal_host_part}"),
+            // )
+            // .add(
+            //     "hadoop.http.authentication.kerberos.keytab",
+            //     "/stackable/kerberos/keytab",
+            // );
 
             if !hdfs.has_authorization_enabled() {
                 // In case *no* OPA authorizer is used, we got the following error message:
