@@ -53,7 +53,6 @@ use stackable_operator::{
     },
     kube::{core::ObjectMeta, ResourceExt},
     kvp::Labels,
-    memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         framework::{
@@ -69,6 +68,10 @@ use stackable_operator::{
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    config::{
+        self,
+        jvm_arguments::{construct_global_jvm_args, construct_role_specific_jvm_args},
+    },
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
         HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
@@ -76,7 +79,7 @@ use crate::{
         MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
     },
-    DATANODE_ROOT_DATA_DIR_PREFIX, JVM_SECURITY_PROPERTIES_FILE, LOG4J_PROPERTIES,
+    DATANODE_ROOT_DATA_DIR_PREFIX, LOG4J_PROPERTIES,
 };
 
 pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
@@ -95,9 +98,9 @@ pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
 
-    #[snafu(display("invalid java heap config for {role:?}"))]
-    InvalidJavaHeapConfig {
-        source: stackable_operator::memory::Error,
+    #[snafu(display("failed to construct JVM arguments fro role {role:?}"))]
+    ConstructJvmArguments {
+        source: config::jvm_arguments::Error,
         role: String,
     },
 
@@ -212,7 +215,6 @@ impl ContainerConfig {
     const WAIT_FOR_NAMENODES_CONFIG_VOLUME_MOUNT_NAME: &'static str = "wait-for-namenodes-config";
     const WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME: &'static str = "wait-for-namenodes-log-config";
 
-    const JVM_HEAP_FACTOR: f32 = 0.8;
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
@@ -870,23 +872,16 @@ wait_for_termination $!
                 },
             );
         }
-        // Additionally, any other init or sidecar container must have access to the following settings.
-        // As the Prometheus metric emitter is not part of this config it's safe to use for hdfs cli tools as well.
-        // This will not only enable the init containers to work, but also the user to run e.g.
-        // `bin/hdfs dfs -ls /` without getting `Caused by: java.lang.IllegalArgumentException: KrbException: Cannot locate default realm`
-        // because the `-Djava.security.krb5.conf` setting is missing
-        if hdfs.has_kerberos_enabled() {
-            env.insert(
-                "HADOOP_OPTS".to_string(),
-                EnvVar {
-                    name: "HADOOP_OPTS".to_string(),
-                    value: Some(
-                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
-                    ),
-                    ..EnvVar::default()
-                },
-            );
 
+        env.insert(
+            "HADOOP_OPTS".to_string(),
+            EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
+                ..EnvVar::default()
+            },
+        );
+        if hdfs.has_kerberos_enabled() {
             env.insert(
                 "KRB5_CONFIG".to_string(),
                 EnvVar {
@@ -904,6 +899,7 @@ wait_for_termination $!
                 },
             );
         }
+
         // Needed for the `containerdebug` process to log it's tracing information to.
         env.insert(
             "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
@@ -1221,39 +1217,16 @@ wait_for_termination $!
             } => {
                 let cvd = ContainerVolumeDirs::from(role);
                 let config_dir = cvd.final_config();
-                let mut jvm_args = vec![
-                    format!(
-                        "-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE} -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{role}.yaml",
-                    )];
-
-                if hdfs.has_kerberos_enabled() {
-                    jvm_args.push(
-                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
-                    );
-                }
-
-                if let Some(memory_limit) = resources.and_then(|r| r.limits.as_ref()?.get("memory"))
-                {
-                    let memory_limit =
-                        MemoryQuantity::try_from(memory_limit).with_context(|_| {
-                            InvalidJavaHeapConfigSnafu {
-                                role: role.to_string(),
-                            }
-                        })?;
-                    jvm_args.push(format!(
-                        "-Xmx{}",
-                        (memory_limit * Self::JVM_HEAP_FACTOR)
-                            .scale_to(BinaryMultiple::Kibi)
-                            .format_for_java()
-                            .with_context(|_| {
-                                InvalidJavaHeapConfigSnafu {
-                                    role: role.to_string(),
-                                }
-                            })?
-                    ));
-                }
-
-                Ok(jvm_args.join(" ").trim().to_string())
+                construct_role_specific_jvm_args(
+                    role,
+                    hdfs.has_kerberos_enabled(),
+                    resources,
+                    config_dir,
+                    *metrics_port,
+                )
+                .with_context(|_| ConstructJvmArgumentsSnafu {
+                    role: role.to_string(),
+                })
             }
             _ => Ok("".to_string()),
         }
