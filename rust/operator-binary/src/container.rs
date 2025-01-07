@@ -45,9 +45,8 @@ use stackable_operator::{
     k8s_openapi::{
         api::core::v1::{
             ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
-            EmptyDirVolumeSource, EnvVar, EnvVarSource, HTTPGetAction, ObjectFieldSelector,
-            PersistentVolumeClaim, Probe, ResourceRequirements, TCPSocketAction, Volume,
-            VolumeMount,
+            EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim,
+            Probe, ResourceRequirements, TCPSocketAction, Volume, VolumeMount,
         },
         apimachinery::pkg::util::intstr::IntOrString,
     },
@@ -958,38 +957,28 @@ wait_for_termination $!
         initial_delay_seconds: i32,
         failure_threshold: i32,
     ) -> Option<Probe> {
-        match self {
-            ContainerConfig::Hdfs {
-                web_ui_http_port_name,
-                web_ui_https_port_name,
-                web_ui_path,
-                ..
-            } => {
-                let http_get_action = if hdfs.has_https_enabled() {
-                    HTTPGetAction {
-                        port: IntOrString::String(web_ui_https_port_name.to_string()),
-                        scheme: Some("HTTPS".into()),
-                        path: Some(web_ui_path.to_string()),
-                        ..HTTPGetAction::default()
-                    }
-                } else {
-                    HTTPGetAction {
-                        port: IntOrString::String(web_ui_http_port_name.to_string()),
-                        scheme: Some("HTTP".into()),
-                        path: Some(web_ui_path.to_string()),
-                        ..HTTPGetAction::default()
-                    }
-                };
-                Some(Probe {
-                    http_get: Some(http_get_action),
-                    period_seconds: Some(period_seconds),
-                    initial_delay_seconds: Some(initial_delay_seconds),
-                    failure_threshold: Some(failure_threshold),
-                    ..Probe::default()
-                })
-            }
-            _ => None,
-        }
+        let ContainerConfig::Hdfs {
+            web_ui_http_port_name,
+            web_ui_https_port_name,
+            ..
+        } = self
+        else {
+            return None;
+        };
+
+        let port = if hdfs.has_https_enabled() {
+            web_ui_https_port_name
+        } else {
+            web_ui_http_port_name
+        };
+
+        Some(Probe {
+            tcp_socket: Some(Self::tcp_socket_action_for_port(*port)),
+            period_seconds: Some(period_seconds),
+            initial_delay_seconds: Some(initial_delay_seconds),
+            failure_threshold: Some(failure_threshold),
+            ..Probe::default()
+        })
     }
 
     /// Creates a probe for the IPC/RPC port
@@ -1001,16 +990,20 @@ wait_for_termination $!
     ) -> Option<Probe> {
         match self {
             ContainerConfig::Hdfs { ipc_port_name, .. } => Some(Probe {
-                tcp_socket: Some(TCPSocketAction {
-                    port: IntOrString::String(ipc_port_name.to_string()),
-                    ..TCPSocketAction::default()
-                }),
+                tcp_socket: Some(Self::tcp_socket_action_for_port(*ipc_port_name)),
                 period_seconds: Some(period_seconds),
                 initial_delay_seconds: Some(initial_delay_seconds),
                 failure_threshold: Some(failure_threshold),
                 ..Probe::default()
             }),
             _ => None,
+        }
+    }
+
+    fn tcp_socket_action_for_port(port: impl Into<String>) -> TCPSocketAction {
+        TCPSocketAction {
+            port: IntOrString::String(port.into()),
+            ..Default::default()
         }
     }
 
