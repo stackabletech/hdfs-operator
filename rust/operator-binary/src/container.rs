@@ -964,6 +964,7 @@ wait_for_termination $!
         };
 
         Some(Probe {
+            // Use tcp_socket instead of http_get so that the probe is independent of the authentication settings.
             tcp_socket: Some(Self::tcp_socket_action_for_port(*port)),
             period_seconds: Some(period_seconds),
             initial_delay_seconds: Some(initial_delay_seconds),
