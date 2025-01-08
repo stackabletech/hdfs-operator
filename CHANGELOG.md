@@ -10,6 +10,12 @@ All notable changes to this project will be documented in this file.
   config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#619]).
 - Run a `containerdebug` process in the background of each HDFS container to collect debugging information ([#629]).
 
+### Changed
+
+- Switch the WebUI liveness probe from `httpGet` to checking the tcp socket.
+  This helps with setups where configOverrides are used to enable security on the HTTP interfaces.
+  As this results in `401` HTTP responses (instead of `200`), this previously failed the liveness checks.
+
 ### Fixed
 
 - BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
