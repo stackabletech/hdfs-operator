@@ -23,7 +23,7 @@ use stackable_operator::{
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, Service, ServicePort, ServiceSpec},
+            core::v1::{ConfigMap, Service, ServiceAccount, ServicePort, ServiceSpec},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
         DeepMerge,
@@ -31,7 +31,7 @@ use stackable_operator::{
     kube::{
         api::ObjectMeta,
         core::{error_boundary, DeserializeGuard},
-        runtime::{controller::Action, reflector::ObjectRef},
+        runtime::{controller::Action, events::Recorder, reflector::ObjectRef},
         Resource, ResourceExt,
     },
     kvp::{Label, LabelError, Labels},
@@ -47,9 +47,6 @@ use stackable_operator::{
     },
     time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
-};
-use stackable_operator::{
-    k8s_openapi::api::core::v1::ServiceAccount, kube::runtime::events::Recorder,
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
