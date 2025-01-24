@@ -3,13 +3,13 @@ use std::{
     sync::Arc,
 };
 
+use const_format::concatcp;
 use product_config::{
     types::PropertyNameKind,
     writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::k8s_openapi::api::core::v1::ServiceAccount;
 use stackable_operator::{
     builder::{
         configmap::ConfigMapBuilder,
@@ -48,6 +48,9 @@ use stackable_operator::{
     time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
 };
+use stackable_operator::{
+    k8s_openapi::api::core::v1::ServiceAccount, kube::runtime::events::Recorder,
+};
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use stackable_hdfs_crd::{
@@ -60,7 +63,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     discovery::{self, build_discovery_configmap},
-    event::{build_invalid_replica_message, publish_event},
+    event::{build_invalid_replica_message, publish_warning_event},
     operations::{
         graceful_shutdown::{self, add_graceful_shutdown_config},
         pdb::add_pdbs,
@@ -71,7 +74,9 @@ use crate::{
 };
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
-const HDFS_CONTROLLER: &str = "hdfs-controller";
+const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
+pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
+
 const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -258,6 +263,7 @@ pub type HdfsOperatorResult<T> = Result<T, Error>;
 pub struct Ctx {
     pub client: Client,
     pub product_config: ProductConfigManager,
+    pub event_recorder: Arc<Recorder>,
 }
 
 pub async fn reconcile_hdfs(
@@ -296,6 +302,7 @@ pub async fn reconcile_hdfs(
     )
     .context(InvalidProductConfigSnafu)?;
 
+    let hdfs_obj_ref = hdfs.object_ref(&());
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
     let namenode_podrefs = hdfs
         .pod_refs(&HdfsRole::NameNode)
@@ -308,7 +315,7 @@ pub async fn reconcile_hdfs(
         APP_NAME,
         OPERATOR_NAME,
         RESOURCE_MANAGER_HDFS_CONTROLLER,
-        &hdfs.object_ref(&()),
+        &hdfs_obj_ref,
         ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
@@ -367,13 +374,13 @@ pub async fn reconcile_hdfs(
             continue;
         };
 
-        if let Some(content) = build_invalid_replica_message(hdfs, &role, dfs_replication) {
-            publish_event(
-                hdfs,
-                client,
-                "Reconcile",
-                "Invalid replicas",
-                content.as_ref(),
+        if let Some(message) = build_invalid_replica_message(hdfs, &role, dfs_replication) {
+            publish_warning_event(
+                &ctx,
+                &hdfs_obj_ref,
+                "Reconcile".to_owned(),
+                "Invalid replicas".to_owned(),
+                message,
             )
             .await
             .context(FailedToCreateClusterEventSnafu)?;
@@ -488,7 +495,7 @@ pub async fn reconcile_hdfs(
     let discovery_cm = build_discovery_configmap(
         hdfs,
         &client.kubernetes_cluster_info,
-        HDFS_CONTROLLER,
+        HDFS_CONTROLLER_NAME,
         &hdfs
             .namenode_listener_refs(client)
             .await

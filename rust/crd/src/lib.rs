@@ -37,7 +37,9 @@ use stackable_operator::{
         self,
         spec::{ContainerLogConfig, Logging},
     },
-    role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{
+        GenericProductSpecificCommonConfig, GenericRoleConfig, Role, RoleGroup, RoleGroupRef,
+    },
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
@@ -539,7 +541,7 @@ impl HdfsCluster {
     pub fn namenode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<NameNodeConfigFragment>> {
+    ) -> Option<&RoleGroup<NameNodeConfigFragment, GenericProductSpecificCommonConfig>> {
         self.spec.name_nodes.as_ref()?.role_groups.get(role_group)
     }
 
@@ -547,7 +549,7 @@ impl HdfsCluster {
     pub fn datanode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<DataNodeConfigFragment>> {
+    ) -> Option<&RoleGroup<DataNodeConfigFragment, GenericProductSpecificCommonConfig>> {
         self.spec.data_nodes.as_ref()?.role_groups.get(role_group)
     }
 
@@ -555,7 +557,7 @@ impl HdfsCluster {
     pub fn journalnode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<JournalNodeConfigFragment>> {
+    ) -> Option<&RoleGroup<JournalNodeConfigFragment, GenericProductSpecificCommonConfig>> {
         self.spec
             .journal_nodes
             .as_ref()?
