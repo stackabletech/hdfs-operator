@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use built_info::PKG_VERSION;
 use clap::{crate_description, crate_version, Parser};
-use futures::StreamExt;
+use futures::{pin_mut, StreamExt};
+use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
 use product_config::ProductConfigManager;
 use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::{
@@ -12,10 +13,13 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::core::DeserializeGuard,
     kube::{
         api::PartialObjectMeta,
-        runtime::{reflector, watcher, Controller},
+        core::DeserializeGuard,
+        runtime::{
+            events::{Recorder, Reporter},
+            reflector, watcher, Controller,
+        },
         Api,
     },
     kvp::ObjectLabels,
@@ -95,6 +99,14 @@ pub async fn create_controller(
 ) {
     let (store, store_w) = reflector::store();
 
+    let hdfs_event_recorder = Arc::new(Recorder::new(
+        client.as_kube_client(),
+        Reporter {
+            controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
+            instance: None,
+        },
+    ));
+
     // The topology provider will need to build label information by querying kubernetes nodes and this
     // requires the clusterrole 'hdfs-clusterrole-nodes': this is bound to each deployed HDFS cluster
     // via a patch.
@@ -107,7 +119,8 @@ pub async fn create_controller(
     )
     .then(|ev| {
         hdfs_clusterrolebinding_nodes_controller::reconcile(client.as_kube_client(), &store, ev)
-    });
+    })
+    .collect::<()>();
 
     let hdfs_controller = Controller::new(
         namespace.get_api::<DeserializeGuard<HdfsCluster>>(&client),
@@ -132,14 +145,31 @@ pub async fn create_controller(
         Arc::new(hdfs_controller::Ctx {
             client: client.clone(),
             product_config,
+            event_recorder: hdfs_event_recorder.clone(),
         }),
     )
-    .map(|res| report_controller_reconciled(&client, CONTROLLER_NAME, &res))
+    // We can let the reporting happen in the background
+    .for_each_concurrent(
+        16, // concurrency limit
+        |result| {
+            // The event_recorder needs to be shared across all invocations, so that
+            // events are correctly aggregated
+            let hdfs_event_recorder = hdfs_event_recorder.clone();
+            async move {
+                report_controller_reconciled(
+                    &hdfs_event_recorder,
+                    HDFS_FULL_CONTROLLER_NAME,
+                    &result,
+                )
+                .await;
+            }
+        },
+    )
     .instrument(info_span!("hdfs_controller"));
 
-    futures::stream::select(hdfs_controller, reflector)
-        .collect::<()>()
-        .await;
+    pin_mut!(hdfs_controller, reflector);
+    // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
+    futures::future::select(hdfs_controller, reflector).await;
 }
 
 /// Creates recommended `ObjectLabels` to be used in deployed resources

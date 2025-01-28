@@ -45,9 +45,8 @@ use stackable_operator::{
     k8s_openapi::{
         api::core::v1::{
             ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
-            EmptyDirVolumeSource, EnvVar, EnvVarSource, HTTPGetAction, ObjectFieldSelector,
-            PersistentVolumeClaim, Probe, ResourceRequirements, TCPSocketAction, Volume,
-            VolumeMount,
+            EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim,
+            Probe, ResourceRequirements, TCPSocketAction, Volume, VolumeMount,
         },
         apimachinery::pkg::util::intstr::IntOrString,
     },
@@ -161,15 +160,6 @@ pub enum ContainerConfig {
         web_ui_http_port_name: &'static str,
         /// Port name of the web UI HTTPS port, used for the liveness probe.
         web_ui_https_port_name: &'static str,
-        /// Path of the web UI URL; The path defaults to / in Kubernetes
-        /// and the kubelet follows redirects. The default would work if
-        /// the location header is set properly but that is not the case
-        /// for the DataNode. On a TLS-enabled DataNode, calling
-        /// https://127.0.0.1:9865/ redirects to the non-TLS URL
-        /// http://127.0.0.1:9865/index.html which causes the liveness
-        /// probe to fail. So it is best to not rely on the location
-        /// header but instead provide the resolved path directly.
-        web_ui_path: &'static str,
         /// The JMX Exporter metrics port.
         metrics_port: u16,
     },
@@ -954,38 +944,29 @@ wait_for_termination $!
         initial_delay_seconds: i32,
         failure_threshold: i32,
     ) -> Option<Probe> {
-        match self {
-            ContainerConfig::Hdfs {
-                web_ui_http_port_name,
-                web_ui_https_port_name,
-                web_ui_path,
-                ..
-            } => {
-                let http_get_action = if hdfs.has_https_enabled() {
-                    HTTPGetAction {
-                        port: IntOrString::String(web_ui_https_port_name.to_string()),
-                        scheme: Some("HTTPS".into()),
-                        path: Some(web_ui_path.to_string()),
-                        ..HTTPGetAction::default()
-                    }
-                } else {
-                    HTTPGetAction {
-                        port: IntOrString::String(web_ui_http_port_name.to_string()),
-                        scheme: Some("HTTP".into()),
-                        path: Some(web_ui_path.to_string()),
-                        ..HTTPGetAction::default()
-                    }
-                };
-                Some(Probe {
-                    http_get: Some(http_get_action),
-                    period_seconds: Some(period_seconds),
-                    initial_delay_seconds: Some(initial_delay_seconds),
-                    failure_threshold: Some(failure_threshold),
-                    ..Probe::default()
-                })
-            }
-            _ => None,
-        }
+        let ContainerConfig::Hdfs {
+            web_ui_http_port_name,
+            web_ui_https_port_name,
+            ..
+        } = self
+        else {
+            return None;
+        };
+
+        let port = if hdfs.has_https_enabled() {
+            web_ui_https_port_name
+        } else {
+            web_ui_http_port_name
+        };
+
+        Some(Probe {
+            // Use tcp_socket instead of http_get so that the probe is independent of the authentication settings.
+            tcp_socket: Some(Self::tcp_socket_action_for_port(*port)),
+            period_seconds: Some(period_seconds),
+            initial_delay_seconds: Some(initial_delay_seconds),
+            failure_threshold: Some(failure_threshold),
+            ..Probe::default()
+        })
     }
 
     /// Creates a probe for the IPC/RPC port
@@ -997,16 +978,20 @@ wait_for_termination $!
     ) -> Option<Probe> {
         match self {
             ContainerConfig::Hdfs { ipc_port_name, .. } => Some(Probe {
-                tcp_socket: Some(TCPSocketAction {
-                    port: IntOrString::String(ipc_port_name.to_string()),
-                    ..TCPSocketAction::default()
-                }),
+                tcp_socket: Some(Self::tcp_socket_action_for_port(*ipc_port_name)),
                 period_seconds: Some(period_seconds),
                 initial_delay_seconds: Some(initial_delay_seconds),
                 failure_threshold: Some(failure_threshold),
                 ..Probe::default()
             }),
             _ => None,
+        }
+    }
+
+    fn tcp_socket_action_for_port(port: impl Into<String>) -> TCPSocketAction {
+        TCPSocketAction {
+            port: IntOrString::String(port.into()),
+            ..Default::default()
         }
     }
 
@@ -1363,7 +1348,6 @@ impl From<HdfsRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                web_ui_path: "/dfshealth.html",
                 metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
             },
             HdfsRole::DataNode => Self::Hdfs {
@@ -1373,7 +1357,6 @@ impl From<HdfsRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_IPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                web_ui_path: "/datanode.html",
                 metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
             },
             HdfsRole::JournalNode => Self::Hdfs {
@@ -1383,7 +1366,6 @@ impl From<HdfsRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                web_ui_path: "/journalnode.html",
                 metrics_port: DEFAULT_JOURNAL_NODE_METRICS_PORT,
             },
         }

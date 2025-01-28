@@ -1,13 +1,12 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::CONTROLLER_NAME, HdfsCluster, HdfsRole};
+use stackable_hdfs_crd::{HdfsCluster, HdfsRole};
 use stackable_operator::{
-    client::Client,
-    kube::runtime::{
-        events::{Event, EventType, Recorder, Reporter},
-        reflector::ObjectRef,
-    },
+    k8s_openapi::api::core::v1::ObjectReference,
+    kube::runtime::events::{Event, EventType},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::hdfs_controller::Ctx;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -18,30 +17,25 @@ pub enum Error {
     },
 }
 
-/// Publish a Kubernetes event for the `hdfs` cluster resource.
-pub async fn publish_event(
-    hdfs: &HdfsCluster,
-    client: &Client,
-    action: &str,
-    reason: &str,
-    message: &str,
+/// Publish a Kubernetes warning event for the `hdfs` cluster resource.
+pub async fn publish_warning_event(
+    ctx: &Ctx,
+    hdfs_object_ref: &ObjectReference,
+    action: String,
+    reason: String,
+    message: String,
 ) -> Result<(), Error> {
-    let reporter = Reporter {
-        controller: CONTROLLER_NAME.into(),
-        instance: None,
-    };
-
-    let object_ref = ObjectRef::from_obj(hdfs);
-
-    let recorder = Recorder::new(client.as_kube_client(), reporter, object_ref.into());
-    recorder
-        .publish(Event {
-            action: action.into(),
-            reason: reason.into(),
-            note: Some(message.into()),
-            type_: EventType::Warning,
-            secondary: None,
-        })
+    ctx.event_recorder
+        .publish(
+            &Event {
+                action,
+                reason,
+                note: Some(message),
+                type_: EventType::Warning,
+                secondary: None,
+            },
+            hdfs_object_ref,
+        )
         .await
         .context(PublishEventSnafu)
 }
