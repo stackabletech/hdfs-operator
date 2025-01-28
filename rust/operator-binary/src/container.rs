@@ -69,7 +69,7 @@ use strum::{Display, EnumDiscriminants, IntoStaticStr};
 use crate::{
     config::{
         self,
-        jvm_arguments::{construct_global_jvm_args, construct_role_specific_jvm_args},
+        jvm::{construct_global_jvm_args, construct_role_specific_jvm_args},
     },
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
@@ -99,7 +99,7 @@ pub enum Error {
 
     #[snafu(display("failed to construct JVM arguments fro role {role:?}"))]
     ConstructJvmArguments {
-        source: config::jvm_arguments::Error,
+        source: config::jvm::Error,
         role: String,
     },
 
