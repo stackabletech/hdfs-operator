@@ -6,6 +6,8 @@ use stackable_operator::{
     role_utils::JvmArgumentOverrides,
 };
 
+use crate::security::kerberos::KERBEROS_CONTAINER_PATH;
+
 const JVM_HEAP_FACTOR: f32 = 0.8;
 
 #[derive(Snafu, Debug)]
@@ -29,7 +31,9 @@ pub fn construct_global_jvm_args(kerberos_enabled: bool) -> String {
     let mut jvm_args = Vec::new();
 
     if kerberos_enabled {
-        jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_owned());
+        jvm_args.push(format!(
+            "-Djava.security.krb5.conf={KERBEROS_CONTAINER_PATH}/krb5.conf"
+        ));
     }
 
     // We do *not* add user overrides to the global JVM args, but only the role specific JVM arguments.
@@ -76,7 +80,9 @@ pub fn construct_role_specific_jvm_args(
         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{hdfs_role}.yaml")
     ]);
     if kerberos_enabled {
-        jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string());
+        jvm_args.push(format!(
+            "-Djava.security.krb5.conf={KERBEROS_CONTAINER_PATH}/krb5.conf"
+        ));
     }
 
     let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
@@ -102,7 +108,7 @@ mod tests {
         assert_eq!(construct_global_jvm_args(false), "");
         assert_eq!(
             construct_global_jvm_args(true),
-            "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
+            format!("-Djava.security.krb5.conf={KERBEROS_CONTAINER_PATH}/krb5.conf")
         );
     }
 
@@ -172,14 +178,15 @@ mod tests {
 
         assert_eq!(
             jvm_config,
-            "-Xms34406m \
-            -Djava.security.properties=/stackable/config/security.properties \
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml \
-            -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf \
-            -Dhttps.proxyHost=proxy.my.corp \
-            -Djava.net.preferIPv4Stack=true \
-            -Xmx40000m \
-            -Dhttps.proxyPort=1234"
+            format!(
+                "-Xms34406m \
+                -Djava.security.properties=/stackable/config/security.properties \
+                -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml \
+                -Djava.security.krb5.conf={KERBEROS_CONTAINER_PATH}/krb5.conf \
+                -Dhttps.proxyHost=proxy.my.corp \
+                -Djava.net.preferIPv4Stack=true \
+                -Xmx40000m \
+                -Dhttps.proxyPort=1234")
         );
     }
 

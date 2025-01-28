@@ -78,6 +78,7 @@ use crate::{
         MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
     },
+    security::kerberos::KERBEROS_CONTAINER_PATH,
     DATANODE_ROOT_DATA_DIR_PREFIX, LOG4J_PROPERTIES,
 };
 
@@ -801,8 +802,7 @@ wait_for_termination $!
 
     // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`
     fn export_kerberos_real_env_var_command() -> String {
-        "export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)\n"
-            .to_string()
+        format!("export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' {KERBEROS_CONTAINER_PATH}/krb5.conf)\n")
     }
 
     /// Command to `kinit` a ticket using the principal created for the specified hdfs role
@@ -822,8 +822,8 @@ wait_for_termination $!
         );
         Ok(formatdoc!(
             r###"
-            echo "Getting ticket for {principal}" from /stackable/kerberos/keytab
-            kinit "{principal}" -kt /stackable/kerberos/keytab
+            echo "Getting ticket for {principal}" from {KERBEROS_CONTAINER_PATH}/keytab
+            kinit "{principal}" -kt {KERBEROS_CONTAINER_PATH}/keytab
             "###,
         ))
     }
@@ -892,7 +892,7 @@ wait_for_termination $!
                 "KRB5_CONFIG".to_string(),
                 EnvVar {
                     name: "KRB5_CONFIG".to_string(),
-                    value: Some("/stackable/kerberos/krb5.conf".to_string()),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
                     ..EnvVar::default()
                 },
             );
@@ -900,7 +900,7 @@ wait_for_termination $!
                 "KRB5_CLIENT_KTNAME".to_string(),
                 EnvVar {
                     name: "KRB5_CLIENT_KTNAME".to_string(),
-                    value: Some("/stackable/kerberos/keytab".to_string()),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
                     ..EnvVar::default()
                 },
             );
@@ -1107,7 +1107,8 @@ wait_for_termination $!
 
         // Adding this for all containers, as not only the main container needs Kerberos or TLS
         if hdfs.has_kerberos_enabled() {
-            volume_mounts.push(VolumeMountBuilder::new("kerberos", "/stackable/kerberos").build());
+            volume_mounts
+                .push(VolumeMountBuilder::new("kerberos", KERBEROS_CONTAINER_PATH).build());
         }
         if hdfs.has_https_enabled() {
             // This volume will be propagated by the create-tls-cert-bundle container
