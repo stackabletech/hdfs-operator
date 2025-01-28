@@ -1,8 +1,9 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::JVM_SECURITY_PROPERTIES_FILE, HdfsRole};
+use stackable_hdfs_crd::{constants::JVM_SECURITY_PROPERTIES_FILE, HdfsCluster, HdfsRole};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ResourceRequirements,
     memory::{BinaryMultiple, MemoryQuantity},
+    role_utils::JvmArgumentOverrides,
 };
 
 const JVM_HEAP_FACTOR: f32 = 0.8;
@@ -14,6 +15,9 @@ pub enum Error {
         source: stackable_operator::memory::Error,
         role: String,
     },
+
+    #[snafu(display("failed to merge jvm argument overrides"))]
+    MergeJvmArgumentOverrides { source: stackable_hdfs_crd::Error },
 }
 
 // All init or sidecar containers must have access to the following settings.
@@ -33,7 +37,9 @@ pub fn construct_global_jvm_args(kerberos_enabled: bool) -> String {
 }
 
 pub fn construct_role_specific_jvm_args(
-    role: &HdfsRole,
+    hdfs: &HdfsCluster,
+    hdfs_role: &HdfsRole,
+    role_group: &str,
     kerberos_enabled: bool,
     resources: Option<&ResourceRequirements>,
     config_dir: &str,
@@ -44,32 +50,37 @@ pub fn construct_role_specific_jvm_args(
     if let Some(memory_limit) = resources.and_then(|r| r.limits.as_ref()?.get("memory")) {
         let memory_limit = MemoryQuantity::try_from(memory_limit).with_context(|_| {
             InvalidJavaHeapConfigSnafu {
-                role: role.to_string(),
+                role: hdfs_role.to_string(),
             }
         })?;
         let heap = memory_limit.scale_to(BinaryMultiple::Mebi) * JVM_HEAP_FACTOR;
         let heap = heap
             .format_for_java()
             .with_context(|_| InvalidJavaHeapConfigSnafu {
-                role: role.to_string(),
+                role: hdfs_role.to_string(),
             })?;
 
         jvm_args.push(format!("-Xms{heap}"));
         jvm_args.push(format!("-Xmx{heap}"));
     }
 
-    jvm_args.extend([format!(
-            "-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE}",
-        ),format!(
-            "-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{role}.yaml",
-        )]);
-
+    jvm_args.extend([
+        format!("-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE}"),
+        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{hdfs_role}.yaml")
+    ]);
     if kerberos_enabled {
         jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string());
     }
 
     // TODO: Handle user input
-    Ok(jvm_args.join(" "))
+    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
+    let merged_jvm_args = hdfs
+        .get_merged_jvm_argument_overrides(hdfs_role, role_group, &operator_generated)
+        .context(MergeJvmArgumentOverridesSnafu)?;
+
+    Ok(merged_jvm_args
+        .effective_jvm_config_after_merging()
+        .join(" "))
 }
 
 #[cfg(test)]
@@ -175,7 +186,9 @@ mod tests {
         let resources = container_config.resources(&merged_config);
 
         construct_role_specific_jvm_args(
+            &hdfs,
             &role,
+            "default",
             kerberos_enabled,
             resources.as_ref(),
             "/stackable/config",

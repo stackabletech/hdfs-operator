@@ -214,6 +214,7 @@ impl ContainerConfig {
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
+        role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -230,6 +231,7 @@ impl ContainerConfig {
             hdfs,
             cluster_info,
             role,
+            role_group,
             resolved_product_image,
             zk_config_map_name,
             env_overrides,
@@ -315,6 +317,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -335,6 +338,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -356,6 +360,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -378,6 +383,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -447,6 +453,7 @@ impl ContainerConfig {
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
+        role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -465,6 +472,7 @@ impl ContainerConfig {
             .args(self.args(hdfs, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(
                 hdfs,
+                role_group,
                 zookeeper_config_map_name,
                 env_overrides,
                 resources.as_ref(),
@@ -506,6 +514,7 @@ impl ContainerConfig {
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
+        role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -519,7 +528,13 @@ impl ContainerConfig {
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
             .args(self.args(hdfs, cluster_info, role, merged_config, namenode_podrefs)?)
-            .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None)?)
+            .add_env_vars(self.env(
+                hdfs,
+                role_group,
+                zookeeper_config_map_name,
+                env_overrides,
+                None,
+            )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?;
 
@@ -825,6 +840,7 @@ wait_for_termination $!
     fn env(
         &self,
         hdfs: &HdfsCluster,
+        role_group: &str,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         resources: Option<&ResourceRequirements>,
@@ -857,7 +873,7 @@ wait_for_termination $!
                 role_opts_name.clone(),
                 EnvVar {
                     name: role_opts_name,
-                    value: Some(self.build_hadoop_opts(hdfs, resources)?),
+                    value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
                     ..EnvVar::default()
                 },
             );
@@ -1194,6 +1210,7 @@ wait_for_termination $!
     fn build_hadoop_opts(
         &self,
         hdfs: &HdfsCluster,
+        role_group: &str,
         resources: Option<&ResourceRequirements>,
     ) -> Result<String, Error> {
         match self {
@@ -1203,7 +1220,9 @@ wait_for_termination $!
                 let cvd = ContainerVolumeDirs::from(role);
                 let config_dir = cvd.final_config();
                 construct_role_specific_jvm_args(
+                    hdfs,
                     role,
+                    role_group,
                     hdfs.has_kerberos_enabled(),
                     resources,
                     config_dir,
