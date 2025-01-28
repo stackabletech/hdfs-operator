@@ -800,6 +800,7 @@ impl HdfsCluster {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn build_role_properties(
         &self,
     ) -> Result<
