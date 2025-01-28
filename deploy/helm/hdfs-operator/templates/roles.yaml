@@ -91,6 +91,7 @@ rules:
       - events
     verbs:
       - create
+      - patch
   - apiGroups:
       - listeners.stackable.tech
     resources:
