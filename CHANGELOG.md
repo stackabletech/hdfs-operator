@@ -4,11 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+￼
+- The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
+  config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#619]).
+- Run a `containerdebug` process in the background of each HDFS container to collect debugging information ([#629]).
+- Aggregate emitted Kubernetes events on the CustomResources ([#643]).
+
+[#619]: https://github.com/stackabletech/hdfs-operator/pull/619
+[#629]: https://github.com/stackabletech/hdfs-operator/pull/629
+[#643]: https://github.com/stackabletech/hdfs-operator/pull/643
+
 ## [24.11.1] - 2025-01-10
-
-## [24.11.1-rc2] - 2024-12-12
-
-## [24.11.1-rc1] - 2024-12-06
 
 ### Fixed
 
