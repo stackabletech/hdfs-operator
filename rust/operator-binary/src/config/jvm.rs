@@ -32,7 +32,14 @@ pub fn construct_global_jvm_args(kerberos_enabled: bool) -> String {
         jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_owned());
     }
 
-    // TODO: Handle user input
+    // We do *not* add user overrides to the global JVM args, but only the role specific JVm arguments.
+    // This allows users to configure stuff for the server (probably what they want to do), without
+    // also influencing e.g. startup scripts.
+    //
+    // However, this is just an assumptions. If it is wrong users can still envOverride the global
+    // JVM args.
+    //
+    // Please feel absolutely free to change this behavior!
     jvm_args.join(" ")
 }
 
@@ -72,7 +79,6 @@ pub fn construct_role_specific_jvm_args(
         jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string());
     }
 
-    // TODO: Handle user input
     let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
     let merged_jvm_args = hdfs
         .get_merged_jvm_argument_overrides(hdfs_role, role_group, &operator_generated)
