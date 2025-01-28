@@ -32,11 +32,11 @@ pub fn construct_global_jvm_args(kerberos_enabled: bool) -> String {
         jvm_args.push("-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_owned());
     }
 
-    // We do *not* add user overrides to the global JVM args, but only the role specific JVm arguments.
+    // We do *not* add user overrides to the global JVM args, but only the role specific JVM arguments.
     // This allows users to configure stuff for the server (probably what they want to do), without
     // also influencing e.g. startup scripts.
     //
-    // However, this is just an assumptions. If it is wrong users can still envOverride the global
+    // However, this is just an assumption. If it is wrong users can still envOverride the global
     // JVM args.
     //
     // Please feel absolutely free to change this behavior!
