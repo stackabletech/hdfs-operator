@@ -468,7 +468,7 @@ impl ContainerConfig {
                 zookeeper_config_map_name,
                 env_overrides,
                 resources.as_ref(),
-            ))
+            )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(hdfs));
@@ -519,7 +519,7 @@ impl ContainerConfig {
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
             .args(self.args(hdfs, cluster_info, role, merged_config, namenode_podrefs)?)
-            .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
+            .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None)?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?;
 
@@ -828,7 +828,7 @@ wait_for_termination $!
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         resources: Option<&ResourceRequirements>,
-    ) -> Vec<EnvVar> {
+    ) -> Result<Vec<EnvVar>, Error> {
         // Maps env var name to env var object. This allows env_overrides to work
         // as expected (i.e. users can override the env var value).
         let mut env: BTreeMap<String, EnvVar> = BTreeMap::new();
@@ -857,7 +857,7 @@ wait_for_termination $!
                 role_opts_name.clone(),
                 EnvVar {
                     name: role_opts_name,
-                    value: self.build_hadoop_opts(hdfs, resources).ok(),
+                    value: Some(self.build_hadoop_opts(hdfs, resources)?),
                     ..EnvVar::default()
                 },
             );
@@ -909,7 +909,7 @@ wait_for_termination $!
 
         env.append(&mut env_override_vars);
 
-        env.into_values().collect()
+        Ok(env.into_values().collect())
     }
 
     /// Returns the container resources.

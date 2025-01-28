@@ -16,7 +16,7 @@ pub enum Error {
     },
 }
 
-// Additionally, any other init or sidecar container must have access to the following settings.
+// All init or sidecar containers must have access to the following settings.
 // As the Prometheus metric emitter is not part of this config it's safe to use for hdfs cli tools as well.
 // This will not only enable the init containers to work, but also the user to run e.g.
 // `bin/hdfs dfs -ls /` without getting `Caused by: java.lang.IllegalArgumentException: KrbException: Cannot locate default realm`
