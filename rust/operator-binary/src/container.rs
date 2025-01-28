@@ -913,7 +913,7 @@ wait_for_termination $!
     }
 
     /// Returns the container resources.
-    fn resources(&self, merged_config: &AnyNodeConfig) -> Option<ResourceRequirements> {
+    pub fn resources(&self, merged_config: &AnyNodeConfig) -> Option<ResourceRequirements> {
         match self {
             // Namenode sidecar containers
             ContainerConfig::Zkfc { .. } => Some(

@@ -47,17 +47,15 @@ pub fn construct_role_specific_jvm_args(
                 role: role.to_string(),
             }
         })?;
-        jvm_args.push(format!(
-            "-Xmx{}",
-            (memory_limit * JVM_HEAP_FACTOR)
-                .scale_to(BinaryMultiple::Kibi)
-                .format_for_java()
-                .with_context(|_| {
-                    InvalidJavaHeapConfigSnafu {
-                        role: role.to_string(),
-                    }
-                })?
-        ));
+        let heap = memory_limit.scale_to(BinaryMultiple::Mebi) * JVM_HEAP_FACTOR;
+        let heap = heap
+            .format_for_java()
+            .with_context(|_| InvalidJavaHeapConfigSnafu {
+                role: role.to_string(),
+            })?;
+
+        jvm_args.push(format!("-Xms{heap}"));
+        jvm_args.push(format!("-Xmx{heap}"));
     }
 
     jvm_args.extend([format!(
@@ -72,4 +70,117 @@ pub fn construct_role_specific_jvm_args(
 
     // TODO: Handle user input
     Ok(jvm_args.join(" "))
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_hdfs_crd::{constants::DEFAULT_NAME_NODE_METRICS_PORT, HdfsCluster};
+
+    use crate::container::ContainerConfig;
+
+    use super::*;
+
+    #[test]
+    fn test_global_jvm_args() {
+        assert_eq!(construct_global_jvm_args(false), "");
+        assert_eq!(
+            construct_global_jvm_args(true),
+            "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
+        );
+    }
+
+    #[test]
+    fn test_jvm_config_defaults_without_kerberos() {
+        let input = r#"
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+        spec:
+          image:
+            productVersion: 3.4.0
+          clusterConfig:
+            zookeeperConfigMapName: hdfs-zk
+          nameNodes:
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+        let jvm_config = construct_test_role_specific_jvm_args(input, false);
+
+        assert_eq!(
+            jvm_config,
+            "-Xms819m \
+            -Xmx819m \
+            -Djava.security.properties=/stackable/config/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml"
+        );
+    }
+
+    #[test]
+    fn test_jvm_config_jvm_argument_overrides() {
+        let input = r#"
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+        spec:
+          image:
+            productVersion: 3.4.0
+          clusterConfig:
+            zookeeperConfigMapName: hdfs-zk
+          nameNodes:
+            config:
+              resources:
+                memory:
+                  limit: 42Gi
+            jvmArgumentOverrides:
+              add:
+                - -Dhttps.proxyHost=proxy.my.corp
+                - -Dhttps.proxyPort=8080
+                - -Djava.net.preferIPv4Stack=true
+            roleGroups:
+              default:
+                replicas: 1
+                jvmArgumentOverrides:
+                  # We need more memory!
+                  removeRegex:
+                    - -Xmx.*
+                    - -Dhttps.proxyPort=.*
+                  add:
+                    - -Xmx40000m
+                    - -Dhttps.proxyPort=1234
+        "#;
+        let jvm_config = construct_test_role_specific_jvm_args(input, true);
+
+        assert_eq!(
+            jvm_config,
+            "-Xms34406m \
+            -Djava.security.properties=/stackable/config/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml \
+            -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf \
+            -Dhttps.proxyHost=proxy.my.corp \
+            -Djava.net.preferIPv4Stack=true \
+            -Xmx40000m \
+            -Dhttps.proxyPort=1234"
+        );
+    }
+
+    fn construct_test_role_specific_jvm_args(hdfs_cluster: &str, kerberos_enabled: bool) -> String {
+        let hdfs: HdfsCluster = serde_yaml::from_str(hdfs_cluster).expect("illegal test input");
+
+        let role = HdfsRole::NameNode;
+        let merged_config = role.merged_config(&hdfs, "default").unwrap();
+        let container_config = ContainerConfig::from(role);
+        let resources = container_config.resources(&merged_config);
+
+        construct_role_specific_jvm_args(
+            &role,
+            kerberos_enabled,
+            resources.as_ref(),
+            "/stackable/config",
+            DEFAULT_NAME_NODE_METRICS_PORT,
+        )
+        .unwrap()
+    }
 }
