@@ -17,6 +17,12 @@ All notable changes to this project will be documented in this file.
   This helps with setups where configOverrides are used to enable security on the HTTP interfaces.
   As this results in `401` HTTP responses (instead of `200`), this previously failed the liveness checks.
 
+[#619]: https://github.com/stackabletech/hdfs-operator/pull/619
+[#629]: https://github.com/stackabletech/hdfs-operator/pull/629
+[#643]: https://github.com/stackabletech/hdfs-operator/pull/643
+
+## [24.11.1] - 2025-01-10
+
 ### Fixed
 
 - BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
@@ -24,9 +30,6 @@ All notable changes to this project will be documented in this file.
   restart ([#616]).
 
 [#616]: https://github.com/stackabletech/hdfs-operator/pull/616
-[#619]: https://github.com/stackabletech/hdfs-operator/pull/619
-[#629]: https://github.com/stackabletech/hdfs-operator/pull/629
-[#643]: https://github.com/stackabletech/hdfs-operator/pull/643
 
 ## [24.11.0] - 2024-11-18
 
