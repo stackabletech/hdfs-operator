@@ -18,10 +18,12 @@ All notable changes to this project will be documented in this file.
   This helps with setups where configOverrides are used to enable security on the HTTP interfaces.
   As this results in `401` HTTP responses (instead of `200`), this previously failed the liveness checks.
 - Set the JVM argument `-Xms` in addition to `-Xmx` (with the same value). This ensure consistent JVM configs across our products ([#636]).
+- Default to OCI for image metadata and product image selection ([#640]).
 
 [#619]: https://github.com/stackabletech/hdfs-operator/pull/619
 [#629]: https://github.com/stackabletech/hdfs-operator/pull/629
 [#636]: https://github.com/stackabletech/hdfs-operator/pull/636
+[#640]: https://github.com/stackabletech/hdfs-operator/pull/640
 [#643]: https://github.com/stackabletech/hdfs-operator/pull/643
 
 ## [24.11.1] - 2025-01-10
