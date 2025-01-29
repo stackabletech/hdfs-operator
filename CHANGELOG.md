@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
   config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#619]).
 - Run a `containerdebug` process in the background of each HDFS container to collect debugging information ([#629]).
+- Support configuring JVM arguments ([#636]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#643]).
 
 ### Changed
@@ -16,9 +17,11 @@ All notable changes to this project will be documented in this file.
 - Switch the WebUI liveness probe from `httpGet` to checking the tcp socket.
   This helps with setups where configOverrides are used to enable security on the HTTP interfaces.
   As this results in `401` HTTP responses (instead of `200`), this previously failed the liveness checks.
+- Set the JVM argument `-Xms` in addition to `-Xmx` (with the same value). This ensure consistent JVM configs across our products ([#636]).
 
 [#619]: https://github.com/stackabletech/hdfs-operator/pull/619
 [#629]: https://github.com/stackabletech/hdfs-operator/pull/629
+[#636]: https://github.com/stackabletech/hdfs-operator/pull/636
 [#643]: https://github.com/stackabletech/hdfs-operator/pull/643
 
 ## [24.11.1] - 2025-01-10

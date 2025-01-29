@@ -38,7 +38,8 @@ use stackable_operator::{
         spec::{ContainerLogConfig, Logging},
     },
     role_utils::{
-        GenericProductSpecificCommonConfig, GenericRoleConfig, Role, RoleGroup, RoleGroupRef,
+        self, GenericRoleConfig, JavaCommonConfig, JvmArgumentOverrides, Role, RoleGroup,
+        RoleGroupRef,
     },
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
@@ -72,7 +73,7 @@ pub enum Error {
     #[snafu(display("object has no associated namespace"))]
     NoNamespace,
 
-    #[snafu(display("missing node role {role:?}"))]
+    #[snafu(display("missing role {role:?}"))]
     MissingRole { role: String },
 
     #[snafu(display("missing role group {role_group:?} for role {role:?}"))]
@@ -103,6 +104,9 @@ pub enum Error {
 
     #[snafu(display("failed to build role-group selector label"))]
     BuildRoleGroupSelectorLabel { source: LabelError },
+
+    #[snafu(display("failed to merge jvm argument overrides"))]
+    MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
 /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
@@ -140,15 +144,15 @@ pub struct HdfsClusterSpec {
 
     // no doc string - See Role struct
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name_nodes: Option<Role<NameNodeConfigFragment>>,
+    pub name_nodes: Option<Role<NameNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 
     // no doc string - See Role struct
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data_nodes: Option<Role<DataNodeConfigFragment>>,
+    pub data_nodes: Option<Role<DataNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 
     // no doc string - See Role struct
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub journal_nodes: Option<Role<JournalNodeConfigFragment>>,
+    pub journal_nodes: Option<Role<JournalNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -541,7 +545,7 @@ impl HdfsCluster {
     pub fn namenode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<NameNodeConfigFragment, GenericProductSpecificCommonConfig>> {
+    ) -> Option<&RoleGroup<NameNodeConfigFragment, JavaCommonConfig>> {
         self.spec.name_nodes.as_ref()?.role_groups.get(role_group)
     }
 
@@ -549,7 +553,7 @@ impl HdfsCluster {
     pub fn datanode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<DataNodeConfigFragment, GenericProductSpecificCommonConfig>> {
+    ) -> Option<&RoleGroup<DataNodeConfigFragment, JavaCommonConfig>> {
         self.spec.data_nodes.as_ref()?.role_groups.get(role_group)
     }
 
@@ -557,7 +561,7 @@ impl HdfsCluster {
     pub fn journalnode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<JournalNodeConfigFragment, GenericProductSpecificCommonConfig>> {
+    ) -> Option<&RoleGroup<JournalNodeConfigFragment, JavaCommonConfig>> {
         self.spec
             .journal_nodes
             .as_ref()?
@@ -565,12 +569,47 @@ impl HdfsCluster {
             .get(role_group)
     }
 
-    pub fn role_config(&self, role: &HdfsRole) -> Option<&GenericRoleConfig> {
-        match role {
+    pub fn role_config(&self, hdfs_role: &HdfsRole) -> Option<&GenericRoleConfig> {
+        match hdfs_role {
             HdfsRole::NameNode => self.spec.name_nodes.as_ref().map(|nn| &nn.role_config),
             HdfsRole::DataNode => self.spec.data_nodes.as_ref().map(|dn| &dn.role_config),
             HdfsRole::JournalNode => self.spec.journal_nodes.as_ref().map(|jn| &jn.role_config),
         }
+    }
+
+    pub fn get_merged_jvm_argument_overrides(
+        &self,
+        hdfs_role: &HdfsRole,
+        role_group: &str,
+        operator_generated: &JvmArgumentOverrides,
+    ) -> Result<JvmArgumentOverrides, Error> {
+        match hdfs_role {
+            HdfsRole::JournalNode => self
+                .spec
+                .journal_nodes
+                .as_ref()
+                .with_context(|| MissingRoleSnafu {
+                    role: HdfsRole::JournalNode.to_string(),
+                })?
+                .get_merged_jvm_argument_overrides(role_group, operator_generated),
+            HdfsRole::NameNode => self
+                .spec
+                .name_nodes
+                .as_ref()
+                .with_context(|| MissingRoleSnafu {
+                    role: HdfsRole::NameNode.to_string(),
+                })?
+                .get_merged_jvm_argument_overrides(role_group, operator_generated),
+            HdfsRole::DataNode => self
+                .spec
+                .data_nodes
+                .as_ref()
+                .with_context(|| MissingRoleSnafu {
+                    role: HdfsRole::DataNode.to_string(),
+                })?
+                .get_merged_jvm_argument_overrides(role_group, operator_generated),
+        }
+        .context(MergeJvmArgumentOverridesSnafu)
     }
 
     pub fn pod_overrides_for_role(&self, role: &HdfsRole) -> Option<&PodTemplateSpec> {
@@ -761,6 +800,7 @@ impl HdfsCluster {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn build_role_properties(
         &self,
     ) -> Result<
@@ -768,7 +808,11 @@ impl HdfsCluster {
             String,
             (
                 Vec<PropertyNameKind>,
-                Role<impl Configuration<Configurable = HdfsCluster>>,
+                Role<
+                    impl Configuration<Configurable = HdfsCluster>,
+                    GenericRoleConfig,
+                    JavaCommonConfig,
+                >,
             ),
         >,
         Error,

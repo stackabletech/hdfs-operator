@@ -1164,9 +1164,9 @@ rec {
       };
       "cpufeatures" = rec {
         crateName = "cpufeatures";
-        version = "0.2.16";
+        version = "0.2.17";
         edition = "2018";
-        sha256 = "1hy466fkhxjbb16i7na95wz8yr14d0kd578pwzj5lbkz14jh5f0n";
+        sha256 = "10023dnnaghhdl70xcds12fsx2b966sxbxjq5sxs49mvxqw5ivar";
         authors = [
           "RustCrypto Developers"
         ];
@@ -1174,21 +1174,25 @@ rec {
           {
             name = "libc";
             packageId = "libc";
+            usesDefaultFeatures = false;
             target = { target, features }: (stdenv.hostPlatform.rust.rustcTarget == "aarch64-linux-android");
           }
           {
             name = "libc";
             packageId = "libc";
+            usesDefaultFeatures = false;
             target = { target, features }: (("aarch64" == target."arch" or null) && ("linux" == target."os" or null));
           }
           {
             name = "libc";
             packageId = "libc";
+            usesDefaultFeatures = false;
             target = { target, features }: (("aarch64" == target."arch" or null) && ("apple" == target."vendor" or null));
           }
           {
             name = "libc";
             packageId = "libc";
+            usesDefaultFeatures = false;
             target = { target, features }: (("loongarch64" == target."arch" or null) && ("linux" == target."os" or null));
           }
         ];
@@ -6312,9 +6316,9 @@ rec {
       };
       "rustls-pki-types" = rec {
         crateName = "rustls-pki-types";
-        version = "1.10.1";
+        version = "1.11.0";
         edition = "2021";
-        sha256 = "0dqb3d0cbld1yrp084wyzgw6yk3qzzic8l5pbs1b6bcjzzk4ggyj";
+        sha256 = "0755isc0x5iymm3wsn59s0ad1pm9zidw7p34qfqlsjsac9jf4z4i";
         libName = "rustls_pki_types";
         features = {
           "default" = [ "alloc" ];
@@ -6371,9 +6375,9 @@ rec {
       };
       "ryu" = rec {
         crateName = "ryu";
-        version = "1.0.18";
+        version = "1.0.19";
         edition = "2018";
-        sha256 = "17xx2s8j1lln7iackzd9p0sv546vjq71i779gphjq923vjh5pjzk";
+        sha256 = "1pg6a0b80m32ahygsdkwzs3bfydk4snw695akz4rqxj4lv8a58bf";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
         ];
@@ -9209,9 +9213,9 @@ rec {
       };
       "unicode-ident" = rec {
         crateName = "unicode-ident";
-        version = "1.0.15";
+        version = "1.0.16";
         edition = "2018";
-        sha256 = "0hr2b72jf9zb5avd2k6p7rbwkjjgl21vdhd90114kihp5ghqik8i";
+        sha256 = "0d2hji0i16naw43l02dplrz8fbv625n7475s463iqw4by1hd2452";
         libName = "unicode_ident";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
@@ -10980,9 +10984,9 @@ rec {
       };
       "winnow" = rec {
         crateName = "winnow";
-        version = "0.6.24";
+        version = "0.6.25";
         edition = "2021";
-        sha256 = "0fm0z1gk9wb47s1jhh889isz657kavd1yb3fhzbjmi657icimmy8";
+        sha256 = "046k3772481hxa596krj2fckpzf61983aps3nipcrihjhbs9ssdd";
         dependencies = [
           {
             name = "memchr";
