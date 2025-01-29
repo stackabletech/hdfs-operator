@@ -134,8 +134,6 @@ The basic structure of this rego rule is shown below (you can refer to the full 
 ----
 package hdfs
 
-import rego.v1
-
 # Turn off access by default.
 default allow := false
 default matches_identity(identity) := false

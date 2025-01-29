@@ -9,6 +9,4 @@ data:
   hdfs.rego: |
     package hdfs
 
-    import rego.v1
-
     default allow = true
