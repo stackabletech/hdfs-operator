@@ -13,6 +13,8 @@ use stackable_hdfs_crd::{HdfsCluster, HdfsPodRef};
 use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
 use std::collections::BTreeMap;
 
+pub mod jvm;
+
 #[derive(Clone)]
 pub struct HdfsSiteConfigBuilder {
     config: BTreeMap<String, String>,

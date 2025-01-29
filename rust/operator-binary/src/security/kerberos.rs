@@ -10,6 +10,8 @@ use stackable_operator::{
 
 use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
 
+pub const KERBEROS_CONTAINER_PATH: &str = "/stackable/kerberos";
+
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
@@ -85,9 +87,18 @@ impl CoreSiteConfigBuilder {
                     "dfs.web.authentication.kerberos.principal",
                     format!("HTTP/{principal_host_part}"),
                 )
-                .add("dfs.journalnode.keytab.file", "/stackable/kerberos/keytab")
-                .add("dfs.namenode.keytab.file", "/stackable/kerberos/keytab")
-                .add("dfs.datanode.keytab.file", "/stackable/kerberos/keytab")
+                .add(
+                    "dfs.journalnode.keytab.file",
+                    format!("{KERBEROS_CONTAINER_PATH}/keytab"),
+                )
+                .add(
+                    "dfs.namenode.keytab.file",
+                    format!("{KERBEROS_CONTAINER_PATH}/keytab"),
+                )
+                .add(
+                    "dfs.datanode.keytab.file",
+                    format!("{KERBEROS_CONTAINER_PATH}/keytab"),
+                )
                 .add(
                     "dfs.journalnode.kerberos.principal.pattern",
                     format!("jn/{principal_host_part}"),

@@ -52,7 +52,6 @@ use stackable_operator::{
     },
     kube::{core::ObjectMeta, ResourceExt},
     kvp::Labels,
-    memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         framework::{
@@ -68,6 +67,10 @@ use stackable_operator::{
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    config::{
+        self,
+        jvm::{construct_global_jvm_args, construct_role_specific_jvm_args},
+    },
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
         HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
@@ -75,7 +78,8 @@ use crate::{
         MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
     },
-    DATANODE_ROOT_DATA_DIR_PREFIX, JVM_SECURITY_PROPERTIES_FILE, LOG4J_PROPERTIES,
+    security::kerberos::KERBEROS_CONTAINER_PATH,
+    DATANODE_ROOT_DATA_DIR_PREFIX, LOG4J_PROPERTIES,
 };
 
 pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
@@ -94,9 +98,9 @@ pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
 
-    #[snafu(display("invalid java heap config for {role:?}"))]
-    InvalidJavaHeapConfig {
-        source: stackable_operator::memory::Error,
+    #[snafu(display("failed to construct JVM arguments fro role {role:?}"))]
+    ConstructJvmArguments {
+        source: config::jvm::Error,
         role: String,
     },
 
@@ -202,7 +206,6 @@ impl ContainerConfig {
     const WAIT_FOR_NAMENODES_CONFIG_VOLUME_MOUNT_NAME: &'static str = "wait-for-namenodes-config";
     const WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME: &'static str = "wait-for-namenodes-log-config";
 
-    const JVM_HEAP_FACTOR: f32 = 0.8;
     const HADOOP_HOME: &'static str = "/stackable/hadoop";
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
@@ -212,6 +215,7 @@ impl ContainerConfig {
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
+        role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -228,6 +232,7 @@ impl ContainerConfig {
             hdfs,
             cluster_info,
             role,
+            role_group,
             resolved_product_image,
             zk_config_map_name,
             env_overrides,
@@ -313,6 +318,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -333,6 +339,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -354,6 +361,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -376,6 +384,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
+                    role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -445,6 +454,7 @@ impl ContainerConfig {
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
+        role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -463,10 +473,11 @@ impl ContainerConfig {
             .args(self.args(hdfs, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(
                 hdfs,
+                role_group,
                 zookeeper_config_map_name,
                 env_overrides,
                 resources.as_ref(),
-            ))
+            )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(hdfs));
@@ -504,6 +515,7 @@ impl ContainerConfig {
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsRole,
+        role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -517,7 +529,13 @@ impl ContainerConfig {
         cb.image_from_product_image(resolved_product_image)
             .command(Self::command())
             .args(self.args(hdfs, cluster_info, role, merged_config, namenode_podrefs)?)
-            .add_env_vars(self.env(hdfs, zookeeper_config_map_name, env_overrides, None))
+            .add_env_vars(self.env(
+                hdfs,
+                role_group,
+                zookeeper_config_map_name,
+                env_overrides,
+                None,
+            )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?;
 
@@ -784,8 +802,7 @@ wait_for_termination $!
 
     // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`
     fn export_kerberos_real_env_var_command() -> String {
-        "export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' /stackable/kerberos/krb5.conf)\n"
-            .to_string()
+        format!("export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' {KERBEROS_CONTAINER_PATH}/krb5.conf)\n")
     }
 
     /// Command to `kinit` a ticket using the principal created for the specified hdfs role
@@ -805,8 +822,8 @@ wait_for_termination $!
         );
         Ok(formatdoc!(
             r###"
-            echo "Getting ticket for {principal}" from /stackable/kerberos/keytab
-            kinit "{principal}" -kt /stackable/kerberos/keytab
+            echo "Getting ticket for {principal}" from {KERBEROS_CONTAINER_PATH}/keytab
+            kinit "{principal}" -kt {KERBEROS_CONTAINER_PATH}/keytab
             "###,
         ))
     }
@@ -823,10 +840,11 @@ wait_for_termination $!
     fn env(
         &self,
         hdfs: &HdfsCluster,
+        role_group: &str,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
         resources: Option<&ResourceRequirements>,
-    ) -> Vec<EnvVar> {
+    ) -> Result<Vec<EnvVar>, Error> {
         // Maps env var name to env var object. This allows env_overrides to work
         // as expected (i.e. users can override the env var value).
         let mut env: BTreeMap<String, EnvVar> = BTreeMap::new();
@@ -855,33 +873,26 @@ wait_for_termination $!
                 role_opts_name.clone(),
                 EnvVar {
                     name: role_opts_name,
-                    value: self.build_hadoop_opts(hdfs, resources).ok(),
+                    value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
                     ..EnvVar::default()
                 },
             );
         }
-        // Additionally, any other init or sidecar container must have access to the following settings.
-        // As the Prometheus metric emitter is not part of this config it's safe to use for hdfs cli tools as well.
-        // This will not only enable the init containers to work, but also the user to run e.g.
-        // `bin/hdfs dfs -ls /` without getting `Caused by: java.lang.IllegalArgumentException: KrbException: Cannot locate default realm`
-        // because the `-Djava.security.krb5.conf` setting is missing
-        if hdfs.has_kerberos_enabled() {
-            env.insert(
-                "HADOOP_OPTS".to_string(),
-                EnvVar {
-                    name: "HADOOP_OPTS".to_string(),
-                    value: Some(
-                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
-                    ),
-                    ..EnvVar::default()
-                },
-            );
 
+        env.insert(
+            "HADOOP_OPTS".to_string(),
+            EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
+                ..EnvVar::default()
+            },
+        );
+        if hdfs.has_kerberos_enabled() {
             env.insert(
                 "KRB5_CONFIG".to_string(),
                 EnvVar {
                     name: "KRB5_CONFIG".to_string(),
-                    value: Some("/stackable/kerberos/krb5.conf".to_string()),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
                     ..EnvVar::default()
                 },
             );
@@ -889,11 +900,12 @@ wait_for_termination $!
                 "KRB5_CLIENT_KTNAME".to_string(),
                 EnvVar {
                     name: "KRB5_CLIENT_KTNAME".to_string(),
-                    value: Some("/stackable/kerberos/keytab".to_string()),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
                     ..EnvVar::default()
                 },
             );
         }
+
         // Needed for the `containerdebug` process to log it's tracing information to.
         env.insert(
             "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
@@ -913,11 +925,11 @@ wait_for_termination $!
 
         env.append(&mut env_override_vars);
 
-        env.into_values().collect()
+        Ok(env.into_values().collect())
     }
 
     /// Returns the container resources.
-    fn resources(&self, merged_config: &AnyNodeConfig) -> Option<ResourceRequirements> {
+    pub fn resources(&self, merged_config: &AnyNodeConfig) -> Option<ResourceRequirements> {
         match self {
             // Namenode sidecar containers
             ContainerConfig::Zkfc { .. } => Some(
@@ -1095,7 +1107,8 @@ wait_for_termination $!
 
         // Adding this for all containers, as not only the main container needs Kerberos or TLS
         if hdfs.has_kerberos_enabled() {
-            volume_mounts.push(VolumeMountBuilder::new("kerberos", "/stackable/kerberos").build());
+            volume_mounts
+                .push(VolumeMountBuilder::new("kerberos", KERBEROS_CONTAINER_PATH).build());
         }
         if hdfs.has_https_enabled() {
             // This volume will be propagated by the create-tls-cert-bundle container
@@ -1198,6 +1211,7 @@ wait_for_termination $!
     fn build_hadoop_opts(
         &self,
         hdfs: &HdfsCluster,
+        role_group: &str,
         resources: Option<&ResourceRequirements>,
     ) -> Result<String, Error> {
         match self {
@@ -1206,39 +1220,18 @@ wait_for_termination $!
             } => {
                 let cvd = ContainerVolumeDirs::from(role);
                 let config_dir = cvd.final_config();
-                let mut jvm_args = vec![
-                    format!(
-                        "-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE} -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{role}.yaml",
-                    )];
-
-                if hdfs.has_kerberos_enabled() {
-                    jvm_args.push(
-                        "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf".to_string(),
-                    );
-                }
-
-                if let Some(memory_limit) = resources.and_then(|r| r.limits.as_ref()?.get("memory"))
-                {
-                    let memory_limit =
-                        MemoryQuantity::try_from(memory_limit).with_context(|_| {
-                            InvalidJavaHeapConfigSnafu {
-                                role: role.to_string(),
-                            }
-                        })?;
-                    jvm_args.push(format!(
-                        "-Xmx{}",
-                        (memory_limit * Self::JVM_HEAP_FACTOR)
-                            .scale_to(BinaryMultiple::Kibi)
-                            .format_for_java()
-                            .with_context(|_| {
-                                InvalidJavaHeapConfigSnafu {
-                                    role: role.to_string(),
-                                }
-                            })?
-                    ));
-                }
-
-                Ok(jvm_args.join(" ").trim().to_string())
+                construct_role_specific_jvm_args(
+                    hdfs,
+                    role,
+                    role_group,
+                    hdfs.has_kerberos_enabled(),
+                    resources,
+                    config_dir,
+                    *metrics_port,
+                )
+                .with_context(|_| ConstructJvmArgumentsSnafu {
+                    role: role.to_string(),
+                })
             }
             _ => Ok("".to_string()),
         }
