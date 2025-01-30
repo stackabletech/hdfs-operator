@@ -21,7 +21,7 @@ spec:
       env:
         - name: HADOOP_CONF_DIR
           value: /stackable/conf/hdfs
-      image: docker.stackable.tech/stackable/hadoop:<version> <1>
+      image: oci.stackable.tech/sdp/hadoop:<version> <1>
       imagePullPolicy: Always
       securityContext:
         privileged: true

@@ -1,7 +1,7 @@
 # Default values for hdfs-operator.
 ---
 image:
-  repository: docker.stackable.tech/stackable/hdfs-operator
+  repository: oci.stackable.tech/sdp/hdfs-operator
   pullPolicy: IfNotPresent
   pullSecrets: []
 

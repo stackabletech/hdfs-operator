@@ -18,7 +18,7 @@ commands:
 {% if test_scenario['values']['hadoop-latest'].find(",") > 0 %}
                 image: "{{ test_scenario['values']['hadoop-latest'].split(',')[1] }}"
 {% else %}
-                image: docker.stackable.tech/stackable/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
+                image: oci.stackable.tech/sdp/hadoop:{{ test_scenario['values']['hadoop-latest'] }}-stackable0.0.0-dev
 {% endif %}
                 env:
                   - name: HADOOP_CONF_DIR
