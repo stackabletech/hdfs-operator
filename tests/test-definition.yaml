@@ -26,7 +26,7 @@ dimensions:
       - 1.21.1
   - name: opa
     values:
-      - 0.67.1
+      - 1.0.0
   - name: number-of-datanodes
     values:
       - "1"
