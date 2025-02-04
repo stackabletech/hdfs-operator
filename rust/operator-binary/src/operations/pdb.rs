@@ -85,8 +85,9 @@ fn max_unavailable_data_nodes(num_datanodes: u16, dfs_replication: u16) -> u16 {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case(0, 0, 1)]

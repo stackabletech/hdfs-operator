@@ -3,7 +3,6 @@ use stackable_hdfs_crd::{
     constants::{APP_NAME, FIELD_MANAGER_SCOPE},
     HdfsCluster,
 };
-use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
     commons::rbac::build_rbac_resources,
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
@@ -14,7 +13,7 @@ use stackable_operator::{
             reflector::{ObjectRef, Store},
             watcher,
         },
-        Api, Client,
+        Api, Client, ResourceExt,
     },
     kvp::Labels,
 };

@@ -10,6 +10,10 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_hdfs_crd::{
+    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
+    UpgradeState, UpgradeStateError,
+};
 use stackable_operator::{
     builder::{
         configmap::ConfigMapBuilder,
@@ -49,11 +53,6 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
-
-use stackable_hdfs_crd::{
-    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
-    UpgradeState, UpgradeStateError,
-};
 
 use crate::{
     build_recommended_labels,

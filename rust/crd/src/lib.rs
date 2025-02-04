@@ -11,6 +11,8 @@ use product_config::types::PropertyNameKind;
 use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+#[cfg(doc)]
+use stackable_operator::commons::listener::ListenerClass;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -57,9 +59,6 @@ use crate::{
         HdfsStorageConfigFragment, HdfsStorageType,
     },
 };
-
-#[cfg(doc)]
-use stackable_operator::commons::listener::ListenerClass;
 
 pub mod affinity;
 pub mod constants;
@@ -1492,12 +1491,12 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::storage::HdfsStorageType;
-
-    use super::{HdfsCluster, HdfsRole};
     use stackable_operator::k8s_openapi::{
         api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
     };
+
+    use super::{HdfsCluster, HdfsRole};
+    use crate::storage::HdfsStorageType;
 
     #[test]
     pub fn test_pvc_rolegroup_from_yaml() {

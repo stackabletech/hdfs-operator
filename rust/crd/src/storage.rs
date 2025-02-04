@@ -1,14 +1,17 @@
 use std::collections::BTreeMap;
 
-use crate::constants::*;
 use serde::{Deserialize, Serialize};
-use stackable_operator::config::merge::{Atomic, Merge};
 use stackable_operator::{
     commons::resources::PvcConfig,
-    config::fragment::Fragment,
+    config::{
+        fragment::Fragment,
+        merge::{Atomic, Merge},
+    },
     k8s_openapi::api::core::v1::PersistentVolumeClaim,
     schemars::{self, JsonSchema},
 };
+
+use crate::constants::*;
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -182,11 +185,10 @@ impl HdfsStorageType {
 mod test {
     use std::collections::BTreeMap;
 
-    use stackable_operator::k8s_openapi::api::core::v1::VolumeResourceRequirements;
     use stackable_operator::{
         commons::resources::PvcConfig,
         k8s_openapi::{
-            api::core::v1::PersistentVolumeClaimSpec,
+            api::core::v1::{PersistentVolumeClaimSpec, VolumeResourceRequirements},
             apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
         },
     };
