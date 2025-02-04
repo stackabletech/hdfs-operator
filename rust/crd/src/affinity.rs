@@ -28,10 +28,9 @@ pub fn get_affinity(cluster_name: &str, role: &HdfsRole) -> StackableAffinityFra
 
 #[cfg(test)]
 mod test {
-    use rstest::rstest;
     use std::collections::BTreeMap;
 
-    use crate::{HdfsCluster, HdfsRole};
+    use rstest::rstest;
     use stackable_operator::{
         commons::affinity::StackableAffinity,
         k8s_openapi::{
@@ -41,6 +40,8 @@ mod test {
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
     };
+
+    use crate::{HdfsCluster, HdfsRole};
 
     #[rstest]
     #[case(HdfsRole::JournalNode)]

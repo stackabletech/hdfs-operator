@@ -99,9 +99,8 @@ pub fn construct_role_specific_jvm_args(
 mod tests {
     use stackable_hdfs_crd::{constants::DEFAULT_NAME_NODE_METRICS_PORT, HdfsCluster};
 
-    use crate::container::ContainerConfig;
-
     use super::*;
+    use crate::container::ContainerConfig;
 
     #[test]
     fn test_global_jvm_args() {
