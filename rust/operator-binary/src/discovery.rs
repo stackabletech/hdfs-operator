@@ -12,7 +12,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     crd::{
         constants::{CORE_SITE_XML, HDFS_SITE_XML},
-        HdfsCluster, HdfsPodRef, HdfsRole,
+        HdfsCluster, HdfsNodeRole, HdfsPodRef,
     },
     security::kerberos,
 };
@@ -61,7 +61,7 @@ pub fn build_discovery_configmap(
             hdfs,
             controller,
             &resolved_product_image.app_version_label,
-            &HdfsRole::NameNode.to_string(),
+            &HdfsNodeRole::Name.to_string(),
             "discovery",
         ))
         .context(ObjectMetaSnafu)?

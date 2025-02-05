@@ -69,7 +69,7 @@ use crate::{
             SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
-        AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
+        AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
         UpgradeState,
     },
     product_logging::{
@@ -150,7 +150,7 @@ pub enum Error {
 pub enum ContainerConfig {
     Hdfs {
         /// HDFS role (name-, data-, journal-node) which will be the container_name.
-        role: HdfsRole,
+        role: HdfsNodeRole,
         /// The container name derived from the provided role.
         container_name: String,
         /// Volume mounts for config and logging.
@@ -214,7 +214,7 @@ impl ContainerConfig {
         pb: &mut PodBuilder,
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
-        role: &HdfsRole,
+        role: &HdfsNodeRole,
         role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
@@ -305,7 +305,7 @@ impl ContainerConfig {
 
         // role specific pod settings configured here
         match role {
-            HdfsRole::NameNode => {
+            HdfsNodeRole::Name => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
                 pb.add_volumes(zkfc_container_config.volumes(
@@ -370,7 +370,7 @@ impl ContainerConfig {
                     labels,
                 )?);
             }
-            HdfsRole::DataNode => {
+            HdfsNodeRole::Data => {
                 // Wait for namenode init container
                 let wait_for_namenodes_container_config =
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
@@ -393,7 +393,7 @@ impl ContainerConfig {
                     labels,
                 )?);
             }
-            HdfsRole::JournalNode => {}
+            HdfsNodeRole::Journal => {}
         }
 
         Ok(())
@@ -404,7 +404,7 @@ impl ContainerConfig {
         labels: &Labels,
     ) -> Result<Vec<PersistentVolumeClaim>> {
         match merged_config {
-            AnyNodeConfig::NameNode(node) => {
+            AnyNodeConfig::Name(node) => {
                 let listener = ListenerOperatorVolumeSourceBuilder::new(
                     &ListenerReference::ListenerClass(node.listener_class.to_string()),
                     labels,
@@ -432,11 +432,11 @@ impl ContainerConfig {
 
                 Ok(pvcs)
             }
-            AnyNodeConfig::JournalNode(node) => Ok(vec![node.resources.storage.data.build_pvc(
+            AnyNodeConfig::Journal(node) => Ok(vec![node.resources.storage.data.build_pvc(
                 ContainerConfig::DATA_VOLUME_MOUNT_NAME,
                 Some(vec!["ReadWriteOnce"]),
             )]),
-            AnyNodeConfig::DataNode(node) => Ok(DataNodeStorageConfig {
+            AnyNodeConfig::Data(node) => Ok(DataNodeStorageConfig {
                 pvcs: node.resources.storage.clone(),
             }
             .build_pvcs()),
@@ -453,7 +453,7 @@ impl ContainerConfig {
         &self,
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
-        role: &HdfsRole,
+        role: &HdfsNodeRole,
         role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
@@ -514,7 +514,7 @@ impl ContainerConfig {
         &self,
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
-        role: &HdfsRole,
+        role: &HdfsNodeRole,
         role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
@@ -587,7 +587,7 @@ impl ContainerConfig {
         &self,
         hdfs: &HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
-        role: &HdfsRole,
+        role: &HdfsNodeRole,
         merged_config: &AnyNodeConfig,
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<Vec<String>, Error> {
@@ -601,7 +601,7 @@ impl ContainerConfig {
         }
 
         let upgrade_args = if hdfs.upgrade_state().ok() == Some(Some(UpgradeState::Upgrading))
-            && *role == HdfsRole::NameNode
+            && *role == HdfsNodeRole::Name
         {
             "-rollingUpgrade started"
         } else {
@@ -810,7 +810,7 @@ wait_for_termination $!
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
     fn get_kerberos_ticket(
         hdfs: &HdfsCluster,
-        role: &HdfsRole,
+        role: &HdfsNodeRole,
         cluster_info: &KubernetesClusterInfo,
     ) -> Result<String, Error> {
         let principal = format!(
@@ -945,9 +945,9 @@ wait_for_termination $!
             | ContainerConfig::FormatNameNodes { .. }
             | ContainerConfig::FormatZooKeeper { .. }
             | ContainerConfig::WaitForNameNodes { .. } => match merged_config {
-                AnyNodeConfig::NameNode(node) => Some(node.resources.clone().into()),
-                AnyNodeConfig::DataNode(node) => Some(node.resources.clone().into()),
-                AnyNodeConfig::JournalNode(node) => Some(node.resources.clone().into()),
+                AnyNodeConfig::Name(node) => Some(node.resources.clone().into()),
+                AnyNodeConfig::Data(node) => Some(node.resources.clone().into()),
+                AnyNodeConfig::Journal(node) => Some(node.resources.clone().into()),
             },
         }
     }
@@ -1021,7 +1021,7 @@ wait_for_termination $!
         let mut volumes = vec![];
 
         if let ContainerConfig::Hdfs { .. } = self {
-            if let AnyNodeConfig::DataNode(node) = merged_config {
+            if let AnyNodeConfig::Data(node) = merged_config {
                 volumes.push(
                     VolumeBuilder::new(LISTENER_VOLUME_NAME)
                         .ephemeral(
@@ -1126,7 +1126,7 @@ wait_for_termination $!
             }
             ContainerConfig::Hdfs { role, .. } => {
                 // JournalNode doesn't use listeners, since it's only used internally by the namenodes
-                if let HdfsRole::NameNode | HdfsRole::DataNode = role {
+                if let HdfsNodeRole::Name | HdfsNodeRole::Data = role {
                     volume_mounts.push(
                         VolumeMountBuilder::new(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR).build(),
                     );
@@ -1134,7 +1134,7 @@ wait_for_termination $!
 
                 // Add data volume
                 match role {
-                    HdfsRole::NameNode | HdfsRole::JournalNode => {
+                    HdfsNodeRole::Name | HdfsNodeRole::Journal => {
                         volume_mounts.push(
                             VolumeMountBuilder::new(
                                 Self::DATA_VOLUME_MOUNT_NAME,
@@ -1143,7 +1143,7 @@ wait_for_termination $!
                             .build(),
                         );
                     }
-                    HdfsRole::DataNode => {
+                    HdfsNodeRole::Data => {
                         for pvc in Self::volume_claim_templates(merged_config, labels)? {
                             let pvc_name = pvc.name_any();
                             volume_mounts.push(VolumeMount {
@@ -1358,10 +1358,10 @@ wait_for_termination $!
     }
 }
 
-impl From<HdfsRole> for ContainerConfig {
-    fn from(role: HdfsRole) -> Self {
+impl From<HdfsNodeRole> for ContainerConfig {
+    fn from(role: HdfsNodeRole) -> Self {
         match role {
-            HdfsRole::NameNode => Self::Hdfs {
+            HdfsNodeRole::Name => Self::Hdfs {
                 role,
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
@@ -1370,7 +1370,7 @@ impl From<HdfsRole> for ContainerConfig {
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
                 metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
             },
-            HdfsRole::DataNode => Self::Hdfs {
+            HdfsNodeRole::Data => Self::Hdfs {
                 role,
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
@@ -1379,7 +1379,7 @@ impl From<HdfsRole> for ContainerConfig {
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
                 metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
             },
-            HdfsRole::JournalNode => Self::Hdfs {
+            HdfsNodeRole::Journal => Self::Hdfs {
                 role,
                 container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
@@ -1396,7 +1396,7 @@ impl TryFrom<String> for ContainerConfig {
     type Error = Error;
 
     fn try_from(container_name: String) -> Result<Self, Self::Error> {
-        match HdfsRole::from_str(container_name.as_str()) {
+        match HdfsNodeRole::from_str(container_name.as_str()) {
             Ok(role) => Ok(ContainerConfig::from(role)),
             // No hadoop main process container
             Err(_) => match container_name {
@@ -1469,8 +1469,8 @@ impl ContainerVolumeDirs {
     }
 }
 
-impl From<HdfsRole> for ContainerVolumeDirs {
-    fn from(role: HdfsRole) -> Self {
+impl From<HdfsNodeRole> for ContainerVolumeDirs {
+    fn from(role: HdfsNodeRole) -> Self {
         ContainerVolumeDirs {
             final_config_dir: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR),
             config_mount: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR_MOUNT),
@@ -1481,8 +1481,8 @@ impl From<HdfsRole> for ContainerVolumeDirs {
     }
 }
 
-impl From<&HdfsRole> for ContainerVolumeDirs {
-    fn from(role: &HdfsRole) -> Self {
+impl From<&HdfsNodeRole> for ContainerVolumeDirs {
+    fn from(role: &HdfsNodeRole) -> Self {
         ContainerVolumeDirs {
             final_config_dir: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR),
             config_mount: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR_MOUNT),
@@ -1497,7 +1497,7 @@ impl TryFrom<&str> for ContainerVolumeDirs {
     type Error = Error;
 
     fn try_from(container_name: &str) -> Result<Self, Error> {
-        if let Ok(role) = HdfsRole::from_str(container_name) {
+        if let Ok(role) = HdfsNodeRole::from_str(container_name) {
             return Ok(ContainerVolumeDirs::from(role));
         }
 

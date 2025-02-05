@@ -55,7 +55,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     crd::{
-        constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
+        constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef,
         UpgradeState, UpgradeStateError,
     },
     discovery::{self, build_discovery_configmap},
@@ -301,10 +301,10 @@ pub async fn reconcile_hdfs(
     let hdfs_obj_ref = hdfs.object_ref(&());
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
     let namenode_podrefs = hdfs
-        .pod_refs(&HdfsRole::NameNode)
+        .pod_refs(&HdfsNodeRole::Name)
         .context(CreatePodReferencesSnafu)?;
     let journalnode_podrefs = hdfs
-        .pod_refs(&HdfsRole::JournalNode)
+        .pod_refs(&HdfsNodeRole::Journal)
         .context(CreatePodReferencesSnafu)?;
 
     let mut cluster_resources = ClusterResources::new(
@@ -361,7 +361,7 @@ pub async fn reconcile_hdfs(
             }
             _ => false,
         },
-        HdfsRole::iter(),
+        HdfsNodeRole::iter(),
     );
     'roles: for role in roles {
         let role_name: &str = role.into();
@@ -563,7 +563,7 @@ pub async fn reconcile_hdfs(
 fn rolegroup_service(
     hdfs: &HdfsCluster,
     metadata: &ObjectMetaBuilder,
-    role: &HdfsRole,
+    role: &HdfsNodeRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
@@ -814,7 +814,7 @@ fn rolegroup_statefulset(
     hdfs: &HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
-    role: &HdfsRole,
+    role: &HdfsNodeRole,
     rolegroup_ref: &RoleGroupRef<HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
     env_overrides: Option<&BTreeMap<String, String>>,
@@ -980,7 +980,7 @@ properties: []
         )
         .unwrap();
 
-        let role = HdfsRole::DataNode;
+        let role = HdfsNodeRole::Data;
         let rolegroup_config = validated_config
             .get(&role.to_string())
             .unwrap()
