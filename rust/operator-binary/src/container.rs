@@ -69,7 +69,7 @@ use crate::{
             SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
-        AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
+        v1alpha1, AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
         UpgradeState,
     },
     product_logging::{
@@ -212,7 +212,7 @@ impl ContainerConfig {
     #[allow(clippy::too_many_arguments)]
     pub fn add_containers_and_volumes(
         pb: &mut PodBuilder,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
         role_group: &str,
@@ -451,7 +451,7 @@ impl ContainerConfig {
     #[allow(clippy::too_many_arguments)]
     fn main_container(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
         role_group: &str,
@@ -512,7 +512,7 @@ impl ContainerConfig {
     #[allow(clippy::too_many_arguments)]
     fn init_container(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
         role_group: &str,
@@ -585,7 +585,7 @@ impl ContainerConfig {
     /// Returns the container command arguments.
     fn args(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
         merged_config: &AnyNodeConfig,
@@ -809,7 +809,7 @@ wait_for_termination $!
     /// Needs the KERBEROS_REALM env var, which will be written with `export_kerberos_real_env_var_command`
     /// Needs the POD_NAME env var to be present, which will be provided by the PodSpec
     fn get_kerberos_ticket(
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         role: &HdfsNodeRole,
         cluster_info: &KubernetesClusterInfo,
     ) -> Result<String, Error> {
@@ -839,7 +839,7 @@ wait_for_termination $!
     /// Returns the container env variables.
     fn env(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         role_group: &str,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -955,7 +955,7 @@ wait_for_termination $!
     /// Creates a probe for the web UI port
     fn web_ui_port_probe(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         period_seconds: i32,
         initial_delay_seconds: i32,
         failure_threshold: i32,
@@ -1086,7 +1086,7 @@ wait_for_termination $!
     /// Returns the container volume mounts.
     fn volume_mounts(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         merged_config: &AnyNodeConfig,
         labels: &Labels,
     ) -> Result<Vec<VolumeMount>> {
@@ -1210,7 +1210,7 @@ wait_for_termination $!
     /// Build HADOOP_{*node}_OPTS for each namenode, datanodes and journalnodes.
     fn build_hadoop_opts(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         role_group: &str,
         resources: Option<&ResourceRequirements>,
     ) -> Result<String, Error> {
@@ -1238,7 +1238,7 @@ wait_for_termination $!
     }
 
     /// Container ports for the main containers namenode, datanode and journalnode.
-    fn container_ports(&self, hdfs: &HdfsCluster) -> Vec<ContainerPort> {
+    fn container_ports(&self, hdfs: &v1alpha1::HdfsCluster) -> Vec<ContainerPort> {
         match self {
             ContainerConfig::Hdfs { role, .. } => hdfs
                 .ports(role)

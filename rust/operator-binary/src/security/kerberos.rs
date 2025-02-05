@@ -8,7 +8,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     crd::{
         constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
-        HdfsCluster,
+        v1alpha1,
     },
 };
 
@@ -22,12 +22,12 @@ pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace {
         source: crate::crd::Error,
-        obj_ref: ObjectRef<HdfsCluster>,
+        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
     },
 }
 
 impl HdfsSiteConfigBuilder {
-    pub fn security_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
+    pub fn security_config(&mut self, hdfs: &v1alpha1::HdfsCluster) -> &mut Self {
         if hdfs.has_kerberos_enabled() {
             self.add("dfs.block.access.token.enable", "true")
                 .add("dfs.http.policy", "HTTPS_ONLY")
@@ -39,7 +39,7 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn security_discovery_config(&mut self, hdfs: &HdfsCluster) -> &mut Self {
+    pub fn security_discovery_config(&mut self, hdfs: &v1alpha1::HdfsCluster) -> &mut Self {
         if hdfs.has_kerberos_enabled() {
             // We want e.g. hbase to automatically renew the Kerberos tickets.
             // This shouldn't harm any other consumers.
@@ -59,7 +59,7 @@ impl HdfsSiteConfigBuilder {
 impl CoreSiteConfigBuilder {
     pub fn security_config(
         &mut self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
     ) -> Result<&mut Self> {
         if hdfs.authentication_config().is_some() {
@@ -128,7 +128,7 @@ impl CoreSiteConfigBuilder {
 
     pub fn security_discovery_config(
         &mut self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
     ) -> Result<&mut Self> {
         if hdfs.has_kerberos_enabled() {
@@ -171,7 +171,10 @@ impl CoreSiteConfigBuilder {
 /// ```
 ///
 /// After we have switched to using the following principals everything worked without problems
-fn principal_host_part(hdfs: &HdfsCluster, cluster_info: &KubernetesClusterInfo) -> Result<String> {
+fn principal_host_part(
+    hdfs: &v1alpha1::HdfsCluster,
+    cluster_info: &KubernetesClusterInfo,
+) -> Result<String> {
     let hdfs_name = hdfs.name_any();
     let hdfs_namespace = hdfs
         .namespace_or_error()

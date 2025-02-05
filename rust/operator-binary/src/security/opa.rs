@@ -3,7 +3,7 @@ use stackable_operator::{client::Client, commons::opa::OpaApiVersion};
 
 use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    crd::{security::AuthorizationConfig, HdfsCluster},
+    crd::{security::AuthorizationConfig, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
@@ -23,7 +23,7 @@ pub struct HdfsOpaConfig {
 impl HdfsOpaConfig {
     pub async fn from_opa_config(
         client: &Client,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         authorization_config: &AuthorizationConfig,
     ) -> Result<Self> {
         let authorization_connection_string = authorization_config

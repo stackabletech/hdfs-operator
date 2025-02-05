@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use built_info::PKG_VERSION;
 use clap::{crate_description, crate_version, Parser};
 use futures::{pin_mut, StreamExt};
 use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
@@ -24,12 +23,13 @@ use stackable_operator::{
     kvp::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
-    CustomResourceExt,
+    shared::yaml::SerializeOptions,
+    YamlSchema,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-use crate::crd::{constants::APP_NAME, HdfsCluster};
+use crate::crd::{constants::APP_NAME, v1alpha1, HdfsCluster};
 
 mod config;
 mod container;
@@ -59,7 +59,8 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => HdfsCluster::print_yaml_schema(PKG_VERSION)?,
+        Command::Crd => HdfsCluster::merged_crd(HdfsCluster::V1Alpha1)?
+            .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
@@ -115,7 +116,7 @@ pub async fn create_controller(
     let reflector = reflector::reflector(
         store_w,
         watcher(
-            Api::<PartialObjectMeta<HdfsCluster>>::all(client.as_kube_client()),
+            Api::<PartialObjectMeta<v1alpha1::HdfsCluster>>::all(client.as_kube_client()),
             watcher::Config::default(),
         ),
     )
@@ -125,7 +126,7 @@ pub async fn create_controller(
     .collect::<()>();
 
     let hdfs_controller = Controller::new(
-        namespace.get_api::<DeserializeGuard<HdfsCluster>>(&client),
+        namespace.get_api::<DeserializeGuard<v1alpha1::HdfsCluster>>(&client),
         watcher::Config::default(),
     )
     .owns(

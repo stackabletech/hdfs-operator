@@ -6,7 +6,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{constants::JVM_SECURITY_PROPERTIES_FILE, HdfsCluster, HdfsNodeRole},
+    crd::{constants::JVM_SECURITY_PROPERTIES_FILE, v1alpha1, HdfsNodeRole},
     security::kerberos::KERBEROS_CONTAINER_PATH,
 };
 
@@ -50,7 +50,7 @@ pub fn construct_global_jvm_args(kerberos_enabled: bool) -> String {
 }
 
 pub fn construct_role_specific_jvm_args(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     hdfs_role: &HdfsNodeRole,
     role_group: &str,
     kerberos_enabled: bool,
@@ -191,7 +191,8 @@ mod tests {
     }
 
     fn construct_test_role_specific_jvm_args(hdfs_cluster: &str, kerberos_enabled: bool) -> String {
-        let hdfs: HdfsCluster = serde_yaml::from_str(hdfs_cluster).expect("illegal test input");
+        let hdfs: v1alpha1::HdfsCluster =
+            serde_yaml::from_str(hdfs_cluster).expect("illegal test input");
 
         let role = HdfsNodeRole::Name;
         let merged_config = role.merged_config(&hdfs, "default").unwrap();

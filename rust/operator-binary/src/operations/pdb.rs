@@ -7,7 +7,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{constants::APP_NAME, HdfsCluster, HdfsNodeRole},
+    crd::{constants::APP_NAME, v1alpha1, HdfsNodeRole},
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
     OPERATOR_NAME,
 };
@@ -29,7 +29,7 @@ pub enum Error {
 
 pub async fn add_pdbs(
     pdb: &PdbConfig,
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     role: &HdfsNodeRole,
     client: &Client,
     cluster_resources: &mut ClusterResources,

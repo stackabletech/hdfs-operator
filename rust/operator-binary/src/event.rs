@@ -6,7 +6,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    crd::{HdfsCluster, HdfsNodeRole},
+    crd::{v1alpha1, HdfsNodeRole},
     hdfs_controller::Ctx,
 };
 
@@ -43,7 +43,7 @@ pub async fn publish_warning_event(
 }
 
 pub fn build_invalid_replica_message(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     role: &HdfsNodeRole,
     dfs_replication: u8,
 ) -> Option<String> {

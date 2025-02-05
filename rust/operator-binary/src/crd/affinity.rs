@@ -41,7 +41,7 @@ mod test {
         },
     };
 
-    use crate::crd::{HdfsCluster, HdfsNodeRole};
+    use crate::crd::{v1alpha1, HdfsNodeRole};
 
     #[rstest]
     #[case(HdfsNodeRole::Journal)]
@@ -71,7 +71,7 @@ spec:
       default:
         replicas: 1
         "#;
-        let hdfs: HdfsCluster = serde_yaml::from_str(input).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(input).unwrap();
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
 
         assert_eq!(

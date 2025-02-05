@@ -17,13 +17,13 @@ use tracing::{error, info};
 
 use crate::crd::{
     constants::{APP_NAME, FIELD_MANAGER_SCOPE},
-    HdfsCluster,
+    v1alpha1,
 };
 
 pub async fn reconcile(
     client: Client,
-    store: &Store<PartialObjectMeta<HdfsCluster>>,
-    ev: watcher::Result<watcher::Event<PartialObjectMeta<HdfsCluster>>>,
+    store: &Store<PartialObjectMeta<v1alpha1::HdfsCluster>>,
+    ev: watcher::Result<watcher::Event<PartialObjectMeta<v1alpha1::HdfsCluster>>>,
 ) {
     match ev {
         Ok(watcher::Event::Apply(o)) => {

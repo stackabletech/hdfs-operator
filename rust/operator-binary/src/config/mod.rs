@@ -14,7 +14,7 @@ use crate::crd::{
         SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_RPC,
     },
     storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType},
-    HdfsCluster, HdfsPodRef,
+    v1alpha1, HdfsPodRef,
 };
 
 pub mod jvm;
@@ -163,7 +163,7 @@ impl HdfsSiteConfigBuilder {
 
     pub fn dfs_namenode_http_address_ha(
         &mut self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         namenode_podrefs: &[HdfsPodRef],
     ) -> &mut Self {

@@ -12,7 +12,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     crd::{
         constants::{CORE_SITE_XML, HDFS_SITE_XML},
-        HdfsCluster, HdfsNodeRole, HdfsPodRef,
+        v1alpha1, HdfsNodeRole, HdfsPodRef,
     },
     security::kerberos,
 };
@@ -25,7 +25,7 @@ pub enum Error {
     #[snafu(display("object {hdfs} is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
-        hdfs: ObjectRef<HdfsCluster>,
+        hdfs: ObjectRef<v1alpha1::HdfsCluster>,
     },
 
     #[snafu(display("failed to build ConfigMap"))]
@@ -45,7 +45,7 @@ pub enum Error {
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
 /// for clients.
 pub fn build_discovery_configmap(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     controller: &str,
     namenode_podrefs: &[HdfsPodRef],
@@ -82,7 +82,7 @@ pub fn build_discovery_configmap(
 }
 
 fn build_discovery_hdfs_site_xml(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     logical_name: String,
     namenode_podrefs: &[HdfsPodRef],
@@ -98,7 +98,7 @@ fn build_discovery_hdfs_site_xml(
 }
 
 fn build_discovery_core_site_xml(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     logical_name: String,
 ) -> Result<String> {

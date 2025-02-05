@@ -55,7 +55,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     crd::{
-        constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef,
+        constants::*, v1alpha1, AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef,
         UpgradeState, UpgradeStateError,
     },
     discovery::{self, build_discovery_configmap},
@@ -118,7 +118,7 @@ pub enum Error {
     #[snafu(display("no metadata for {obj_ref:?}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
-        obj_ref: ObjectRef<HdfsCluster>,
+        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
     },
 
     #[snafu(display("invalid role {role:?}"))]
@@ -128,7 +128,9 @@ pub enum Error {
     },
 
     #[snafu(display("object has no name"))]
-    ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
+    ObjectHasNoName {
+        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
+    },
 
     #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
     BuildRoleGroupConfigMap {
@@ -263,7 +265,7 @@ pub struct Ctx {
 }
 
 pub async fn reconcile_hdfs(
-    hdfs: Arc<DeserializeGuard<HdfsCluster>>,
+    hdfs: Arc<DeserializeGuard<v1alpha1::HdfsCluster>>,
     ctx: Arc<Ctx>,
 ) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
@@ -561,10 +563,10 @@ pub async fn reconcile_hdfs(
 }
 
 fn rolegroup_service(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     metadata: &ObjectMetaBuilder,
     role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
 
@@ -606,10 +608,10 @@ fn rolegroup_service(
 
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
@@ -811,11 +813,11 @@ fn rolegroup_config_map(
 
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
     role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
     env_overrides: Option<&BTreeMap<String, String>>,
     merged_config: &AnyNodeConfig,
@@ -910,7 +912,7 @@ fn rolegroup_statefulset(
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<HdfsCluster>>,
+    _obj: Arc<DeserializeGuard<v1alpha1::HdfsCluster>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {
@@ -966,7 +968,7 @@ spec:
 properties: []
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
         let config =
             transform_all_roles_to_config(&hdfs, hdfs.build_role_properties().unwrap()).unwrap();

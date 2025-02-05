@@ -47,6 +47,7 @@ use stackable_operator::{
     time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
 };
+use stackable_versioned::versioned;
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 
 use crate::crd::{
@@ -120,50 +121,53 @@ pub enum Error {
     MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
-/// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
-/// Find more information on how to use it and the resources that the operator generates in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hdfs/).
-///
-/// The CRD contains three roles: `nameNodes`, `dataNodes` and `journalNodes`.
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[kube(
-    group = "hdfs.stackable.tech",
-    version = "v1alpha1",
-    kind = "HdfsCluster",
-    plural = "hdfsclusters",
-    shortname = "hdfs",
-    status = "HdfsClusterStatus",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
-    )
-)]
-#[serde(rename_all = "camelCase")]
-pub struct HdfsClusterSpec {
-    /// Configuration that applies to all roles and role groups.
-    /// This includes settings for authentication, logging and the ZooKeeper cluster to use.
-    pub cluster_config: HdfsClusterConfig,
+#[versioned(version(name = "v1alpha1"))]
+pub mod versioned {
+    /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
+    /// Find more information on how to use it and the resources that the operator generates in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hdfs/).
+    ///
+    /// The CRD contains three roles: `nameNodes`, `dataNodes` and `journalNodes`.
+    #[versioned(k8s(
+        group = "hdfs.stackable.tech",
+        kind = "HdfsCluster",
+        plural = "hdfsclusters",
+        shortname = "hdfs",
+        status = "HdfsClusterStatus",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HdfsClusterSpec {
+        /// Configuration that applies to all roles and role groups.
+        /// This includes settings for authentication, logging and the ZooKeeper cluster to use.
+        pub cluster_config: HdfsClusterConfig,
 
-    // no doc string - See ProductImage struct
-    pub image: ProductImage,
+        // no doc string - See ProductImage struct
+        pub image: ProductImage,
 
-    // no doc string - See ClusterOperation struct
-    #[serde(default)]
-    pub cluster_operation: ClusterOperation,
+        // no doc string - See ClusterOperation struct
+        #[serde(default)]
+        pub cluster_operation: ClusterOperation,
 
-    // no doc string - See Role struct
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name_nodes: Option<Role<NameNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        // no doc string - See Role struct
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub name_nodes: Option<Role<NameNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 
-    // no doc string - See Role struct
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data_nodes: Option<Role<DataNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        // no doc string - See Role struct
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub data_nodes: Option<Role<DataNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 
-    // no doc string - See Role struct
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub journal_nodes: Option<Role<JournalNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        // no doc string - See Role struct
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub journal_nodes:
+            Option<Role<JournalNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -395,7 +399,7 @@ impl HdfsNodeRole {
     /// The priority is: default < role config < role_group config
     pub fn merged_config(
         &self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         role_group: &str,
     ) -> Result<AnyNodeConfig, Error> {
         match self {
@@ -505,7 +509,11 @@ impl HdfsNodeRole {
     }
 
     /// Return replicas for a certain rolegroup.
-    pub fn role_group_replicas(&self, hdfs: &HdfsCluster, role_group: &str) -> Option<u16> {
+    pub fn role_group_replicas(
+        &self,
+        hdfs: &v1alpha1::HdfsCluster,
+        role_group: &str,
+    ) -> Option<u16> {
         match self {
             HdfsNodeRole::Name => hdfs
                 .namenode_rolegroup(role_group)
@@ -520,7 +528,7 @@ impl HdfsNodeRole {
     }
 }
 
-impl HdfsCluster {
+impl v1alpha1::HdfsCluster {
     /// Return the namespace of the cluster or an error in case it is not set.
     pub fn namespace_or_error(&self) -> Result<String, Error> {
         self.namespace().context(NoNamespaceSnafu)
@@ -531,7 +539,7 @@ impl HdfsCluster {
     /// The same labels are also used as selectors for Services and StatefulSets.
     pub fn rolegroup_selector_labels(
         &self,
-        rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
     ) -> Result<Labels> {
         let mut group_labels = Labels::role_group_selector(
             self,
@@ -663,7 +671,7 @@ impl HdfsCluster {
         &self,
         role_name: impl Into<String>,
         group_name: impl Into<String>,
-    ) -> RoleGroupRef<HdfsCluster> {
+    ) -> RoleGroupRef<v1alpha1::HdfsCluster> {
         RoleGroupRef {
             cluster: ObjectRef::from_obj(self),
             role: role_name.into(),
@@ -759,7 +767,7 @@ impl HdfsCluster {
     pub fn rolegroup_ref_and_replicas(
         &self,
         role: &HdfsNodeRole,
-    ) -> Vec<(RoleGroupRef<HdfsCluster>, u16)> {
+    ) -> Vec<(RoleGroupRef<v1alpha1::HdfsCluster>, u16)> {
         match role {
             HdfsNodeRole::Name => self
                 .spec
@@ -818,7 +826,7 @@ impl HdfsCluster {
             (
                 Vec<PropertyNameKind>,
                 Role<
-                    impl Configuration<Configurable = HdfsCluster>,
+                    impl Configuration<Configurable = v1alpha1::HdfsCluster>,
                     GenericRoleConfig,
                     JavaCommonConfig,
                 >,
@@ -1174,7 +1182,7 @@ impl NameNodeConfigFragment {
 }
 
 impl Configuration for NameNodeConfigFragment {
-    type Configurable = HdfsCluster;
+    type Configurable = v1alpha1::HdfsCluster;
 
     fn compute_env(
         &self,
@@ -1316,7 +1324,7 @@ impl DataNodeConfigFragment {
 }
 
 impl Configuration for DataNodeConfigFragment {
-    type Configurable = HdfsCluster;
+    type Configurable = v1alpha1::HdfsCluster;
 
     fn compute_env(
         &self,
@@ -1428,7 +1436,7 @@ impl JournalNodeConfigFragment {
 }
 
 impl Configuration for JournalNodeConfigFragment {
-    type Configurable = HdfsCluster;
+    type Configurable = v1alpha1::HdfsCluster;
 
     fn compute_env(
         &self,
@@ -1471,7 +1479,7 @@ pub struct HdfsClusterStatus {
     pub upgrade_target_product_version: Option<String>,
 }
 
-impl HasStatusCondition for HdfsCluster {
+impl HasStatusCondition for v1alpha1::HdfsCluster {
     fn conditions(&self) -> Vec<ClusterCondition> {
         match &self.status {
             Some(status) => status.conditions.clone(),
@@ -1513,7 +1521,7 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsNodeRole::Data;
         let config = &role.merged_config(&hdfs, "default").unwrap();
         let resources = &config.as_datanode().unwrap().resources;
@@ -1548,7 +1556,7 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsNodeRole::Data;
         let config = &role.merged_config(&hdfs, "default").unwrap();
         let resources = &config.as_datanode().unwrap().resources;
@@ -1578,7 +1586,7 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsNodeRole::Data;
         let config = role.merged_config(&hdfs, "default").unwrap();
         let resources = &config.as_datanode().unwrap().resources;
@@ -1632,7 +1640,7 @@ spec:
         replicas: 1";
 
         let deserializer = serde_yaml::Deserializer::from_str(cr);
-        let hdfs: HdfsCluster =
+        let hdfs: v1alpha1::HdfsCluster =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let role = HdfsNodeRole::Data;
         let config = &role.merged_config(&hdfs, "default").unwrap();
@@ -1680,7 +1688,7 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsNodeRole::Data;
         let rr: ResourceRequirements = role
             .merged_config(&hdfs, "default")
@@ -1735,7 +1743,7 @@ spec:
               min: '250m'
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
         let role = HdfsNodeRole::Data;
         let rr: ResourceRequirements = role
             .merged_config(&hdfs, "default")
@@ -1788,7 +1796,7 @@ spec:
         replicas: 42
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
         assert_eq!(hdfs.num_datanodes(), 45);
     }
@@ -1823,7 +1831,7 @@ spec:
         replicas: 1";
 
         let deserializer = serde_yaml::Deserializer::from_str(cr);
-        let hdfs: HdfsCluster =
+        let hdfs: v1alpha1::HdfsCluster =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
         let rack_awareness = hdfs.rackawareness_config();
