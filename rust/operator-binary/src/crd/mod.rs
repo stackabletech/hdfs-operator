@@ -671,7 +671,7 @@ impl HdfsCluster {
         }
     }
 
-    /// List all [`HdfsPodRef`]s expected for the given [`role`](HdfsRole).
+    /// List all [`HdfsPodRef`]s expected for the given [`role`](HdfsNodeRole).
     ///
     /// The `validated_config` is used to extract the ports exposed by the pods.
     ///
