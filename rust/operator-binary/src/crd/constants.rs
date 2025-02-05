@@ -2,10 +2,7 @@ use stackable_operator::time::Duration;
 
 pub const DEFAULT_DFS_REPLICATION_FACTOR: u8 = 3;
 
-pub const CONTROLLER_NAME: &str = "hdfsclusters.hdfs.stackable.tech";
-
 pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";
-pub const FIELD_MANAGER_SCOPE_POD: &str = "pod-service";
 
 pub const APP_NAME: &str = "hdfs";
 

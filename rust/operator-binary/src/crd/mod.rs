@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
-    fmt::Display,
     num::TryFromIntError,
     ops::Deref,
 };
@@ -1480,25 +1479,6 @@ impl HasStatusCondition for HdfsCluster {
             Some(status) => status.conditions.clone(),
             None => vec![],
         }
-    }
-}
-
-// TODO: upstream?
-pub trait LoggingExt {
-    type Container;
-    fn for_container(&self, container: &Self::Container) -> Cow<ContainerLogConfig>;
-}
-impl<T> LoggingExt for Logging<T>
-where
-    T: Ord + Clone + Display,
-{
-    type Container = T;
-
-    fn for_container(&self, container: &Self::Container) -> Cow<ContainerLogConfig> {
-        self.containers
-            .get(container)
-            .map(Cow::Borrowed)
-            .unwrap_or_default()
     }
 }
 
