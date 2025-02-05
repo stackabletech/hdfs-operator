@@ -5,7 +5,6 @@ use clap::{crate_description, crate_version, Parser};
 use futures::{pin_mut, StreamExt};
 use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
 use product_config::ProductConfigManager;
-use stackable_hdfs_crd::{constants::*, HdfsCluster};
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     client::{self, Client},
@@ -30,8 +29,11 @@ use stackable_operator::{
 use tracing::info_span;
 use tracing_futures::Instrument;
 
+use crate::crd::{constants::APP_NAME, HdfsCluster};
+
 mod config;
 mod container;
+mod crd;
 mod discovery;
 mod event;
 mod hdfs_clusterrolebinding_nodes_controller;

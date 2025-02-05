@@ -13,20 +13,6 @@ use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{
-    constants::{
-        DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
-        DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
-        LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
-        LIVENESS_PROBE_PERIOD_SECONDS, NAMENODE_ROOT_DATA_DIR, READINESS_PROBE_FAILURE_THRESHOLD,
-        READINESS_PROBE_INITIAL_DELAY_SECONDS, READINESS_PROBE_PERIOD_SECONDS,
-        SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
-        SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
-    },
-    storage::DataNodeStorageConfig,
-    AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
-    UpgradeState,
-};
 use stackable_operator::{
     builder::{
         self,
@@ -71,6 +57,21 @@ use crate::{
         self,
         jvm::{construct_global_jvm_args, construct_role_specific_jvm_args},
     },
+    crd::{
+        constants::{
+            DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
+            DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR,
+            LISTENER_VOLUME_NAME, LIVENESS_PROBE_FAILURE_THRESHOLD,
+            LIVENESS_PROBE_INITIAL_DELAY_SECONDS, LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES,
+            NAMENODE_ROOT_DATA_DIR, READINESS_PROBE_FAILURE_THRESHOLD,
+            READINESS_PROBE_INITIAL_DELAY_SECONDS, READINESS_PROBE_PERIOD_SECONDS,
+            SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
+            SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
+        },
+        storage::DataNodeStorageConfig,
+        AnyNodeConfig, DataNodeContainer, HdfsCluster, HdfsPodRef, HdfsRole, NameNodeContainer,
+        UpgradeState,
+    },
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
         HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
@@ -79,7 +80,6 @@ use crate::{
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
     },
     security::kerberos::KERBEROS_CONTAINER_PATH,
-    DATANODE_ROOT_DATA_DIR_PREFIX, LOG4J_PROPERTIES,
 };
 
 pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";

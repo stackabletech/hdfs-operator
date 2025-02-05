@@ -50,9 +50,22 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 
-use crate::{
+use crate::crd::{
     affinity::get_affinity,
-    constants::*,
+    constants::{
+        APP_NAME, CORE_SITE_XML, DEFAULT_DATA_NODE_DATA_PORT,
+        DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_DATA_NODE_HTTPS_PORT,
+        DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
+        DEFAULT_DFS_REPLICATION_FACTOR, DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
+        DEFAULT_JOURNAL_NODE_HTTPS_PORT, DEFAULT_JOURNAL_NODE_HTTP_PORT,
+        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_LISTENER_CLASS,
+        DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_NAME_NODE_HTTPS_PORT,
+        DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_METRICS_PORT, DEFAULT_NAME_NODE_RPC_PORT,
+        DFS_REPLICATION, HADOOP_POLICY_XML, HDFS_SITE_XML, JVM_SECURITY_PROPERTIES_FILE,
+        LISTENER_VOLUME_NAME, SERVICE_PORT_NAME_DATA, SERVICE_PORT_NAME_HTTP,
+        SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_METRICS,
+        SERVICE_PORT_NAME_RPC, SSL_CLIENT_XML, SSL_SERVER_XML,
+    },
     security::{AuthenticationConfig, KerberosConfig},
     storage::{
         DataNodePvcFragment, DataNodeStorageConfigInnerType, HdfsStorageConfig,
@@ -1495,8 +1508,8 @@ mod test {
         api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
     };
 
-    use super::{HdfsCluster, HdfsRole};
-    use crate::storage::HdfsStorageType;
+    use super::*;
+    use crate::crd::storage::HdfsStorageType;
 
     #[test]
     pub fn test_pvc_rolegroup_from_yaml() {

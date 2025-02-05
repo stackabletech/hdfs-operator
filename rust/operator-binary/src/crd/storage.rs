@@ -11,7 +11,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 
-use crate::constants::*;
+use crate::crd::constants::{DATANODE_ROOT_DATA_DIR_PREFIX, DATANODE_ROOT_DATA_DIR_SUFFIX};
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]

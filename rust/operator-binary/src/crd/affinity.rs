@@ -5,7 +5,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{PodAffinity, PodAntiAffinity},
 };
 
-use crate::{HdfsRole, APP_NAME};
+use crate::crd::{constants::APP_NAME, HdfsRole};
 
 pub fn get_affinity(cluster_name: &str, role: &HdfsRole) -> StackableAffinityFragment {
     StackableAffinityFragment {
@@ -41,7 +41,7 @@ mod test {
         },
     };
 
-    use crate::{HdfsCluster, HdfsRole};
+    use crate::crd::{HdfsCluster, HdfsRole};
 
     #[rstest]
     #[case(HdfsRole::JournalNode)]

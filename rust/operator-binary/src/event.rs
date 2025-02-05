@@ -1,12 +1,14 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{HdfsCluster, HdfsRole};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ObjectReference,
     kube::runtime::events::{Event, EventType},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::hdfs_controller::Ctx;
+use crate::{
+    crd::{HdfsCluster, HdfsRole},
+    hdfs_controller::Ctx,
+};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

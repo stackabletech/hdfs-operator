@@ -1,8 +1,10 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{security::AuthorizationConfig, HdfsCluster};
 use stackable_operator::{client::Client, commons::opa::OpaApiVersion};
 
-use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
+use crate::{
+    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    crd::{security::AuthorizationConfig, HdfsCluster},
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

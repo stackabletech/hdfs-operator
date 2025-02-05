@@ -1,13 +1,16 @@
 use std::cmp::{max, min};
 
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::APP_NAME, HdfsCluster, HdfsRole};
 use stackable_operator::{
     builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
     commons::pdb::PdbConfig, kube::ResourceExt,
 };
 
-use crate::{hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER, OPERATOR_NAME};
+use crate::{
+    crd::{constants::APP_NAME, HdfsCluster, HdfsRole},
+    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
+    OPERATOR_NAME,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

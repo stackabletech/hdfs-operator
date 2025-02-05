@@ -1,7 +1,6 @@
 use std::{borrow::Cow, fmt::Display};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{AnyNodeConfig, DataNodeContainer, HdfsCluster, NameNodeContainer};
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
     client::Client,
@@ -14,6 +13,8 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
 };
+
+use crate::crd::{AnyNodeConfig, DataNodeContainer, HdfsCluster, NameNodeContainer};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

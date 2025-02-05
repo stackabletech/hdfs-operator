@@ -1,8 +1,4 @@
 use serde_json::json;
-use stackable_hdfs_crd::{
-    constants::{APP_NAME, FIELD_MANAGER_SCOPE},
-    HdfsCluster,
-};
 use stackable_operator::{
     commons::rbac::build_rbac_resources,
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
@@ -18,6 +14,11 @@ use stackable_operator::{
     kvp::Labels,
 };
 use tracing::{error, info};
+
+use crate::crd::{
+    constants::{APP_NAME, FIELD_MANAGER_SCOPE},
+    HdfsCluster,
+};
 
 pub async fn reconcile(
     client: Client,

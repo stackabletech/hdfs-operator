@@ -1,8 +1,4 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{
-    constants::{CORE_SITE_XML, HDFS_SITE_XML},
-    HdfsCluster, HdfsPodRef, HdfsRole,
-};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
@@ -14,6 +10,10 @@ use stackable_operator::{
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    crd::{
+        constants::{CORE_SITE_XML, HDFS_SITE_XML},
+        HdfsCluster, HdfsPodRef, HdfsRole,
+    },
     security::kerberos,
 };
 

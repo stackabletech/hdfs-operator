@@ -1,14 +1,16 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{
-    constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
-    HdfsCluster,
-};
 use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, ResourceExt},
     utils::cluster_info::KubernetesClusterInfo,
 };
 
-use crate::config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder};
+use crate::{
+    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    crd::{
+        constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
+        HdfsCluster,
+    },
+};
 
 pub const KERBEROS_CONTAINER_PATH: &str = "/stackable/kerberos";
 
@@ -19,7 +21,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace {
-        source: stackable_hdfs_crd::Error,
+        source: crate::crd::Error,
         obj_ref: ObjectRef<HdfsCluster>,
     },
 }

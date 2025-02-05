@@ -9,8 +9,6 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-stackable-hdfs-crd = { path = "../crd" }
-
 anyhow.workspace = true
 clap.workspace = true
 const_format.workspace = true

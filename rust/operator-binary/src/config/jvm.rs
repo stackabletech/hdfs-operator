@@ -1,12 +1,14 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::JVM_SECURITY_PROPERTIES_FILE, HdfsCluster, HdfsRole};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ResourceRequirements,
     memory::{BinaryMultiple, MemoryQuantity},
     role_utils::JvmArgumentOverrides,
 };
 
-use crate::security::kerberos::KERBEROS_CONTAINER_PATH;
+use crate::{
+    crd::{constants::JVM_SECURITY_PROPERTIES_FILE, HdfsCluster, HdfsRole},
+    security::kerberos::KERBEROS_CONTAINER_PATH,
+};
 
 const JVM_HEAP_FACTOR: f32 = 0.8;
 
@@ -19,7 +21,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: stackable_hdfs_crd::Error },
+    MergeJvmArgumentOverrides { source: crate::crd::Error },
 }
 
 // All init or sidecar containers must have access to the following settings.
@@ -97,10 +99,9 @@ pub fn construct_role_specific_jvm_args(
 
 #[cfg(test)]
 mod tests {
-    use stackable_hdfs_crd::{constants::DEFAULT_NAME_NODE_METRICS_PORT, HdfsCluster};
 
     use super::*;
-    use crate::container::ContainerConfig;
+    use crate::{container::ContainerConfig, crd::constants::DEFAULT_NAME_NODE_METRICS_PORT};
 
     #[test]
     fn test_global_jvm_args() {

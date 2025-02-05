@@ -2330,23 +2330,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
-name = "stackable-hdfs-crd"
-version = "0.0.0-dev"
-dependencies = [
- "futures 0.3.31",
- "product-config",
- "rstest",
- "semver",
- "serde",
- "serde_json",
- "serde_yaml",
- "snafu 0.8.5",
- "stackable-operator",
- "strum",
- "tracing",
-]
-
-[[package]]
 name = "stackable-hdfs-operator"
 version = "0.0.0-dev"
 dependencies = [
@@ -2362,7 +2345,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "snafu 0.8.5",
- "stackable-hdfs-crd",
  "stackable-operator",
  "strum",
  "tokio",
