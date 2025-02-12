@@ -5,9 +5,9 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{PodAffinity, PodAntiAffinity},
 };
 
-use crate::{HdfsRole, APP_NAME};
+use crate::crd::{constants::APP_NAME, HdfsNodeRole};
 
-pub fn get_affinity(cluster_name: &str, role: &HdfsRole) -> StackableAffinityFragment {
+pub fn get_affinity(cluster_name: &str, role: &HdfsNodeRole) -> StackableAffinityFragment {
     StackableAffinityFragment {
         pod_affinity: Some(PodAffinity {
             preferred_during_scheduling_ignored_during_execution: Some(vec![
@@ -41,13 +41,13 @@ mod test {
         },
     };
 
-    use crate::{HdfsCluster, HdfsRole};
+    use crate::crd::{v1alpha1, HdfsNodeRole};
 
     #[rstest]
-    #[case(HdfsRole::JournalNode)]
-    #[case(HdfsRole::NameNode)]
-    #[case(HdfsRole::DataNode)]
-    fn test_affinity_defaults(#[case] role: HdfsRole) {
+    #[case(HdfsNodeRole::Journal)]
+    #[case(HdfsNodeRole::Name)]
+    #[case(HdfsNodeRole::Data)]
+    fn test_affinity_defaults(#[case] role: HdfsNodeRole) {
         let input = r#"
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
@@ -71,7 +71,7 @@ spec:
       default:
         replicas: 1
         "#;
-        let hdfs: HdfsCluster = serde_yaml::from_str(input).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(input).unwrap();
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
 
         assert_eq!(

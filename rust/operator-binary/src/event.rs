@@ -1,12 +1,14 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{HdfsCluster, HdfsRole};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ObjectReference,
     kube::runtime::events::{Event, EventType},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::hdfs_controller::Ctx;
+use crate::{
+    crd::{v1alpha1, HdfsNodeRole},
+    hdfs_controller::Ctx,
+};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -41,8 +43,8 @@ pub async fn publish_warning_event(
 }
 
 pub fn build_invalid_replica_message(
-    hdfs: &HdfsCluster,
-    role: &HdfsRole,
+    hdfs: &v1alpha1::HdfsCluster,
+    role: &HdfsNodeRole,
     dfs_replication: u8,
 ) -> Option<String> {
     let replicas: u16 = hdfs

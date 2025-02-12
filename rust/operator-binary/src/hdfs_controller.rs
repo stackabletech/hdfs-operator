@@ -10,10 +10,6 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{
-    constants::*, AnyNodeConfig, HdfsCluster, HdfsClusterStatus, HdfsPodRef, HdfsRole,
-    UpgradeState, UpgradeStateError,
-};
 use stackable_operator::{
     builder::{
         configmap::ConfigMapBuilder,
@@ -58,6 +54,10 @@ use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
+    crd::{
+        constants::*, v1alpha1, AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef,
+        UpgradeState, UpgradeStateError,
+    },
     discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_warning_event},
     operations::{
@@ -118,7 +118,7 @@ pub enum Error {
     #[snafu(display("no metadata for {obj_ref:?}"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
-        obj_ref: ObjectRef<HdfsCluster>,
+        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
     },
 
     #[snafu(display("invalid role {role:?}"))]
@@ -128,7 +128,9 @@ pub enum Error {
     },
 
     #[snafu(display("object has no name"))]
-    ObjectHasNoName { obj_ref: ObjectRef<HdfsCluster> },
+    ObjectHasNoName {
+        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
+    },
 
     #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
     BuildRoleGroupConfigMap {
@@ -138,7 +140,7 @@ pub enum Error {
     },
 
     #[snafu(display("cannot collect discovery configuration"))]
-    CollectDiscoveryConfig { source: stackable_hdfs_crd::Error },
+    CollectDiscoveryConfig { source: crate::crd::Error },
 
     #[snafu(display("cannot build config discovery config map"))]
     BuildDiscoveryConfigMap { source: discovery::Error },
@@ -164,10 +166,10 @@ pub enum Error {
     },
 
     #[snafu(display("failed to create pod references"))]
-    CreatePodReferences { source: stackable_hdfs_crd::Error },
+    CreatePodReferences { source: crate::crd::Error },
 
     #[snafu(display("failed to build role properties"))]
-    BuildRoleProperties { source: stackable_hdfs_crd::Error },
+    BuildRoleProperties { source: crate::crd::Error },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress {
@@ -181,7 +183,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to merge config"))]
-    ConfigMerge { source: stackable_hdfs_crd::Error },
+    ConfigMerge { source: crate::crd::Error },
 
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
@@ -217,7 +219,7 @@ pub enum Error {
     GracefulShutdown { source: graceful_shutdown::Error },
 
     #[snafu(display("failed to build roleGroup selector labels"))]
-    RoleGroupSelectorLabels { source: stackable_hdfs_crd::Error },
+    RoleGroupSelectorLabels { source: crate::crd::Error },
 
     #[snafu(display("failed to build prometheus label"))]
     BuildPrometheusLabel { source: LabelError },
@@ -263,7 +265,7 @@ pub struct Ctx {
 }
 
 pub async fn reconcile_hdfs(
-    hdfs: Arc<DeserializeGuard<HdfsCluster>>,
+    hdfs: Arc<DeserializeGuard<v1alpha1::HdfsCluster>>,
     ctx: Arc<Ctx>,
 ) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
@@ -301,10 +303,10 @@ pub async fn reconcile_hdfs(
     let hdfs_obj_ref = hdfs.object_ref(&());
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
     let namenode_podrefs = hdfs
-        .pod_refs(&HdfsRole::NameNode)
+        .pod_refs(&HdfsNodeRole::Name)
         .context(CreatePodReferencesSnafu)?;
     let journalnode_podrefs = hdfs
-        .pod_refs(&HdfsRole::JournalNode)
+        .pod_refs(&HdfsNodeRole::Journal)
         .context(CreatePodReferencesSnafu)?;
 
     let mut cluster_resources = ClusterResources::new(
@@ -361,7 +363,7 @@ pub async fn reconcile_hdfs(
             }
             _ => false,
         },
-        HdfsRole::iter(),
+        HdfsNodeRole::iter(),
     );
     'roles: for role in roles {
         let role_name: &str = role.into();
@@ -561,10 +563,10 @@ pub async fn reconcile_hdfs(
 }
 
 fn rolegroup_service(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     metadata: &ObjectMetaBuilder,
-    role: &HdfsRole,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    role: &HdfsNodeRole,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
 
@@ -606,10 +608,10 @@ fn rolegroup_service(
 
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_config_map(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
@@ -811,11 +813,11 @@ fn rolegroup_config_map(
 
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
-    role: &HdfsRole,
-    rolegroup_ref: &RoleGroupRef<HdfsCluster>,
+    role: &HdfsNodeRole,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
     env_overrides: Option<&BTreeMap<String, String>>,
     merged_config: &AnyNodeConfig,
@@ -910,7 +912,7 @@ fn rolegroup_statefulset(
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<HdfsCluster>>,
+    _obj: Arc<DeserializeGuard<v1alpha1::HdfsCluster>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {
@@ -966,7 +968,7 @@ spec:
 properties: []
 ";
 
-        let hdfs: HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
         let config =
             transform_all_roles_to_config(&hdfs, hdfs.build_role_properties().unwrap()).unwrap();
@@ -980,7 +982,7 @@ properties: []
         )
         .unwrap();
 
-        let role = HdfsRole::DataNode;
+        let role = HdfsNodeRole::Data;
         let rolegroup_config = validated_config
             .get(&role.to_string())
             .unwrap()

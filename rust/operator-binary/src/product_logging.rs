@@ -1,7 +1,6 @@
 use std::{borrow::Cow, fmt::Display};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_hdfs_crd::{AnyNodeConfig, DataNodeContainer, HdfsCluster, NameNodeContainer};
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
     client::Client,
@@ -14,6 +13,8 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
 };
+
+use crate::crd::{v1alpha1, AnyNodeConfig, DataNodeContainer, NameNodeContainer};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -84,7 +85,7 @@ const WAIT_FOR_NAMENODES_LOG_FILE: &str = "wait-for-namenodes.log4j.xml";
 /// Return the address of the Vector aggregator if the corresponding ConfigMap name is given in the
 /// cluster spec
 pub async fn resolve_vector_aggregator_address(
-    hdfs: &HdfsCluster,
+    hdfs: &v1alpha1::HdfsCluster,
     client: &Client,
 ) -> Result<Option<String>> {
     let vector_aggregator_address = if let Some(vector_aggregator_config_map_name) =
@@ -117,7 +118,7 @@ pub async fn resolve_vector_aggregator_address(
 
 /// Extend the role group ConfigMap with logging and Vector configurations
 pub fn extend_role_group_config_map(
-    rolegroup: &RoleGroupRef<HdfsCluster>,
+    rolegroup: &RoleGroupRef<v1alpha1::HdfsCluster>,
     vector_aggregator_address: Option<&str>,
     merged_config: &AnyNodeConfig,
     cm_builder: &mut ConfigMapBuilder,

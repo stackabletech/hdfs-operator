@@ -1,8 +1,4 @@
 use serde_json::json;
-use stackable_hdfs_crd::{
-    constants::{APP_NAME, FIELD_MANAGER_SCOPE},
-    HdfsCluster,
-};
 use stackable_operator::{
     commons::rbac::build_rbac_resources,
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
@@ -19,10 +15,15 @@ use stackable_operator::{
 };
 use tracing::{error, info};
 
+use crate::crd::{
+    constants::{APP_NAME, FIELD_MANAGER_SCOPE},
+    v1alpha1,
+};
+
 pub async fn reconcile(
     client: Client,
-    store: &Store<PartialObjectMeta<HdfsCluster>>,
-    ev: watcher::Result<watcher::Event<PartialObjectMeta<HdfsCluster>>>,
+    store: &Store<PartialObjectMeta<v1alpha1::HdfsCluster>>,
+    ev: watcher::Result<watcher::Event<PartialObjectMeta<v1alpha1::HdfsCluster>>>,
 ) {
     match ev {
         Ok(watcher::Event::Apply(o)) => {

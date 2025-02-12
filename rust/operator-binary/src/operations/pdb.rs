@@ -1,13 +1,16 @@
 use std::cmp::{max, min};
 
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::APP_NAME, HdfsCluster, HdfsRole};
 use stackable_operator::{
     builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
     commons::pdb::PdbConfig, kube::ResourceExt,
 };
 
-use crate::{hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER, OPERATOR_NAME};
+use crate::{
+    crd::{constants::APP_NAME, v1alpha1, HdfsNodeRole},
+    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
+    OPERATOR_NAME,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -26,8 +29,8 @@ pub enum Error {
 
 pub async fn add_pdbs(
     pdb: &PdbConfig,
-    hdfs: &HdfsCluster,
-    role: &HdfsRole,
+    hdfs: &v1alpha1::HdfsCluster,
+    role: &HdfsNodeRole,
     client: &Client,
     cluster_resources: &mut ClusterResources,
 ) -> Result<(), Error> {
@@ -35,12 +38,12 @@ pub async fn add_pdbs(
         return Ok(());
     }
     let max_unavailable = pdb.max_unavailable.unwrap_or(match role {
-        HdfsRole::NameNode => max_unavailable_name_nodes(),
-        HdfsRole::DataNode => max_unavailable_data_nodes(
+        HdfsNodeRole::Name => max_unavailable_name_nodes(),
+        HdfsNodeRole::Data => max_unavailable_data_nodes(
             hdfs.num_datanodes(),
             hdfs.spec.cluster_config.dfs_replication as u16,
         ),
-        HdfsRole::JournalNode => max_unavailable_journal_nodes(),
+        HdfsNodeRole::Journal => max_unavailable_journal_nodes(),
     });
     let pdb = PodDisruptionBudgetBuilder::new_with_role(
         hdfs,

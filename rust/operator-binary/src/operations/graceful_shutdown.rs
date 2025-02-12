@@ -1,6 +1,7 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::CommonNodeConfig;
 use stackable_operator::builder::pod::PodBuilder;
+
+use crate::crd::CommonNodeConfig;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

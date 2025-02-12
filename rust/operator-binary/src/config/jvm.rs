@@ -1,12 +1,14 @@
 use snafu::{ResultExt, Snafu};
-use stackable_hdfs_crd::{constants::JVM_SECURITY_PROPERTIES_FILE, HdfsCluster, HdfsRole};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ResourceRequirements,
     memory::{BinaryMultiple, MemoryQuantity},
     role_utils::JvmArgumentOverrides,
 };
 
-use crate::security::kerberos::KERBEROS_CONTAINER_PATH;
+use crate::{
+    crd::{constants::JVM_SECURITY_PROPERTIES_FILE, v1alpha1, HdfsNodeRole},
+    security::kerberos::KERBEROS_CONTAINER_PATH,
+};
 
 const JVM_HEAP_FACTOR: f32 = 0.8;
 
@@ -19,7 +21,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: stackable_hdfs_crd::Error },
+    MergeJvmArgumentOverrides { source: crate::crd::Error },
 }
 
 // All init or sidecar containers must have access to the following settings.
@@ -48,8 +50,8 @@ pub fn construct_global_jvm_args(kerberos_enabled: bool) -> String {
 }
 
 pub fn construct_role_specific_jvm_args(
-    hdfs: &HdfsCluster,
-    hdfs_role: &HdfsRole,
+    hdfs: &v1alpha1::HdfsCluster,
+    hdfs_role: &HdfsNodeRole,
     role_group: &str,
     kerberos_enabled: bool,
     resources: Option<&ResourceRequirements>,
@@ -97,10 +99,9 @@ pub fn construct_role_specific_jvm_args(
 
 #[cfg(test)]
 mod tests {
-    use stackable_hdfs_crd::{constants::DEFAULT_NAME_NODE_METRICS_PORT, HdfsCluster};
 
     use super::*;
-    use crate::container::ContainerConfig;
+    use crate::{container::ContainerConfig, crd::constants::DEFAULT_NAME_NODE_METRICS_PORT};
 
     #[test]
     fn test_global_jvm_args() {
@@ -190,9 +191,10 @@ mod tests {
     }
 
     fn construct_test_role_specific_jvm_args(hdfs_cluster: &str, kerberos_enabled: bool) -> String {
-        let hdfs: HdfsCluster = serde_yaml::from_str(hdfs_cluster).expect("illegal test input");
+        let hdfs: v1alpha1::HdfsCluster =
+            serde_yaml::from_str(hdfs_cluster).expect("illegal test input");
 
-        let role = HdfsRole::NameNode;
+        let role = HdfsNodeRole::Name;
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
         let container_config = ContainerConfig::from(role);
         let resources = container_config.resources(&merged_config);

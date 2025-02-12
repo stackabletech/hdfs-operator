@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use product_config::writer::to_hadoop_xml;
-use stackable_hdfs_crd::{
+use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
+
+use crate::crd::{
     constants::{
         DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_HTTP_PORT,
         DEFAULT_NAME_NODE_RPC_PORT, DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES,
@@ -12,9 +14,8 @@ use stackable_hdfs_crd::{
         SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_RPC,
     },
     storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType},
-    HdfsCluster, HdfsPodRef,
+    v1alpha1, HdfsPodRef,
 };
-use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
 
 pub mod jvm;
 
@@ -162,7 +163,7 @@ impl HdfsSiteConfigBuilder {
 
     pub fn dfs_namenode_http_address_ha(
         &mut self,
-        hdfs: &HdfsCluster,
+        hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         namenode_podrefs: &[HdfsPodRef],
     ) -> &mut Self {
