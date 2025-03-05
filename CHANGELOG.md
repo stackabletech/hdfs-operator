@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump `stackable-operator` to 0.87.0 and `stackable-versioned` to 0.6.0 ([#655]).
 - Switch the WebUI liveness probe from `httpGet` to checking the tcp socket.
   This helps with setups where configOverrides are used to enable security on the HTTP interfaces.
   As this results in `401` HTTP responses (instead of `200`), this previously failed the liveness checks.
@@ -25,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#636]: https://github.com/stackabletech/hdfs-operator/pull/636
 [#640]: https://github.com/stackabletech/hdfs-operator/pull/640
 [#643]: https://github.com/stackabletech/hdfs-operator/pull/643
+[#655]: https://github.com/stackabletech/hdfs-operator/pull/655
 
 ## [24.11.1] - 2025-01-10
 
