@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - Run a `containerdebug` process in the background of each HDFS container to collect debugging information ([#629]).
 - Support configuring JVM arguments ([#636]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#643]).
-- Add support for version `3.4.1` ([#656]). 
+- Add support for version `3.4.1` ([#656]).
 
 ### Changed
 
