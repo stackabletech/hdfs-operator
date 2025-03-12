@@ -5,11 +5,12 @@ dimensions:
       - 3.3.4
       - 3.3.6
       - 3.4.0
+      - 3.4.1
       # To use a custom image, add a comma and the full name after the product version
       # - 3.4.0,oci.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
   - name: hadoop-latest
     values:
-      - 3.4.0
+      - 3.4.1
       # To use a custom image, add a comma and the full name after the product version
       # - 3.4.0,oci.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
   - name: hadoop-external-client-docker-image
@@ -20,7 +21,7 @@ dimensions:
       - 3.9.2
   - name: zookeeper-latest
     values:
-      - 3.9.2
+      - 3.9.3
   - name: krb5
     values:
       - 1.21.1
