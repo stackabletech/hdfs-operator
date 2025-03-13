@@ -4,12 +4,12 @@
 IMPORTANT: HDFS upgrades are experimental, and details may change at any time.
 
 HDFS currently requires a manual process to upgrade.
-This guide takes you through an example case, upgrading an example cluster (from our xref:getting_started/index.adoc[Getting Started] guide) from HDFS 3.3.6 to 3.4.0.
+This guide takes you through an example case, upgrading an example cluster (from our xref:getting_started/index.adoc[Getting Started] guide) from HDFS 3.3.6 to 3.4.1.
 
 == Preparing for the worst
 
 Upgrades can fail, and it is important to prepare for when that happens.
-Apache HDFS supports https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Downgrade_and_Rollback[two ways to revert an upgrade]:
+Apache HDFS supports https://hadoop.apache.org/docs/r3.4.1/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Downgrade_and_Rollback[two ways to revert an upgrade]:
 
 Rollback:: Reverts all user data to the pre-upgrade state. Requires taking the cluster offline.
 Downgrade:: Downgrades the HDFS software but preserves all changes made by users. Can be performed as a rolling change, keeping the cluster online.
@@ -69,7 +69,7 @@ Once HDFS is ready to upgrade, the HdfsCluster can be updated with the new produ
 
 [source,shell]
 ----
-$ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": "3.4.0"}}}' --type=merge
+$ kubectl patch hdfs/simple-hdfs --patch '{"spec": {"image": {"productVersion": "3.4.1"}}}' --type=merge
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 
@@ -103,7 +103,7 @@ Finally, mark the cluster as upgraded:
 
 [source,shell]
 ----
-$ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"deployedProductVersion": "3.4.0"}}' --type=merge
+$ kubectl patch hdfs/simple-hdfs --subresource=status --patch '{"status": {"deployedProductVersion": "3.4.1"}}' --type=merge
 hdfscluster.hdfs.stackable.tech/simple-hdfs patched
 ----
 

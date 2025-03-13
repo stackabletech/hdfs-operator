@@ -5,13 +5,14 @@ dimensions:
       - 3.3.4
       - 3.3.6
       - 3.4.0
+      - 3.4.1
       # To use a custom image, add a comma and the full name after the product version
-      # - 3.4.0,oci.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
+      # - 3.4.1,oci.stackable.tech/sandbox/hadoop:3.4.1-stackable0.0.0-dev
   - name: hadoop-latest
     values:
-      - 3.4.0
+      - 3.4.1
       # To use a custom image, add a comma and the full name after the product version
-      # - 3.4.0,oci.stackable.tech/sandbox/hadoop:3.4.0-stackable0.0.0-dev
+      # - 3.4.1,oci.stackable.tech/sandbox/hadoop:3.4.1-stackable0.0.0-dev
   - name: hadoop-external-client-docker-image
     values:
       - 3.3.6

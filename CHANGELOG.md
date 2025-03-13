@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Run a `containerdebug` process in the background of each HDFS container to collect debugging information ([#629]).
 - Support configuring JVM arguments ([#636]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#643]).
+- Add support for version `3.4.1` ([#656]).
 
 ### Changed
 
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 [#640]: https://github.com/stackabletech/hdfs-operator/pull/640
 [#643]: https://github.com/stackabletech/hdfs-operator/pull/643
 [#655]: https://github.com/stackabletech/hdfs-operator/pull/655
+[#656]: https://github.com/stackabletech/hdfs-operator/pull/656
 
 ## [24.11.1] - 2025-01-10
 
