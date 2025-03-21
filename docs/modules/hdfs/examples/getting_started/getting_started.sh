@@ -21,30 +21,30 @@ cd "$(dirname "$0")"
 
 case "$1" in
 "helm")
-echo "Adding 'stackable-dev' Helm Chart repository"
+echo "Adding 'stackable-stable' Helm Chart repository"
 # tag::helm-add-repo[]
-helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
+helm repo add stackable-stable https://repo.stackable.tech/repository/helm-stable/
 # end::helm-add-repo[]
 echo "Updating Helm repo"
 helm repo update
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.0.0-dev
-helm install --wait hdfs-operator stackable-dev/hdfs-operator --version 0.0.0-dev
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.0.0-dev
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.0.0-dev
-helm install --wait listener-operator stackable-dev/listener-operator --version 0.0.0-dev
+helm install --wait zookeeper-operator stackable-stable/zookeeper-operator --version 25.3.0
+helm install --wait hdfs-operator stackable-stable/hdfs-operator --version 25.3.0
+helm install --wait commons-operator stackable-stable/commons-operator --version 25.3.0
+helm install --wait secret-operator stackable-stable/secret-operator --version 25.3.0
+helm install --wait listener-operator stackable-stable/listener-operator --version 25.3.0
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.0.0-dev \
-  secret=0.0.0-dev \
-  listener=0.0.0-dev \
-  zookeeper=0.0.0-dev \
-  hdfs=0.0.0-dev
+  commons=25.3.0 \
+  secret=25.3.0 \
+  listener=25.3.0 \
+  zookeeper=25.3.0 \
+  hdfs=25.3.0
 # end::stackablectl-install-operators[]
 ;;
 *)
