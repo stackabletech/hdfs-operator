@@ -1,5 +1,5 @@
-Installed commons=0.0.0-dev operator
-Installed secret=0.0.0-dev operator
-Installed listener=0.0.0-dev operator
-Installed zookeeper=0.0.0-dev operator
-Installed hdfs=0.0.0-dev operator
+Installed commons=25.3.0 operator
+Installed secret=25.3.0 operator
+Installed listener=25.3.0 operator
+Installed zookeeper=25.3.0 operator
+Installed hdfs=25.3.0 operator
