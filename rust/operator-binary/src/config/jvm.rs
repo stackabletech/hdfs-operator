@@ -6,7 +6,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{constants::JVM_SECURITY_PROPERTIES_FILE, v1alpha1, HdfsNodeRole},
+    crd::{HdfsNodeRole, constants::JVM_SECURITY_PROPERTIES_FILE, v1alpha1},
     security::kerberos::KERBEROS_CONTAINER_PATH,
 };
 
@@ -186,7 +186,8 @@ mod tests {
                 -Dhttps.proxyHost=proxy.my.corp \
                 -Djava.net.preferIPv4Stack=true \
                 -Xmx40000m \
-                -Dhttps.proxyPort=1234")
+                -Dhttps.proxyPort=1234"
+            )
         );
     }
 

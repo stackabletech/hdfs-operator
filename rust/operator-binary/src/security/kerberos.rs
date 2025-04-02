@@ -1,6 +1,6 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
     utils::cluster_info::KubernetesClusterInfo,
 };
 
