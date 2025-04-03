@@ -17,6 +17,7 @@ use stackable_operator::{
     builder::{
         self,
         pod::{
+            PodBuilder,
             container::ContainerBuilder,
             resources::ResourceRequirementsBuilder,
             volume::{
@@ -24,7 +25,6 @@ use stackable_operator::{
                 ListenerReference, SecretFormat, SecretOperatorVolumeSourceBuilder,
                 SecretOperatorVolumeSourceBuilderError, VolumeBuilder, VolumeMountBuilder,
             },
-            PodBuilder,
         },
     },
     commons::product_image_selection::ResolvedProductImage,
@@ -36,19 +36,19 @@ use stackable_operator::{
         },
         apimachinery::pkg::util::intstr::IntOrString,
     },
-    kube::{core::ObjectMeta, ResourceExt},
+    kube::{ResourceExt, core::ObjectMeta},
     kvp::Labels,
     product_logging::{
         self,
         framework::{
-            create_vector_shutdown_file_command, remove_vector_shutdown_file_command, LoggingError,
+            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
         },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
         },
     },
-    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
+    utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
@@ -58,6 +58,8 @@ use crate::{
         jvm::{construct_global_jvm_args, construct_role_specific_jvm_args},
     },
     crd::{
+        AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
+        UpgradeState,
         constants::{
             DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
             DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR,
@@ -69,8 +71,7 @@ use crate::{
             SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
-        v1alpha1, AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
-        UpgradeState,
+        v1alpha1,
     },
     product_logging::{
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
@@ -104,10 +105,9 @@ pub enum Error {
         role: String,
     },
 
-    #[snafu(
-        display("could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."
-        )
-    )]
+    #[snafu(display(
+        "could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."
+    ))]
     UnrecognizedContainerName { container_name: String },
 
     #[snafu(display("invalid container name {name:?}"))]
@@ -191,22 +191,20 @@ pub enum ContainerConfig {
 }
 
 impl ContainerConfig {
-    // volumes
-    pub const STACKABLE_LOG_VOLUME_MOUNT_NAME: &'static str = "log";
     pub const DATA_VOLUME_MOUNT_NAME: &'static str = "data";
-    pub const HDFS_CONFIG_VOLUME_MOUNT_NAME: &'static str = "hdfs-config";
-
-    const HDFS_LOG_VOLUME_MOUNT_NAME: &'static str = "hdfs-log-config";
-    const ZKFC_CONFIG_VOLUME_MOUNT_NAME: &'static str = "zkfc-config";
-    const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
     const FORMAT_NAMENODES_CONFIG_VOLUME_MOUNT_NAME: &'static str = "format-namenodes-config";
     const FORMAT_NAMENODES_LOG_VOLUME_MOUNT_NAME: &'static str = "format-namenodes-log-config";
     const FORMAT_ZOOKEEPER_CONFIG_VOLUME_MOUNT_NAME: &'static str = "format-zookeeper-config";
     const FORMAT_ZOOKEEPER_LOG_VOLUME_MOUNT_NAME: &'static str = "format-zookeeper-log-config";
+    const HADOOP_HOME: &'static str = "/stackable/hadoop";
+    pub const HDFS_CONFIG_VOLUME_MOUNT_NAME: &'static str = "hdfs-config";
+    const HDFS_LOG_VOLUME_MOUNT_NAME: &'static str = "hdfs-log-config";
+    // volumes
+    pub const STACKABLE_LOG_VOLUME_MOUNT_NAME: &'static str = "log";
     const WAIT_FOR_NAMENODES_CONFIG_VOLUME_MOUNT_NAME: &'static str = "wait-for-namenodes-config";
     const WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME: &'static str = "wait-for-namenodes-log-config";
-
-    const HADOOP_HOME: &'static str = "/stackable/hadoop";
+    const ZKFC_CONFIG_VOLUME_MOUNT_NAME: &'static str = "zkfc-config";
+    const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
     #[allow(clippy::too_many_arguments)]
@@ -802,7 +800,9 @@ wait_for_termination $!
 
     // Command to export `KERBEROS_REALM` env var to default real from krb5.conf, e.g. `CLUSTER.LOCAL`
     fn export_kerberos_real_env_var_command() -> String {
-        format!("export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' {KERBEROS_CONTAINER_PATH}/krb5.conf)\n")
+        format!(
+            "export KERBEROS_REALM=$(grep -oP 'default_realm = \\K.*' {KERBEROS_CONTAINER_PATH}/krb5.conf)\n"
+        )
     }
 
     /// Command to `kinit` a ticket using the principal created for the specified hdfs role
@@ -869,52 +869,37 @@ wait_for_termination $!
         // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
         if let ContainerConfig::Hdfs { role, .. } = self {
             let role_opts_name = role.hadoop_opts_env_var_for_role().to_string();
-            env.insert(
-                role_opts_name.clone(),
-                EnvVar {
-                    name: role_opts_name,
-                    value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
-                    ..EnvVar::default()
-                },
-            );
+            env.insert(role_opts_name.clone(), EnvVar {
+                name: role_opts_name,
+                value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
+                ..EnvVar::default()
+            });
         }
 
-        env.insert(
-            "HADOOP_OPTS".to_string(),
-            EnvVar {
-                name: "HADOOP_OPTS".to_string(),
-                value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
-                ..EnvVar::default()
-            },
-        );
+        env.insert("HADOOP_OPTS".to_string(), EnvVar {
+            name: "HADOOP_OPTS".to_string(),
+            value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
+            ..EnvVar::default()
+        });
         if hdfs.has_kerberos_enabled() {
-            env.insert(
-                "KRB5_CONFIG".to_string(),
-                EnvVar {
-                    name: "KRB5_CONFIG".to_string(),
-                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
-                    ..EnvVar::default()
-                },
-            );
-            env.insert(
-                "KRB5_CLIENT_KTNAME".to_string(),
-                EnvVar {
-                    name: "KRB5_CLIENT_KTNAME".to_string(),
-                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
-                    ..EnvVar::default()
-                },
-            );
+            env.insert("KRB5_CONFIG".to_string(), EnvVar {
+                name: "KRB5_CONFIG".to_string(),
+                value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
+                ..EnvVar::default()
+            });
+            env.insert("KRB5_CLIENT_KTNAME".to_string(), EnvVar {
+                name: "KRB5_CLIENT_KTNAME".to_string(),
+                value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
+                ..EnvVar::default()
+            });
         }
 
         // Needed for the `containerdebug` process to log it's tracing information to.
-        env.insert(
-            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-            EnvVar {
-                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-                value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-                value_from: None,
-            },
-        );
+        env.insert("CONTAINERDEBUG_LOG_DIRECTORY".to_string(), EnvVar {
+            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+            value_from: None,
+        });
 
         // Overrides need to come last
         let mut env_override_vars: BTreeMap<String, EnvVar> =
@@ -1457,6 +1442,7 @@ impl ContainerVolumeDirs {
     pub fn config_mount(&self) -> &str {
         self.config_mount.as_str()
     }
+
     pub fn config_mount_name(&self) -> &str {
         self.config_mount_name.as_str()
     }
@@ -1464,6 +1450,7 @@ impl ContainerVolumeDirs {
     pub fn log_mount(&self) -> &str {
         self.log_mount.as_str()
     }
+
     pub fn log_mount_name(&self) -> &str {
         self.log_mount_name.as_str()
     }

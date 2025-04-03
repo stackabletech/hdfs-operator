@@ -6,7 +6,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    crd::{v1alpha1, HdfsNodeRole},
+    crd::{HdfsNodeRole, v1alpha1},
     hdfs_controller::Ctx,
 };
 
@@ -57,11 +57,17 @@ pub fn build_invalid_replica_message(
     let min_replicas = role.min_replicas();
 
     if replicas < min_replicas {
-        Some(format!("{role_name}: only has {replicas} replicas configured, it is strongly recommended to use at least [{min_replicas}]"))
+        Some(format!(
+            "{role_name}: only has {replicas} replicas configured, it is strongly recommended to use at least [{min_replicas}]"
+        ))
     } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
-        Some(format!("{role_name}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"))
+        Some(format!(
+            "{role_name}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"
+        ))
     } else if !role.replicas_can_be_even() && replicas < dfs_replication as u16 {
-        Some(format!("{role_name}: HDFS replication factor [{dfs_replication}] is configured greater than data node replicas [{replicas}]"))
+        Some(format!(
+            "{role_name}: HDFS replication factor [{dfs_replication}] is configured greater than data node replicas [{replicas}]"
+        ))
     } else {
         None
     }

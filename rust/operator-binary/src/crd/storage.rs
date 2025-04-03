@@ -198,18 +198,15 @@ mod test {
     #[test]
     pub fn test_datanode_storage_defaults() {
         let data_node_storage = DataNodeStorageConfig {
-            pvcs: BTreeMap::from([(
-                "data".to_string(),
-                DataNodePvc {
-                    pvc: PvcConfig {
-                        capacity: Some(Quantity("5Gi".to_owned())),
-                        storage_class: None,
-                        selectors: None,
-                    },
-                    count: 1,
-                    hdfs_storage_type: HdfsStorageType::default(),
+            pvcs: BTreeMap::from([("data".to_string(), DataNodePvc {
+                pvc: PvcConfig {
+                    capacity: Some(Quantity("5Gi".to_owned())),
+                    storage_class: None,
+                    selectors: None,
                 },
-            )]),
+                count: 1,
+                hdfs_storage_type: HdfsStorageType::default(),
+            })]),
         };
 
         let pvcs = data_node_storage.build_pvcs();
@@ -239,36 +236,30 @@ mod test {
     pub fn test_datanode_storage_multiple_storage_types() {
         let data_node_storage = DataNodeStorageConfig {
             pvcs: BTreeMap::from([
-                (
-                    "hdd".to_string(),
-                    DataNodePvc {
-                        pvc: PvcConfig {
-                            capacity: Some(Quantity("12Ti".to_owned())),
-                            storage_class: Some("hdd-storage-class".to_string()),
-                            selectors: Some(LabelSelector {
-                                match_expressions: None,
-                                match_labels: Some(BTreeMap::from([(
-                                    "foo".to_string(),
-                                    "bar".to_string(),
-                                )])),
-                            }),
-                        },
-                        count: 8,
-                        hdfs_storage_type: HdfsStorageType::Disk,
+                ("hdd".to_string(), DataNodePvc {
+                    pvc: PvcConfig {
+                        capacity: Some(Quantity("12Ti".to_owned())),
+                        storage_class: Some("hdd-storage-class".to_string()),
+                        selectors: Some(LabelSelector {
+                            match_expressions: None,
+                            match_labels: Some(BTreeMap::from([(
+                                "foo".to_string(),
+                                "bar".to_string(),
+                            )])),
+                        }),
                     },
-                ),
-                (
-                    "ssd".to_string(),
-                    DataNodePvc {
-                        pvc: PvcConfig {
-                            capacity: Some(Quantity("2Ti".to_owned())),
-                            storage_class: Some("premium-ssd".to_string()),
-                            selectors: None,
-                        },
-                        count: 4,
-                        hdfs_storage_type: HdfsStorageType::Ssd,
+                    count: 8,
+                    hdfs_storage_type: HdfsStorageType::Disk,
+                }),
+                ("ssd".to_string(), DataNodePvc {
+                    pvc: PvcConfig {
+                        capacity: Some(Quantity("2Ti".to_owned())),
+                        storage_class: Some("premium-ssd".to_string()),
+                        selectors: None,
                     },
-                ),
+                    count: 4,
+                    hdfs_storage_type: HdfsStorageType::Ssd,
+                }),
             ]),
         };
         let pvcs = data_node_storage.build_pvcs();
@@ -295,6 +286,9 @@ mod test {
                 ..PersistentVolumeClaimSpec::default()
             })
         );
-        assert_eq!(datanode_data_dir, "[DISK]/stackable/data/hdd/datanode,[DISK]/stackable/data/hdd-1/datanode,[DISK]/stackable/data/hdd-2/datanode,[DISK]/stackable/data/hdd-3/datanode,[DISK]/stackable/data/hdd-4/datanode,[DISK]/stackable/data/hdd-5/datanode,[DISK]/stackable/data/hdd-6/datanode,[DISK]/stackable/data/hdd-7/datanode,[SSD]/stackable/data/ssd/datanode,[SSD]/stackable/data/ssd-1/datanode,[SSD]/stackable/data/ssd-2/datanode,[SSD]/stackable/data/ssd-3/datanode")
+        assert_eq!(
+            datanode_data_dir,
+            "[DISK]/stackable/data/hdd/datanode,[DISK]/stackable/data/hdd-1/datanode,[DISK]/stackable/data/hdd-2/datanode,[DISK]/stackable/data/hdd-3/datanode,[DISK]/stackable/data/hdd-4/datanode,[DISK]/stackable/data/hdd-5/datanode,[DISK]/stackable/data/hdd-6/datanode,[DISK]/stackable/data/hdd-7/datanode,[SSD]/stackable/data/ssd/datanode,[SSD]/stackable/data/ssd-1/datanode,[SSD]/stackable/data/ssd-2/datanode,[SSD]/stackable/data/ssd-3/datanode"
+        )
     }
 }

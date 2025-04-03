@@ -3,7 +3,7 @@ use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
     utils::cluster_info::KubernetesClusterInfo,
 };
 
@@ -11,8 +11,9 @@ use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     crd::{
+        HdfsNodeRole, HdfsPodRef,
         constants::{CORE_SITE_XML, HDFS_SITE_XML},
-        v1alpha1, HdfsNodeRole, HdfsPodRef,
+        v1alpha1,
     },
     security::kerberos,
 };

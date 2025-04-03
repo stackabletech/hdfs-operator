@@ -31,7 +31,7 @@ use stackable_operator::{
         api::core::v1::{Pod, PodTemplateSpec},
         apimachinery::pkg::api::resource::Quantity,
     },
-    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     kvp::{LabelError, Labels},
     product_config_utils::{Configuration, Error as ConfigError},
     product_logging::{
@@ -54,13 +54,13 @@ use crate::crd::{
     affinity::get_affinity,
     constants::{
         APP_NAME, CORE_SITE_XML, DEFAULT_DATA_NODE_DATA_PORT,
-        DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_DATA_NODE_HTTPS_PORT,
-        DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
+        DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_DATA_NODE_HTTP_PORT,
+        DEFAULT_DATA_NODE_HTTPS_PORT, DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
         DEFAULT_DFS_REPLICATION_FACTOR, DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
-        DEFAULT_JOURNAL_NODE_HTTPS_PORT, DEFAULT_JOURNAL_NODE_HTTP_PORT,
+        DEFAULT_JOURNAL_NODE_HTTP_PORT, DEFAULT_JOURNAL_NODE_HTTPS_PORT,
         DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_LISTENER_CLASS,
-        DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_NAME_NODE_HTTPS_PORT,
-        DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_METRICS_PORT, DEFAULT_NAME_NODE_RPC_PORT,
+        DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_NAME_NODE_HTTP_PORT,
+        DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, DEFAULT_NAME_NODE_RPC_PORT,
         DFS_REPLICATION, HADOOP_POLICY_XML, HDFS_SITE_XML, JVM_SECURITY_PROPERTIES_FILE,
         LISTENER_VOLUME_NAME, SERVICE_PORT_NAME_DATA, SERVICE_PORT_NAME_HTTP,
         SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_METRICS,
@@ -804,6 +804,7 @@ pub enum AnyNodeConfig {
 
 impl Deref for AnyNodeConfig {
     type Target = CommonNodeConfig;
+
     fn deref(&self) -> &Self::Target {
         match self {
             AnyNodeConfig::Name(node) => &node.common,
@@ -822,6 +823,7 @@ impl AnyNodeConfig {
             None
         }
     }
+
     pub fn as_datanode(&self) -> Option<&DataNodeConfig> {
         if let Self::Data(node) = self {
             Some(node)
@@ -829,6 +831,7 @@ impl AnyNodeConfig {
             None
         }
     }
+
     pub fn as_journalnode(&self) -> Option<&JournalNodeConfig> {
         if let Self::Journal(node) = self {
             Some(node)
@@ -846,6 +849,7 @@ impl AnyNodeConfig {
             AnyNodeConfig::Journal(node) => node.logging.for_container(&JournalNodeContainer::Hdfs),
         }
     }
+
     pub fn vector_logging(&self) -> Cow<ContainerLogConfig> {
         match &self {
             AnyNodeConfig::Name(node) => node.logging.for_container(&NameNodeContainer::Vector),
@@ -855,6 +859,7 @@ impl AnyNodeConfig {
             }
         }
     }
+
     pub fn vector_logging_enabled(&self) -> bool {
         match self {
             AnyNodeConfig::Name(node) => node.logging.enable_vector_agent,
@@ -862,6 +867,7 @@ impl AnyNodeConfig {
             AnyNodeConfig::Journal(node) => node.logging.enable_vector_agent,
         }
     }
+
     pub fn requested_secret_lifetime(&self) -> Option<Duration> {
         match self {
             AnyNodeConfig::Name(node) => node.common.requested_secret_lifetime,
@@ -1096,7 +1102,9 @@ pub enum UpgradeState {
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum UpgradeStateError {
-    #[snafu(display("requested version {requested_version:?} while still upgrading from {deployed_version:?} to {upgrading_version:?}, please finish the upgrade or downgrade first"))]
+    #[snafu(display(
+        "requested version {requested_version:?} while still upgrading from {deployed_version:?} to {upgrading_version:?}, please finish the upgrade or downgrade first"
+    ))]
     InvalidCrossgrade {
         requested_version: String,
         deployed_version: String,
@@ -1309,18 +1317,15 @@ impl DataNodeConfigFragment {
                     limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
-                storage: BTreeMap::from([(
-                    "data".to_string(),
-                    DataNodePvcFragment {
-                        pvc: PvcConfigFragment {
-                            capacity: Some(Quantity("10Gi".to_owned())),
-                            storage_class: None,
-                            selectors: None,
-                        },
-                        count: Some(1),
-                        hdfs_storage_type: Some(HdfsStorageType::default()),
+                storage: BTreeMap::from([("data".to_string(), DataNodePvcFragment {
+                    pvc: PvcConfigFragment {
+                        capacity: Some(Quantity("10Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
                     },
-                )]),
+                    count: Some(1),
+                    hdfs_storage_type: Some(HdfsStorageType::default()),
+                })]),
             },
             logging: product_logging::spec::default_logging(),
             listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
@@ -1416,6 +1421,7 @@ pub struct JournalNodeConfig {
 
 impl JournalNodeConfigFragment {
     const DEFAULT_JOURNAL_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
+
     pub fn default_config(cluster_name: &str, role: &HdfsNodeRole) -> Self {
         Self {
             resources: ResourcesFragment {

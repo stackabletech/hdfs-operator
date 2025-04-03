@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use futures::{pin_mut, StreamExt};
+use futures::{StreamExt, pin_mut};
 use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
 use product_config::ProductConfigManager;
 use stackable_operator::{
+    YamlSchema,
     cli::{Command, ProductOperatorRun},
     client::{self, Client},
     k8s_openapi::api::{
@@ -12,24 +13,24 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::{
+        Api,
         api::PartialObjectMeta,
         core::DeserializeGuard,
         runtime::{
+            Controller,
             events::{Recorder, Reporter},
-            reflector, watcher, Controller,
+            reflector, watcher,
         },
-        Api,
     },
     kvp::ObjectLabels,
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
     shared::yaml::SerializeOptions,
-    YamlSchema,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-use crate::crd::{constants::APP_NAME, v1alpha1, HdfsCluster};
+use crate::crd::{HdfsCluster, constants::APP_NAME, v1alpha1};
 
 mod config;
 mod container;
@@ -103,13 +104,10 @@ pub async fn create_controller(
 ) {
     let (store, store_w) = reflector::store();
 
-    let hdfs_event_recorder = Arc::new(Recorder::new(
-        client.as_kube_client(),
-        Reporter {
-            controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
-            instance: None,
-        },
-    ));
+    let hdfs_event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+        controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
+        instance: None,
+    }));
 
     // The topology provider will need to build label information by querying kubernetes nodes and this
     // requires the clusterrole 'hdfs-clusterrole-nodes': this is bound to each deployed HDFS cluster
