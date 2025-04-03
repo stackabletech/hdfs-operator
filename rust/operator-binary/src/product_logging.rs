@@ -14,7 +14,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 
-use crate::crd::{v1alpha1, AnyNodeConfig, DataNodeContainer, NameNodeContainer};
+use crate::crd::{AnyNodeConfig, DataNodeContainer, NameNodeContainer, v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

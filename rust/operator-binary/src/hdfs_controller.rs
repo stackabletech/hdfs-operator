@@ -5,34 +5,34 @@ use std::{
 
 use const_format::concatcp;
 use product_config::{
-    types::PropertyNameKind,
-    writer::{to_hadoop_xml, to_java_properties_string, PropertiesWriterError},
     ProductConfigManager,
+    types::PropertyNameKind,
+    writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{security::PodSecurityContextBuilder, PodBuilder},
+        pod::{PodBuilder, security::PodSecurityContextBuilder},
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     iter::reverse_if,
     k8s_openapi::{
+        DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{ConfigMap, Service, ServiceAccount, ServicePort, ServiceSpec},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
-        DeepMerge,
     },
     kube::{
-        api::ObjectMeta,
-        core::{error_boundary, DeserializeGuard},
-        runtime::{controller::Action, events::Recorder, reflector::ObjectRef},
         Resource, ResourceExt,
+        api::ObjectMeta,
+        core::{DeserializeGuard, error_boundary},
+        runtime::{controller::Action, events::Recorder, reflector::ObjectRef},
     },
     kvp::{Label, LabelError, Labels},
     logging::controller::ReconcilerError,
@@ -51,12 +51,12 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
-    build_recommended_labels,
+    OPERATOR_NAME, build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     crd::{
-        constants::*, v1alpha1, AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef,
-        UpgradeState, UpgradeStateError,
+        AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
+        UpgradeStateError, constants::*, v1alpha1,
     },
     discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_warning_event},
@@ -66,7 +66,6 @@ use crate::{
     },
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     security::{self, kerberos, opa::HdfsOpaConfig},
-    OPERATOR_NAME,
 };
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";

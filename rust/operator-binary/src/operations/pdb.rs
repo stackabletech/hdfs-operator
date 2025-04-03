@@ -7,9 +7,9 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{constants::APP_NAME, v1alpha1, HdfsNodeRole},
-    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
     OPERATOR_NAME,
+    crd::{HdfsNodeRole, constants::APP_NAME, v1alpha1},
+    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
 
 #[derive(Snafu, Debug)]

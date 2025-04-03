@@ -3,13 +3,13 @@ use stackable_operator::{
     commons::rbac::build_rbac_resources,
     k8s_openapi::api::rbac::v1::{ClusterRoleBinding, Subject},
     kube::{
+        Api, Client, ResourceExt,
         api::{Patch, PatchParams},
         core::PartialObjectMeta,
         runtime::{
             reflector::{ObjectRef, Store},
             watcher,
         },
-        Api, Client, ResourceExt,
     },
     kvp::Labels,
 };
