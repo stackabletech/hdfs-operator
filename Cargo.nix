@@ -7178,10 +7178,10 @@ rec {
       };
       "ring" = rec {
         crateName = "ring";
-        version = "0.17.11";
+        version = "0.17.14";
         edition = "2021";
-        links = "ring_core_0_17_11_";
-        sha256 = "0wzyhdbf71ndd14kkpyj2a6nvczvli2mndzv2al7r26k4yp4jlys";
+        links = "ring_core_0_17_14_";
+        sha256 = "1dw32gv19ccq4hsx3ribhpdzri1vnrlcfqb2vj41xn4l49n9ws54";
         dependencies = [
           {
             name = "cfg-if";
