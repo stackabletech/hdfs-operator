@@ -10,6 +10,7 @@ publish = false
 
 [dependencies]
 stackable-versioned.workspace = true
+stackable-telemetry.workspace = true
 stackable-operator.workspace = true
 product-config.workspace = true
 
