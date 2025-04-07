@@ -50,6 +50,9 @@ mod built_info {
 
 pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
 
+// TODO (@NickLarsenNZ): Change the variable to `CONSOLE_LOG`
+pub const ENV_VAR_CONSOLE_LOG: &str = "HDFS_OPERATOR_LOG    ";
+
 #[derive(clap::Parser)]
 #[clap(about, author)]
 struct Opts {
@@ -73,8 +76,7 @@ async fn main() -> anyhow::Result<()> {
                 // TODO (@Techassi): This should be a constant
                 .service_name("hbase-operator")
                 .with_console_output((
-                    // TODO (@Techassi): Change to CONSOLE_LOG, create constant
-                    "HDFS_OPERATOR_LOG",
+                    ENV_VAR_CONSOLE_LOG,
                     LevelFilter::INFO,
                     !telemetry_arguments.no_console_output,
                 ))
@@ -91,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
 
                     Settings::builder()
                         // TODO (@Techassi): Change to CONSOLE_LOG or FILE_LOG, create constant
-                        .with_environment_variable("HDFS_OPERATOR_LOG")
+                        .with_environment_variable(ENV_VAR_CONSOLE_LOG)
                         .with_default_level(LevelFilter::INFO)
                         .file_log_settings_builder(log_directory, "tracing-rs.log")
                         .with_rotation_period(rotation_period)
