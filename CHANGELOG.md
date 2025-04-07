@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` ([#671]).
+
+### Fixed
+
+- Fix a bug where changes to ConfigMaps that are referenced in the HdfsCluster spec didn't trigger a reconciliation ([#671]).
+
+[#671]: https://github.com/stackabletech/hdfs-operator/pull/671
+
 ## [25.3.0] - 2025-03-21
 
 ### Added
