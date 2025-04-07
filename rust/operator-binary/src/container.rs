@@ -142,6 +142,9 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
 }
 
 /// ContainerConfig contains information to create all main, side and init containers for
@@ -240,21 +243,34 @@ impl ContainerConfig {
 
         // Vector side container
         if merged_config.vector_logging_enabled() {
-            pb.add_container(
-                product_logging::framework::vector_container(
-                    resolved_product_image,
-                    ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-                    ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
-                    Some(&merged_config.vector_logging()),
-                    ResourceRequirementsBuilder::new()
-                        .with_cpu_request("250m")
-                        .with_cpu_limit("500m")
-                        .with_memory_request("128Mi")
-                        .with_memory_limit("128Mi")
-                        .build(),
-                )
-                .context(ConfigureLoggingSnafu)?,
-            );
+            match hdfs
+                .spec
+                .cluster_config
+                .vector_aggregator_config_map_name
+                .to_owned()
+            {
+                Some(vector_aggregator_config_map_name) => {
+                    pb.add_container(
+                        product_logging::framework::vector_container(
+                            resolved_product_image,
+                            ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
+                            ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
+                            Some(&merged_config.vector_logging()),
+                            ResourceRequirementsBuilder::new()
+                                .with_cpu_request("250m")
+                                .with_cpu_limit("500m")
+                                .with_memory_request("128Mi")
+                                .with_memory_limit("128Mi")
+                                .build(),
+                            &vector_aggregator_config_map_name,
+                        )
+                        .context(ConfigureLoggingSnafu)?,
+                    );
+                }
+                None => {
+                    VectorAggregatorConfigMapMissingSnafu.fail()?;
+                }
+            }
         }
 
         if let Some(authentication_config) = hdfs.authentication_config() {
@@ -869,37 +885,52 @@ wait_for_termination $!
         // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
         if let ContainerConfig::Hdfs { role, .. } = self {
             let role_opts_name = role.hadoop_opts_env_var_for_role().to_string();
-            env.insert(role_opts_name.clone(), EnvVar {
-                name: role_opts_name,
-                value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
-                ..EnvVar::default()
-            });
+            env.insert(
+                role_opts_name.clone(),
+                EnvVar {
+                    name: role_opts_name,
+                    value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
+                    ..EnvVar::default()
+                },
+            );
         }
 
-        env.insert("HADOOP_OPTS".to_string(), EnvVar {
-            name: "HADOOP_OPTS".to_string(),
-            value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
-            ..EnvVar::default()
-        });
+        env.insert(
+            "HADOOP_OPTS".to_string(),
+            EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
+                ..EnvVar::default()
+            },
+        );
         if hdfs.has_kerberos_enabled() {
-            env.insert("KRB5_CONFIG".to_string(), EnvVar {
-                name: "KRB5_CONFIG".to_string(),
-                value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
-                ..EnvVar::default()
-            });
-            env.insert("KRB5_CLIENT_KTNAME".to_string(), EnvVar {
-                name: "KRB5_CLIENT_KTNAME".to_string(),
-                value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
-                ..EnvVar::default()
-            });
+            env.insert(
+                "KRB5_CONFIG".to_string(),
+                EnvVar {
+                    name: "KRB5_CONFIG".to_string(),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
+                    ..EnvVar::default()
+                },
+            );
+            env.insert(
+                "KRB5_CLIENT_KTNAME".to_string(),
+                EnvVar {
+                    name: "KRB5_CLIENT_KTNAME".to_string(),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
+                    ..EnvVar::default()
+                },
+            );
         }
 
         // Needed for the `containerdebug` process to log it's tracing information to.
-        env.insert("CONTAINERDEBUG_LOG_DIRECTORY".to_string(), EnvVar {
-            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-            value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-            value_from: None,
-        });
+        env.insert(
+            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            EnvVar {
+                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+                value_from: None,
+            },
+        );
 
         // Overrides need to come last
         let mut env_override_vars: BTreeMap<String, EnvVar> =

@@ -103,10 +103,13 @@ pub async fn create_controller(
 ) {
     let (store, store_w) = reflector::store();
 
-    let hdfs_event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
-        controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
-        instance: None,
-    }));
+    let hdfs_event_recorder = Arc::new(Recorder::new(
+        client.as_kube_client(),
+        Reporter {
+            controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
+            instance: None,
+        },
+    ));
 
     // The topology provider will need to build label information by querying kubernetes nodes and this
     // requires the clusterrole 'hdfs-clusterrole-nodes': this is bound to each deployed HDFS cluster

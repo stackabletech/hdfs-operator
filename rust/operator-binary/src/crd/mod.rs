@@ -1317,15 +1317,18 @@ impl DataNodeConfigFragment {
                     limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
-                storage: BTreeMap::from([("data".to_string(), DataNodePvcFragment {
-                    pvc: PvcConfigFragment {
-                        capacity: Some(Quantity("10Gi".to_owned())),
-                        storage_class: None,
-                        selectors: None,
+                storage: BTreeMap::from([(
+                    "data".to_string(),
+                    DataNodePvcFragment {
+                        pvc: PvcConfigFragment {
+                            capacity: Some(Quantity("10Gi".to_owned())),
+                            storage_class: None,
+                            selectors: None,
+                        },
+                        count: Some(1),
+                        hdfs_storage_type: Some(HdfsStorageType::default()),
                     },
-                    count: Some(1),
-                    hdfs_storage_type: Some(HdfsStorageType::default()),
-                })]),
+                )]),
             },
             logging: product_logging::spec::default_logging(),
             listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),

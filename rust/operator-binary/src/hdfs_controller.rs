@@ -64,7 +64,7 @@ use crate::{
         graceful_shutdown::{self, add_graceful_shutdown_config},
         pdb::add_pdbs,
     },
-    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    product_logging::extend_role_group_config_map,
     security::{self, kerberos, opa::HdfsOpaConfig},
 };
 
@@ -169,11 +169,6 @@ pub enum Error {
 
     #[snafu(display("failed to build role properties"))]
     BuildRoleProperties { source: crate::crd::Error },
-
-    #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress {
-        source: crate::product_logging::Error,
-    },
 
     #[snafu(display("failed to add the logging configuration to the ConfigMap {cm_name:?}"))]
     InvalidLoggingConfig {
@@ -280,10 +275,6 @@ pub async fn reconcile_hdfs(
         .spec
         .image
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
-
-    let vector_aggregator_address = resolve_vector_aggregator_address(hdfs, client)
-        .await
-        .context(ResolveVectorAggregatorAddressSnafu)?;
 
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
@@ -423,7 +414,6 @@ pub async fn reconcile_hdfs(
                 &journalnode_podrefs,
                 &merged_config,
                 &hdfs_opa_config,
-                vector_aggregator_address.as_deref(),
             )?;
 
             let rg_statefulset = rolegroup_statefulset(
@@ -616,7 +606,6 @@ fn rolegroup_config_map(
     journalnode_podrefs: &[HdfsPodRef],
     merged_config: &AnyNodeConfig,
     hdfs_opa_config: &Option<HdfsOpaConfig>,
-    vector_aggregator_address: Option<&str>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
     let hdfs_name = hdfs
@@ -792,15 +781,11 @@ fn rolegroup_config_map(
             })?,
         );
 
-    extend_role_group_config_map(
-        rolegroup_ref,
-        vector_aggregator_address,
-        merged_config,
-        &mut builder,
-    )
-    .context(InvalidLoggingConfigSnafu {
-        cm_name: rolegroup_ref.object_name(),
-    })?;
+    extend_role_group_config_map(rolegroup_ref, merged_config, &mut builder).context(
+        InvalidLoggingConfigSnafu {
+            cm_name: rolegroup_ref.object_name(),
+        },
+    )?;
 
     builder
         .build()
