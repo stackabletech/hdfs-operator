@@ -4,16 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-
-- Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` ([#671]).
-
 ### Changed
 
 - Replace stackable-operator `initialize_logging` with stackable-telemetry `Tracing` ([#661]).
   - BREAKING: The file log directory was set by `HDFS_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS`
     (or via `--rolling-logs <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
+- BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
+    of having the operator write it to the vector config ([#671]).
 
 ### Fixed
 

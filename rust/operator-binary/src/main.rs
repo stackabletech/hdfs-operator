@@ -13,7 +13,7 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::{
-        Api,
+        Api, ResourceExt,
         api::PartialObjectMeta,
         core::DeserializeGuard,
         runtime::{
@@ -166,47 +166,60 @@ pub async fn create_controller(
     let hdfs_controller = Controller::new(
         namespace.get_api::<DeserializeGuard<v1alpha1::HdfsCluster>>(&client),
         watcher::Config::default(),
-    )
-    .owns(
-        namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
-        watcher::Config::default(),
-    )
-    .owns(
-        namespace.get_api::<DeserializeGuard<Service>>(&client),
-        watcher::Config::default(),
-    )
-    .owns(
-        namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
-        watcher::Config::default(),
-    )
-    .shutdown_on_signal()
-    .run(
-        hdfs_controller::reconcile_hdfs,
-        hdfs_controller::error_policy,
-        Arc::new(hdfs_controller::Ctx {
-            client: client.clone(),
-            product_config,
-            event_recorder: hdfs_event_recorder.clone(),
-        }),
-    )
-    // We can let the reporting happen in the background
-    .for_each_concurrent(
-        16, // concurrency limit
-        |result| {
-            // The event_recorder needs to be shared across all invocations, so that
-            // events are correctly aggregated
-            let hdfs_event_recorder = hdfs_event_recorder.clone();
-            async move {
-                report_controller_reconciled(
-                    &hdfs_event_recorder,
-                    HDFS_FULL_CONTROLLER_NAME,
-                    &result,
-                )
-                .await;
-            }
-        },
-    )
-    .instrument(info_span!("hdfs_controller"));
+    );
+    let hdfs_store_1 = hdfs_controller.store();
+    let hdfs_controller = hdfs_controller
+        .owns(
+            namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
+            watcher::Config::default(),
+        )
+        .owns(
+            namespace.get_api::<DeserializeGuard<Service>>(&client),
+            watcher::Config::default(),
+        )
+        .owns(
+            namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+            watcher::Config::default(),
+        )
+        .shutdown_on_signal()
+        .watches(
+            namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+            watcher::Config::default(),
+            move |config_map| {
+                hdfs_store_1
+                    .state()
+                    .into_iter()
+                    .filter(move |hdfs| references_config_map(hdfs, &config_map))
+                    .map(|hdfs| reflector::ObjectRef::from_obj(&*hdfs))
+            },
+        )
+        .run(
+            hdfs_controller::reconcile_hdfs,
+            hdfs_controller::error_policy,
+            Arc::new(hdfs_controller::Ctx {
+                client: client.clone(),
+                product_config,
+                event_recorder: hdfs_event_recorder.clone(),
+            }),
+        )
+        // We can let the reporting happen in the background
+        .for_each_concurrent(
+            16, // concurrency limit
+            |result| {
+                // The event_recorder needs to be shared across all invocations, so that
+                // events are correctly aggregated
+                let hdfs_event_recorder = hdfs_event_recorder.clone();
+                async move {
+                    report_controller_reconciled(
+                        &hdfs_event_recorder,
+                        HDFS_FULL_CONTROLLER_NAME,
+                        &result,
+                    )
+                    .await;
+                }
+            },
+        )
+        .instrument(info_span!("hdfs_controller"));
 
     pin_mut!(hdfs_controller, reflector);
     // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
@@ -230,4 +243,21 @@ pub fn build_recommended_labels<'a, T>(
         role,
         role_group,
     }
+}
+
+fn references_config_map(
+    hdfs: &DeserializeGuard<v1alpha1::HdfsCluster>,
+    config_map: &DeserializeGuard<ConfigMap>,
+) -> bool {
+    let Ok(hdfs) = &hdfs.0 else {
+        return false;
+    };
+
+    hdfs.spec.cluster_config.zookeeper_config_map_name == config_map.name_any()
+        || match hdfs.spec.cluster_config.authorization.to_owned() {
+            Some(hdfs_authorization) => {
+                hdfs_authorization.opa.config_map_name == config_map.name_any()
+            }
+            None => false,
+        }
 }
