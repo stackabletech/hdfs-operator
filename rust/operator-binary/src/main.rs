@@ -51,7 +51,7 @@ mod built_info {
 pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
 
 // TODO (@NickLarsenNZ): Change the variable to `CONSOLE_LOG`
-pub const ENV_VAR_CONSOLE_LOG: &str = "HDFS_OPERATOR_LOG    ";
+pub const ENV_VAR_CONSOLE_LOG: &str = "HDFS_OPERATOR_LOG";
 
 #[derive(clap::Parser)]
 #[clap(about, author)]
