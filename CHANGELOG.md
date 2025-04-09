@@ -15,10 +15,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Use `json` file extension for log files ([#667]).
 - Fix a bug where changes to ConfigMaps that are referenced in the HdfsCluster spec didn't trigger a reconciliation ([#671]).
 
 [#661]: https://github.com/stackabletech/hdfs-operator/pull/661
 [#671]: https://github.com/stackabletech/hdfs-operator/pull/671
+[#667]: https://github.com/stackabletech/hdfs-operator/pull/667
 
 ## [25.3.0] - 2025-03-21
 
