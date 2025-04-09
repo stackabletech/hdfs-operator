@@ -276,9 +276,9 @@ dependencies = [
 
 [[package]]
 name = "backon"
-version = "1.4.1"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "970d91570c01a8a5959b36ad7dd1c30642df24b6b3068710066f6809f7033bb7"
+checksum = "fd0b50b1b78dbadd44ab18b3c794e496f3a139abb9fbc27d9c94c4eebbb96496"
 dependencies = [
  "fastrand",
  "gloo-timers",
@@ -2668,8 +2668,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.89.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.89.1#cd73728af410c52972b9a9a3ba1302bcdb574d04"
+version = "0.90.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.90.0#ea063b4595caa20c82d37c595487c76476c9ab10"
 dependencies = [
  "chrono",
  "clap",
@@ -2704,7 +2704,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.89.1#cd73728af410c52972b9a9a3ba1302bcdb574d04"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.90.0#ea063b4595caa20c82d37c595487c76476c9ab10"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2715,7 +2715,7 @@ dependencies = [
 [[package]]
 name = "stackable-shared"
 version = "0.0.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.89.1#cd73728af410c52972b9a9a3ba1302bcdb574d04"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.90.0#ea063b4595caa20c82d37c595487c76476c9ab10"
 dependencies = [
  "kube",
  "semver",
@@ -3722,9 +3722,9 @@ checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
 
 [[package]]
 name = "xml-rs"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5b940ebc25896e71dd073bad2dbaa2abfe97b0a391415e22ad1326d9c54e3c4"
+checksum = "a62ce76d9b56901b19a74f19431b0d8b3bc7ca4ad685a746dfd78ca8f4fc6bda"
 
 [[package]]
 name = "yoke"

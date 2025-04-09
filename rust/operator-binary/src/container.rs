@@ -142,6 +142,9 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
 }
 
 /// ContainerConfig contains information to create all main, side and init containers for
@@ -240,21 +243,29 @@ impl ContainerConfig {
 
         // Vector side container
         if merged_config.vector_logging_enabled() {
-            pb.add_container(
-                product_logging::framework::vector_container(
-                    resolved_product_image,
-                    ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-                    ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
-                    Some(&merged_config.vector_logging()),
-                    ResourceRequirementsBuilder::new()
-                        .with_cpu_request("250m")
-                        .with_cpu_limit("500m")
-                        .with_memory_request("128Mi")
-                        .with_memory_limit("128Mi")
-                        .build(),
-                )
-                .context(ConfigureLoggingSnafu)?,
-            );
+            match &hdfs.spec.cluster_config.vector_aggregator_config_map_name {
+                Some(vector_aggregator_config_map_name) => {
+                    pb.add_container(
+                        product_logging::framework::vector_container(
+                            resolved_product_image,
+                            ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
+                            ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
+                            Some(&merged_config.vector_logging()),
+                            ResourceRequirementsBuilder::new()
+                                .with_cpu_request("250m")
+                                .with_cpu_limit("500m")
+                                .with_memory_request("128Mi")
+                                .with_memory_limit("128Mi")
+                                .build(),
+                            vector_aggregator_config_map_name,
+                        )
+                        .context(ConfigureLoggingSnafu)?,
+                    );
+                }
+                None => {
+                    VectorAggregatorConfigMapMissingSnafu.fail()?;
+                }
+            }
         }
 
         if let Some(authentication_config) = hdfs.authentication_config() {

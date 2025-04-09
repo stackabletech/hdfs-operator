@@ -11,7 +11,7 @@ repository = "https://github.com/stackabletech/hdfs-operator"
 
 [workspace.dependencies]
 product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.7.0" }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.89.1" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.90.0" }
 stackable-telemetry = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-telemetry-0.4.0" }
 stackable-versioned = { git = "https://github.com/stackabletech/operator-rs.git", features = ["k8s"], tag = "stackable-versioned-0.7.1" }
 
@@ -32,6 +32,6 @@ tokio = { version = "1.40", features = ["full"] }
 tracing = "0.1"
 tracing-futures = { version = "0.2", features = ["futures-03"] }
 
-# [patch."https://github.com/stackabletech/operator-rs.git"]
+[patch."https://github.com/stackabletech/operator-rs.git"]
 # stackable-operator = { path = "../operator-rs/crates/stackable-operator" }
 # stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main" }
