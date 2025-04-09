@@ -167,7 +167,7 @@ pub async fn create_controller(
         namespace.get_api::<DeserializeGuard<v1alpha1::HdfsCluster>>(&client),
         watcher::Config::default(),
     );
-    let hdfs_store_1 = hdfs_controller.store();
+    let config_map_store = hdfs_controller.store();
     let hdfs_controller = hdfs_controller
         .owns(
             namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
@@ -186,7 +186,7 @@ pub async fn create_controller(
             namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
             watcher::Config::default(),
             move |config_map| {
-                hdfs_store_1
+                config_map_store
                     .state()
                     .into_iter()
                     .filter(move |hdfs| references_config_map(hdfs, &config_map))
