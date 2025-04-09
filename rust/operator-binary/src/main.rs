@@ -254,7 +254,7 @@ fn references_config_map(
     };
 
     hdfs.spec.cluster_config.zookeeper_config_map_name == config_map.name_any()
-        || match hdfs.spec.cluster_config.authorization.to_owned() {
+        || match &hdfs.spec.cluster_config.authorization {
             Some(hdfs_authorization) => {
                 hdfs_authorization.opa.config_map_name == config_map.name_any()
             }
