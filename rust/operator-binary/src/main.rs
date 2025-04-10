@@ -1,4 +1,4 @@
-use std::{ops::Deref as _, sync::Arc};
+use std::sync::Arc;
 
 use clap::Parser;
 use futures::{StreamExt, pin_mut};
@@ -6,7 +6,7 @@ use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
 use product_config::ProductConfigManager;
 use stackable_operator::{
     YamlSchema,
-    cli::{Command, ProductOperatorRun, RollingPeriod},
+    cli::{Command, ProductOperatorRun},
     client::{self, Client},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -26,8 +26,11 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     namespace::WatchNamespace,
     shared::yaml::SerializeOptions,
+    telemetry::{
+        Tracing,
+        tracing::{RollingPeriod, settings::Settings},
+    },
 };
-use stackable_telemetry::{Tracing, tracing::settings::Settings};
 use tracing::{info_span, level_filters::LevelFilter};
 use tracing_futures::Instrument;
 
@@ -88,7 +91,6 @@ async fn main() -> anyhow::Result<()> {
                     let rotation_period = telemetry_arguments
                         .rolling_logs_period
                         .unwrap_or(RollingPeriod::Hourly)
-                        .deref()
                         .clone();
 
                     Settings::builder()
