@@ -3,6 +3,3 @@
 // Stackable Platform documentation.
 
 - 3.4.1 (LTS)
-- 3.4.0 (deprecated)
-- 3.3.6 (deprecated) - Please note that there is a https://github.com/stackabletech/hdfs-operator/issues/440[known issue] related to NameNode bootstrapping which can happen in rare cases.
-- 3.3.4 (deprecated)
