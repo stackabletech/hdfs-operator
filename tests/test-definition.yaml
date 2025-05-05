@@ -18,7 +18,6 @@ dimensions:
       - 3.3.6
   - name: zookeeper
     values:
-      # - 3.9.2 => The patch level bump is not worth it doubling the number of the smoke test (the number is already gigantic)
       - 3.9.3
   - name: zookeeper-latest
     values:
