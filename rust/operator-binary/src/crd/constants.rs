@@ -82,5 +82,3 @@ pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/datanode";
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
-
-pub const HDFS_UID: i64 = 1000;
