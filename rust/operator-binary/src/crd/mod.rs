@@ -10,8 +10,6 @@ use product_config::types::PropertyNameKind;
 use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-#[cfg(doc)]
-use stackable_operator::crd::listener;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
