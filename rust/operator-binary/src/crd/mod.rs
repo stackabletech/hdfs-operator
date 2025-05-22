@@ -16,7 +16,6 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
-        listener::Listener,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -27,6 +26,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::listener,
     k8s_openapi::{
         api::core::v1::{Pod, PodTemplateSpec},
         apimachinery::pkg::api::resource::Quantity,
@@ -97,13 +97,13 @@ pub enum Error {
     #[snafu(display("unable to get {listener} (for {pod})"))]
     GetPodListener {
         source: stackable_operator::client::Error,
-        listener: ObjectRef<Listener>,
+        listener: ObjectRef<listener::v1alpha1::Listener>,
         pod: ObjectRef<Pod>,
     },
 
     #[snafu(display("{listener} (for {pod}) has no address"))]
     PodListenerHasNoAddress {
-        listener: ObjectRef<Listener>,
+        listener: ObjectRef<listener::v1alpha1::Listener>,
         pod: ObjectRef<Pod>,
     },
 
@@ -415,12 +415,14 @@ impl v1alpha1::HdfsCluster {
         let pod_refs = self.pod_refs(&HdfsNodeRole::Name)?;
         try_join_all(pod_refs.into_iter().map(|pod_ref| async {
             let listener_name = format!("{LISTENER_VOLUME_NAME}-{}", pod_ref.pod_name);
-            let listener_ref =
-                || ObjectRef::<Listener>::new(&listener_name).within(&pod_ref.namespace);
+            let listener_ref = || {
+                ObjectRef::<listener::v1alpha1::Listener>::new(&listener_name)
+                    .within(&pod_ref.namespace)
+            };
             let pod_obj_ref =
                 || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(&pod_ref.namespace);
             let listener = client
-                .get::<Listener>(&listener_name, &pod_ref.namespace)
+                .get::<listener::v1alpha1::Listener>(&listener_name, &pod_ref.namespace)
                 .await
                 .context(GetPodListenerSnafu {
                     listener: listener_ref(),

@@ -881,7 +881,7 @@ fn rolegroup_statefulset(
             match_labels: Some(rolegroup_selector_labels.into()),
             ..LabelSelector::default()
         },
-        service_name: object_name,
+        service_name: Some(object_name),
         template: pod_template,
 
         volume_claim_templates: Some(pvcs),
