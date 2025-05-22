@@ -11,7 +11,7 @@ use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 #[cfg(doc)]
-use stackable_operator::commons::listener::ListenerClass;
+use stackable_operator::crd::listener;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -401,7 +401,7 @@ impl v1alpha1::HdfsCluster {
     /// List all [`HdfsPodRef`]s for the running namenodes, configured to access the cluster via
     /// [Listener] rather than direct [Pod] access.
     ///
-    /// This enables access from outside the Kubernetes cluster (if using a [ListenerClass] configured for this).
+    /// This enables access from outside the Kubernetes cluster (if using a [listener::v1alpha1::ListenerClass] configured for this).
     ///
     /// This method assumes that all [Listener]s have been created, and may fail while waiting for the cluster to come online.
     /// If this is unacceptable (mainly for configuring the cluster itself), consider [`Self::pod_refs`] instead.
