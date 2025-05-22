@@ -827,13 +827,7 @@ fn rolegroup_statefulset(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .affinity(&merged_config.affinity)
         .service_account_name(service_account.name_any())
-        .security_context(
-            PodSecurityContextBuilder::new()
-                .run_as_user(HDFS_UID)
-                .run_as_group(0)
-                .fs_group(1000)
-                .build(),
-        );
+        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     // Adds all containers and volumes to the pod builder
     // We must use the selector labels ("rolegroup_selector_labels") and not the recommended labels
