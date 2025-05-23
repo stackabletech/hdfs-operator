@@ -406,6 +406,8 @@ impl v1alpha1::HdfsCluster {
     ///
     /// This method _only_ supports accessing namenodes, since journalnodes are considered internal, and datanodes are registered
     /// dynamically with the namenodes.
+    ///
+    /// [Listener]: listener::v1alpha1::Listener
     pub async fn namenode_listener_refs(
         &self,
         client: &stackable_operator::client::Client,
