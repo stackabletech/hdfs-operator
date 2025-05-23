@@ -10,13 +10,10 @@ use product_config::types::PropertyNameKind;
 use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-#[cfg(doc)]
-use stackable_operator::commons::listener::ListenerClass;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
-        listener::Listener,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -27,6 +24,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::listener,
     k8s_openapi::{
         api::core::v1::{Pod, PodTemplateSpec},
         apimachinery::pkg::api::resource::Quantity,
@@ -97,13 +95,13 @@ pub enum Error {
     #[snafu(display("unable to get {listener} (for {pod})"))]
     GetPodListener {
         source: stackable_operator::client::Error,
-        listener: ObjectRef<Listener>,
+        listener: ObjectRef<listener::v1alpha1::Listener>,
         pod: ObjectRef<Pod>,
     },
 
     #[snafu(display("{listener} (for {pod}) has no address"))]
     PodListenerHasNoAddress {
-        listener: ObjectRef<Listener>,
+        listener: ObjectRef<listener::v1alpha1::Listener>,
         pod: ObjectRef<Pod>,
     },
 
@@ -401,13 +399,15 @@ impl v1alpha1::HdfsCluster {
     /// List all [`HdfsPodRef`]s for the running namenodes, configured to access the cluster via
     /// [Listener] rather than direct [Pod] access.
     ///
-    /// This enables access from outside the Kubernetes cluster (if using a [ListenerClass] configured for this).
+    /// This enables access from outside the Kubernetes cluster (if using a [listener::v1alpha1::ListenerClass] configured for this).
     ///
     /// This method assumes that all [Listener]s have been created, and may fail while waiting for the cluster to come online.
     /// If this is unacceptable (mainly for configuring the cluster itself), consider [`Self::pod_refs`] instead.
     ///
     /// This method _only_ supports accessing namenodes, since journalnodes are considered internal, and datanodes are registered
     /// dynamically with the namenodes.
+    ///
+    /// [Listener]: listener::v1alpha1::Listener
     pub async fn namenode_listener_refs(
         &self,
         client: &stackable_operator::client::Client,
@@ -415,12 +415,14 @@ impl v1alpha1::HdfsCluster {
         let pod_refs = self.pod_refs(&HdfsNodeRole::Name)?;
         try_join_all(pod_refs.into_iter().map(|pod_ref| async {
             let listener_name = format!("{LISTENER_VOLUME_NAME}-{}", pod_ref.pod_name);
-            let listener_ref =
-                || ObjectRef::<Listener>::new(&listener_name).within(&pod_ref.namespace);
+            let listener_ref = || {
+                ObjectRef::<listener::v1alpha1::Listener>::new(&listener_name)
+                    .within(&pod_ref.namespace)
+            };
             let pod_obj_ref =
                 || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(&pod_ref.namespace);
             let listener = client
-                .get::<Listener>(&listener_name, &pod_ref.namespace)
+                .get::<listener::v1alpha1::Listener>(&listener_name, &pod_ref.namespace)
                 .await
                 .context(GetPodListenerSnafu {
                     listener: listener_ref(),
