@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.
   - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
+- Use versioned common structs ([#684]).
 
 ### Fixed
 
@@ -44,6 +45,7 @@ All notable changes to this project will be documented in this file.
 [#675]: https://github.com/stackabletech/hdfs-operator/pull/675
 [#677]: https://github.com/stackabletech/hdfs-operator/pull/677
 [#683]: https://github.com/stackabletech/hdfs-operator/pull/683
+[#684]: https://github.com/stackabletech/hdfs-operator/pull/684
 
 ## [25.3.0] - 2025-03-21
 
