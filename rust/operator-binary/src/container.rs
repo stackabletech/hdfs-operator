@@ -880,37 +880,52 @@ wait_for_termination $!
         // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
         if let ContainerConfig::Hdfs { role, .. } = self {
             let role_opts_name = role.hadoop_opts_env_var_for_role().to_string();
-            env.insert(role_opts_name.clone(), EnvVar {
-                name: role_opts_name,
-                value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
-                ..EnvVar::default()
-            });
+            env.insert(
+                role_opts_name.clone(),
+                EnvVar {
+                    name: role_opts_name,
+                    value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
+                    ..EnvVar::default()
+                },
+            );
         }
 
-        env.insert("HADOOP_OPTS".to_string(), EnvVar {
-            name: "HADOOP_OPTS".to_string(),
-            value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
-            ..EnvVar::default()
-        });
+        env.insert(
+            "HADOOP_OPTS".to_string(),
+            EnvVar {
+                name: "HADOOP_OPTS".to_string(),
+                value: Some(construct_global_jvm_args(hdfs.has_kerberos_enabled())),
+                ..EnvVar::default()
+            },
+        );
         if hdfs.has_kerberos_enabled() {
-            env.insert("KRB5_CONFIG".to_string(), EnvVar {
-                name: "KRB5_CONFIG".to_string(),
-                value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
-                ..EnvVar::default()
-            });
-            env.insert("KRB5_CLIENT_KTNAME".to_string(), EnvVar {
-                name: "KRB5_CLIENT_KTNAME".to_string(),
-                value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
-                ..EnvVar::default()
-            });
+            env.insert(
+                "KRB5_CONFIG".to_string(),
+                EnvVar {
+                    name: "KRB5_CONFIG".to_string(),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
+                    ..EnvVar::default()
+                },
+            );
+            env.insert(
+                "KRB5_CLIENT_KTNAME".to_string(),
+                EnvVar {
+                    name: "KRB5_CLIENT_KTNAME".to_string(),
+                    value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
+                    ..EnvVar::default()
+                },
+            );
         }
 
         // Needed for the `containerdebug` process to log it's tracing information to.
-        env.insert("CONTAINERDEBUG_LOG_DIRECTORY".to_string(), EnvVar {
-            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-            value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-            value_from: None,
-        });
+        env.insert(
+            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            EnvVar {
+                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+                value_from: None,
+            },
+        );
 
         // Overrides need to come last
         let mut env_override_vars: BTreeMap<String, EnvVar> =
