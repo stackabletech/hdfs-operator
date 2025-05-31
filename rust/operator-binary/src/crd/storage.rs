@@ -198,15 +198,18 @@ mod test {
     #[test]
     pub fn test_datanode_storage_defaults() {
         let data_node_storage = DataNodeStorageConfig {
-            pvcs: BTreeMap::from([("data".to_string(), DataNodePvc {
-                pvc: PvcConfig {
-                    capacity: Some(Quantity("5Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
+            pvcs: BTreeMap::from([(
+                "data".to_string(),
+                DataNodePvc {
+                    pvc: PvcConfig {
+                        capacity: Some(Quantity("5Gi".to_owned())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                    count: 1,
+                    hdfs_storage_type: HdfsStorageType::default(),
                 },
-                count: 1,
-                hdfs_storage_type: HdfsStorageType::default(),
-            })]),
+            )]),
         };
 
         let pvcs = data_node_storage.build_pvcs();
@@ -236,30 +239,36 @@ mod test {
     pub fn test_datanode_storage_multiple_storage_types() {
         let data_node_storage = DataNodeStorageConfig {
             pvcs: BTreeMap::from([
-                ("hdd".to_string(), DataNodePvc {
-                    pvc: PvcConfig {
-                        capacity: Some(Quantity("12Ti".to_owned())),
-                        storage_class: Some("hdd-storage-class".to_string()),
-                        selectors: Some(LabelSelector {
-                            match_expressions: None,
-                            match_labels: Some(BTreeMap::from([(
-                                "foo".to_string(),
-                                "bar".to_string(),
-                            )])),
-                        }),
+                (
+                    "hdd".to_string(),
+                    DataNodePvc {
+                        pvc: PvcConfig {
+                            capacity: Some(Quantity("12Ti".to_owned())),
+                            storage_class: Some("hdd-storage-class".to_string()),
+                            selectors: Some(LabelSelector {
+                                match_expressions: None,
+                                match_labels: Some(BTreeMap::from([(
+                                    "foo".to_string(),
+                                    "bar".to_string(),
+                                )])),
+                            }),
+                        },
+                        count: 8,
+                        hdfs_storage_type: HdfsStorageType::Disk,
                     },
-                    count: 8,
-                    hdfs_storage_type: HdfsStorageType::Disk,
-                }),
-                ("ssd".to_string(), DataNodePvc {
-                    pvc: PvcConfig {
-                        capacity: Some(Quantity("2Ti".to_owned())),
-                        storage_class: Some("premium-ssd".to_string()),
-                        selectors: None,
+                ),
+                (
+                    "ssd".to_string(),
+                    DataNodePvc {
+                        pvc: PvcConfig {
+                            capacity: Some(Quantity("2Ti".to_owned())),
+                            storage_class: Some("premium-ssd".to_string()),
+                            selectors: None,
+                        },
+                        count: 4,
+                        hdfs_storage_type: HdfsStorageType::Ssd,
                     },
-                    count: 4,
-                    hdfs_storage_type: HdfsStorageType::Ssd,
-                }),
+                ),
             ]),
         };
         let pvcs = data_node_storage.build_pvcs();

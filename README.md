@@ -6,7 +6,6 @@
 <h1 align="center">Stackable Operator for Apache Hadoop</h1>
 
 <!-- markdownlint-disable MD041 -->
-![Build Actions Status](https://ci.stackable.tech/buildStatus/icon?job=hdfs%2doperator%2dit%2dnightly&subject=Integration%20Tests)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/stackabletech/hdfs-operator/graphs/commit-activity)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
 [![License OSL3.0](https://img.shields.io/badge/license-OSL3.0-green)](./LICENSE)
@@ -32,12 +31,12 @@ You can follow this [tutorial](https://docs.stackable.tech/home/stable/hdfs/gett
 <!-- markdownlint-disable MD041 -->
 ## Documentation
 
-The stable documentation for this operator can be found [here](https://docs.stackable.tech/home/stable/hdfs).
+The stable documentation for this operator can be found in our [Stackable Data Platform documentation](https://docs.stackable.tech/home/stable/hdfs).
 If you are interested in the most recent state of this repository, check out the [nightly docs](https://docs.stackable.tech/home/nightly/hdfs) instead.
 
 The documentation for all Stackable products can be found at [docs.stackable.tech](https://docs.stackable.tech).
 
-If you have a question about the Stackable Data Platform contact us via our [homepage](https://stackable.tech/) or ask a public questions in our [Discussions forum](https://github.com/orgs/stackabletech/discussions).
+If you have a question about the Stackable Data Platform, contact us via our [homepage](https://stackable.tech/) or ask a public question in our [Discussions forum](https://github.com/orgs/stackabletech/discussions).
 
 <!-- markdownlint-disable MD041 -->
 ## About The Stackable Data Platform
@@ -103,5 +102,9 @@ This is enforced automatically when you submit a Pull Request where a bot will g
 ## Support
 
 Get started with the community edition! If you want professional support, [we offer subscription plans and custom licensing](https://stackable.tech/en/plans/).
+
+## Sponsor
+
+If you want to support our work but don't need professional support please consider [sponsoring](https://github.com/sponsors/stackabletech) our work.
 
 <!-- markdownlint-disable MD041 MD022 MD032 -->
