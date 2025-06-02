@@ -35,6 +35,8 @@ def check_namenode_metrics(
         'hadoop_namenode_files_total{kind="FSNamesystem",role="NameNode",service="HDFS"}',
         # Metric suffixed with "_created"
         'hadoop_namenode_files_created_{kind="NameNodeActivity",role="NameNode",service="HDFS"}',
+        # Boolean metric
+        'hadoop_namenode_security_enabled{kind="NameNodeStatus",role="NameNode",service="HDFS"}',
         # Non-special metric
         'hadoop_namenode_files_deleted{kind="NameNodeActivity",role="NameNode",service="HDFS"}',
     ]
@@ -68,6 +70,8 @@ def check_datanode_metrics(
         'hadoop_datanode_blocks_read{host="hdfs-datanode-default-0\\.hdfs-datanode-default\\..+\\.svc\\.cluster\\.local",kind="DataNodeActivity",port="9866",role="DataNode",service="HDFS"}',
         # Counter suffixed with "_total"
         'hadoop_datanode_estimated_capacity_lost_total{kind="FSDatasetState",role="DataNode",service="HDFS"}',
+        # Boolean metric
+        'hadoop_datanode_security_enabled{kind="DataNodeInfo",role="DataNode",service="HDFS"}',
         # Non-special metric
         'hadoop_datanode_gc_count{kind="JvmMetrics",role="DataNode",service="HDFS"}',
     ]
@@ -93,6 +97,8 @@ def check_journalnode_metrics(
         'hadoop_journalnode_num_active_sources{kind="MetricsSystem",role="JournalNode",service="HDFS",sub="Stats"}',
         # Non-special metric
         'hadoop_journalnode_bytes_written{kind="Journal-hdfs",role="JournalNode",service="HDFS"}',
+
+        # There is no boolean metric in JournalNode.
     ]
 
     if product_version in ["3.3.4", "3.3.6"]:
