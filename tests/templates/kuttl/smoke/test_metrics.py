@@ -17,9 +17,9 @@ def check_metrics(
     assert response.ok, "Requesting metrics failed"
 
     for metric in expected_metrics:
-        assert (
-            re.search(f"^{metric}", response.text, re.MULTILINE) is not None
-        ), f"Metric '{metric}' not found for {role}"
+        assert re.search(f"^{metric}", response.text, re.MULTILINE) is not None, (
+            f"Metric '{metric}' not found for {role}"
+        )
 
 
 def check_namenode_metrics(
@@ -97,7 +97,6 @@ def check_journalnode_metrics(
         'hadoop_journalnode_num_active_sources{kind="MetricsSystem",role="JournalNode",service="HDFS",sub="Stats"}',
         # Non-special metric
         'hadoop_journalnode_bytes_written{kind="Journal-hdfs",role="JournalNode",service="HDFS"}',
-
         # There is no boolean metric in JournalNode.
     ]
 
