@@ -52,6 +52,11 @@ impl HdfsSiteConfigBuilder {
     fn add_wire_encryption_settings(&mut self) -> &mut Self {
         self.add("dfs.data.transfer.protection", "privacy");
         self.add("dfs.encrypt.data.transfer", "true");
+        self.add(
+            "dfs.encrypt.data.transfer.cipher.suite",
+            "AES/CTR/NoPadding",
+        );
+        self.add("dfs.encrypt.data.transfer.cipher.key.bitlength", "128");
         self
     }
 }
