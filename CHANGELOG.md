@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
-- The operator now sets defaults for `dfs.encrypt.data.transfer.cipher.suite` (`AES/CTR/NoPadding`) and `dfs.encrypt.data.transfer.cipher.key.bitlength` (`128`) to improve security and performance ([#693]).
+- The operator now defaults to `AES/CTR/NoPadding` for `dfs.encrypt.data.transfer.cipher.suite` to improve security and performance ([#693]).
 
 ### Changed
 

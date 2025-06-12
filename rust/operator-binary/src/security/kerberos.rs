@@ -56,7 +56,6 @@ impl HdfsSiteConfigBuilder {
             "dfs.encrypt.data.transfer.cipher.suite",
             "AES/CTR/NoPadding",
         );
-        self.add("dfs.encrypt.data.transfer.cipher.key.bitlength", "128");
         self
     }
 }
