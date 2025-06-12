@@ -33,7 +33,7 @@ The `kerberos.secretClass` is used to give HDFS the possibility to request keyta
 
 The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
 
-NOTE: The hdfs-operator defaults to `AES/CTR/NoPadding` for `dfs.encrypt.data.transfer.cipher.suite` with a default key length of 128 Bit. This can be changed using config overrides.
+NOTE: The hdfs-operator defaults to `AES/CTR/NoPadding` for `dfs.encrypt.data.transfer.cipher.suite`. This can be changed using config overrides.
 
 === 4. Verify that Kerberos authentication is required
 Use `stackablectl stacklet list` to get the endpoints where the HDFS namenodes are reachable.
