@@ -61,14 +61,12 @@ use crate::{
         AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
         UpgradeState,
         constants::{
-            DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
-            DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, LIVENESS_PROBE_FAILURE_THRESHOLD,
-            LIVENESS_PROBE_INITIAL_DELAY_SECONDS, LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES,
-            NAMENODE_ROOT_DATA_DIR, READINESS_PROBE_FAILURE_THRESHOLD,
-            READINESS_PROBE_INITIAL_DELAY_SECONDS, READINESS_PROBE_PERIOD_SECONDS,
-            SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
-            SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
+            DATANODE_ROOT_DATA_DIR_PREFIX, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
+            LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
+            READINESS_PROBE_FAILURE_THRESHOLD, READINESS_PROBE_INITIAL_DELAY_SECONDS,
+            READINESS_PROBE_PERIOD_SECONDS, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
+            SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
         v1alpha1,
@@ -164,8 +162,6 @@ pub enum ContainerConfig {
         web_ui_http_port_name: &'static str,
         /// Port name of the web UI HTTPS port, used for the liveness probe.
         web_ui_https_port_name: &'static str,
-        /// The JMX Exporter metrics port.
-        metrics_port: u16,
     },
     Zkfc {
         /// The provided custom container name.
@@ -1226,9 +1222,7 @@ wait_for_termination $!
         resources: Option<&ResourceRequirements>,
     ) -> Result<String, Error> {
         match self {
-            ContainerConfig::Hdfs {
-                role, metrics_port, ..
-            } => {
+            ContainerConfig::Hdfs { role, .. } => {
                 let cvd = ContainerVolumeDirs::from(role);
                 let config_dir = cvd.final_config();
                 construct_role_specific_jvm_args(
@@ -1238,7 +1232,6 @@ wait_for_termination $!
                     hdfs.has_kerberos_enabled(),
                     resources,
                     config_dir,
-                    *metrics_port,
                 )
                 .with_context(|_| ConstructJvmArgumentsSnafu {
                     role: role.to_string(),
@@ -1379,7 +1372,6 @@ impl From<HdfsNodeRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
             },
             HdfsNodeRole::Data => Self::Hdfs {
                 role,
@@ -1388,7 +1380,6 @@ impl From<HdfsNodeRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_IPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
             },
             HdfsNodeRole::Journal => Self::Hdfs {
                 role,
@@ -1397,7 +1388,6 @@ impl From<HdfsNodeRole> for ContainerConfig {
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
                 web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_JOURNAL_NODE_METRICS_PORT,
             },
         }
     }
