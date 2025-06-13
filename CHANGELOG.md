@@ -21,14 +21,13 @@ All notable changes to this project will be documented in this file.
     by `FILE_LOG_DIRECTORY` (or via `--file-log-directory <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
-  of having the operator write it to the vector config ([#671]).
+    of having the operator write it to the vector config ([#671]).
 - test: Bump to Vector `0.46.1` ([#677]).
 - BREAKING: Previously this operator would hardcode the UID and GID of the Pods being created to 1000/0, this has changed now ([#683])
   - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
 - Use versioned common structs ([#684]).
-- BREAKING: the JMX exporter has been an replaced with the built-in Prometheus servlet ([#694]).
 
 ### Fixed
 
@@ -49,7 +48,6 @@ All notable changes to this project will be documented in this file.
 [#683]: https://github.com/stackabletech/hdfs-operator/pull/683
 [#684]: https://github.com/stackabletech/hdfs-operator/pull/684
 [#693]: https://github.com/stackabletech/hdfs-operator/pull/693
-[#694]: https://github.com/stackabletech/hdfs-operator/pull/694
 
 ## [25.3.0] - 2025-03-21
 

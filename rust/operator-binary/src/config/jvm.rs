@@ -56,6 +56,7 @@ pub fn construct_role_specific_jvm_args(
     kerberos_enabled: bool,
     resources: Option<&ResourceRequirements>,
     config_dir: &str,
+    metrics_port: u16,
 ) -> Result<String, Error> {
     let mut jvm_args = Vec::new();
 
@@ -76,9 +77,10 @@ pub fn construct_role_specific_jvm_args(
         jvm_args.push(format!("-Xmx{heap}"));
     }
 
-    jvm_args.extend([format!(
-        "-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE}"
-    )]);
+    jvm_args.extend([
+        format!("-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE}"),
+        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{hdfs_role}.yaml")
+    ]);
     if kerberos_enabled {
         jvm_args.push(format!(
             "-Djava.security.krb5.conf={KERBEROS_CONTAINER_PATH}/krb5.conf"
@@ -99,7 +101,7 @@ pub fn construct_role_specific_jvm_args(
 mod tests {
 
     use super::*;
-    use crate::container::ContainerConfig;
+    use crate::{container::ContainerConfig, crd::constants::DEFAULT_NAME_NODE_METRICS_PORT};
 
     #[test]
     fn test_global_jvm_args() {
@@ -133,7 +135,8 @@ mod tests {
             jvm_config,
             "-Xms819m \
             -Xmx819m \
-            -Djava.security.properties=/stackable/config/security.properties"
+            -Djava.security.properties=/stackable/config/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml"
         );
     }
 
@@ -178,6 +181,7 @@ mod tests {
             format!(
                 "-Xms34406m \
                 -Djava.security.properties=/stackable/config/security.properties \
+                -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml \
                 -Djava.security.krb5.conf={KERBEROS_CONTAINER_PATH}/krb5.conf \
                 -Dhttps.proxyHost=proxy.my.corp \
                 -Djava.net.preferIPv4Stack=true \
@@ -203,6 +207,7 @@ mod tests {
             kerberos_enabled,
             resources.as_ref(),
             "/stackable/config",
+            DEFAULT_NAME_NODE_METRICS_PORT,
         )
         .unwrap()
     }
