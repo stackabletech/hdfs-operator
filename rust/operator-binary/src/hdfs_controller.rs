@@ -682,7 +682,8 @@ fn rolegroup_config_map(
                     .fs_default_fs()
                     .ha_zookeeper_quorum()
                     .security_config(hdfs, cluster_info)
-                    .context(BuildSecurityConfigSnafu)?;
+                    .context(BuildSecurityConfigSnafu)?
+                    .enable_prometheus_endpoint();
                 if let Some(hdfs_opa_config) = hdfs_opa_config {
                     hdfs_opa_config.add_core_site_config(&mut core_site);
                 }
