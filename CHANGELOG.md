@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - The operator now defaults to `AES/CTR/NoPadding` for `dfs.encrypt.data.transfer.cipher.suite` to improve security and performance ([#693]).
+- The built-in Prometheus servlet is now enabled and metrics are exposed under the `/prom` path of all UI services ([#695]).
 
 ### Changed
 
@@ -21,7 +22,7 @@ All notable changes to this project will be documented in this file.
     by `FILE_LOG_DIRECTORY` (or via `--file-log-directory <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
-    of having the operator write it to the vector config ([#671]).
+  of having the operator write it to the vector config ([#671]).
 - test: Bump to Vector `0.46.1` ([#677]).
 - BREAKING: Previously this operator would hardcode the UID and GID of the Pods being created to 1000/0, this has changed now ([#683])
   - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
@@ -48,6 +49,7 @@ All notable changes to this project will be documented in this file.
 [#683]: https://github.com/stackabletech/hdfs-operator/pull/683
 [#684]: https://github.com/stackabletech/hdfs-operator/pull/684
 [#693]: https://github.com/stackabletech/hdfs-operator/pull/693
+[#695]: https://github.com/stackabletech/hdfs-operator/pull/695
 
 ## [25.3.0] - 2025-03-21
 
