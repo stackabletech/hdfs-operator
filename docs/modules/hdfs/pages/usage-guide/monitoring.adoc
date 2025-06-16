@@ -6,6 +6,12 @@ The cluster can be monitored with Prometheus from inside or outside the K8S clus
 All services (with the exception of the Zookeeper daemon on the node names) run with the JMX exporter agent enabled and expose metrics on the `metrics` port.
 This port is available from the container level up to the NodePort services.
 
+[IMPORTANT]
+====
+Starting with Stackable Data Platform 25.7, the built-in Prometheus metrics are also available at the `/prom` endpoint of all the UI services.
+The JMX exporter metrics are now deprecated and will be removed in a future release.
+====
+
 The metrics endpoints are also used as liveliness probes by Kubernetes.
 
 See xref:operators:monitoring.adoc[] for more details.

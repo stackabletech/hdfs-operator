@@ -12,7 +12,8 @@ use crate::crd::{
         DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_HTTPS_ADDRESS, DFS_NAMENODE_NAME_DIR,
         DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_REPLICATION, FS_DEFAULT_FS,
         HA_ZOOKEEPER_QUORUM, JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
-        SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_RPC,
+        PROMETHEUS_ENDPOINT_ENABLED, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
+        SERVICE_PORT_NAME_RPC,
     },
     storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType},
     v1alpha1,
@@ -263,6 +264,12 @@ impl CoreSiteConfigBuilder {
     pub fn build_as_xml(&self) -> String {
         let transformed_config = transform_for_product_config(&self.config);
         to_hadoop_xml(transformed_config.iter())
+    }
+
+    pub fn enable_prometheus_endpoint(&mut self) -> &mut Self {
+        self.config
+            .insert(PROMETHEUS_ENDPOINT_ENABLED.to_string(), "true".to_string());
+        self
     }
 }
 

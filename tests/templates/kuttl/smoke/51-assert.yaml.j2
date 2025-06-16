@@ -8,5 +8,9 @@ commands:
 {% else %}
       PRODUCT_VERSION={{ test_scenario['values']['hadoop'] }}
 {% endif %}
+      # Test JMX exported metrics
       kubectl exec --namespace=$NAMESPACE test-runner-0 -- \
       python /tmp/test_metrics.py $NAMESPACE $PRODUCT_VERSION
+      # Test Prometheus metrics
+      kubectl exec --namespace=$NAMESPACE test-runner-0 -- \
+      python /tmp/test_prometheus_metrics.py $NAMESPACE $PRODUCT_VERSION
