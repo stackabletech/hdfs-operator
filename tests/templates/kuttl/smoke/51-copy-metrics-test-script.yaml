@@ -3,3 +3,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: kubectl cp -n $NAMESPACE ./test_metrics.py test-runner-0:/tmp
+  - script: kubectl cp -n $NAMESPACE ./test_prometheus_metrics.py test-runner-0:/tmp
