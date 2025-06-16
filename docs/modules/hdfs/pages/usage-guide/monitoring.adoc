@@ -8,7 +8,7 @@ This port is available from the container level up to the NodePort services.
 
 [IMPORTANT]
 ====
-Starting with Stackable Data Platform 25.7, the bult-in Prometheus metrics are also available at the `/prom` endpoint of all the UI services.
+Starting with Stackable Data Platform 25.7, the built-in Prometheus metrics are also available at the `/prom` endpoint of all the UI services.
 The JMX exporter metrics are now deprecated and will be removed in a future release.
 ====
 
