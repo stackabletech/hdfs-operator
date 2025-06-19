@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - The operator now defaults to `AES/CTR/NoPadding` for `dfs.encrypt.data.transfer.cipher.suite` to improve security and performance ([#693]).
 - The built-in Prometheus servlet is now enabled and metrics are exposed under the `/prom` path of all UI services ([#695]).
-- Added several properties to `hdfs-site.xml` that improve general performance and reliability ([#696])
+- Added several properties to `hdfs-site.xml` and `core-site.xml` that improve general performance and reliability ([#696])
 
 ### Changed
 
