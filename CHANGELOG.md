@@ -29,6 +29,7 @@ All notable changes to this project will be documented in this file.
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
 - Use versioned common structs ([#684]).
+- BREAKING: remove legacy service account binding for cluster role nodes ([#697]).
 
 ### Fixed
 
@@ -50,6 +51,7 @@ All notable changes to this project will be documented in this file.
 [#684]: https://github.com/stackabletech/hdfs-operator/pull/684
 [#693]: https://github.com/stackabletech/hdfs-operator/pull/693
 [#695]: https://github.com/stackabletech/hdfs-operator/pull/695
+[#697]: https://github.com/stackabletech/hdfs-operator/pull/697
 
 ## [25.3.0] - 2025-03-21
 
