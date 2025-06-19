@@ -664,7 +664,15 @@ fn rolegroup_config_map(
                     )
                     .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
                     .add("dfs.datanode.registered.port", "${env.DATA_PORT}")
-                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}");
+                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}")
+                    .add("dfs.datanode.sync.behind.writes", "true")
+                    .add("dfs.datanode.synconclose", "true")
+                    .add("io.file.buffer.size", "131072")
+                    .add("dfs.namenode.handler.count", "50")
+                    .add("dfs.datanode.handler.count", "50")
+                    .add("dfs.namenode.replication.max-streams", "4")
+                    .add("dfs.namenode.replication.max-streams-hard-limit", "8")
+                    .add("dfs.datanode.max.transfer.threads", "8192");
                 if hdfs.has_https_enabled() {
                     hdfs_site.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
                 } else {
