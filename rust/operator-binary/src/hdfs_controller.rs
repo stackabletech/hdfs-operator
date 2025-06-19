@@ -674,9 +674,6 @@ fn rolegroup_config_map(
                     // Enabling this behavior causes HDFS to sync to disk as soon as possible.
                     .add("dfs.datanode.sync.behind.writes", "true")
                     .add("dfs.datanode.synconclose", "true")
-                    // The default (4096) hasn't changed since 2009.
-                    // Increase to 128k to allow for faster transfers.
-                    .add("io.file.buffer.size", "131072")
                     // Defaults to 10 since at least 2011.
                     // This controls the concurrent number of client connections (this includes DataNodes)
                     // to the NameNode. Ideally, we'd scale this with the number of DataNodes but this would
@@ -720,7 +717,10 @@ fn rolegroup_config_map(
                     .ha_zookeeper_quorum()
                     .security_config(hdfs, cluster_info)
                     .context(BuildSecurityConfigSnafu)?
-                    .enable_prometheus_endpoint();
+                    .enable_prometheus_endpoint()
+                    // The default (4096) hasn't changed since 2009.
+                    // Increase to 128k to allow for faster transfers.
+                    .add("io.file.buffer.size", "131072");
                 if let Some(hdfs_opa_config) = hdfs_opa_config {
                     hdfs_opa_config.add_core_site_config(&mut core_site);
                 }
