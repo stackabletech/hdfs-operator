@@ -72,19 +72,11 @@ pub async fn reconcile(
                 }
             }
         })
-        .flat_map(|(meta, sa_name)| {
-            let mut result = vec![Subject {
-                kind: "ServiceAccount".to_string(),
-                name: sa_name,
-                namespace: meta.namespace.clone(),
-                ..Subject::default()
-            }];
-            // If a cluster is called hdfs this would result in the same subject
-            // being written twicex.
-            // Since we know this vec only contains two elements we can use dedup for
-            // simply removing this duplicate.
-            result.dedup();
-            result
+        .map(|(meta, sa_name)| Subject {
+            kind: "ServiceAccount".to_string(),
+            name: sa_name,
+            namespace: meta.namespace.clone(),
+            ..Subject::default()
         })
         .collect();
 
