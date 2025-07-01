@@ -72,33 +72,11 @@ pub async fn reconcile(
                 }
             }
         })
-        .flat_map(|(meta, sa_name)| {
-            let mut result = vec![
-                Subject {
-                    kind: "ServiceAccount".to_string(),
-                    name: sa_name,
-                    namespace: meta.namespace.clone(),
-                    ..Subject::default()
-                },
-                // This extra Serviceaccount is being written for legacy/compatibility purposes
-                // to ensure that running clusters don't lose access to anything during an upgrade
-                // of the Stackable operators, this code can be removed in later releases
-                // The value is hardcoded here, as we have removed access to the private fns that
-                // would have built it, since this is a known target though, and will be removed soon
-                // this should not be an issue.
-                Subject {
-                    kind: "ServiceAccount".to_string(),
-                    name: "hdfs-serviceaccount".to_string(),
-                    namespace: meta.namespace.clone(),
-                    ..Subject::default()
-                },
-            ];
-            // If a cluster is called hdfs this would result in the same subject
-            // being written twicex.
-            // Since we know this vec only contains two elements we can use dedup for
-            // simply removing this duplicate.
-            result.dedup();
-            result
+        .map(|(meta, sa_name)| Subject {
+            kind: "ServiceAccount".to_string(),
+            name: sa_name,
+            namespace: meta.namespace.clone(),
+            ..Subject::default()
         })
         .collect();
 
