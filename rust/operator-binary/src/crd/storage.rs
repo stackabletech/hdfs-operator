@@ -94,19 +94,24 @@ impl DataNodeStorageConfig {
             .join(",")
     }
 
-    /// Returns a list with the names of the pvcs to be used for nodes.
+    /// Returns a list with the names of the PVCs to be used for nodes.
     /// The pvc names will be prefixed with the name given in the `pvc_name_prefix` argument.
     ///
     /// There are two options when it comes to naming:
-    /// 1. Name the pvcs `data-0, data-1, data-2, ... , data-{n-1}`
-    ///     ** Good, because consistent naming
-    ///     ** Bad, because existing deployments (using release 22.11 or earlier) will need to migrate their data by renaming their pvcs
+    /// 1. Name the PVCs `data-0, data-1, data-2, ... , data-{n-1}`
+    ///    - Good, because consistent naming.
+    ///    - Bad, because existing deployments (using release 22.11 or earlier) will need to migrate
+    ///      their data by renaming their PVCs.
     ///
-    /// 2. Name the pvcs `data, data-1, data-2, ... , data-{n-1}`
-    ///     ** Good, if nodes only have a single pvc (which probably most of the deployments will have) they name of the pvc will be consistent with the name of all the other pvcs out there
-    ///     ** It is important that the first pvc will be called `data` (without suffix), regardless of the number of pvcs to be used. This is needed as nodes should be able to alter the number of pvcs attached and the use-case number of pvcs 1 -> 2 should be supported without renaming pvcs.
+    /// 2. Name the PVCs `data, data-1, data-2, ... , data-{n-1}`
+    ///    - Good, if nodes only have a single pvc (which probably most of the deployments will have)
+    ///      they name of the pvc will be consistent with the name of all the other PVCs out there.
+    ///    - It is important that the first pvc will be called `data` (without suffix), regardless
+    ///      of the number of PVCs to be used. This is needed as nodes should be able to alter the
+    ///      number of PVCs attached and the use-case number of PVCs 1 -> 2 should be supported
+    ///      without renaming PVCs.
     ///
-    /// This function uses the 2. option.
+    /// This function uses the second option.
     pub fn pvc_names(pvc_name_prefix: &str, number_of_pvcs: u16) -> Vec<String> {
         (0..number_of_pvcs)
             .map(|pvc_index| {

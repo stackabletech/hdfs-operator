@@ -1,3 +1,7 @@
+// TODO: Look into how to properly resolve `clippy::large_enum_variant`.
+// This will need changes in our and upstream error types.
+#![allow(clippy::result_large_err, clippy::large_enum_variant)]
+
 use std::sync::Arc;
 
 use clap::Parser;
