@@ -119,25 +119,29 @@ pub enum Error {
     MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
-#[versioned(version(name = "v1alpha1"))]
+#[versioned(
+    version(name = "v1alpha1"),
+    crates(
+        kube_core = "stackable_operator::kube::core",
+        kube_client = "stackable_operator::kube::client",
+        k8s_openapi = "stackable_operator::k8s_openapi",
+        schemars = "stackable_operator::schemars",
+        versioned = "stackable_operator::versioned"
+    )
+)]
 pub mod versioned {
     /// An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/hdfs/).
     ///
     /// The CRD contains three roles: `nameNodes`, `dataNodes` and `journalNodes`.
-    #[versioned(k8s(
+    #[versioned(crd(
         group = "hdfs.stackable.tech",
         kind = "HdfsCluster",
         plural = "hdfsclusters",
         shortname = "hdfs",
         status = "HdfsClusterStatus",
-        namespaced,
-        crates(
-            kube_core = "stackable_operator::kube::core",
-            k8s_openapi = "stackable_operator::k8s_openapi",
-            schemars = "stackable_operator::schemars"
-        )
+        namespaced
     ))]
     #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
