@@ -418,7 +418,6 @@ impl ContainerConfig {
                     &ListenerReference::ListenerClass(node.listener_class.to_string()),
                     labels,
                 )
-                .context(BuildListenerVolumeSnafu)?
                 .build_ephemeral()
                 .context(BuildListenerVolumeSnafu)?
                 .volume_claim_template
@@ -1040,7 +1039,6 @@ wait_for_termination $!
                                 &ListenerReference::ListenerClass(node.listener_class.to_string()),
                                 labels,
                             )
-                            .context(ListenerVolumeLabelsSnafu)?
                             .build_ephemeral()
                             .context(BuildListenerVolumeSnafu)?,
                         )

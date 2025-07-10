@@ -12,7 +12,8 @@ All notable changes to this project will be documented in this file.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - The operator now defaults to `AES/CTR/NoPadding` for `dfs.encrypt.data.transfer.cipher.suite` to improve security and performance ([#693]).
 - The built-in Prometheus servlet is now enabled and metrics are exposed under the `/prom` path of all UI services ([#695]).
-- Added several properties to `hdfs-site.xml` and `core-site.xml` that improve general performance and reliability ([#696])
+- Add several properties to `hdfs-site.xml` and `core-site.xml` that improve general performance and reliability ([#696]).
+- Add RBAC rule to helm template for automatic cluster domain detection ([#699]).
 
 ### Changed
 
@@ -31,15 +32,22 @@ All notable changes to this project will be documented in this file.
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
 - Use versioned common structs ([#684]).
 - BREAKING: remove legacy service account binding for cluster role nodes ([#697]).
+- BREAKING: Bump stackable-operator to 0.94.0 and update other dependencies ([#699]).
+  - The default Kubernetes cluster domain name is now fetched from the kubelet API unless explicitly configured.
+  - This requires operators to have the RBAC permission to get nodes/proxy in the apiGroup "". The helm-chart takes care of this.
+  - The CLI argument `--kubernetes-node-name` or env variable `KUBERNETES_NODE_NAME` needs to be set. The helm-chart takes care of this.
 
 ### Fixed
 
 - Use `json` file extension for log files ([#667]).
 - Fix a bug where changes to ConfigMaps that are referenced in the HdfsCluster spec didn't trigger a reconciliation ([#671]).
+- Allow uppercase characters in domain names ([#699]).
 
 ### Removed
 
 - Remove support for HDFS `3.3.4`, `3.3.6`, and `3.4.0` ([#675]).
+- Remove the `lastUpdateTime` field from the stacklet status ([#699]).
+- Remove role binding to legacy service accounts ([#699]).
 
 [#661]: https://github.com/stackabletech/hdfs-operator/pull/661
 [#671]: https://github.com/stackabletech/hdfs-operator/pull/671
@@ -54,6 +62,7 @@ All notable changes to this project will be documented in this file.
 [#695]: https://github.com/stackabletech/hdfs-operator/pull/695
 [#696]: https://github.com/stackabletech/hdfs-operator/pull/696
 [#697]: https://github.com/stackabletech/hdfs-operator/pull/697
+[#699]: https://github.com/stackabletech/hdfs-operator/pull/699
 
 ## [25.3.0] - 2025-03-21
 

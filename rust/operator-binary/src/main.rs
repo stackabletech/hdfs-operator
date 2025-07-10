@@ -1,3 +1,7 @@
+// TODO: Look into how to properly resolve `clippy::large_enum_variant`.
+// This will need changes in our and upstream error types.
+#![allow(clippy::result_large_err, clippy::large_enum_variant)]
+
 use std::sync::Arc;
 
 use clap::Parser;
@@ -31,7 +35,7 @@ use stackable_operator::{
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-use crate::crd::{HdfsCluster, constants::APP_NAME, v1alpha1};
+use crate::crd::{HdfsCluster, HdfsClusterVersion, constants::APP_NAME, v1alpha1};
 
 mod config;
 mod container;
@@ -61,7 +65,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => HdfsCluster::merged_crd(HdfsCluster::V1Alpha1)?
+        Command::Crd => HdfsCluster::merged_crd(HdfsClusterVersion::V1Alpha1)?
             .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(ProductOperatorRun {
             product_config,
