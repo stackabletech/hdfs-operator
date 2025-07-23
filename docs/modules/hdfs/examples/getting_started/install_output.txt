@@ -1,5 +1,5 @@
-Installed commons=25.7.0-rc1 operator
-Installed secret=25.7.0-rc1 operator
-Installed listener=25.7.0-rc1 operator
-Installed zookeeper=25.7.0-rc1 operator
-Installed hdfs=25.7.0-rc1 operator
+Installed commons=25.7.0 operator
+Installed secret=25.7.0 operator
+Installed listener=25.7.0 operator
+Installed zookeeper=25.7.0 operator
+Installed hdfs=25.7.0 operator
