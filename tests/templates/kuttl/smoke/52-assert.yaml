@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+  - script: kubectl exec -n $NAMESPACE hdfs-namenode-default-0 -- hadoop checknative | grep "hadoop:.*true"
+  - script: kubectl exec -n $NAMESPACE hdfs-namenode-default-0 -- hadoop checknative | grep "zlib:.*true"
+  - script: kubectl exec -n $NAMESPACE hdfs-namenode-default-0 -- hadoop checknative | grep "openssl:.*true"
