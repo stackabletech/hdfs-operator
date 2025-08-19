@@ -12,11 +12,12 @@ body:
       label: Affected Stackable version
       description: Which version of the Stackable Operator do you see this bug in?
 
-#   - type: input
+#
+  - type: input
     attributes:
       label: Affected Apache HDFS version
       description: Which version of Apache HDFS do you see this bug in?
-# 
+#
   - type: textarea
     attributes:
       label: Current and expected behavior
