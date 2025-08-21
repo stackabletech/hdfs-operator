@@ -1,4 +1,4 @@
-use stackable_operator::time::Duration;
+use stackable_operator::shared::time::Duration;
 
 pub const DEFAULT_DFS_REPLICATION_FACTOR: u8 = 3;
 

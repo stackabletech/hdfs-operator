@@ -18,7 +18,10 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::{
+        product_image_selection::{self, ResolvedProductImage},
+        rbac::build_rbac_resources,
+    },
     iter::reverse_if,
     k8s_openapi::{
         DeepMerge,
@@ -38,6 +41,7 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
+    shared::time::Duration,
     status::{
         condition::{
             compute_conditions, operations::ClusterOperationsConditionBuilder,
@@ -45,7 +49,6 @@ use stackable_operator::{
         },
         rollout::check_statefulset_rollout_complete,
     },
-    time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
@@ -242,6 +245,11 @@ pub enum Error {
     InvalidHdfsCluster {
         source: error_boundary::InvalidObject,
     },
+
+    #[snafu(display("failed to resolve product image"))]
+    ResolveProductImage {
+        source: product_image_selection::Error,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -274,7 +282,8 @@ pub async fn reconcile_hdfs(
     let resolved_product_image = hdfs
         .spec
         .image
-        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
+        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .context(ResolveProductImageSnafu)?;
 
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,
@@ -396,7 +405,7 @@ pub async fn reconcile_hdfs(
                 .with_recommended_labels(build_recommended_labels(
                     hdfs,
                     RESOURCE_MANAGER_HDFS_CONTROLLER,
-                    &resolved_product_image.app_version_label,
+                    &resolved_product_image.app_version_label_value,
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
                 ))
@@ -1007,7 +1016,11 @@ properties: []
         let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
 
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
-        let resolved_product_image = hdfs.spec.image.resolve(DOCKER_IMAGE_BASE_NAME, "0.0.0-dev");
+        let resolved_product_image = hdfs
+            .spec
+            .image
+            .resolve(DOCKER_IMAGE_BASE_NAME, "0.0.0-dev")
+            .expect("test resolved product image is always valid");
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());

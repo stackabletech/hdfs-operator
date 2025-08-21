@@ -41,8 +41,8 @@ use stackable_operator::{
         RoleGroupRef,
     },
     schemars::{self, JsonSchema},
+    shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
     versioned::versioned,
 };
