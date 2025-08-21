@@ -61,7 +61,7 @@ pub fn build_discovery_configmap(
         .with_recommended_labels(build_recommended_labels(
             hdfs,
             controller,
-            &resolved_product_image.app_version_label,
+            &resolved_product_image.app_version_label_value,
             &HdfsNodeRole::Name.to_string(),
             "discovery",
         ))
