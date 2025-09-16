@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Helm: Allow Pod `priorityClassName` to be configured ([#713]).
+
+[#713]: https://github.com/stackabletech/hdfs-operator/pull/713
+
 ## [25.7.0] - 2025-07-23
 
 ## [25.7.0-rc1] - 2025-07-18
