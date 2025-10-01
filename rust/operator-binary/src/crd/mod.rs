@@ -1523,7 +1523,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1558,7 +1558,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1593,7 +1593,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1623,7 +1623,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
@@ -1688,7 +1688,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1744,7 +1744,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1800,7 +1800,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1827,7 +1827,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:

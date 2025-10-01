@@ -55,7 +55,7 @@ metadata:
   name: simple-hdfs
 spec:
   image:
-    productVersion: 3.4.1
+    productVersion: 3.4.2
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   journalNodes:
