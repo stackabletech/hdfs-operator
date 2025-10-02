@@ -2,4 +2,5 @@
 // This is a separate file, since it is used by both the direct HDFS-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
-- 3.4.1 (LTS)
+- 3.4.2 (LTS)
+- 3.4.1 (Deprecated)
