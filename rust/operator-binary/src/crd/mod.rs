@@ -54,15 +54,18 @@ use crate::crd::{
         APP_NAME, CORE_SITE_XML, DEFAULT_DATA_NODE_DATA_PORT,
         DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_DATA_NODE_HTTP_PORT,
         DEFAULT_DATA_NODE_HTTPS_PORT, DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
+        DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT,
         DEFAULT_DFS_REPLICATION_FACTOR, DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
         DEFAULT_JOURNAL_NODE_HTTP_PORT, DEFAULT_JOURNAL_NODE_HTTPS_PORT,
-        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_LISTENER_CLASS,
-        DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_NAME_NODE_HTTP_PORT,
-        DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, DEFAULT_NAME_NODE_RPC_PORT,
-        DFS_REPLICATION, HADOOP_POLICY_XML, HDFS_SITE_XML, JVM_SECURITY_PROPERTIES_FILE,
-        LISTENER_VOLUME_NAME, SERVICE_PORT_NAME_DATA, SERVICE_PORT_NAME_HTTP,
-        SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_METRICS,
-        SERVICE_PORT_NAME_RPC, SSL_CLIENT_XML, SSL_SERVER_XML,
+        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
+        DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_RPC_PORT,
+        DEFAULT_LISTENER_CLASS, DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
+        DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
+        DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT, DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT,
+        DEFAULT_NAME_NODE_RPC_PORT, DFS_REPLICATION, HADOOP_POLICY_XML, HDFS_SITE_XML,
+        JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_NAME, SERVICE_PORT_NAME_DATA,
+        SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
+        SERVICE_PORT_NAME_METRICS, SERVICE_PORT_NAME_RPC, SSL_CLIENT_XML, SSL_SERVER_XML,
     },
     security::{AuthenticationConfig, KerberosConfig},
     storage::{
@@ -672,10 +675,6 @@ impl v1alpha1::HdfsCluster {
         match role {
             HdfsNodeRole::Name => vec![
                 (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_NAME_NODE_METRICS_PORT,
-                ),
-                (
                     String::from(SERVICE_PORT_NAME_RPC),
                     DEFAULT_NAME_NODE_RPC_PORT,
                 ),
@@ -692,10 +691,6 @@ impl v1alpha1::HdfsCluster {
                 },
             ],
             HdfsNodeRole::Data => vec![
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_DATA_NODE_METRICS_PORT,
-                ),
                 (
                     String::from(SERVICE_PORT_NAME_DATA),
                     DEFAULT_DATA_NODE_DATA_PORT,
@@ -718,10 +713,6 @@ impl v1alpha1::HdfsCluster {
             ],
             HdfsNodeRole::Journal => vec![
                 (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_JOURNAL_NODE_METRICS_PORT,
-                ),
-                (
                     String::from(SERVICE_PORT_NAME_RPC),
                     DEFAULT_JOURNAL_NODE_RPC_PORT,
                 ),
@@ -737,6 +728,97 @@ impl v1alpha1::HdfsCluster {
                     )
                 },
             ],
+        }
+    }
+
+    /// Returns required metrics port name and metrics port number tuples depending on the role.
+    pub fn metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+        match role {
+            HdfsNodeRole::Name => vec![(
+                String::from(SERVICE_PORT_NAME_METRICS),
+                DEFAULT_NAME_NODE_METRICS_PORT,
+            )],
+            HdfsNodeRole::Data => vec![(
+                String::from(SERVICE_PORT_NAME_METRICS),
+                DEFAULT_DATA_NODE_METRICS_PORT,
+            )],
+            HdfsNodeRole::Journal => vec![(
+                String::from(SERVICE_PORT_NAME_METRICS),
+                DEFAULT_JOURNAL_NODE_METRICS_PORT,
+            )],
+        }
+    }
+
+    /// Returns required metrics port name and native metrics port number tuples depending on the role.
+    pub fn native_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+        match role {
+            HdfsNodeRole::Name => vec![if self.has_https_enabled() {
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT,
+                )
+            } else {
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT,
+                )
+            }],
+            HdfsNodeRole::Data => vec![if self.has_https_enabled() {
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT,
+                )
+            } else {
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
+                )
+            }],
+            HdfsNodeRole::Journal => vec![if self.has_https_enabled() {
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT,
+                )
+            } else {
+                (
+                    String::from(SERVICE_PORT_NAME_METRICS),
+                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
+                )
+            }],
+        }
+    }
+
+    pub fn metrics_port(&self, role: &HdfsNodeRole) -> u16 {
+        match role {
+            HdfsNodeRole::Name => DEFAULT_NAME_NODE_METRICS_PORT,
+            HdfsNodeRole::Data => DEFAULT_DATA_NODE_METRICS_PORT,
+            HdfsNodeRole::Journal => DEFAULT_JOURNAL_NODE_METRICS_PORT,
+        }
+    }
+
+    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> u16 {
+        match role {
+            HdfsNodeRole::Name => {
+                if self.has_https_enabled() {
+                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT
+                } else {
+                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT
+                }
+            }
+            HdfsNodeRole::Data => {
+                if self.has_https_enabled() {
+                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT
+                } else {
+                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT
+                }
+            }
+            HdfsNodeRole::Journal => {
+                if self.has_https_enabled() {
+                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT
+                } else {
+                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT
+                }
+            }
         }
     }
 }

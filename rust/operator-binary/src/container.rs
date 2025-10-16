@@ -68,7 +68,7 @@ use crate::{
             NAMENODE_ROOT_DATA_DIR, READINESS_PROBE_FAILURE_THRESHOLD,
             READINESS_PROBE_INITIAL_DELAY_SECONDS, READINESS_PROBE_PERIOD_SECONDS,
             SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
-            SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
+            SERVICE_PORT_NAME_METRICS, SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
         v1alpha1,
@@ -488,7 +488,9 @@ impl ContainerConfig {
             )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?
-            .add_container_ports(self.container_ports(hdfs));
+            .add_container_ports(self.container_ports(hdfs))
+            // TODO: This currently adds the metrics port also to the zkfc containers, not needed there?
+            .add_container_port(SERVICE_PORT_NAME_METRICS, hdfs.metrics_port(role).into());
 
         if let Some(resources) = resources {
             cb.resources(resources);

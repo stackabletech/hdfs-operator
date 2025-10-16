@@ -37,7 +37,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, events::Recorder, reflector::ObjectRef},
     },
-    kvp::{Label, LabelError, Labels},
+    kvp::{Annotations, Label, LabelError, Labels},
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
@@ -413,6 +413,15 @@ pub async fn reconcile_hdfs(
 
             let rg_service = rolegroup_service(hdfs, metadata, &role, &rolegroup_ref)?;
 
+            let rg_metrics_service =
+                rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
+            let rg_native_metrics_service = rolegroup_native_metrics_service(
+                hdfs,
+                &role,
+                &rolegroup_ref,
+                &resolved_product_image,
+            )?;
+
             let rg_configmap = rolegroup_config_map(
                 hdfs,
                 &client.kubernetes_cluster_info,
@@ -439,11 +448,26 @@ pub async fn reconcile_hdfs(
             )?;
 
             let rg_service_name = rg_service.name_any();
+            let rg_metrics_service_name = rg_metrics_service.name_any();
+            let rg_native_metrics_service_name = rg_native_metrics_service.name_any();
+
             cluster_resources
                 .add(client, rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
                     name: rg_service_name,
+                })?;
+            cluster_resources
+                .add(client, rg_metrics_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    name: rg_metrics_service_name,
+                })?;
+            cluster_resources
+                .add(client, rg_native_metrics_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    name: rg_native_metrics_service_name,
                 })?;
             let rg_configmap_name = rg_configmap.name_any();
             cluster_resources
@@ -568,11 +592,6 @@ fn rolegroup_service(
 ) -> HdfsOperatorResult<Service> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
 
-    let prometheus_label =
-        Label::try_from(("prometheus.io/scrape", "true")).context(BuildPrometheusLabelSnafu)?;
-    let mut metadata_with_prometheus_label = metadata.clone();
-    metadata_with_prometheus_label.with_label(prometheus_label);
-
     let service_spec = ServiceSpec {
         // Internal communication does not need to be exposed
         type_: Some("ClusterIP".to_string()),
@@ -598,7 +617,157 @@ fn rolegroup_service(
     };
 
     Ok(Service {
-        metadata: metadata_with_prometheus_label.build(),
+        metadata: metadata.build(),
+        spec: Some(service_spec),
+        status: None,
+    })
+}
+
+fn rolegroup_metrics_service(
+    hdfs: &v1alpha1::HdfsCluster,
+    role: &HdfsNodeRole,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    resolved_product_image: &ResolvedProductImage,
+) -> HdfsOperatorResult<Service> {
+    tracing::info!("Setting up metrics Service for {:?}", rolegroup_ref);
+
+    let service_spec = ServiceSpec {
+        // Internal communication does not need to be exposed
+        type_: Some("ClusterIP".to_string()),
+        cluster_ip: Some("None".to_string()),
+        ports: Some(
+            hdfs.metrics_ports(role)
+                .into_iter()
+                .map(|(name, value)| ServicePort {
+                    name: Some(name),
+                    port: i32::from(value),
+                    protocol: Some("TCP".to_string()),
+                    ..ServicePort::default()
+                })
+                .collect(),
+        ),
+        selector: Some(
+            hdfs.rolegroup_selector_labels(rolegroup_ref)
+                .context(RoleGroupSelectorLabelsSnafu)?
+                .into(),
+        ),
+        publish_not_ready_addresses: Some(true),
+        ..ServiceSpec::default()
+    };
+
+    Ok(Service {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(hdfs)
+            .name(rolegroup_ref.rolegroup_metrics_service_name())
+            .ownerreference_from_resource(hdfs, None, Some(true))
+            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+                obj_ref: ObjectRef::from_obj(hdfs),
+            })?
+            .with_recommended_labels(build_recommended_labels(
+                hdfs,
+                RESOURCE_MANAGER_HDFS_CONTROLLER,
+                &resolved_product_image.app_version_label_value,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            ))
+            .context(ObjectMetaSnafu)?
+            .with_label(
+                Label::try_from(("prometheus.io/scrape", "true"))
+                    .context(BuildPrometheusLabelSnafu)?,
+            )
+            .with_annotations(
+                Annotations::try_from([
+                    ("prometheus.io/path".to_owned(), "/metrics".to_owned()),
+                    (
+                        "prometheus.io/port".to_owned(),
+                        hdfs.metrics_port(role).to_string(),
+                    ),
+                    ("prometheus.io/scheme".to_owned(), "http".to_owned()),
+                    ("prometheus.io/scrape".to_owned(), "true".to_owned()),
+                ])
+                .expect("should be valid annotations"),
+            )
+            .build(),
+        spec: Some(service_spec),
+        status: None,
+    })
+}
+
+fn rolegroup_native_metrics_service(
+    hdfs: &v1alpha1::HdfsCluster,
+    role: &HdfsNodeRole,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    resolved_product_image: &ResolvedProductImage,
+) -> HdfsOperatorResult<Service> {
+    tracing::info!("Setting up native metrics Service for {:?}", rolegroup_ref);
+
+    let service_spec = ServiceSpec {
+        // Internal communication does not need to be exposed
+        type_: Some("ClusterIP".to_string()),
+        cluster_ip: Some("None".to_string()),
+        ports: Some(
+            hdfs.native_metrics_ports(role)
+                .into_iter()
+                .map(|(name, value)| ServicePort {
+                    name: Some(name),
+                    port: i32::from(value),
+                    protocol: Some("TCP".to_string()),
+                    ..ServicePort::default()
+                })
+                .collect(),
+        ),
+        selector: Some(
+            hdfs.rolegroup_selector_labels(rolegroup_ref)
+                .context(RoleGroupSelectorLabelsSnafu)?
+                .into(),
+        ),
+        publish_not_ready_addresses: Some(true),
+        ..ServiceSpec::default()
+    };
+
+    Ok(Service {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(hdfs)
+            .name(format!(
+                "{name}-native-metrics",
+                name = rolegroup_ref.object_name()
+            ))
+            .ownerreference_from_resource(hdfs, None, Some(true))
+            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
+                obj_ref: ObjectRef::from_obj(hdfs),
+            })?
+            .with_recommended_labels(build_recommended_labels(
+                hdfs,
+                RESOURCE_MANAGER_HDFS_CONTROLLER,
+                &resolved_product_image.app_version_label_value,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            ))
+            .context(ObjectMetaSnafu)?
+            .with_label(
+                Label::try_from(("prometheus.io/scrape", "true"))
+                    .context(BuildPrometheusLabelSnafu)?,
+            )
+            .with_annotations(
+                Annotations::try_from([
+                    ("prometheus.io/path".to_owned(), "/prom".to_owned()),
+                    (
+                        "prometheus.io/port".to_owned(),
+                        hdfs.native_metrics_port(role).to_string(),
+                    ),
+                    (
+                        "prometheus.io/scheme".to_owned(),
+                        if hdfs.has_https_enabled() {
+                            "https".to_owned()
+                        } else {
+                            "http".to_owned()
+                        },
+                    ),
+                    ("prometheus.io/scrape".to_owned(), "true".to_owned()),
+                ])
+                .expect("should be valid annotations"),
+            )
+            .build(),
         spec: Some(service_spec),
         status: None,
     })
