@@ -27,7 +27,7 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, Service, ServiceAccount, ServicePort, ServiceSpec},
+            core::v1::{ConfigMap, ServiceAccount},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
@@ -37,7 +37,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, events::Recorder, reflector::ObjectRef},
     },
-    kvp::{Annotations, Label, LabelError, Labels},
+    kvp::{LabelError, Labels},
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
@@ -69,6 +69,10 @@ use crate::{
     },
     product_logging::extend_role_group_config_map,
     security::{self, kerberos, opa::HdfsOpaConfig},
+    service::{
+        self, rolegroup_headless_service, rolegroup_metrics_service,
+        rolegroup_native_metrics_service,
+    },
 };
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
@@ -218,14 +222,8 @@ pub enum Error {
     #[snafu(display("failed to build roleGroup selector labels"))]
     RoleGroupSelectorLabels { source: crate::crd::Error },
 
-    #[snafu(display("failed to build prometheus label"))]
-    BuildPrometheusLabel { source: LabelError },
-
     #[snafu(display("failed to build cluster resources label"))]
     BuildClusterResourcesLabel { source: LabelError },
-
-    #[snafu(display("failed to build role-group selector label"))]
-    BuildRoleGroupSelectorLabel { source: LabelError },
 
     #[snafu(display("failed to build role-group volume claim templates from config"))]
     BuildRoleGroupVolumeClaimTemplates { source: container::Error },
@@ -250,6 +248,9 @@ pub enum Error {
     ResolveProductImage {
         source: product_image_selection::Error,
     },
+
+    #[snafu(display("failed to builds service"))]
+    BuildService { source: service::Error },
 }
 
 impl ReconcilerError for Error {
@@ -392,6 +393,20 @@ pub async fn reconcile_hdfs(
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
+            let rg_service =
+                rolegroup_headless_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
+                    .context(BuildServiceSnafu)?;
+            let rg_metrics_service =
+                rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
+                    .context(BuildServiceSnafu)?;
+            let rg_native_metrics_service = rolegroup_native_metrics_service(
+                hdfs,
+                &role,
+                &rolegroup_ref,
+                &resolved_product_image,
+            )
+            .context(BuildServiceSnafu)?;
+
             // We need to split the creation and the usage of the "metadata" variable in two statements.
             // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
             let mut metadata = ObjectMetaBuilder::new();
@@ -410,17 +425,6 @@ pub async fn reconcile_hdfs(
                     &rolegroup_ref.role_group,
                 ))
                 .context(ObjectMetaSnafu)?;
-
-            let rg_service = rolegroup_service(hdfs, metadata, &role, &rolegroup_ref)?;
-
-            let rg_metrics_service =
-                rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)?;
-            let rg_native_metrics_service = rolegroup_native_metrics_service(
-                hdfs,
-                &role,
-                &rolegroup_ref,
-                &resolved_product_image,
-            )?;
 
             let rg_configmap = rolegroup_config_map(
                 hdfs,
@@ -582,195 +586,6 @@ pub async fn reconcile_hdfs(
         .context(ApplyStatusSnafu)?;
 
     Ok(Action::await_change())
-}
-
-fn rolegroup_service(
-    hdfs: &v1alpha1::HdfsCluster,
-    metadata: &ObjectMetaBuilder,
-    role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-) -> HdfsOperatorResult<Service> {
-    tracing::info!("Setting up Service for {:?}", rolegroup_ref);
-
-    let service_spec = ServiceSpec {
-        // Internal communication does not need to be exposed
-        type_: Some("ClusterIP".to_string()),
-        cluster_ip: Some("None".to_string()),
-        ports: Some(
-            hdfs.ports(role)
-                .into_iter()
-                .map(|(name, value)| ServicePort {
-                    name: Some(name),
-                    port: i32::from(value),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                })
-                .collect(),
-        ),
-        selector: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
-                .context(RoleGroupSelectorLabelsSnafu)?
-                .into(),
-        ),
-        publish_not_ready_addresses: Some(true),
-        ..ServiceSpec::default()
-    };
-
-    Ok(Service {
-        metadata: metadata.build(),
-        spec: Some(service_spec),
-        status: None,
-    })
-}
-
-fn rolegroup_metrics_service(
-    hdfs: &v1alpha1::HdfsCluster,
-    role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    resolved_product_image: &ResolvedProductImage,
-) -> HdfsOperatorResult<Service> {
-    tracing::info!("Setting up metrics Service for {:?}", rolegroup_ref);
-
-    let service_spec = ServiceSpec {
-        // Internal communication does not need to be exposed
-        type_: Some("ClusterIP".to_string()),
-        cluster_ip: Some("None".to_string()),
-        ports: Some(
-            hdfs.metrics_ports(role)
-                .into_iter()
-                .map(|(name, value)| ServicePort {
-                    name: Some(name),
-                    port: i32::from(value),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                })
-                .collect(),
-        ),
-        selector: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
-                .context(RoleGroupSelectorLabelsSnafu)?
-                .into(),
-        ),
-        publish_not_ready_addresses: Some(true),
-        ..ServiceSpec::default()
-    };
-
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(rolegroup_ref.rolegroup_metrics_service_name())
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(build_recommended_labels(
-                hdfs,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label_value,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .context(ObjectMetaSnafu)?
-            .with_label(
-                Label::try_from(("prometheus.io/scrape", "true"))
-                    .context(BuildPrometheusLabelSnafu)?,
-            )
-            .with_annotations(
-                Annotations::try_from([
-                    ("prometheus.io/path".to_owned(), "/metrics".to_owned()),
-                    (
-                        "prometheus.io/port".to_owned(),
-                        hdfs.metrics_port(role).to_string(),
-                    ),
-                    ("prometheus.io/scheme".to_owned(), "http".to_owned()),
-                    ("prometheus.io/scrape".to_owned(), "true".to_owned()),
-                ])
-                .expect("should be valid annotations"),
-            )
-            .build(),
-        spec: Some(service_spec),
-        status: None,
-    })
-}
-
-fn rolegroup_native_metrics_service(
-    hdfs: &v1alpha1::HdfsCluster,
-    role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    resolved_product_image: &ResolvedProductImage,
-) -> HdfsOperatorResult<Service> {
-    tracing::info!("Setting up native metrics Service for {:?}", rolegroup_ref);
-
-    let service_spec = ServiceSpec {
-        // Internal communication does not need to be exposed
-        type_: Some("ClusterIP".to_string()),
-        cluster_ip: Some("None".to_string()),
-        ports: Some(
-            hdfs.native_metrics_ports(role)
-                .into_iter()
-                .map(|(name, value)| ServicePort {
-                    name: Some(name),
-                    port: i32::from(value),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                })
-                .collect(),
-        ),
-        selector: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
-                .context(RoleGroupSelectorLabelsSnafu)?
-                .into(),
-        ),
-        publish_not_ready_addresses: Some(true),
-        ..ServiceSpec::default()
-    };
-
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
-            .name(format!(
-                "{name}-native-metrics",
-                name = rolegroup_ref.object_name()
-            ))
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
-            .with_recommended_labels(build_recommended_labels(
-                hdfs,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label_value,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .context(ObjectMetaSnafu)?
-            .with_label(
-                Label::try_from(("prometheus.io/scrape", "true"))
-                    .context(BuildPrometheusLabelSnafu)?,
-            )
-            .with_annotations(
-                Annotations::try_from([
-                    ("prometheus.io/path".to_owned(), "/prom".to_owned()),
-                    (
-                        "prometheus.io/port".to_owned(),
-                        hdfs.native_metrics_port(role).to_string(),
-                    ),
-                    (
-                        "prometheus.io/scheme".to_owned(),
-                        if hdfs.has_https_enabled() {
-                            "https".to_owned()
-                        } else {
-                            "http".to_owned()
-                        },
-                    ),
-                    ("prometheus.io/scrape".to_owned(), "true".to_owned()),
-                ])
-                .expect("should be valid annotations"),
-            )
-            .build(),
-        spec: Some(service_spec),
-        status: None,
-    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1026,7 +841,6 @@ fn rolegroup_statefulset(
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
 
-    let object_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
 
@@ -1061,7 +875,7 @@ fn rolegroup_statefulset(
         merged_config,
         env_overrides,
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
-        &object_name,
+        &rolegroup_ref.object_name(),
         namenode_podrefs,
         &rolegroup_selector_labels,
     )
@@ -1091,7 +905,7 @@ fn rolegroup_statefulset(
             match_labels: Some(rolegroup_selector_labels.into()),
             ..LabelSelector::default()
         },
-        service_name: Some(object_name),
+        service_name: Some(rolegroup_ref.rolegroup_headless_service_name()),
         template: pod_template,
 
         volume_claim_templates: Some(pvcs),
