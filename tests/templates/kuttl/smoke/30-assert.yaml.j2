@@ -78,6 +78,100 @@ status:
 {% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
 ---
 apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-namenode-default-headless
+spec:
+  ports:
+  - name: rpc
+    port: 8020
+    protocol: TCP
+    targetPort: 8020
+  - name: http
+    port: 9070
+    protocol: TCP
+    targetPort: 9070
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-namenode-default-metrics
+spec:
+  ports:
+  - name: metrics
+    port: 9870
+    protocol: TCP
+    targetPort: 9870
+  - name: jmx-metrics
+    port: 8183
+    protocol: TCP
+    targetPort: 8183
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-datanode-default-headless
+spec:
+  ports:
+  - name: data
+    port: 9866
+    protocol: TCP
+    targetPort: 9866
+  - name: ipc
+    port: 9867
+    protocol: TCP
+    targetPort: 9867
+  - name: http
+    port: 9864
+    protocol: TCP
+    targetPort: 9864
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-datanode-default-metrics
+spec:
+  ports:
+  - name: metrics
+    port: 9864
+    protocol: TCP
+    targetPort: 9864
+  - name: jmx-metrics
+    port: 8082
+    protocol: TCP
+    targetPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-journal-default-headless
+spec:
+  ports:
+  - name: rpc
+    port: 8485
+    protocol: TCP
+    targetPort: 8485
+  - name: http
+    port: 8480
+    protocol: TCP
+    targetPort: 8480
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-journal-default-metrics
+spec:
+  ports:
+  - name: metrics
+    port: 8480
+    protocol: TCP
+    targetPort: 8480
+  - name: jmx-metrics
+    port: 8081
+    protocol: TCP
+    targetPort: 8081
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: hdd-hdfs-datanode-default-0

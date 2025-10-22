@@ -11,7 +11,7 @@ def check_metrics(
     namespace: str, role: str, port: int, expected_metrics: list[str]
 ) -> None:
     response: requests.Response = requests.get(
-        f"http://hdfs-{role}-default-0.hdfs-{role}-default.{namespace}.svc.cluster.local:{port}/metrics",
+        f"http://hdfs-{role}-default-metrics.{namespace}.svc.cluster.local:{port}/metrics",
         timeout=10,
     )
     assert response.ok, "Requesting metrics failed"
@@ -65,9 +65,9 @@ def check_datanode_metrics(
         # Kind "FSDatasetState"
         'hadoop_datanode_capacity{fsdatasetid=".+",kind="FSDatasetState",role="DataNode",service="HDFS"}',
         # Kind "DataNodeActivity" suffixed with "_info"
-        'hadoop_datanode_blocks_get_local_path_info_{host="hdfs-datanode-default-0\\.hdfs-datanode-default\\..+\\.svc\\.cluster\\.local",kind="DataNodeActivity",port="9866",role="DataNode",service="HDFS"}',
+        'hadoop_datanode_blocks_get_local_path_info_{host="hdfs-datanode-default-0\\.hdfs-datanode-default-headless\\..+\\.svc\\.cluster\\.local",kind="DataNodeActivity",port="9866",role="DataNode",service="HDFS"}',
         # Kind "DataNodeActivity"
-        'hadoop_datanode_blocks_read{host="hdfs-datanode-default-0\\.hdfs-datanode-default\\..+\\.svc\\.cluster\\.local",kind="DataNodeActivity",port="9866",role="DataNode",service="HDFS"}',
+        'hadoop_datanode_blocks_read{host="hdfs-datanode-default-0\\.hdfs-datanode-default-headless\\..+\\.svc\\.cluster\\.local",kind="DataNodeActivity",port="9866",role="DataNode",service="HDFS"}',
         # Counter suffixed with "_total"
         'hadoop_datanode_estimated_capacity_lost_total{kind="FSDatasetState",role="DataNode",service="HDFS"}',
         # Boolean metric
