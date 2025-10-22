@@ -69,10 +69,7 @@ use crate::{
     },
     product_logging::extend_role_group_config_map,
     security::{self, kerberos, opa::HdfsOpaConfig},
-    service::{
-        self, rolegroup_headless_service, rolegroup_metrics_service,
-        rolegroup_native_metrics_service,
-    },
+    service::{self, rolegroup_headless_service, rolegroup_metrics_service},
 };
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
@@ -399,13 +396,6 @@ pub async fn reconcile_hdfs(
             let rg_metrics_service =
                 rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
                     .context(BuildServiceSnafu)?;
-            let rg_native_metrics_service = rolegroup_native_metrics_service(
-                hdfs,
-                &role,
-                &rolegroup_ref,
-                &resolved_product_image,
-            )
-            .context(BuildServiceSnafu)?;
 
             // We need to split the creation and the usage of the "metadata" variable in two statements.
             // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
@@ -453,7 +443,6 @@ pub async fn reconcile_hdfs(
 
             let rg_service_name = rg_service.name_any();
             let rg_metrics_service_name = rg_metrics_service.name_any();
-            let rg_native_metrics_service_name = rg_native_metrics_service.name_any();
 
             cluster_resources
                 .add(client, rg_service)
@@ -466,12 +455,6 @@ pub async fn reconcile_hdfs(
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
                     name: rg_metrics_service_name,
-                })?;
-            cluster_resources
-                .add(client, rg_native_metrics_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_native_metrics_service_name,
                 })?;
             let rg_configmap_name = rg_configmap.name_any();
             cluster_resources

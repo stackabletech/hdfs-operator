@@ -488,9 +488,7 @@ impl ContainerConfig {
             )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?
-            .add_container_ports(self.container_ports(hdfs))
-            // TODO: This currently adds the metrics port also to the zkfc containers, not needed there?
-            .add_container_port(SERVICE_PORT_NAME_METRICS, hdfs.metrics_port(role).into());
+            .add_container_ports(self.container_ports(hdfs));
 
         if let Some(resources) = resources {
             cb.resources(resources);
@@ -1251,16 +1249,18 @@ wait_for_termination $!
     /// Container ports for the main containers namenode, datanode and journalnode.
     fn container_ports(&self, hdfs: &v1alpha1::HdfsCluster) -> Vec<ContainerPort> {
         match self {
-            ContainerConfig::Hdfs { role, .. } => hdfs
-                .ports(role)
-                .into_iter()
-                .map(|(name, value)| ContainerPort {
-                    name: Some(name),
-                    container_port: i32::from(value),
-                    protocol: Some("TCP".to_string()),
-                    ..ContainerPort::default()
-                })
-                .collect(),
+            ContainerConfig::Hdfs { role, .. } => {
+                // data ports
+                hdfs.hdfs_main_container_ports(role)
+                    .into_iter()
+                    .map(|(name, value)| ContainerPort {
+                        name: Some(name),
+                        container_port: i32::from(value),
+                        protocol: Some("TCP".to_string()),
+                        ..ContainerPort::default()
+                    })
+                    .collect()
+            }
             _ => {
                 vec![]
             }

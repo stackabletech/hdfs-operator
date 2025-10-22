@@ -20,6 +20,7 @@ pub const SERVICE_PORT_NAME_HTTP: &str = "http";
 pub const SERVICE_PORT_NAME_HTTPS: &str = "https";
 pub const SERVICE_PORT_NAME_DATA: &str = "data";
 pub const SERVICE_PORT_NAME_METRICS: &str = "metrics";
+pub const SERVICE_PORT_NAME_JMX_METRICS: &str = "jmx-metrics";
 
 pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
