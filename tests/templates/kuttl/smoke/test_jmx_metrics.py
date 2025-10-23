@@ -126,4 +126,4 @@ if __name__ == "__main__":
     check_datanode_metrics(namespace_arg, product_version_arg)
     check_journalnode_metrics(namespace_arg, product_version_arg)
 
-    print("All expected metrics found")
+    print("All expected JMX metrics found")

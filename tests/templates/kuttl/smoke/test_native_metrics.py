@@ -76,4 +76,4 @@ if __name__ == "__main__":
     check_datanode_metrics(namespace_arg)
     check_journalnode_metrics(namespace_arg)
 
-    print("All expected metrics found")
+    print("All expected native metrics found")
