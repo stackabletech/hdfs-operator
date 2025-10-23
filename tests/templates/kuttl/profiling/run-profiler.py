@@ -56,7 +56,7 @@ def fetch_flamegraph(service_url, refresh_path):
 
 def test_profiling(role, port):
     service_url = (
-        f"http://test-hdfs-{role}-default-0.test-hdfs-{role}-default" f":{port}"
+        f"http://test-hdfs-{role}-default-0.test-hdfs-{role}-default-headless" f":{port}"
     )
 
     print(f"Test profiling on {service_url}")
