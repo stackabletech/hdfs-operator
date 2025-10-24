@@ -671,8 +671,75 @@ impl v1alpha1::HdfsCluster {
             .sum()
     }
 
+    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> u16 {
+        match role {
+            HdfsNodeRole::Name => {
+                if self.has_https_enabled() {
+                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT
+                } else {
+                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT
+                }
+            }
+            HdfsNodeRole::Data => {
+                if self.has_https_enabled() {
+                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT
+                } else {
+                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT
+                }
+            }
+            HdfsNodeRole::Journal => {
+                if self.has_https_enabled() {
+                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT
+                } else {
+                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT
+                }
+            }
+        }
+    }
+
+    /// Deprecated required JMX metrics port name and metrics port number tuples depending on the role.
+    pub fn jmx_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+        match role {
+            HdfsNodeRole::Name => vec![(
+                String::from(SERVICE_PORT_NAME_JMX_METRICS),
+                DEFAULT_NAME_NODE_METRICS_PORT,
+            )],
+            HdfsNodeRole::Data => vec![(
+                String::from(SERVICE_PORT_NAME_JMX_METRICS),
+                DEFAULT_DATA_NODE_METRICS_PORT,
+            )],
+            HdfsNodeRole::Journal => vec![(
+                String::from(SERVICE_PORT_NAME_JMX_METRICS),
+                DEFAULT_JOURNAL_NODE_METRICS_PORT,
+            )],
+        }
+    }
+
+    pub fn metrics_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+        let mut metrics_service_ports = vec![];
+        // "native" ports
+        metrics_service_ports.extend(self.native_metrics_ports(role));
+        // deprecated jmx ports
+        metrics_service_ports.extend(self.jmx_metrics_ports(role));
+        metrics_service_ports
+    }
+
+    pub fn headless_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+        let mut headless_service_ports = vec![];
+        headless_service_ports.extend(self.data_ports(role));
+        headless_service_ports
+    }
+
+    pub fn hdfs_main_container_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+        let mut main_container_ports = vec![];
+        main_container_ports.extend(self.data_ports(role));
+        // TODO: This will be exposed in the listener if added to container ports?
+        // main_container_ports.extend(self.jmx_metrics_ports(role));
+        main_container_ports
+    }
+
     /// Returns required port name and port number tuples depending on the role.
-    pub fn data_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    fn data_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
         match role {
             HdfsNodeRole::Name => vec![
                 (
@@ -732,26 +799,8 @@ impl v1alpha1::HdfsCluster {
         }
     }
 
-    /// Deprecated required JMX metrics port name and metrics port number tuples depending on the role.
-    pub fn jmx_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
-        match role {
-            HdfsNodeRole::Name => vec![(
-                String::from(SERVICE_PORT_NAME_JMX_METRICS),
-                DEFAULT_NAME_NODE_METRICS_PORT,
-            )],
-            HdfsNodeRole::Data => vec![(
-                String::from(SERVICE_PORT_NAME_JMX_METRICS),
-                DEFAULT_DATA_NODE_METRICS_PORT,
-            )],
-            HdfsNodeRole::Journal => vec![(
-                String::from(SERVICE_PORT_NAME_JMX_METRICS),
-                DEFAULT_JOURNAL_NODE_METRICS_PORT,
-            )],
-        }
-    }
-
-    /// Returns required metrics port name and metrics port number tuples depending on the role and security settings.
-    pub fn metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    /// Returns required native metrics port name and metrics port number tuples depending on the role and security settings.
+    fn native_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
         match role {
             HdfsNodeRole::Name => vec![if self.has_https_enabled() {
                 (
@@ -787,62 +836,6 @@ impl v1alpha1::HdfsCluster {
                 )
             }],
         }
-    }
-
-    pub fn metrics_port(&self, role: &HdfsNodeRole) -> u16 {
-        match role {
-            HdfsNodeRole::Name => DEFAULT_NAME_NODE_METRICS_PORT,
-            HdfsNodeRole::Data => DEFAULT_DATA_NODE_METRICS_PORT,
-            HdfsNodeRole::Journal => DEFAULT_JOURNAL_NODE_METRICS_PORT,
-        }
-    }
-
-    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> u16 {
-        match role {
-            HdfsNodeRole::Name => {
-                if self.has_https_enabled() {
-                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT
-                } else {
-                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT
-                }
-            }
-            HdfsNodeRole::Data => {
-                if self.has_https_enabled() {
-                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT
-                } else {
-                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT
-                }
-            }
-            HdfsNodeRole::Journal => {
-                if self.has_https_enabled() {
-                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT
-                } else {
-                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT
-                }
-            }
-        }
-    }
-
-    pub fn metrics_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
-        let mut metrics_service_ports = vec![];
-        // "native" ports
-        metrics_service_ports.extend(self.metrics_ports(role));
-        metrics_service_ports.extend(self.jmx_metrics_ports(role));
-        metrics_service_ports
-    }
-
-    pub fn headless_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
-        let mut headless_service_ports = vec![];
-        headless_service_ports.extend(self.data_ports(role));
-        headless_service_ports
-    }
-
-    pub fn hdfs_main_container_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
-        let mut main_container_ports = vec![];
-        main_container_ports.extend(self.data_ports(role));
-        // TODO: This will be exposed in the listener if added to container ports?
-        // main_container_ports.extend(self.jmx_metrics_ports(role));
-        main_container_ports
     }
 }
 
