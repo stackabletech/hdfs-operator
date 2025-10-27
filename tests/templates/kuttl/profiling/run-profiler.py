@@ -8,8 +8,7 @@ PROFILING_DURATION_IN_SEC = 1
 
 def start_profiling_and_get_refresh_header(service_url):
     prof_page = requests.get(
-        f"{service_url}/prof"
-        f"?event={EVENT_TYPE}&duration={PROFILING_DURATION_IN_SEC}"
+        f"{service_url}/prof?event={EVENT_TYPE}&duration={PROFILING_DURATION_IN_SEC}"
     )
 
     assert prof_page.ok, f"""Profiling could not be started.
@@ -56,7 +55,7 @@ def fetch_flamegraph(service_url, refresh_path):
 
 def test_profiling(role, port):
     service_url = (
-        f"http://test-hdfs-{role}-default-0.test-hdfs-{role}-default-headless" f":{port}"
+        f"http://test-hdfs-{role}-default-0.test-hdfs-{role}-default-headless:{port}"
     )
 
     print(f"Test profiling on {service_url}")

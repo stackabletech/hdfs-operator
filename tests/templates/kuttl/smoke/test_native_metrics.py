@@ -10,10 +10,7 @@ import requests
 
 
 def check_metrics(
-    namespace: str,
-    role: str,
-    port: int,
-    expected_metrics: list[str]
+    namespace: str, role: str, port: int, expected_metrics: list[str]
 ) -> None:
     response = requests.get(
         f"http://hdfs-{role}-default-metrics.{namespace}.svc.cluster.local:{port}/prom",
@@ -23,7 +20,9 @@ def check_metrics(
 
     for metric in expected_metrics:
         regex = re.compile(metric, re.MULTILINE)
-        assert regex.search(response.text) is not None, f"Metric '{metric}' not found for {role}"
+        assert regex.search(response.text) is not None, (
+            f"Metric '{metric}' not found for {role}"
+        )
 
 
 def check_namenode_metrics(namespace: str) -> None:

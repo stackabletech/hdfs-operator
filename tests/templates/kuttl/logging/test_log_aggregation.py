@@ -23,9 +23,9 @@ def check_sent_events():
         },
     )
 
-    assert (
-        response.status_code == 200
-    ), "Cannot access the API of the vector aggregator."
+    assert response.status_code == 200, (
+        "Cannot access the API of the vector aggregator."
+    )
 
     result = response.json()
 
@@ -35,13 +35,13 @@ def check_sent_events():
         componentId = transform["componentId"]
 
         if componentId == "filteredInvalidEvents":
-            assert (
-                sentEvents is None or sentEvents["sentEventsTotal"] == 0
-            ), "Invalid log events were sent."
+            assert sentEvents is None or sentEvents["sentEventsTotal"] == 0, (
+                "Invalid log events were sent."
+            )
         else:
-            assert (
-                sentEvents is not None and sentEvents["sentEventsTotal"] > 0
-            ), f'No events were sent in "{componentId}".'
+            assert sentEvents is not None and sentEvents["sentEventsTotal"] > 0, (
+                f'No events were sent in "{componentId}".'
+            )
 
 
 if __name__ == "__main__":

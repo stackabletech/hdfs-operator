@@ -12,7 +12,7 @@ Starting with Stackable Data Platform 25.7, the built-in Prometheus metrics are 
 The JMX exporter metrics are now deprecated and will be removed in a future release.
 ====
 
-This endpoint, in the case of the Namenode service, is reachable via the the `metrics` service: 
+This endpoint, in the case of the Namenode service, is reachable via the the `metrics` service:
 [source,shell]
 ----
 http://<hdfs-stacklet>-namenode-<rolegroup-name>-metrics:9870/prom
