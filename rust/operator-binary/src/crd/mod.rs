@@ -848,7 +848,7 @@ impl AnyNodeConfig {
 
     // Logging config is distinct between each role, due to the different enum types,
     // so provide helpers for containers that are common between all roles.
-    pub fn hdfs_logging(&self) -> Cow<ContainerLogConfig> {
+    pub fn hdfs_logging(&'_ self) -> Cow<'_, ContainerLogConfig> {
         match self {
             AnyNodeConfig::Name(node) => node.logging.for_container(&NameNodeContainer::Hdfs),
             AnyNodeConfig::Data(node) => node.logging.for_container(&DataNodeContainer::Hdfs),
@@ -856,7 +856,7 @@ impl AnyNodeConfig {
         }
     }
 
-    pub fn vector_logging(&self) -> Cow<ContainerLogConfig> {
+    pub fn vector_logging(&'_ self) -> Cow<'_, ContainerLogConfig> {
         match &self {
             AnyNodeConfig::Name(node) => node.logging.for_container(&NameNodeContainer::Vector),
             AnyNodeConfig::Data(node) => node.logging.for_container(&DataNodeContainer::Vector),
@@ -1080,7 +1080,7 @@ pub struct HdfsPodRef {
 }
 
 impl HdfsPodRef {
-    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Cow<str> {
+    pub fn fqdn(&'_ self, cluster_info: &KubernetesClusterInfo) -> Cow<'_, str> {
         self.fqdn_override.as_deref().map_or_else(
             || {
                 Cow::Owned(format!(
