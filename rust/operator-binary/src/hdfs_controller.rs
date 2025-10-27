@@ -27,7 +27,7 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, Service, ServiceAccount, ServicePort, ServiceSpec},
+            core::v1::{ConfigMap, ServiceAccount},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
@@ -37,7 +37,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, events::Recorder, reflector::ObjectRef},
     },
-    kvp::{Label, LabelError, Labels},
+    kvp::{LabelError, Labels},
     logging::controller::ReconcilerError,
     product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
     role_utils::{GenericRoleConfig, RoleGroupRef},
@@ -69,6 +69,7 @@ use crate::{
     },
     product_logging::extend_role_group_config_map,
     security::{self, kerberos, opa::HdfsOpaConfig},
+    service::{self, rolegroup_headless_service, rolegroup_metrics_service},
 };
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
@@ -218,14 +219,8 @@ pub enum Error {
     #[snafu(display("failed to build roleGroup selector labels"))]
     RoleGroupSelectorLabels { source: crate::crd::Error },
 
-    #[snafu(display("failed to build prometheus label"))]
-    BuildPrometheusLabel { source: LabelError },
-
     #[snafu(display("failed to build cluster resources label"))]
     BuildClusterResourcesLabel { source: LabelError },
-
-    #[snafu(display("failed to build role-group selector label"))]
-    BuildRoleGroupSelectorLabel { source: LabelError },
 
     #[snafu(display("failed to build role-group volume claim templates from config"))]
     BuildRoleGroupVolumeClaimTemplates { source: container::Error },
@@ -250,6 +245,9 @@ pub enum Error {
     ResolveProductImage {
         source: product_image_selection::Error,
     },
+
+    #[snafu(display("failed to builds service"))]
+    BuildService { source: service::Error },
 }
 
 impl ReconcilerError for Error {
@@ -392,6 +390,13 @@ pub async fn reconcile_hdfs(
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
+            let rg_service =
+                rolegroup_headless_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
+                    .context(BuildServiceSnafu)?;
+            let rg_metrics_service =
+                rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
+                    .context(BuildServiceSnafu)?;
+
             // We need to split the creation and the usage of the "metadata" variable in two statements.
             // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
             let mut metadata = ObjectMetaBuilder::new();
@@ -410,8 +415,6 @@ pub async fn reconcile_hdfs(
                     &rolegroup_ref.role_group,
                 ))
                 .context(ObjectMetaSnafu)?;
-
-            let rg_service = rolegroup_service(hdfs, metadata, &role, &rolegroup_ref)?;
 
             let rg_configmap = rolegroup_config_map(
                 hdfs,
@@ -439,11 +442,19 @@ pub async fn reconcile_hdfs(
             )?;
 
             let rg_service_name = rg_service.name_any();
+            let rg_metrics_service_name = rg_metrics_service.name_any();
+
             cluster_resources
                 .add(client, rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
                     name: rg_service_name,
+                })?;
+            cluster_resources
+                .add(client, rg_metrics_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    name: rg_metrics_service_name,
                 })?;
             let rg_configmap_name = rg_configmap.name_any();
             cluster_resources
@@ -558,50 +569,6 @@ pub async fn reconcile_hdfs(
         .context(ApplyStatusSnafu)?;
 
     Ok(Action::await_change())
-}
-
-fn rolegroup_service(
-    hdfs: &v1alpha1::HdfsCluster,
-    metadata: &ObjectMetaBuilder,
-    role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-) -> HdfsOperatorResult<Service> {
-    tracing::info!("Setting up Service for {:?}", rolegroup_ref);
-
-    let prometheus_label =
-        Label::try_from(("prometheus.io/scrape", "true")).context(BuildPrometheusLabelSnafu)?;
-    let mut metadata_with_prometheus_label = metadata.clone();
-    metadata_with_prometheus_label.with_label(prometheus_label);
-
-    let service_spec = ServiceSpec {
-        // Internal communication does not need to be exposed
-        type_: Some("ClusterIP".to_string()),
-        cluster_ip: Some("None".to_string()),
-        ports: Some(
-            hdfs.ports(role)
-                .into_iter()
-                .map(|(name, value)| ServicePort {
-                    name: Some(name),
-                    port: i32::from(value),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                })
-                .collect(),
-        ),
-        selector: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
-                .context(RoleGroupSelectorLabelsSnafu)?
-                .into(),
-        ),
-        publish_not_ready_addresses: Some(true),
-        ..ServiceSpec::default()
-    };
-
-    Ok(Service {
-        metadata: metadata_with_prometheus_label.build(),
-        spec: Some(service_spec),
-        status: None,
-    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -857,7 +824,6 @@ fn rolegroup_statefulset(
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
 
-    let object_name = rolegroup_ref.object_name();
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
 
@@ -887,12 +853,11 @@ fn rolegroup_statefulset(
         hdfs,
         cluster_info,
         role,
-        &rolegroup_ref.role_group,
+        rolegroup_ref,
         resolved_product_image,
         merged_config,
         env_overrides,
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
-        &object_name,
         namenode_podrefs,
         &rolegroup_selector_labels,
     )
@@ -922,7 +887,7 @@ fn rolegroup_statefulset(
             match_labels: Some(rolegroup_selector_labels.into()),
             ..LabelSelector::default()
         },
-        service_name: Some(object_name),
+        service_name: Some(rolegroup_ref.rolegroup_headless_service_name()),
         template: pod_template,
 
         volume_claim_templates: Some(pvcs),
@@ -1013,6 +978,7 @@ properties: []
             .unwrap()
             .get("default")
             .unwrap();
+        let rolegroup_ref = hdfs.rolegroup_ref(role.to_string(), "default");
         let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
 
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
@@ -1031,12 +997,11 @@ properties: []
                 cluster_domain: DomainName::try_from("cluster.local").unwrap(),
             },
             &role,
-            "default",
+            &rolegroup_ref,
             &resolved_product_image,
             &merged_config,
             env_overrides,
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
-            "todo",
             &[],
             &Labels::new(),
         )

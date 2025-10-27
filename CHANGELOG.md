@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - The built-in Prometheus servlet is now enabled and metrics are exposed under the `/prom` path of all UI services ([#695]).
 - Add several properties to `hdfs-site.xml` and `core-site.xml` that improve general performance and reliability ([#696]).
 - Add RBAC rule to helm template for automatic cluster domain detection ([#699]).
+- Add `prometheus.io/path|port|scheme` annotations to metrics service ([#721]).
 
 ### Changed
 
@@ -48,6 +49,9 @@ All notable changes to this project will be documented in this file.
   - The CLI argument `--kubernetes-node-name` or env variable `KUBERNETES_NODE_NAME` needs to be set. The helm-chart takes care of this.
 - The operator helm-chart now grants RBAC `patch` permissions on `events.k8s.io/events`,
   so events can be aggregated (e.g. "error happened 10 times over the last 5 minutes") ([#700]).
+- BREAKING: Renamed headless rolegroup service from `<stacklet>-<role>-<rolegroup>` to `<stacklet>-<role>-<rolegroup>-metrics` ([#721]).
+  - The `prometheus.io/scrape` label was moved to the metrics service
+  - The headless service now only exposes product / data ports, the metrics service only metrics ports
 
 ### Fixed
 
@@ -76,6 +80,7 @@ All notable changes to this project will be documented in this file.
 [#697]: https://github.com/stackabletech/hdfs-operator/pull/697
 [#699]: https://github.com/stackabletech/hdfs-operator/pull/699
 [#700]: https://github.com/stackabletech/hdfs-operator/pull/700
+[#721]: https://github.com/stackabletech/hdfs-operator/pull/721
 
 ## [25.3.0] - 2025-03-21
 

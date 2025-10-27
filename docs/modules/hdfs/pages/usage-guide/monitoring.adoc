@@ -1,17 +1,25 @@
 = Monitoring
-:description: The HDFS cluster can be monitored with Prometheus from inside or outside the K8S cluster.
+:description: The HDFS cluster is automatically configured to export Prometheus metrics.
 
 The cluster can be monitored with Prometheus from inside or outside the K8S cluster.
 
-All services (with the exception of the Zookeeper daemon on the node names) run with the JMX exporter agent enabled and expose metrics on the `metrics` port.
-This port is available from the container level up to the NodePort services.
+The managed HDFS stacklets are automatically configured to export Prometheus metrics.
+See xref:operators:monitoring.adoc[] for more details.
 
 [IMPORTANT]
 ====
-Starting with Stackable Data Platform 25.7, the built-in Prometheus metrics are also available at the `/prom` endpoint of all the UI services.
+Starting with Stackable Data Platform 25.7, the built-in Prometheus metrics are available at the `/prom` endpoint of all the UI services.
 The JMX exporter metrics are now deprecated and will be removed in a future release.
 ====
 
-The metrics endpoints are also used as liveliness probes by Kubernetes.
+This endpoint, in the case of the Namenode service, is reachable via the the `metrics` service:
+[source,shell]
+----
+http://<hdfs-stacklet>-namenode-<rolegroup-name>-metrics:9870/prom
+----
 
-See xref:operators:monitoring.adoc[] for more details.
+== Authentication when using TLS
+
+HDFS exposes metrics through the same port as their web UI. Hence, when configuring HDFS with TLS the metrics are also secured by TLS,
+and the clients scraping the metrics endpoint need to authenticate against it. This could for example be accomplished by utilizing mTLS
+between Kubernetes Pods with the xref:home:secret-operator:index.adoc[Secret Operator].
