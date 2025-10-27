@@ -7,12 +7,17 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Helm: Allow Pod `priorityClassName` to be configured ([#713]).
+- Add end-of-support checker ([#718]).
+  - `EOS_CHECK_MODE` (`--eos-check-mode`) to set the EoS check mode. Currently, only "offline" is supported.
+  - `EOS_INTERVAL` (`--eos-interval`) to set the interval in which the operator checks if it is EoS.
+  - `EOS_DISABLED` (`--eos-disabled`) to disable the EoS checker completely.
 
 ### Changed
 
 - Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#722]).
 
 [#713]: https://github.com/stackabletech/hdfs-operator/pull/713
+[#718]: https://github.com/stackabletech/hdfs-operator/pull/718
 [#722]: https://github.com/stackabletech/hdfs-operator/pull/722
 
 ## [25.7.0] - 2025-07-23

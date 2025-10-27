@@ -12490,9 +12490,9 @@ rec {
       };
       "xml" = rec {
         crateName = "xml";
-        version = "1.0.1";
+        version = "1.1.0";
         edition = "2021";
-        sha256 = "1k7s56phdygnsj40my5jascmvd0md4922ashl4j7958d8562g92q";
+        sha256 = "1k405rbjcl9lk6p1jk0mcf7pqnjqwnkcmhp73i1q0h8an5wxd3c3";
         authors = [
           "Vladimir Matveev <vmatveev@citrine.cc>"
           "Kornel (https://github.com/kornelski)"
