@@ -38,15 +38,26 @@ def check_namenode_metrics(namespace: str) -> None:
 
 def check_datanode_metrics(
     namespace: str,
+    datanode_pvc_arg: str
 ) -> None:
     expected_metrics: list[str] = [
         r'metrics_system_num_active_sources\{context="metricssystem",hostname="hdfs-datanode-default-\d+',
-        r'org_apache_hadoop_hdfs_server_datanode_fsdataset_impl_fs_dataset_impl_capacity\{context="FSDatasetState",storageinfo="FSDataset\{dirpath=\'\[/stackable/data/data/datanode]\'\}",hostname="hdfs-datanode-default-\d+"\}',
-        r'org_apache_hadoop_hdfs_server_datanode_fsdataset_impl_fs_dataset_impl_estimated_capacity_lost_total\{context="FSDatasetState",storageinfo="FSDataset\{dirpath=\'\[/stackable/data/data/datanode]\'\}",hostname="hdfs-datanode-default-\d+"\}',
         r'datanode_blocks_get_local_path_info\{sessionid="null",context="dfs",hostname="hdfs-datanode-default-\d+"\}',
         r'datanode_blocks_read\{sessionid="null",context="dfs",hostname="hdfs-datanode-default-\d+"\}',
         r'jvm_metrics_gc_count\{context="jvm",processname="DataNode",sessionid="null",hostname="hdfs-datanode-default-\d+"\}',
     ]
+
+    # metrics change depending on datanode pvcs 
+    if datanode_pvc_arg == "default":
+        expected_metrics.extend([
+            r'org_apache_hadoop_hdfs_server_datanode_fsdataset_impl_fs_dataset_impl_capacity\{context="FSDatasetState",storageinfo="FSDataset\{dirpath=\'\[/stackable/data/data/datanode]\'\}",hostname="hdfs-datanode-default-\d+"\}',
+            r'org_apache_hadoop_hdfs_server_datanode_fsdataset_impl_fs_dataset_impl_estimated_capacity_lost_total\{context="FSDatasetState",storageinfo="FSDataset\{dirpath=\'\[/stackable/data/data/datanode]\'\}",hostname="hdfs-datanode-default-\d+"\}',
+        ])
+    else:
+        expected_metrics.extend([
+            r'org_apache_hadoop_hdfs_server_datanode_fsdataset_impl_fs_dataset_impl_capacity\{context="FSDatasetState",storageinfo="FSDataset\{dirpath=\'\[/stackable/data/hdd/datanode, /stackable/data/hdd-1/datanode, /stackable/data/ssd/datanode]\'\}",hostname="hdfs-datanode-default-\d+"\}',
+            r'org_apache_hadoop_hdfs_server_datanode_fsdataset_impl_fs_dataset_impl_estimated_capacity_lost_total\{context="FSDatasetState",storageinfo="FSDataset\{dirpath=\'\[/stackable/data/hdd/datanode, /stackable/data/hdd-1/datanode, /stackable/data/ssd/datanode]\'\}",hostname="hdfs-datanode-default-\d+"\}',
+        ])        
 
     check_metrics(namespace, "datanode", 9864, expected_metrics)
 
@@ -64,6 +75,7 @@ def check_journalnode_metrics(
 
 if __name__ == "__main__":
     namespace_arg: str = sys.argv[1]
+    datanode_pvc_arg: str = sys.argv[2]
 
     logging.basicConfig(
         level="DEBUG",
@@ -72,7 +84,7 @@ if __name__ == "__main__":
     )
 
     check_namenode_metrics(namespace_arg)
-    check_datanode_metrics(namespace_arg)
+    check_datanode_metrics(namespace_arg, datanode_pvc_arg)
     check_journalnode_metrics(namespace_arg)
 
     print("All expected native metrics found")

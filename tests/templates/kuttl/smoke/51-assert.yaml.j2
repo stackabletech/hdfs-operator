@@ -12,4 +12,4 @@ commands:
       kubectl exec --namespace=$NAMESPACE test-runner-0 -- \
       python /tmp/test_jmx_metrics.py $NAMESPACE $PRODUCT_VERSION
       kubectl exec --namespace=$NAMESPACE test-runner-0 -- \
-      python /tmp/test_native_metrics.py $NAMESPACE
+      python /tmp/test_prometheus_metrics.py $NAMESPACE {{ test_scenario['values']['datanode-pvcs'] }}
