@@ -978,7 +978,7 @@ properties: []
             .unwrap()
             .get("default")
             .unwrap();
-        let rolegroup_ref = hdfs.rolegroup_ref(&role.to_string(), "default");
+        let rolegroup_ref = hdfs.rolegroup_ref(role.to_string(), "default");
         let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
 
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
