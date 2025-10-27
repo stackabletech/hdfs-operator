@@ -23,12 +23,3 @@ http://<hdfs-stacklet>-namenode-<rolegroup-name>-metrics:9870/prom
 HDFS exposes metrics through the same port as their web UI. Hence, when configuring HDFS with TLS the metrics are also secured by TLS,
 and the clients scraping the metrics endpoint need to authenticate against it. This could for example be accomplished by utilizing mTLS
 between Kubernetes Pods with the xref:home:secret-operator:index.adoc[Secret Operator].
-
-When using the Prometheus `ServiceMonitor` for scraping, the `address` label needs relabeling to use the `headless` Service instead of the
-`metrics` Service. This is because per default Prometheus targets the Pod IPs as endpoints, but since the Pod IPs are not
-part of the certificate, the authentication will fail. Instead, the FQDN of the Pods, which can be added to the certificate, is used, but
-this FQDN is only available through the `headless` Service.
-
-A more detailed explanation can be found in the xref:home:nifi:usage_guide/monitoring.adoc[NiFi Operator Monitoring Docs] with a similar situation
-and an example of a Prometheus `ServiceMonitor` configured for TLS in the
-https://github.com/stackabletech/demos/blob/main/stacks/monitoring/prometheus-service-monitors.yaml[Monitoring Stack{external-link-icon}^].

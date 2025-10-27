@@ -853,12 +853,11 @@ fn rolegroup_statefulset(
         hdfs,
         cluster_info,
         role,
-        &rolegroup_ref.role_group,
+        &rolegroup_ref,
         resolved_product_image,
         merged_config,
         env_overrides,
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
-        &rolegroup_ref.object_name(),
         namenode_podrefs,
         &rolegroup_selector_labels,
     )
@@ -979,6 +978,7 @@ properties: []
             .unwrap()
             .get("default")
             .unwrap();
+        let rolegroup_ref = hdfs.rolegroup_ref(&role.to_string(), "default");
         let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
 
         let merged_config = role.merged_config(&hdfs, "default").unwrap();
@@ -997,12 +997,11 @@ properties: []
                 cluster_domain: DomainName::try_from("cluster.local").unwrap(),
             },
             &role,
-            "default",
+            &rolegroup_ref,
             &resolved_product_image,
             &merged_config,
             env_overrides,
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
-            "todo",
             &[],
             &Labels::new(),
         )

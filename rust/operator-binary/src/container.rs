@@ -48,6 +48,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
+    role_utils::RoleGroupRef,
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
@@ -216,24 +217,25 @@ impl ContainerConfig {
         hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        role_group: &str,
+        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
         env_overrides: Option<&BTreeMap<String, String>>,
         zk_config_map_name: &str,
-        object_name: &str,
         namenode_podrefs: &[HdfsPodRef],
         labels: &Labels,
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(*role);
-        pb.add_volumes(main_container_config.volumes(merged_config, object_name, labels)?)
+        let object_name = &rolegroup_ref.object_name();
+
+        pb.add_volumes(main_container_config.volumes(merged_config, &object_name, labels)?)
             .context(AddVolumeSnafu)?;
         pb.add_container(main_container_config.main_container(
             hdfs,
             cluster_info,
             role,
-            role_group,
+            rolegroup_ref,
             resolved_product_image,
             zk_config_map_name,
             env_overrides,
@@ -277,6 +279,8 @@ impl ContainerConfig {
                         )
                         .with_pod_scope()
                         .with_node_scope()
+                        // To scrape metrics behind TLS endpoint (without FQDN)
+                        .with_service_scope(rolegroup_ref.rolegroup_metrics_service_name())
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
                         .with_auto_tls_cert_lifetime(
@@ -327,7 +331,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    role_group,
+                    &rolegroup_ref,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -348,7 +352,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    role_group,
+                    &rolegroup_ref.role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -370,7 +374,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    role_group,
+                    &rolegroup_ref.role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -393,7 +397,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    role_group,
+                    &rolegroup_ref.role_group,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -462,7 +466,7 @@ impl ContainerConfig {
         hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        role_group: &str,
+        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&BTreeMap<String, String>>,
@@ -481,7 +485,7 @@ impl ContainerConfig {
             .args(self.args(hdfs, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(
                 hdfs,
-                role_group,
+                &rolegroup_ref.role_group,
                 zookeeper_config_map_name,
                 env_overrides,
                 resources.as_ref(),
