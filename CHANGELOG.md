@@ -8,7 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Helm: Allow Pod `priorityClassName` to be configured ([#713]).
 
+### Changed
+
+- Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#722]).
+
 [#713]: https://github.com/stackabletech/hdfs-operator/pull/713
+[#722]: https://github.com/stackabletech/hdfs-operator/pull/722
 
 ## [25.7.0] - 2025-07-23
 
