@@ -227,7 +227,7 @@ impl ContainerConfig {
     ) -> Result<(), Error> {
         // HDFS main container
         let main_container_config = Self::from(*role);
-        let object_name = &rolegroup_ref.object_name();
+        let object_name = rolegroup_ref.object_name();
 
         pb.add_volumes(main_container_config.volumes(merged_config, &object_name, labels)?)
             .context(AddVolumeSnafu)?;
@@ -323,7 +323,7 @@ impl ContainerConfig {
                 let zkfc_container_config = Self::try_from(NameNodeContainer::Zkfc.to_string())?;
                 pb.add_volumes(zkfc_container_config.volumes(
                     merged_config,
-                    object_name,
+                    &object_name,
                     labels,
                 )?)
                 .context(AddVolumeSnafu)?;
@@ -331,7 +331,7 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    &rolegroup_ref,
+                    rolegroup_ref,
                     resolved_product_image,
                     zk_config_map_name,
                     env_overrides,
@@ -344,7 +344,7 @@ impl ContainerConfig {
                     Self::try_from(NameNodeContainer::FormatNameNodes.to_string())?;
                 pb.add_volumes(format_namenodes_container_config.volumes(
                     merged_config,
-                    object_name,
+                    &object_name,
                     labels,
                 )?)
                 .context(AddVolumeSnafu)?;
@@ -366,7 +366,7 @@ impl ContainerConfig {
                     Self::try_from(NameNodeContainer::FormatZooKeeper.to_string())?;
                 pb.add_volumes(format_zookeeper_container_config.volumes(
                     merged_config,
-                    object_name,
+                    &object_name,
                     labels,
                 )?)
                 .context(AddVolumeSnafu)?;
@@ -389,7 +389,7 @@ impl ContainerConfig {
                     Self::try_from(DataNodeContainer::WaitForNameNodes.to_string())?;
                 pb.add_volumes(wait_for_namenodes_container_config.volumes(
                     merged_config,
-                    object_name,
+                    &object_name,
                     labels,
                 )?)
                 .context(AddVolumeSnafu)?;

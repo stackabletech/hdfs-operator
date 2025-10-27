@@ -853,7 +853,7 @@ fn rolegroup_statefulset(
         hdfs,
         cluster_info,
         role,
-        &rolegroup_ref,
+        rolegroup_ref,
         resolved_product_image,
         merged_config,
         env_overrides,
