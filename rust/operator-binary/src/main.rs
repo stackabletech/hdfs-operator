@@ -10,7 +10,7 @@ use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
-    client::{self},
+    client,
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -68,9 +68,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Crd => HdfsCluster::merged_crd(HdfsClusterVersion::V1Alpha1)?
             .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(RunArguments {
-            product_config,
-            watch_namespace,
             operator_environment: _,
+            watch_namespace,
+            product_config,
             maintenance,
             common,
         }) => {
