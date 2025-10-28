@@ -21,4 +21,4 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
-  name: test-hdfs-datanode-newrolegroup
+  name: test-hdfs-datanode-newrolegroup-headless
