@@ -27,7 +27,7 @@ helm install --wait zookeeper-operator oci://oci.stackable.tech/sdp-charts/zooke
 helm install --wait hdfs-operator oci://oci.stackable.tech/sdp-charts/hdfs-operator --version 0.0.0-dev
 helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 0.0.0-dev
 helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 0.0.0-dev
-helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev
+helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev --set preset=stable-nodes
 # end::helm-install-operators[]
 ;;
 "stackablectl")
@@ -36,7 +36,7 @@ echo "installing Operators with stackablectl"
 stackablectl operator install \
   commons=0.0.0-dev \
   secret=0.0.0-dev \
-  listener=0.0.0-dev \
+  listener=0.0.0-dev --listener-class-preset stable-nodes \
   zookeeper=0.0.0-dev \
   hdfs=0.0.0-dev
 # end::stackablectl-install-operators[]

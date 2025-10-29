@@ -27,7 +27,7 @@ helm install --wait zookeeper-operator oci://{{ helm.repo_url }}/{{ helm.repo_na
 helm install --wait hdfs-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/hdfs-operator --version {{ versions.hdfs }}
 helm install --wait commons-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
 helm install --wait secret-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
-helm install --wait listener-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/listener-operator --version {{ versions.listener }}
+helm install --wait listener-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/listener-operator --version {{ versions.listener }} --set preset=stable-nodes
 # end::helm-install-operators[]
 ;;
 "stackablectl")
@@ -36,7 +36,7 @@ echo "installing Operators with stackablectl"
 stackablectl operator install \
   commons={{ versions.commons }} \
   secret={{ versions.secret }} \
-  listener={{ versions.listener }} \
+  listener={{ versions.listener }} --listener-class-preset stable-nodes \
   zookeeper={{ versions.zookeeper }} \
   hdfs={{ versions.hdfs }}
 # end::stackablectl-install-operators[]
