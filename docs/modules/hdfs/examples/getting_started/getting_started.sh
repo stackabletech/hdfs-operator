@@ -7,9 +7,7 @@ set -euo pipefail
 # This script contains all the code snippets from the guide, as well as some assert tests
 # to test if the instructions in the guide work. The user *could* use it, but it is intended
 # for testing only.
-# The script will install the operators, create a superset instance and briefly open a port
-# forward and connect to the superset instance to make sure it is up and running.
-# No running processes are left behind (i.e. the port-forwarding is closed at the end)
+# The script will install the operators, create a superset instance and run some tests via the helper pod.
 
 if [ $# -eq 0 ]
 then
@@ -27,7 +25,7 @@ helm install --wait zookeeper-operator oci://oci.stackable.tech/sdp-charts/zooke
 helm install --wait hdfs-operator oci://oci.stackable.tech/sdp-charts/hdfs-operator --version 0.0.0-dev
 helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 0.0.0-dev
 helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 0.0.0-dev
-helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev
+helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev --set preset=stable-nodes
 # end::helm-install-operators[]
 ;;
 "stackablectl")
@@ -118,7 +116,7 @@ kubectl rollout status --watch --timeout=5m statefulset/webhdfs
 
 file_status() {
   # tag::file-status[]
-  kubectl exec -n default webhdfs-0 -- curl -s -XGET "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local:9870/webhdfs/v1/?op=LISTSTATUS"
+  kubectl exec -n default webhdfs-0 -- curl -s -XGET "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default-headless.default.svc.cluster.local:9870/webhdfs/v1/?op=LISTSTATUS"
   # end::file-status[]
 }
 
@@ -140,7 +138,7 @@ kubectl cp -n default ./testdata.txt webhdfs-0:/tmp
 create_file() {
   # tag::create-file[]
   kubectl exec -n default webhdfs-0 -- \
-  curl -s -XPUT -T /tmp/testdata.txt "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE&noredirect=true"
+  curl -s -XPUT -T /tmp/testdata.txt "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default-headless.default.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE&noredirect=true"
   # end::create-file[]
 }
 
@@ -159,7 +157,7 @@ echo "Created file: $found_file with status $(file_status)"
 echo "Delete file"
 delete_file() {
   # tag::delete-file[]
-  kubectl exec -n default webhdfs-0 -- curl -s -XDELETE "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=DELETE"
+  kubectl exec -n default webhdfs-0 -- curl -s -XDELETE "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default-headless.default.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=DELETE"
   # end::delete-file[]
 }
 
