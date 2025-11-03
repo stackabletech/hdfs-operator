@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- BREAKING: Renamed headless rolegroup service from `<stacklet>-<role>-<rolegroup>` to `<stacklet>-<role>-<rolegroup>-headless` ([#721]).
+  - The `prometheus.io/scrape` label was moved to the metrics service
+  - The headless service now only exposes product / data ports, the metrics service only metrics ports
 - Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#722]).
 
 [#713]: https://github.com/stackabletech/hdfs-operator/pull/713
@@ -60,9 +63,6 @@ All notable changes to this project will be documented in this file.
   - The CLI argument `--kubernetes-node-name` or env variable `KUBERNETES_NODE_NAME` needs to be set. The helm-chart takes care of this.
 - The operator helm-chart now grants RBAC `patch` permissions on `events.k8s.io/events`,
   so events can be aggregated (e.g. "error happened 10 times over the last 5 minutes") ([#700]).
-- BREAKING: Renamed headless rolegroup service from `<stacklet>-<role>-<rolegroup>` to `<stacklet>-<role>-<rolegroup>-metrics` ([#721]).
-  - The `prometheus.io/scrape` label was moved to the metrics service
-  - The headless service now only exposes product / data ports, the metrics service only metrics ports
 
 ### Fixed
 
