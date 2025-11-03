@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   - `EOS_CHECK_MODE` (`--eos-check-mode`) to set the EoS check mode. Currently, only "offline" is supported.
   - `EOS_INTERVAL` (`--eos-interval`) to set the interval in which the operator checks if it is EoS.
   - `EOS_DISABLED` (`--eos-disabled`) to disable the EoS checker completely.
+- Add `prometheus.io/path|port|scheme` annotations to metrics service ([#721]).
 
 ### Changed
 
@@ -18,6 +19,7 @@ All notable changes to this project will be documented in this file.
 
 [#713]: https://github.com/stackabletech/hdfs-operator/pull/713
 [#718]: https://github.com/stackabletech/hdfs-operator/pull/718
+[#721]: https://github.com/stackabletech/hdfs-operator/pull/721
 [#722]: https://github.com/stackabletech/hdfs-operator/pull/722
 
 ## [25.7.0] - 2025-07-23
@@ -34,7 +36,6 @@ All notable changes to this project will be documented in this file.
 - The built-in Prometheus servlet is now enabled and metrics are exposed under the `/prom` path of all UI services ([#695]).
 - Add several properties to `hdfs-site.xml` and `core-site.xml` that improve general performance and reliability ([#696]).
 - Add RBAC rule to helm template for automatic cluster domain detection ([#699]).
-- Add `prometheus.io/path|port|scheme` annotations to metrics service ([#721]).
 
 ### Changed
 
@@ -90,7 +91,6 @@ All notable changes to this project will be documented in this file.
 [#697]: https://github.com/stackabletech/hdfs-operator/pull/697
 [#699]: https://github.com/stackabletech/hdfs-operator/pull/699
 [#700]: https://github.com/stackabletech/hdfs-operator/pull/700
-[#721]: https://github.com/stackabletech/hdfs-operator/pull/721
 
 ## [25.3.0] - 2025-03-21
 
