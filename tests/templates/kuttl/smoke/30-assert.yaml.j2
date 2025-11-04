@@ -80,7 +80,7 @@ status:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hdfs-namenode-default-headless
+  name: hdfs-namenode-default
 spec:
   ports:
   - name: rpc
@@ -110,7 +110,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hdfs-datanode-default-headless
+  name: hdfs-datanode-default
 spec:
   ports:
   - name: data
@@ -144,7 +144,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hdfs-journalnode-default-headless
+  name: hdfs-journalnode-default
 spec:
   ports:
   - name: rpc

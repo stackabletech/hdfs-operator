@@ -48,7 +48,7 @@ pub(crate) fn rolegroup_headless_service(
     let mut metadata_builder = ObjectMetaBuilder::new();
     metadata_builder
         .name_and_namespace(hdfs)
-        .name(rolegroup_ref.rolegroup_headless_service_name())
+        .name(rolegroup_ref.object_name())
         .ownerreference_from_resource(hdfs, None, Some(true))
         .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
