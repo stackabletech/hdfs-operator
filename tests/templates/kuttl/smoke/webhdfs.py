@@ -17,7 +17,7 @@ def main() -> int:
 
     if command == "ls":
         http_code = requests.get(
-            f"http://hdfs-namenode-default-0.hdfs-namenode-default-headless.{namespace}.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=LISTSTATUS"
+            f"http://hdfs-namenode-default-0.hdfs-namenode-default.{namespace}.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=LISTSTATUS"
         ).status_code
         if http_code != 200:
             result = 1
@@ -31,7 +31,7 @@ def main() -> int:
             )
         }
         http_code = requests.put(
-            f"http://hdfs-namenode-default-0.hdfs-namenode-default-headless.{namespace}.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE",
+            f"http://hdfs-namenode-default-0.hdfs-namenode-default.{namespace}.svc.cluster.local:9870/webhdfs/v1/testdata.txt?user.name=stackable&op=CREATE",
             files=files,
             allow_redirects=True,
         ).status_code

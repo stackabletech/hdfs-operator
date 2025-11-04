@@ -15,15 +15,15 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- BREAKING: Renamed headless rolegroup service from `<stacklet>-<role>-<rolegroup>` to `<stacklet>-<role>-<rolegroup>-headless` ([#721]).
-  - The `prometheus.io/scrape` label was moved to the metrics service
-  - The headless service now only exposes product / data ports, the metrics service only metrics ports
+- The `prometheus.io/scrape` label was moved to the metrics service ([#721]).
+- The headless service now only exposes product / data ports, the metrics service only metrics ports ([#721], [#726]).
 - Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#722]).
 
 [#713]: https://github.com/stackabletech/hdfs-operator/pull/713
 [#718]: https://github.com/stackabletech/hdfs-operator/pull/718
 [#721]: https://github.com/stackabletech/hdfs-operator/pull/721
 [#722]: https://github.com/stackabletech/hdfs-operator/pull/722
+[#726]: https://github.com/stackabletech/hdfs-operator/pull/726
 
 ## [25.7.0] - 2025-07-23
 

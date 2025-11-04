@@ -391,7 +391,7 @@ impl v1alpha1::HdfsCluster {
                 let ns = ns.clone();
                 (0..*replicas).map(move |i| HdfsPodRef {
                     namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.rolegroup_headless_service_name(),
+                    role_group_service_name: rolegroup_ref.object_name(),
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                     ports: self
                         .data_ports(role)
