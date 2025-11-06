@@ -7980,7 +7980,7 @@ rec {
       };
       "stackable-hdfs-operator" = rec {
         crateName = "stackable-hdfs-operator";
-        version = "0.0.0-dev";
+        version = "25.11.0-rc1";
         edition = "2021";
         crateBin = [
           {
