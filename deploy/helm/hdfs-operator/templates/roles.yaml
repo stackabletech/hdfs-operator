@@ -206,6 +206,8 @@ rules:
     verbs:
       - get
       - list
+      # needed for pod informer
+      - watch
   - apiGroups:
       - listeners.stackable.tech
     resources:
