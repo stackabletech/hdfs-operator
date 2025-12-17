@@ -206,6 +206,8 @@ rules:
     verbs:
       - get
       - list
+      # needed for pod informer
+      - watch
   - apiGroups:
       - listeners.stackable.tech
     resources:
@@ -213,3 +215,10 @@ rules:
     verbs:
       - get
       - list
+  # needed to query the crd version (v1alpha1 etc.) before fetching listeners
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get

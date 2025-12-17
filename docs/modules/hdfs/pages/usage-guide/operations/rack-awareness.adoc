@@ -1,6 +1,6 @@
 = HDFS Rack Awareness
 :rack-awareness-docs: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/RackAwareness.html
-:hdfs-topology-provider: https://github.com/stackabletech/hdfs-topology-provider
+:hdfs-topology-provider: https://github.com/stackabletech/hdfs-utils/blob/main/src/main/java/tech/stackable/hadoop/StackableTopologyProvider.java
 
 {rack-awareness-docs}[Rack awareness] is a feature in Apache Hadoop that allows users to define a cluster's node topology.
 Hadoop uses that topology to distribute block replicas in a way that maximizes fault tolerance.
@@ -35,3 +35,7 @@ This creates an internal topology label by combining the values of the `topology
 In order to enable gathering this information the Hadoop images contain the {hdfs-topology-provider}[hdfs-topology-provider] on the classpath, which can be configured to read labels from Kubernetes objects.
 
 The operator deploys ClusterRoles and ServicesAccounts with the relevant RBAC rules to allow the Hadoop Pod to access the necessary Kubernetes objects.
+Topologies and other metadata such as Node- and Pod-IPs and endpoints are held in separate caches so that they can be refeshed independently of one another.
+The {hdfs-topology-provider}[hdfs-topology-provider] is namespace-scoped and pods in the active namespace are watched so that changes can be propagated to the internal cache to minimise cache misses.
+
+NOTE: Rack awareness will not work on clusters such as `kind` or `k3s` that configure IP-masquerading differently to production-ready distributions.

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added permissions required by Topology Provider ([#738]).
+
+[#738]: https://github.com/stackabletech/hdfs-operator/pull/738
+
 ## [25.11.0] - 2025-11-07
 
 ## [25.11.0-rc1] - 2025-11-06
