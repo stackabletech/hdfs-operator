@@ -26,7 +26,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: python
-          image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
+          image: oci.stackable.tech/sdp/testing-tools:0.3.0-stackable0.0.0-dev
           stdin: true
           tty: true
           resources:
