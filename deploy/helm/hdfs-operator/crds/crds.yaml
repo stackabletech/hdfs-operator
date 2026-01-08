@@ -8,7 +8,6 @@ metadata:
 spec:
   group: hdfs.stackable.tech
   names:
-    categories: []
     kind: HdfsCluster
     plural: hdfsclusters
     shortNames:
@@ -16,8 +15,7 @@ spec:
     singular: hdfscluster
   scope: Namespaced
   versions:
-    - additionalPrinterColumns: []
-      name: v1alpha1
+    - name: v1alpha1
       schema:
         openAPIV3Schema:
           description: Auto-generated derived type for HdfsClusterSpec via `CustomResource`
