@@ -7,9 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support objectOverrides using `.spec.objectOverrides`.
-  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#XXX]).
+  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
 
-[#XXX]: https://github.com/stackabletech/hdfs-operator/pull/XXX
+[#741]: https://github.com/stackabletech/hdfs-operator/pull/741
 
 ## [25.11.0] - 2025-11-07
 
