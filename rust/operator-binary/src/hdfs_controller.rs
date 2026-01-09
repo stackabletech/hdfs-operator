@@ -312,6 +312,7 @@ pub async fn reconcile_hdfs(
         RESOURCE_MANAGER_HDFS_CONTROLLER,
         &hdfs_obj_ref,
         ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
+        &hdfs.spec.object_overrides,
     )
     .context(CreateClusterResourcesSnafu)?;
 
