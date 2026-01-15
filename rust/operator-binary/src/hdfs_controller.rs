@@ -22,6 +22,7 @@ use stackable_operator::{
         product_image_selection::{self, ResolvedProductImage},
         rbac::build_rbac_resources,
     },
+    constants::RESTART_CONTROLLER_ENABLED_LABEL,
     iter::reverse_if,
     k8s_openapi::{
         DeepMerge,
@@ -464,6 +465,10 @@ pub async fn reconcile_hdfs(
                 .with_context(|_| ApplyRoleGroupConfigMapSnafu {
                     name: rg_configmap_name,
                 })?;
+
+            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
+            // to prevent unnecessary Pod restarts.
+            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
             let rg_statefulset_name = rg_statefulset.name_any();
             let deployed_rg_statefulset = cluster_resources
                 .add(client, rg_statefulset.clone())
@@ -472,6 +477,7 @@ pub async fn reconcile_hdfs(
                     name: rg_statefulset_name,
                 })?;
             ss_cond_builder.add(deployed_rg_statefulset.clone());
+
             if upgrade_state.is_some() {
                 // When upgrading, ensure that each role is upgraded before moving on to the next as recommended by
                 // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
@@ -895,8 +901,13 @@ fn rolegroup_statefulset(
         ..StatefulSetSpec::default()
     };
 
+    let sts_metadata = metadata
+        .clone()
+        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
+        .build();
+
     Ok(StatefulSet {
-        metadata: metadata.build(),
+        metadata: sts_metadata,
         spec: Some(statefulset_spec),
         status: None,
     })

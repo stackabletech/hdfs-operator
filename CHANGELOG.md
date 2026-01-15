@@ -8,8 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
+- Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#XXX]).
 
 [#741]: https://github.com/stackabletech/hdfs-operator/pull/741
+[#XXX]: https://github.com/stackabletech/hdfs-operator/pull/XXX
 
 ## [25.11.0] - 2025-11-07
 
