@@ -8,6 +8,8 @@ kind: StatefulSet
 metadata:
   name: hdfs-namenode-default
   generation: 1 # There should be no unneeded Pod restarts
+  labels:
+    restarter.stackable.tech/enabled: "true"
 spec:
   template:
     spec:
@@ -34,6 +36,8 @@ kind: StatefulSet
 metadata:
   name: hdfs-journalnode-default
   generation: 1 # There should be no unneeded Pod restarts
+  labels:
+    restarter.stackable.tech/enabled: "true"
 spec:
   template:
     spec:
@@ -59,6 +63,8 @@ kind: StatefulSet
 metadata:
   name: hdfs-datanode-default
   generation: 1 # There should be no unneeded Pod restarts
+  labels:
+    restarter.stackable.tech/enabled: "true"
 spec:
   template:
     spec:
