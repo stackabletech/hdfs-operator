@@ -3,4 +3,3 @@
 // Stackable Platform documentation.
 
 - 3.4.2 (LTS)
-- 3.4.1 (Deprecated)
