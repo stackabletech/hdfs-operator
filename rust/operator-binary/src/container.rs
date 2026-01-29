@@ -693,6 +693,7 @@ impl ContainerConfig {
                     for namenode_id in {pod_names}
                     do
                       echo -n "Checking pod $namenode_id... "
+
                       # We only redirect 2 (stderr) to 4 (console). 
                       # We leave 1 (stdout) alone so the $(...) can catch it.
                       SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
@@ -703,7 +704,7 @@ impl ContainerConfig {
                         echo "active"
                         break
                       else
-                        echo "unknown"  
+                        echo "unknown / unreachable"  
                       fi
                     done
 
@@ -711,10 +712,10 @@ impl ContainerConfig {
                     then
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
-                        echo "Create pod $POD_NAME as active namenode."
+                        echo "No active namenode found. Formatting $POD_NAME as active."
                         exclude_from_capture {hadoop_home}/bin/hdfs namenode -format -noninteractive
                       else
-                        echo "Create pod $POD_NAME as standby namenode."
+                        echo "Active namenode is $ACTIVE_NAMENODE. Bootstrapping standby."
                         exclude_from_capture {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                       fi
                     else
@@ -733,6 +734,7 @@ impl ContainerConfig {
             ContainerConfig::FormatZooKeeper { container_name, .. } => {
                 args.push_str(&bash_capture_shell_helper(container_name));
                 args.push_str("start_capture\n");
+
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
                         .for_container(&NameNodeContainer::FormatZooKeeper)
@@ -747,11 +749,7 @@ impl ContainerConfig {
                     echo "Attempt to format ZooKeeper..."
                     if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
                       set +e
-                      # Restore original stdout/stderr from FD 3 and 4
-                      exec 1>&3 2>&4
-                      # Clean up (close FD 3 and 4)
-                      exec 3>&- 4>&-
-                      {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive
+                      exclude_from_capture {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive
                       EXITCODE=$?
                       set -e
                       if [[ $EXITCODE -eq 0 ]]; then
@@ -770,7 +768,10 @@ impl ContainerConfig {
                     hadoop_home = Self::HADOOP_HOME,
                 ));
             }
-            ContainerConfig::WaitForNameNodes { .. } => {
+            ContainerConfig::WaitForNameNodes { container_name, .. } => {
+                args.push_str(&bash_capture_shell_helper(container_name));
+                args.push_str("start_capture\n");
+
                 if let Some(container_config) = merged_config.as_datanode().map(|node| {
                     node.logging
                         .for_container(&DataNodeContainer::WaitForNameNodes)
@@ -793,7 +794,11 @@ impl ContainerConfig {
                       for namenode_id in {pod_names}
                       do
                         echo -n "Checking pod $namenode_id... "
-                        {get_service_state_command}
+                        
+                        # We only redirect 2 (stderr) to 4 (console). 
+                        # We leave 1 (stdout) alone so the $(...) can catch it.
+                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
+
                         if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
                         then
                           echo "$SERVICE_STATE"
@@ -812,7 +817,7 @@ impl ContainerConfig {
                       sleep 5
                     done
                     "###,
-                    get_service_state_command = Self::get_namenode_service_state_command(),
+                    hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
                         .map(|pod_ref| pod_ref.pod_name.as_ref())
@@ -852,14 +857,6 @@ impl ContainerConfig {
             kinit "{principal}" -kt {KERBEROS_CONTAINER_PATH}/keytab
             "###,
         ))
-    }
-
-    fn get_namenode_service_state_command() -> String {
-        formatdoc!(
-            r###"
-                  SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $namenode_id | tail -n1 || true)"###,
-            hadoop_home = Self::HADOOP_HOME,
-        )
     }
 
     /// Returns the container env variables.
