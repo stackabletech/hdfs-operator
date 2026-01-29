@@ -696,7 +696,7 @@ impl ContainerConfig {
                       # We only redirect 2 (stderr) to 4 (console).
                       # We leave 1 (stdout) alone so the $(...) can catch it.
                       SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
-                      
+
                       if [ "$SERVICE_STATE" == "active" ]
                       then
                         ACTIVE_NAMENODE="$namenode_id"
