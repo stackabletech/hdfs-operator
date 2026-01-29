@@ -11,7 +11,7 @@
 //!
 use std::{collections::BTreeMap, str::FromStr};
 
-use indoc::{formatdoc, indoc};
+use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -41,8 +41,7 @@ use stackable_operator::{
     product_logging::{
         self,
         framework::{
-            LoggingError, capture_shell_output, create_vector_shutdown_file_command,
-            remove_vector_shutdown_file_command,
+            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
         },
         spec::{
             AutomaticContainerLogConfig, ConfigMapLogConfig, ContainerLogConfig,
@@ -666,7 +665,8 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::FormatNameNodes { container_name, .. } => {
-                args.push_str(&add_capture_shell_output(container_name));
+                args.push_str(&bash_capture_shell_helper(container_name));
+                args.push_str("start_capture\n");
 
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
@@ -693,14 +693,18 @@ impl ContainerConfig {
                     for namenode_id in {pod_names}
                     do
                       echo -n "Checking pod $namenode_id... "
-                      {get_service_state_command}
+                      # We only redirect 2 (stderr) to 4 (console). 
+                      # We leave 1 (stdout) alone so the $(...) can catch it.
+                      SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
+                      
                       if [ "$SERVICE_STATE" == "active" ]
                       then
-                        ACTIVE_NAMENODE=$namenode_id
+                        ACTIVE_NAMENODE="$namenode_id"
                         echo "active"
                         break
+                      else
+                        echo "unknown"  
                       fi
-                      echo ""
                     done
 
                     if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
@@ -708,25 +712,16 @@ impl ContainerConfig {
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
                         echo "Create pod $POD_NAME as active namenode."
-                        # Restore original stdout/stderr from FD 3 and 4
-                        exec 1>&3 2>&4
-                        # Clean up (close FD 3 and 4)
-                        exec 3>&- 4>&-
-                        {hadoop_home}/bin/hdfs namenode -format -noninteractive
+                        exclude_from_capture {hadoop_home}/bin/hdfs namenode -format -noninteractive
                       else
                         echo "Create pod $POD_NAME as standby namenode."
-                        # Restore original stdout/stderr from FD 3 and 4
-                        exec 1>&3 2>&4
-                        # Clean up (close FD 3 and 4)
-                        exec 3>&- 4>&-
-                        {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
+                        exclude_from_capture {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                       fi
                     else
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi
                     "###,
-                    get_service_state_command = Self::get_namenode_service_state_command(),
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
@@ -736,8 +731,8 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::FormatZooKeeper { container_name, .. } => {
-                args.push_str(&add_capture_shell_output(container_name));
-
+                args.push_str(&bash_capture_shell_helper(container_name));
+                args.push_str("start_capture\n");
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
                         .for_container(&NameNodeContainer::FormatZooKeeper)
@@ -775,9 +770,7 @@ impl ContainerConfig {
                     hadoop_home = Self::HADOOP_HOME,
                 ));
             }
-            ContainerConfig::WaitForNameNodes { container_name, .. } => {
-                args.push_str(&add_capture_shell_output(container_name));
-
+            ContainerConfig::WaitForNameNodes { .. } => {
                 if let Some(container_config) = merged_config.as_datanode().map(|node| {
                     node.logging
                         .for_container(&DataNodeContainer::WaitForNameNodes)
@@ -1585,17 +1578,44 @@ impl TryFrom<&str> for ContainerVolumeDirs {
     }
 }
 
-fn add_capture_shell_output(container_name: &str) -> String {
+fn bash_capture_shell_helper(container_name: &str) -> String {
     let capture_shell_output = product_logging::framework::capture_shell_output(
         STACKABLE_LOG_DIR,
         container_name,
         // we do not access any of the crd config options for this and just log it to file
         &AutomaticContainerLogConfig::default(),
     );
-    formatdoc! {r###"
-    # Save original stdout/stderr to FD 3 and 4
-    exec 3>&1 4>&2
-    {capture_shell_output}
-    "###
+
+    formatdoc! {
+        r###"
+        # Store the original stdout/stderr globally so we can always find our way back
+        # 3 and 4 are usually safe, but we'll be explicit.
+        exec 3>&1
+        exec 4>&2
+
+        start_capture() {{
+            # We redirect 1 and 2 to the background tee processes
+            {capture_shell_output}
+        }}
+
+        stop_capture() {{
+            # Restore stdout and stderr from our saved descriptors
+            exec 1>&3 2>&4
+        }}
+
+        exclude_from_capture() {{
+            # Temporarily restore original FDs just for the duration of this command
+            # We use 'local' for the exit code to keep things clean
+            set +e
+            "$@" 1>&3 2>&4
+            local exit_code=$?
+            set -e
+            
+            # If the command failed, we manually trigger the exit since we set +e
+            if [ $exit_code -ne 0 ]; then
+                exit $exit_code
+            fi
+        }}
+        "###
     }
 }
