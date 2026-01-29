@@ -666,7 +666,6 @@ impl ContainerConfig {
             }
             ContainerConfig::FormatNameNodes { container_name, .. } => {
                 args.push_str(&bash_capture_shell_helper(container_name));
-                args.push_str("start_capture\n");
 
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
@@ -733,7 +732,6 @@ impl ContainerConfig {
             }
             ContainerConfig::FormatZooKeeper { container_name, .. } => {
                 args.push_str(&bash_capture_shell_helper(container_name));
-                args.push_str("start_capture\n");
 
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
@@ -770,7 +768,6 @@ impl ContainerConfig {
             }
             ContainerConfig::WaitForNameNodes { container_name, .. } => {
                 args.push_str(&bash_capture_shell_helper(container_name));
-                args.push_str("start_capture\n");
 
                 if let Some(container_config) = merged_config.as_datanode().map(|node| {
                     node.logging
@@ -794,7 +791,7 @@ impl ContainerConfig {
                       for namenode_id in {pod_names}
                       do
                         echo -n "Checking pod $namenode_id... "
-                        
+
                         # We only redirect 2 (stderr) to 4 (console). 
                         # We leave 1 (stdout) alone so the $(...) can catch it.
                         SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
@@ -1613,6 +1610,8 @@ fn bash_capture_shell_helper(container_name: &str) -> String {
                 exit $exit_code
             fi
         }}
+
+        start_capture
         "###
     }
 }
