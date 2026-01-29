@@ -60,18 +60,48 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "vector"
-    filteredAutomaticLogConfigNameNode0FormatNameNode:
+    filteredAutomaticLogConfigNameNode0FormatNameNodeLog4j:
       type: filter
       inputs: [validEvents]
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
-        .container == "format-namenodes"
-    filteredAutomaticLogConfigNameNode1FormatNameNode:
+        .container == "format-namenodes" &&
+        .file == "format-namenodes.log4j.xml"
+    filteredAutomaticLogConfigNameNode0FormatNameNodeStdout:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "format-namenodes" &&
+        .file == "container.stdout.log"
+    filteredAutomaticLogConfigNameNode0FormatNameNodeStderr:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "format-namenodes" &&
+        .file == "container.stderr.log"
+    filteredAutomaticLogConfigNameNode1FormatNameNodeLog4j:
       type: filter
       inputs: [validEvents]
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
-        .container == "format-namenodes"
+        .container == "format-namenodes" &&
+        .file == "format-namenodes.log4j.xml"
+    filteredAutomaticLogConfigNameNode1FormatNameNodeStdout:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "format-namenodes" &&
+        .file == "container.stdout.log"
+    filteredAutomaticLogConfigNameNode1FormatNameNodeStderr:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "format-namenodes" &&
+        .file == "container.stderr.log"
     filteredAutomaticLogConfigNameNode0FormatZookeeper:
       type: filter
       inputs: [validEvents]

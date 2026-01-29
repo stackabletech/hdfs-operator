@@ -11,7 +11,7 @@
 //!
 use std::{collections::BTreeMap, str::FromStr};
 
-use indoc::formatdoc;
+use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -41,11 +41,12 @@ use stackable_operator::{
     product_logging::{
         self,
         framework::{
-            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
+            LoggingError, capture_shell_output, create_vector_shutdown_file_command,
+            remove_vector_shutdown_file_command,
         },
         spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig,
+            AutomaticContainerLogConfig, ConfigMapLogConfig, ContainerLogConfig,
+            ContainerLogConfigChoice, CustomContainerLogConfig,
         },
     },
     role_utils::RoleGroupRef,
@@ -627,22 +628,22 @@ impl ContainerConfig {
                     &merged_config.hdfs_logging(),
                 ));
 
-                args.push_str(&format!(
+                args.push_str(&formatdoc!(
                     r#"\
-{COMMON_BASH_TRAP_FUNCTIONS}
-{remove_vector_shutdown_file_command}
-prepare_signal_handlers
-containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
-if [[ -d {LISTENER_VOLUME_DIR} ]]; then
-    export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
-    for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
-        export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
-    done
-fi
-{hadoop_home}/bin/hdfs {role} {upgrade_args} &
-wait_for_termination $!
-{create_vector_shutdown_file_command}
-"#,
+                {COMMON_BASH_TRAP_FUNCTIONS}
+                {remove_vector_shutdown_file_command}
+                prepare_signal_handlers
+                containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+                if [[ -d {LISTENER_VOLUME_DIR} ]]; then
+                    export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
+                    for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
+                        export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
+                    done
+                fi
+                {hadoop_home}/bin/hdfs {role} {upgrade_args} &
+                wait_for_termination $!
+                {create_vector_shutdown_file_command}
+                "#,
                     hadoop_home = Self::HADOOP_HOME,
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
@@ -664,7 +665,9 @@ wait_for_termination $!
                     hadoop_home = Self::HADOOP_HOME
                 ));
             }
-            ContainerConfig::FormatNameNodes { .. } => {
+            ContainerConfig::FormatNameNodes { container_name, .. } => {
+                args.push_str(&add_capture_shell_output(container_name));
+
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
                         .for_container(&NameNodeContainer::FormatNameNodes)
@@ -705,9 +708,17 @@ wait_for_termination $!
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
                         echo "Create pod $POD_NAME as active namenode."
+                        # Restore original stdout/stderr from FD 3 and 4
+                        exec 1>&3 2>&4
+                        # Clean up (close FD 3 and 4)
+                        exec 3>&- 4>&-
                         {hadoop_home}/bin/hdfs namenode -format -noninteractive
                       else
                         echo "Create pod $POD_NAME as standby namenode."
+                        # Restore original stdout/stderr from FD 3 and 4
+                        exec 1>&3 2>&4
+                        # Clean up (close FD 3 and 4)
+                        exec 3>&- 4>&-
                         {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                       fi
                     else
@@ -724,7 +735,9 @@ wait_for_termination $!
                         .join(" "),
                 ));
             }
-            ContainerConfig::FormatZooKeeper { .. } => {
+            ContainerConfig::FormatZooKeeper { container_name, .. } => {
+                args.push_str(&add_capture_shell_output(container_name));
+
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
                         .for_container(&NameNodeContainer::FormatZooKeeper)
@@ -739,6 +752,10 @@ wait_for_termination $!
                     echo "Attempt to format ZooKeeper..."
                     if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
                       set +e
+                      # Restore original stdout/stderr from FD 3 and 4
+                      exec 1>&3 2>&4
+                      # Clean up (close FD 3 and 4)
+                      exec 3>&- 4>&-
                       {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive
                       EXITCODE=$?
                       set -e
@@ -755,10 +772,12 @@ wait_for_termination $!
                       echo "ZooKeeper already formatted!"
                     fi
                     "###,
-                    hadoop_home = Self::HADOOP_HOME
+                    hadoop_home = Self::HADOOP_HOME,
                 ));
             }
-            ContainerConfig::WaitForNameNodes { .. } => {
+            ContainerConfig::WaitForNameNodes { container_name, .. } => {
+                args.push_str(&add_capture_shell_output(container_name));
+
                 if let Some(container_config) = merged_config.as_datanode().map(|node| {
                     node.logging
                         .for_container(&DataNodeContainer::WaitForNameNodes)
@@ -1563,5 +1582,20 @@ impl TryFrom<&str> for ContainerVolumeDirs {
             log_mount,
             log_mount_name,
         })
+    }
+}
+
+fn add_capture_shell_output(container_name: &str) -> String {
+    let capture_shell_output = product_logging::framework::capture_shell_output(
+        STACKABLE_LOG_DIR,
+        container_name,
+        // we do not access any of the crd config options for this and just log it to file
+        &AutomaticContainerLogConfig::default(),
+    );
+    formatdoc! {r###"
+    # Save original stdout/stderr to FD 3 and 4
+    exec 3>&1 4>&2
+    {capture_shell_output}
+    "###
     }
 }
