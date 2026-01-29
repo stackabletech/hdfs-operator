@@ -693,7 +693,7 @@ impl ContainerConfig {
                     do
                       echo -n "Checking pod $namenode_id... "
 
-                      # We only redirect 2 (stderr) to 4 (console). 
+                      # We only redirect 2 (stderr) to 4 (console).
                       # We leave 1 (stdout) alone so the $(...) can catch it.
                       SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
                       
@@ -703,7 +703,7 @@ impl ContainerConfig {
                         echo "active"
                         break
                       else
-                        echo "unknown / unreachable"  
+                        echo "unknown / unreachable"
                       fi
                     done
 
@@ -792,7 +792,7 @@ impl ContainerConfig {
                       do
                         echo -n "Checking pod $namenode_id... "
 
-                        # We only redirect 2 (stderr) to 4 (console). 
+                        # We only redirect 2 (stderr) to 4 (console).
                         # We leave 1 (stdout) alone so the $(...) can catch it.
                         SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
 
@@ -1604,7 +1604,7 @@ fn bash_capture_shell_helper(container_name: &str) -> String {
             "$@" 1>&3 2>&4
             local exit_code=$?
             set -e
-            
+
             # If the command failed, we manually trigger the exit since we set +e
             if [ $exit_code -ne 0 ]; then
                 exit $exit_code
