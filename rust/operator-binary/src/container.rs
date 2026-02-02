@@ -746,10 +746,8 @@ impl ContainerConfig {
                     r###"
                     echo "Attempt to format ZooKeeper..."
                     if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
-                      set +e
                       exclude_from_capture {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive
                       EXITCODE=$?
-                      set -e
                       if [[ $EXITCODE -eq 0 ]]; then
                         echo "Successfully formatted"
                       elif [[ $EXITCODE -eq 2 ]]; then
