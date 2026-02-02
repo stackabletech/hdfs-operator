@@ -1597,9 +1597,7 @@ fn bash_capture_shell_helper(container_name: &str) -> String {
             # Temporarily restore original FDs just for the duration of this command
             # We use 'local' for the exit code to keep things clean
             "$@" 1>&3 2>&4
-            local exit_code=$?
-
-            echo $exit_code
+            echo $?
         }}
 
         start_capture
