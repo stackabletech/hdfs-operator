@@ -744,21 +744,19 @@ impl ContainerConfig {
                 }
                 args.push_str(&formatdoc!(
                     r###"
-                    echo "Attempt to format ZooKeeper..."
+                    echo "Attempt to format ZooKeeper ZNode for $POD_NAME ..."
                     if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
-                      exclude_from_capture {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive
-                      EXITCODE=$?
+                      EXITCODE=$(exclude_from_capture {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive)
                       if [[ $EXITCODE -eq 0 ]]; then
-                        echo "Successfully formatted"
+                        echo "Successfully formatted ZooKeeper ZNode."
                       elif [[ $EXITCODE -eq 2 ]]; then
-                        echo "ZNode already existed, did nothing"
+                        echo "ZNode already exists, nothing to do."
                       else
-                        echo "Zookeeper format failed with exit code $EXITCODE"
+                        echo "ZooKeeper format ZNode failed with exit code $EXITCODE".
                         exit $EXITCODE
                       fi
-
                     else
-                      echo "ZooKeeper already formatted!"
+                      echo "ZooKeeper ZNode already formatted!"
                     fi
                     "###,
                     hadoop_home = Self::HADOOP_HOME,
@@ -1598,15 +1596,10 @@ fn bash_capture_shell_helper(container_name: &str) -> String {
         exclude_from_capture() {{
             # Temporarily restore original FDs just for the duration of this command
             # We use 'local' for the exit code to keep things clean
-            set +e
             "$@" 1>&3 2>&4
             local exit_code=$?
-            set -e
 
-            # If the command failed, we manually trigger the exit since we set +e
-            if [ $exit_code -ne 0 ]; then
-                exit $exit_code
-            fi
+            echo $exit_code
         }}
 
         start_capture

@@ -123,6 +123,20 @@ customConfig:
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-zookeeper" &&
         .file == "container.stderr.log"
+    filteredAutomaticLogConfigNameNode1FormatZookeeperStdout:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "format-zookeeper" &&
+        .file == "container.stdout.log"
+    filteredAutomaticLogConfigNameNode1FormatZookeeperStderr:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "format-zookeeper" &&
+        .file == "container.stderr.log"
     filteredAutomaticLogConfigDataNode0:
       type: filter
       inputs: [validEvents]
@@ -135,12 +149,27 @@ customConfig:
       condition: >-
         .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "vector"
-    filteredAutomaticLogConfigDataNode0WaitForNameNodes:
+    filteredAutomaticLogConfigDataNode0WaitForNameNodesLog4j:
       type: filter
       inputs: [validEvents]
       condition: >-
         .pod == "test-hdfs-automatic-log-datanode-default-0" &&
-        .container == "wait-for-namenodes"
+        .container == "wait-for-namenodes" &&
+        .file == "wait-for-namenodes.log4j.xml"
+    filteredAutomaticLogConfigDataNode0WaitForNameNodesStdout:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
+        .container == "wait-for-namenodes" &&
+        .file == "container.stdout.log"
+    filteredAutomaticLogConfigDataNode0WaitForNameNodesStderr:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
+        .container == "wait-for-namenodes" &&
+        .file == "container.stderr.log"
     filteredAutomaticLogConfigJournalNode0:
       type: filter
       inputs: [validEvents]
