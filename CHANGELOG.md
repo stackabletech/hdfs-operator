@@ -10,8 +10,13 @@ All notable changes to this project will be documented in this file.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#743]).
 
+### Changed
+
+- Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#747]).
+
 [#741]: https://github.com/stackabletech/hdfs-operator/pull/741
 [#743]: https://github.com/stackabletech/hdfs-operator/pull/743
+[#747]: https://github.com/stackabletech/hdfs-operator/pull/747
 
 ## [25.11.0] - 2025-11-07
 
