@@ -14,8 +14,13 @@ All notable changes to this project will be documented in this file.
 
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#747]).
 
+### Fixed
+
+- Previously, some shell output of init-containers was not logged properly and therefore not aggregated, which is fixed now ([#746]).
+
 [#741]: https://github.com/stackabletech/hdfs-operator/pull/741
 [#743]: https://github.com/stackabletech/hdfs-operator/pull/743
+[#746]: https://github.com/stackabletech/hdfs-operator/pull/746
 [#747]: https://github.com/stackabletech/hdfs-operator/pull/747
 
 ## [25.11.0] - 2025-11-07
