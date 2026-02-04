@@ -10,8 +10,13 @@ All notable changes to this project will be documented in this file.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#743]).
 
+### Fixed
+
+- Previously, some shell output of init-containers was not logged properly and therefore not aggregated, which is fixed now ([#746]).
+
 [#741]: https://github.com/stackabletech/hdfs-operator/pull/741
 [#743]: https://github.com/stackabletech/hdfs-operator/pull/743
+[#746]: https://github.com/stackabletech/hdfs-operator/pull/746
 
 ## [25.11.0] - 2025-11-07
 

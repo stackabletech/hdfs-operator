@@ -44,8 +44,8 @@ use stackable_operator::{
             LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
         },
         spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig,
+            AutomaticContainerLogConfig, ConfigMapLogConfig, ContainerLogConfig,
+            ContainerLogConfigChoice, CustomContainerLogConfig,
         },
     },
     role_utils::RoleGroupRef,
@@ -627,22 +627,22 @@ impl ContainerConfig {
                     &merged_config.hdfs_logging(),
                 ));
 
-                args.push_str(&format!(
+                args.push_str(&formatdoc!(
                     r#"\
-{COMMON_BASH_TRAP_FUNCTIONS}
-{remove_vector_shutdown_file_command}
-prepare_signal_handlers
-containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
-if [[ -d {LISTENER_VOLUME_DIR} ]]; then
-    export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
-    for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
-        export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
-    done
-fi
-{hadoop_home}/bin/hdfs {role} {upgrade_args} &
-wait_for_termination $!
-{create_vector_shutdown_file_command}
-"#,
+                {COMMON_BASH_TRAP_FUNCTIONS}
+                {remove_vector_shutdown_file_command}
+                prepare_signal_handlers
+                containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+                if [[ -d {LISTENER_VOLUME_DIR} ]]; then
+                    export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
+                    for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
+                        export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
+                    done
+                fi
+                {hadoop_home}/bin/hdfs {role} {upgrade_args} &
+                wait_for_termination $!
+                {create_vector_shutdown_file_command}
+                "#,
                     hadoop_home = Self::HADOOP_HOME,
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
@@ -664,7 +664,9 @@ wait_for_termination $!
                     hadoop_home = Self::HADOOP_HOME
                 ));
             }
-            ContainerConfig::FormatNameNodes { .. } => {
+            ContainerConfig::FormatNameNodes { container_name, .. } => {
+                args.push_str(&bash_capture_shell_helper(container_name));
+
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
                         .for_container(&NameNodeContainer::FormatNameNodes)
@@ -690,32 +692,36 @@ wait_for_termination $!
                     for namenode_id in {pod_names}
                     do
                       echo -n "Checking pod $namenode_id... "
-                      {get_service_state_command}
+
+                      # We only redirect 2 (stderr) to 4 (console).
+                      # We leave 1 (stdout) alone so the $(...) can catch it.
+                      SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
+
                       if [ "$SERVICE_STATE" == "active" ]
                       then
-                        ACTIVE_NAMENODE=$namenode_id
+                        ACTIVE_NAMENODE="$namenode_id"
                         echo "active"
                         break
+                      else
+                        echo "unknown / unreachable"
                       fi
-                      echo ""
                     done
 
                     if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
                     then
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
-                        echo "Create pod $POD_NAME as active namenode."
-                        {hadoop_home}/bin/hdfs namenode -format -noninteractive
+                        echo "No active namenode found. Formatting $POD_NAME as active."
+                        exclude_from_capture {hadoop_home}/bin/hdfs namenode -format -noninteractive
                       else
-                        echo "Create pod $POD_NAME as standby namenode."
-                        {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
+                        echo "Active namenode is $ACTIVE_NAMENODE. Bootstrapping standby."
+                        exclude_from_capture {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                       fi
                     else
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi
                     "###,
-                    get_service_state_command = Self::get_namenode_service_state_command(),
                     hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
@@ -724,7 +730,9 @@ wait_for_termination $!
                         .join(" "),
                 ));
             }
-            ContainerConfig::FormatZooKeeper { .. } => {
+            ContainerConfig::FormatZooKeeper { container_name, .. } => {
+                args.push_str(&bash_capture_shell_helper(container_name));
+
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
                         .for_container(&NameNodeContainer::FormatZooKeeper)
@@ -736,29 +744,27 @@ wait_for_termination $!
                 }
                 args.push_str(&formatdoc!(
                     r###"
-                    echo "Attempt to format ZooKeeper..."
+                    echo "Attempt to format ZooKeeper ZNode for $POD_NAME ..."
                     if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
-                      set +e
-                      {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive
-                      EXITCODE=$?
-                      set -e
+                      EXITCODE=$(exclude_from_capture {hadoop_home}/bin/hdfs zkfc -formatZK -nonInteractive)
                       if [[ $EXITCODE -eq 0 ]]; then
-                        echo "Successfully formatted"
+                        echo "Successfully formatted ZooKeeper ZNode."
                       elif [[ $EXITCODE -eq 2 ]]; then
-                        echo "ZNode already existed, did nothing"
+                        echo "ZNode already exists, nothing to do."
                       else
-                        echo "Zookeeper format failed with exit code $EXITCODE"
+                        echo "ZooKeeper format ZNode failed with exit code $EXITCODE".
                         exit $EXITCODE
                       fi
-
                     else
-                      echo "ZooKeeper already formatted!"
+                      echo "ZooKeeper ZNode already formatted!"
                     fi
                     "###,
-                    hadoop_home = Self::HADOOP_HOME
+                    hadoop_home = Self::HADOOP_HOME,
                 ));
             }
-            ContainerConfig::WaitForNameNodes { .. } => {
+            ContainerConfig::WaitForNameNodes { container_name, .. } => {
+                args.push_str(&bash_capture_shell_helper(container_name));
+
                 if let Some(container_config) = merged_config.as_datanode().map(|node| {
                     node.logging
                         .for_container(&DataNodeContainer::WaitForNameNodes)
@@ -781,7 +787,11 @@ wait_for_termination $!
                       for namenode_id in {pod_names}
                       do
                         echo -n "Checking pod $namenode_id... "
-                        {get_service_state_command}
+
+                        # We only redirect 2 (stderr) to 4 (console).
+                        # We leave 1 (stdout) alone so the $(...) can catch it.
+                        SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
+
                         if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
                         then
                           echo "$SERVICE_STATE"
@@ -800,7 +810,7 @@ wait_for_termination $!
                       sleep 5
                     done
                     "###,
-                    get_service_state_command = Self::get_namenode_service_state_command(),
+                    hadoop_home = Self::HADOOP_HOME,
                     pod_names = namenode_podrefs
                         .iter()
                         .map(|pod_ref| pod_ref.pod_name.as_ref())
@@ -840,14 +850,6 @@ wait_for_termination $!
             kinit "{principal}" -kt {KERBEROS_CONTAINER_PATH}/keytab
             "###,
         ))
-    }
-
-    fn get_namenode_service_state_command() -> String {
-        formatdoc!(
-            r###"
-                  SERVICE_STATE=$({hadoop_home}/bin/hdfs haadmin -getServiceState $namenode_id | tail -n1 || true)"###,
-            hadoop_home = Self::HADOOP_HOME,
-        )
     }
 
     /// Returns the container env variables.
@@ -1563,5 +1565,42 @@ impl TryFrom<&str> for ContainerVolumeDirs {
             log_mount,
             log_mount_name,
         })
+    }
+}
+
+fn bash_capture_shell_helper(container_name: &str) -> String {
+    let capture_shell_output = product_logging::framework::capture_shell_output(
+        STACKABLE_LOG_DIR,
+        container_name,
+        // we do not access any of the crd config options for this and just log it to file
+        &AutomaticContainerLogConfig::default(),
+    );
+
+    formatdoc! {
+        r###"
+        # Store the original stdout/stderr globally so we can always find our way back
+        # 3 and 4 are usually safe, but we'll be explicit.
+        exec 3>&1
+        exec 4>&2
+
+        start_capture() {{
+            # We redirect 1 and 2 to the background tee processes
+            {capture_shell_output}
+        }}
+
+        stop_capture() {{
+            # Restore stdout and stderr from our saved descriptors
+            exec 1>&3 2>&4
+        }}
+
+        exclude_from_capture() {{
+            # Temporarily restore original FDs just for the duration of this command
+            # We use 'local' for the exit code to keep things clean
+            "$@" 1>&3 2>&4
+            echo $?
+        }}
+
+        start_capture
+        "###
     }
 }
