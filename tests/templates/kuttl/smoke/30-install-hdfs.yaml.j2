@@ -19,7 +19,7 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
-    zookeeperConfigMapName: hdfs-zk
+    zookeeperConfigMapName: hdfs-znode
     dfsReplication: 1
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
@@ -93,3 +93,11 @@ spec:
                   # https://github.com/stackabletech/hdfs-operator/issues/514
                   - name: dashed-port
                     containerPort: 1234
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name:  hdfs-znode
+spec:
+  clusterRef:
+    name: hdfs-zk
