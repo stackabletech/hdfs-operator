@@ -707,7 +707,7 @@ impl ContainerConfig {
                       fi
                     done
 
-                    if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
+                    if [ ! -s "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
                     then
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
@@ -720,6 +720,23 @@ impl ContainerConfig {
                     else
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
+                    fi
+
+                    # Final safety check: Check for any file starting with fsimage_ followed by digits
+                    # We use 'find' to see if any file matching the pattern exists in the current dir
+                    FSIMAGE_COUNT=$(find "{NAMENODE_ROOT_DATA_DIR}/current" -maxdepth 1 -name "fsimage_[0-9]*" | wc -l)
+
+                    if [ "$FSIMAGE_COUNT" -eq 0 ]; then
+                        if [ -z "$ACTIVE_NAMENODE" ]; then
+                            echo "CRITICAL: VERSION file exists but no fsimage_N file found."
+                            echo "This indicates a corrupted or interrupted format."
+                            exit 1
+                        else
+                            echo "WARNING: No local fsimage found on Standby, but Active NN exists."
+                            echo "The NameNode will likely fetch the image from the Active node on startup."
+                        fi
+                    else
+                        echo "Validation successful: Found $FSIMAGE_COUNT fsimage file(s)."
                     fi
                     "###,
                     hadoop_home = Self::HADOOP_HOME,
