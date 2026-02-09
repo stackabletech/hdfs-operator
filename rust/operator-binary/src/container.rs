@@ -707,10 +707,10 @@ impl ContainerConfig {
                       fi
                     done
 
-                    FSIMAGE_COUNT=$(find "{NAMENODE_ROOT_DATA_DIR}/current" -maxdepth 1 -name "fsimage_[0-9]*" | wc -l)
+                    FSIMAGE_COUNT=$(find "{NAMENODE_ROOT_DATA_DIR}/current" -maxdepth 1 -name "fsimage_[0-9]+" | wc -l)
                     echo "Found ${{FSIMAGE_COUNT}} fsimage file(s)"
 
-                    if [ "$FSIMAGE_COUNT" -eq 0 ] 
+                    if [ "${{FSIMAGE_COUNT}}" -eq 0 ] 
                     then
                       if [ -s "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
                       then
