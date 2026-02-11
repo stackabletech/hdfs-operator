@@ -19,7 +19,6 @@ All notable changes to this project will be documented in this file.
 - Previously, some shell output of init-containers was not logged properly and therefore not aggregated, which is fixed now ([#746]).
 
 [#741]: https://github.com/stackabletech/hdfs-operator/pull/741
-[#743]: https://github.com/stackabletech/hdfs-operator/pull/743
 [#746]: https://github.com/stackabletech/hdfs-operator/pull/746
 [#747]: https://github.com/stackabletech/hdfs-operator/pull/747
 [#751]: https://github.com/stackabletech/hdfs-operator/pull/751
