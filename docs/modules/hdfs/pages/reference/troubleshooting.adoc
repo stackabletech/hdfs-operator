@@ -4,7 +4,7 @@
 == Init container format-namenodes fails
 
 When creating fresh HDFS clusters, unexpected pod restarts might corrupt the initial namenode formatting.
-This leaves the namenode data PVC in a dangling state, where e.g. the `../current/VERSION` file is created, but `fsimage_xxx` files are missing.
+This leaves the namenode data PVC in a dangling state, where e.g. the `../current/VERSION` file is created, but `../current/fsimage_xxx` files are missing.
 
 After a restart corrupted the namenode formatting, reformatting again fails due to directories and files existing.
 We do not want to force (override) the formatting process to avoid data loss and other implications.
