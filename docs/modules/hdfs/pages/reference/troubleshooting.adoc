@@ -23,5 +23,5 @@ java.io.FileNotFoundException: No valid image files found
 
 WARNING: The following fix should only be applied to fresh clusters. For existing clusters please consider support.
 
-1. Remove the PVC called `data-<cluster-name>-namenode-<rolegroup>-0` for a failed namenode 0. 
+1. Remove the PVC called `data-<cluster-name>-namenode-<rolegroup>-0` for a failed namenode 0.
 2. Restart the namenode afterwards.
