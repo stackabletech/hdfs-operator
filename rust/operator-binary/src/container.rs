@@ -718,6 +718,16 @@ impl ContainerConfig {
                         exclude_from_capture {hadoop_home}/bin/hdfs namenode -bootstrapStandby -nonInteractive
                       fi
                     else
+                      # Sanity check for initial format data corruption: VERSION file exists but no fsimage files were created.
+                      FSIMAGE_COUNT=$(find "{NAMENODE_ROOT_DATA_DIR}/current" -maxdepth 1 -regextype posix-egrep -regex ".*/fsimage_[0-9]+" | wc -l)
+
+                      if [ "${{FSIMAGE_COUNT}}" -eq 0 ]
+                      then
+                        echo "WARNING: {NAMENODE_ROOT_DATA_DIR}/current/VERSION file exists but no fsimage files were found."
+                        echo "This indicates an incomplete and corrupted namenode formatting. Please check the troubleshooting guide."
+                        exit 1
+                      fi
+
                       cat "{NAMENODE_ROOT_DATA_DIR}/current/VERSION"
                       echo "Pod $POD_NAME already formatted. Skipping..."
                     fi

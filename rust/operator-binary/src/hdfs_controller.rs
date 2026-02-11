@@ -22,7 +22,6 @@ use stackable_operator::{
         product_image_selection::{self, ResolvedProductImage},
         rbac::build_rbac_resources,
     },
-    constants::RESTART_CONTROLLER_ENABLED_LABEL,
     iter::reverse_if,
     k8s_openapi::{
         DeepMerge,
@@ -901,13 +900,8 @@ fn rolegroup_statefulset(
         ..StatefulSetSpec::default()
     };
 
-    let sts_metadata = metadata
-        .clone()
-        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
-        .build();
-
     Ok(StatefulSet {
-        metadata: sts_metadata,
+        metadata: metadata.build(),
         spec: Some(statefulset_spec),
         status: None,
     })
