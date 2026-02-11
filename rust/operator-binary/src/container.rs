@@ -709,6 +709,16 @@ impl ContainerConfig {
 
                     if [ ! -f "{NAMENODE_ROOT_DATA_DIR}/current/VERSION" ]
                     then
+                      # Sanity check for data corruption: VERSION file exists but no fsimage_xxx files were created.
+                      FSIMAGE_COUNT=$(find "{NAMENODE_ROOT_DATA_DIR}/current" -maxdepth 1 -regextype posix-egrep -regex ".*/fsimage_[0-9]+" | wc -l)
+
+                      if [ "${{FSIMAGE_COUNT}}" -eq 0 ] 
+                      then
+                        echo "WARNING: {NAMENODE_ROOT_DATA_DIR}/current/VERSION file exists but no fsimage file(s) found."
+                        echo "This indicates an incomplete and corrupted namenode formatting. Please check the troubleshooting guide.
+                        exit 1
+                      fi
+
                       if [ -z ${{ACTIVE_NAMENODE+x}} ]
                       then
                         echo "No active namenode found. Formatting $POD_NAME as active."
