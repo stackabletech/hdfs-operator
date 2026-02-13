@@ -5,6 +5,7 @@ pub const DEFAULT_DFS_REPLICATION_FACTOR: u8 = 3;
 pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";
 
 pub const APP_NAME: &str = "hdfs";
+pub const FIELD_MANAGER: &str = "hdfs-operator";
 
 pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
 pub const CORE_SITE_XML: &str = "core-site.xml";
