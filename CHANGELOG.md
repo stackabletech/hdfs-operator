@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add conversion webhook ([#753]).
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#743]).
@@ -22,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#743]: https://github.com/stackabletech/hdfs-operator/pull/743
 [#746]: https://github.com/stackabletech/hdfs-operator/pull/746
 [#747]: https://github.com/stackabletech/hdfs-operator/pull/747
+[#753]: https://github.com/stackabletech/hdfs-operator/pull/753
 
 ## [25.11.0] - 2025-11-07
 
