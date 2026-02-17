@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add conversion webhook ([#753]).
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
 
@@ -22,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#746]: https://github.com/stackabletech/hdfs-operator/pull/746
 [#747]: https://github.com/stackabletech/hdfs-operator/pull/747
 [#751]: https://github.com/stackabletech/hdfs-operator/pull/751
+[#753]: https://github.com/stackabletech/hdfs-operator/pull/753
 
 ## [25.11.0] - 2025-11-07
 
