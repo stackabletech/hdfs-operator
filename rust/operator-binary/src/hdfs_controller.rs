@@ -900,6 +900,10 @@ fn rolegroup_statefulset(
         ..StatefulSetSpec::default()
     };
 
+    // TODO: The restart-controller is currently not enabled via the label RESTART_CONTROLLER_ENABLED_LABEL.
+    // This is due to problems that might appear when restarting pods during the initial formatting of namenodes.
+    // See: https://github.com/stackabletech/hdfs-operator/issues/750 (disable restart-controller)
+    //      https://github.com/stackabletech/issues/issues/816 (enable restart-controller)
     Ok(StatefulSet {
         metadata: metadata.build(),
         spec: Some(statefulset_spec),
