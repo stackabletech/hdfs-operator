@@ -23,3 +23,4 @@
 ** xref:hdfs:reference/discovery.adoc[]
 ** xref:hdfs:reference/commandline-parameters.adoc[]
 ** xref:hdfs:reference/environment-variables.adoc[]
+* xref:hdfs:reference/troubleshooting.adoc[]

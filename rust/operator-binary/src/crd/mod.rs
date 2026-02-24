@@ -25,6 +25,7 @@ use stackable_operator::{
         merge::Merge,
     },
     crd::listener,
+    deep_merger::ObjectOverrides,
     k8s_openapi::{
         api::core::v1::{Pod, PodTemplateSpec},
         apimachinery::pkg::api::resource::Quantity,
@@ -160,6 +161,10 @@ pub mod versioned {
         // no doc string - See ClusterOperation struct
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
+
+        // no doc string - See ObjectOverrides struct
+        #[serde(default)]
+        pub object_overrides: ObjectOverrides,
 
         // no doc string - See Role struct
         #[serde(default, skip_serializing_if = "Option::is_none")]

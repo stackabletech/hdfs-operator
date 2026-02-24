@@ -4,8 +4,9 @@
 
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use clap::Parser;
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
 use stackable_operator::{
     YamlSchema,
@@ -30,11 +31,15 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
     telemetry::Tracing,
+    utils::signal::SignalWatcher,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-use crate::crd::{HdfsCluster, HdfsClusterVersion, constants::APP_NAME, v1alpha1};
+use crate::{
+    crd::{HdfsCluster, HdfsClusterVersion, constants::APP_NAME, v1alpha1},
+    webhooks::conversion::create_webhook_server,
+};
 
 mod config;
 mod container;
@@ -47,6 +52,7 @@ mod operations;
 mod product_logging;
 mod security;
 mod service;
+mod webhooks;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -68,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Crd => HdfsCluster::merged_crd(HdfsClusterVersion::V1Alpha1)?
             .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(RunArguments {
-            operator_environment: _,
+            operator_environment,
             watch_namespace,
             product_config,
             maintenance,
@@ -91,18 +97,34 @@ async fn main() -> anyhow::Result<()> {
                 description = built_info::PKG_DESCRIPTION
             );
 
+            // Watches for the SIGTERM signal and sends a signal to all receivers, which gracefully
+            // shuts down all concurrent tasks below (EoS checker, controller).
+            let sigterm_watcher = SignalWatcher::sigterm()?;
+
             let eos_checker =
                 EndOfSupportChecker::new(built_info::BUILT_TIME_UTC, maintenance.end_of_support)?
-                    .run()
+                    .run(sigterm_watcher.handle())
                     .map(anyhow::Ok);
+
+            let client =
+                client::initialize_operator(Some(OPERATOR_NAME.to_string()), &common.cluster_info)
+                    .await?;
+
+            let webhook_server = create_webhook_server(
+                &operator_environment,
+                maintenance.disable_crd_maintenance,
+                client.as_kube_client(),
+            )
+            .await?;
+
+            let webhook_server = webhook_server
+                .run(sigterm_watcher.handle())
+                .map_err(|err| anyhow!(err).context("failed to run webhook server"));
 
             let product_config = product_config.load(&[
                 "deploy/config-spec/properties.yaml",
                 "/etc/stackable/hdfs-operator/config-spec/properties.yaml",
             ])?;
-            let client =
-                client::initialize_operator(Some(OPERATOR_NAME.to_string()), &common.cluster_info)
-                    .await?;
 
             let (store, store_w) = reflector::store();
 
@@ -152,7 +174,6 @@ async fn main() -> anyhow::Result<()> {
                     watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                     watcher::Config::default(),
                 )
-                .shutdown_on_signal()
                 .watches(
                     watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                     watcher::Config::default(),
@@ -164,6 +185,7 @@ async fn main() -> anyhow::Result<()> {
                             .map(|hdfs| reflector::ObjectRef::from_obj(&*hdfs))
                     },
                 )
+                .graceful_shutdown_on(sigterm_watcher.handle())
                 .run(
                     hdfs_controller::reconcile_hdfs,
                     hdfs_controller::error_policy,
@@ -194,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
                 .map(anyhow::Ok);
 
             // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
-            futures::try_join!(hdfs_controller, reflector, eos_checker)?;
+            futures::try_join!(hdfs_controller, reflector, eos_checker, webhook_server)?;
         }
     };
 

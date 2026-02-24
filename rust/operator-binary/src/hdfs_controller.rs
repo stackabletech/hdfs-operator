@@ -312,6 +312,7 @@ pub async fn reconcile_hdfs(
         RESOURCE_MANAGER_HDFS_CONTROLLER,
         &hdfs_obj_ref,
         ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
+        &hdfs.spec.object_overrides,
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -463,6 +464,10 @@ pub async fn reconcile_hdfs(
                 .with_context(|_| ApplyRoleGroupConfigMapSnafu {
                     name: rg_configmap_name,
                 })?;
+
+            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
+            // to prevent unnecessary Pod restarts.
+            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
             let rg_statefulset_name = rg_statefulset.name_any();
             let deployed_rg_statefulset = cluster_resources
                 .add(client, rg_statefulset.clone())
@@ -471,6 +476,7 @@ pub async fn reconcile_hdfs(
                     name: rg_statefulset_name,
                 })?;
             ss_cond_builder.add(deployed_rg_statefulset.clone());
+
             if upgrade_state.is_some() {
                 // When upgrading, ensure that each role is upgraded before moving on to the next as recommended by
                 // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
@@ -894,6 +900,10 @@ fn rolegroup_statefulset(
         ..StatefulSetSpec::default()
     };
 
+    // TODO: The restart-controller is currently not enabled via the label RESTART_CONTROLLER_ENABLED_LABEL.
+    // This is due to problems that might appear when restarting pods during the initial formatting of namenodes.
+    // See: https://github.com/stackabletech/hdfs-operator/issues/750 (disable restart-controller)
+    //      https://github.com/stackabletech/issues/issues/816 (enable restart-controller)
     Ok(StatefulSet {
         metadata: metadata.build(),
         spec: Some(statefulset_spec),

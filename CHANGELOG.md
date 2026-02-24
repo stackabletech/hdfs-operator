@@ -7,8 +7,25 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Added permissions required by Topology Provider ([#738]).
+- Add conversion webhook ([#753]).
+- Support objectOverrides using `.spec.objectOverrides`.
+  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
+
+### Changed
+
+- Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#747]).
+- Added warning and exit condition to format-namenodes container script to check for corrupted data after formatting ([#751]).
+
+### Fixed
+
+- Previously, some shell output of init-containers was not logged properly and therefore not aggregated, which is fixed now ([#746]).
 
 [#738]: https://github.com/stackabletech/hdfs-operator/pull/738
+[#741]: https://github.com/stackabletech/hdfs-operator/pull/741
+[#746]: https://github.com/stackabletech/hdfs-operator/pull/746
+[#747]: https://github.com/stackabletech/hdfs-operator/pull/747
+[#751]: https://github.com/stackabletech/hdfs-operator/pull/751
+[#753]: https://github.com/stackabletech/hdfs-operator/pull/753
 
 ## [25.11.0] - 2025-11-07
 
@@ -28,12 +45,14 @@ All notable changes to this project will be documented in this file.
 - The `prometheus.io/scrape` label was moved to the metrics service ([#721]).
 - The headless service now only exposes product / data ports, the metrics service only metrics ports ([#721], [#726]).
 - Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#722]).
+- Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#740]).
 
 [#713]: https://github.com/stackabletech/hdfs-operator/pull/713
 [#718]: https://github.com/stackabletech/hdfs-operator/pull/718
 [#721]: https://github.com/stackabletech/hdfs-operator/pull/721
 [#722]: https://github.com/stackabletech/hdfs-operator/pull/722
 [#726]: https://github.com/stackabletech/hdfs-operator/pull/726
+[#740]: https://github.com/stackabletech/hdfs-operator/pull/740
 
 ## [25.7.0] - 2025-07-23
 
