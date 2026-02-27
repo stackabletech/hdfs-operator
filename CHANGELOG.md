@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Added permissions required by Topology Provider ([#738]).
 - Add conversion webhook ([#753]).
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#741]).
@@ -19,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 - Previously, some shell output of init-containers was not logged properly and therefore not aggregated, which is fixed now ([#746]).
 
+[#738]: https://github.com/stackabletech/hdfs-operator/pull/738
 [#741]: https://github.com/stackabletech/hdfs-operator/pull/741
 [#746]: https://github.com/stackabletech/hdfs-operator/pull/746
 [#747]: https://github.com/stackabletech/hdfs-operator/pull/747
