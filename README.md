@@ -109,3 +109,6 @@ Get started with the community edition! If you want professional support, [we of
 If you want to support our work but don't need professional support please consider [sponsoring](https://github.com/sponsors/stackabletech) our work.
 
 <!-- markdownlint-disable MD041 MD022 MD032 -->
+
+
+
