@@ -1,6 +1,6 @@
 = HDFS Rack Awareness
 :rack-awareness-docs: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/RackAwareness.html
-:hdfs-topology-provider: https://github.com/stackabletech/hdfs-utils/blob/main/src/main/java/tech/stackable/hadoop/StackableTopologyProvider.java
+:hdfs-topology-provider: https://github.com/stackabletech/hdfs-utils/blob/v0.5.0/src/main/java/tech/stackable/hadoop/StackableTopologyProvider.java
 
 {rack-awareness-docs}[Rack awareness] is a feature in Apache Hadoop that allows users to define a cluster's node topology.
 Hadoop uses that topology to distribute block replicas in a way that maximizes fault tolerance.
