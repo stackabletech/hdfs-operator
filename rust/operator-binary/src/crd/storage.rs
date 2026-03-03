@@ -156,10 +156,11 @@ fn default_number_of_datanode_pvcs() -> Option<u16> {
     Some(1)
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub enum HdfsStorageType {
     Archive,
+    #[default]
     Disk,
     #[serde(rename = "SSD")]
     Ssd,
@@ -168,12 +169,6 @@ pub enum HdfsStorageType {
 }
 
 impl Atomic for HdfsStorageType {}
-
-impl Default for HdfsStorageType {
-    fn default() -> Self {
-        Self::Disk
-    }
-}
 
 impl HdfsStorageType {
     pub fn as_hdfs_config_literal(&self) -> &str {

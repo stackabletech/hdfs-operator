@@ -2,14 +2,19 @@ use std::cmp::{max, min};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
-    commons::pdb::PdbConfig, kube::ResourceExt,
+    builder::pdb::PodDisruptionBudgetBuilder,
+    client::Client,
+    cluster_resources::ClusterResources,
+    commons::pdb::PdbConfig,
+    kube::ResourceExt,
+    kvp::{LabelError, LabelExt, Labels},
 };
 
 use crate::{
     OPERATOR_NAME,
     crd::{HdfsNodeRole, constants::APP_NAME, v1alpha1},
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
+    labels::add_stackable_labels,
 };
 
 #[derive(Snafu, Debug)]
@@ -25,6 +30,9 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
         name: String,
     },
+
+    #[snafu(display("failed to build stackable label"))]
+    BuildStackableLabel { source: LabelError },
 }
 
 pub async fn add_pdbs(
@@ -45,7 +53,7 @@ pub async fn add_pdbs(
         ),
         HdfsNodeRole::Journal => max_unavailable_journal_nodes(),
     });
-    let pdb = PodDisruptionBudgetBuilder::new_with_role(
+    let mut pdb = PodDisruptionBudgetBuilder::new_with_role(
         hdfs,
         APP_NAME,
         &role.to_string(),
@@ -57,6 +65,12 @@ pub async fn add_pdbs(
     })?
     .with_max_unavailable(max_unavailable)
     .build();
+
+    pdb.add_labels(
+        add_stackable_labels(Labels::new(), hdfs.metadata.labels.clone())
+            .context(BuildStackableLabelSnafu)?,
+    );
+
     let pdb_name = pdb.name_any();
     cluster_resources
         .add(client, pdb)

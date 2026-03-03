@@ -63,6 +63,7 @@ use crate::{
     },
     discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_warning_event},
+    labels::add_stackable_labels,
     operations::{
         graceful_shutdown::{self, add_graceful_shutdown_config},
         pdb::add_pdbs,
@@ -222,6 +223,9 @@ pub enum Error {
     #[snafu(display("failed to build cluster resources label"))]
     BuildClusterResourcesLabel { source: LabelError },
 
+    #[snafu(display("failed to build stackable label"))]
+    BuildStackableLabel { source: LabelError },
+
     #[snafu(display("failed to build role-group volume claim templates from config"))]
     BuildRoleGroupVolumeClaimTemplates { source: container::Error },
 
@@ -320,9 +324,13 @@ pub async fn reconcile_hdfs(
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         hdfs,
         APP_NAME,
-        cluster_resources
-            .get_required_labels()
-            .context(BuildClusterResourcesLabelSnafu)?,
+        add_stackable_labels(
+            cluster_resources
+                .get_required_labels()
+                .context(BuildClusterResourcesLabelSnafu)?,
+            hdfs.metadata.labels.clone(),
+        )
+        .context(BuildStackableLabelSnafu)?,
     )
     .context(BuildRbacResourcesSnafu)?;
 
@@ -383,12 +391,6 @@ pub async fn reconcile_hdfs(
         }
 
         for (rolegroup_name, rolegroup_config) in group_config.iter() {
-            let merged_config = role
-                .merged_config(hdfs, rolegroup_name)
-                .context(ConfigMergeSnafu)?;
-
-            let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
-
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
             let rg_service =
@@ -397,6 +399,26 @@ pub async fn reconcile_hdfs(
             let rg_metrics_service =
                 rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
                     .context(BuildServiceSnafu)?;
+
+            let rg_service_name = rg_service.name_any();
+            let rg_metrics_service_name = rg_metrics_service.name_any();
+
+            cluster_resources
+                .add(client, rg_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    name: rg_service_name,
+                })?;
+            cluster_resources
+                .add(client, rg_metrics_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    name: rg_metrics_service_name,
+                })?;
+
+            let merged_config = role
+                .merged_config(hdfs, rolegroup_name)
+                .context(ConfigMergeSnafu)?;
 
             // We need to split the creation and the usage of the "metadata" variable in two statements.
             // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
@@ -415,7 +437,11 @@ pub async fn reconcile_hdfs(
                     &rolegroup_ref.role,
                     &rolegroup_ref.role_group,
                 ))
-                .context(ObjectMetaSnafu)?;
+                .context(ObjectMetaSnafu)?
+                .with_labels(
+                    add_stackable_labels(Labels::new(), hdfs.metadata.labels.clone())
+                        .context(BuildStackableLabelSnafu)?,
+                );
 
             let rg_configmap = rolegroup_config_map(
                 hdfs,
@@ -429,6 +455,17 @@ pub async fn reconcile_hdfs(
                 &hdfs_opa_config,
             )?;
 
+            let rg_configmap_name = rg_configmap.name_any();
+
+            cluster_resources
+                .add(client, rg_configmap.clone())
+                .await
+                .with_context(|_| ApplyRoleGroupConfigMapSnafu {
+                    name: rg_configmap_name,
+                })?;
+
+            let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
+
             let rg_statefulset = rolegroup_statefulset(
                 hdfs,
                 &client.kubernetes_cluster_info,
@@ -441,29 +478,6 @@ pub async fn reconcile_hdfs(
                 &namenode_podrefs,
                 &rbac_sa,
             )?;
-
-            let rg_service_name = rg_service.name_any();
-            let rg_metrics_service_name = rg_metrics_service.name_any();
-
-            cluster_resources
-                .add(client, rg_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_service_name,
-                })?;
-            cluster_resources
-                .add(client, rg_metrics_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_metrics_service_name,
-                })?;
-            let rg_configmap_name = rg_configmap.name_any();
-            cluster_resources
-                .add(client, rg_configmap.clone())
-                .await
-                .with_context(|_| ApplyRoleGroupConfigMapSnafu {
-                    name: rg_configmap_name,
-                })?;
 
             // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
             // to prevent unnecessary Pod restarts.
@@ -865,7 +879,11 @@ fn rolegroup_statefulset(
         env_overrides,
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
         namenode_podrefs,
-        &rolegroup_selector_labels,
+        &add_stackable_labels(
+            rolegroup_selector_labels.clone(),
+            hdfs.metadata.labels.clone(),
+        )
+        .context(BuildStackableLabelSnafu)?,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
@@ -881,8 +899,15 @@ fn rolegroup_statefulset(
     }
 
     // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
-    let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels)
-        .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
+    let pvcs = ContainerConfig::volume_claim_templates(
+        merged_config,
+        &add_stackable_labels(
+            rolegroup_selector_labels.clone(),
+            hdfs.metadata.labels.clone(),
+        )
+        .context(BuildStackableLabelSnafu)?,
+    )
+    .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),

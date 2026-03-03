@@ -4,6 +4,7 @@ use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::{ResourceExt, runtime::reflector::ObjectRef},
+    kvp::{LabelError, Labels},
     utils::cluster_info::KubernetesClusterInfo,
 };
 
@@ -15,6 +16,7 @@ use crate::{
         constants::{CORE_SITE_XML, HDFS_SITE_XML},
         v1alpha1,
     },
+    labels::add_stackable_labels,
     security::kerberos,
 };
 
@@ -38,6 +40,9 @@ pub enum Error {
     ObjectMeta {
         source: stackable_operator::builder::meta::Error,
     },
+
+    #[snafu(display("failed to build stackable label"))]
+    BuildStackableLabel { source: LabelError },
 
     #[snafu(display("failed to build security discovery config map"))]
     BuildSecurityDiscoveryConfigMap { source: kerberos::Error },
@@ -66,6 +71,10 @@ pub fn build_discovery_configmap(
             "discovery",
         ))
         .context(ObjectMetaSnafu)?
+        .with_labels(
+            add_stackable_labels(Labels::new(), hdfs.metadata.labels.clone())
+                .context(BuildStackableLabelSnafu)?,
+        )
         .build();
 
     ConfigMapBuilder::new()

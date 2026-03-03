@@ -37,7 +37,7 @@ use stackable_operator::{
         apimachinery::pkg::util::intstr::IntOrString,
     },
     kube::{ResourceExt, core::ObjectMeta},
-    kvp::Labels,
+    kvp::{LabelExt, Labels},
     product_logging::{
         self,
         framework::{
@@ -428,13 +428,19 @@ impl ContainerConfig {
                 .unwrap();
 
                 let pvcs = vec![
-                    node.resources.storage.data.build_pvc(
-                        ContainerConfig::DATA_VOLUME_MOUNT_NAME,
-                        Some(vec!["ReadWriteOnce"]),
-                    ),
+                    node.resources
+                        .storage
+                        .data
+                        .build_pvc(
+                            ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+                            Some(vec!["ReadWriteOnce"]),
+                        )
+                        .add_labels(labels.clone())
+                        .to_owned(),
                     PersistentVolumeClaim {
                         metadata: ObjectMeta {
                             name: Some(LISTENER_VOLUME_NAME.to_string()),
+                            labels: Some(labels.clone().into()),
                             ..listener.metadata.unwrap()
                         },
                         spec: Some(listener.spec),
@@ -444,14 +450,24 @@ impl ContainerConfig {
 
                 Ok(pvcs)
             }
-            AnyNodeConfig::Journal(node) => Ok(vec![node.resources.storage.data.build_pvc(
-                ContainerConfig::DATA_VOLUME_MOUNT_NAME,
-                Some(vec!["ReadWriteOnce"]),
-            )]),
+            AnyNodeConfig::Journal(node) => Ok(vec![
+                node.resources
+                    .storage
+                    .data
+                    .build_pvc(
+                        ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+                        Some(vec!["ReadWriteOnce"]),
+                    )
+                    .add_labels(labels.clone())
+                    .to_owned(),
+            ]),
             AnyNodeConfig::Data(node) => Ok(DataNodeStorageConfig {
                 pvcs: node.resources.storage.clone(),
             }
-            .build_pvcs()),
+            .build_pvcs()
+            .into_iter()
+            .map(|mut pvc| pvc.add_labels(labels.clone()).to_owned())
+            .collect()),
         }
     }
 

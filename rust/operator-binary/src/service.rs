@@ -4,7 +4,7 @@ use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kube::runtime::reflector::ObjectRef,
-    kvp::{Annotations, Label, LabelError},
+    kvp::{Annotations, Label, LabelError, Labels},
     role_utils::RoleGroupRef,
 };
 
@@ -12,6 +12,7 @@ use crate::{
     build_recommended_labels,
     crd::{HdfsNodeRole, v1alpha1},
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
+    labels::add_stackable_labels,
 };
 
 #[derive(Snafu, Debug)]
@@ -35,6 +36,9 @@ pub enum Error {
 
     #[snafu(display("failed to build roleGroup selector labels"))]
     RoleGroupSelectorLabels { source: crate::crd::Error },
+
+    #[snafu(display("failed to build stackable label"))]
+    BuildStackableLabel { source: LabelError },
 }
 
 pub(crate) fn rolegroup_headless_service(
@@ -60,7 +64,11 @@ pub(crate) fn rolegroup_headless_service(
             &rolegroup_ref.role,
             &rolegroup_ref.role_group,
         ))
-        .context(ObjectMetaSnafu)?;
+        .context(ObjectMetaSnafu)?
+        .with_labels(
+            add_stackable_labels(Labels::new(), hdfs.metadata.labels.clone())
+                .context(BuildStackableLabelSnafu)?,
+        );
 
     let service_spec = ServiceSpec {
         // Internal communication does not need to be exposed
@@ -141,6 +149,10 @@ pub(crate) fn rolegroup_metrics_service(
                 &rolegroup_ref.role_group,
             ))
             .context(ObjectMetaSnafu)?
+            .with_labels(
+                add_stackable_labels(Labels::new(), hdfs.metadata.labels.clone())
+                    .context(BuildStackableLabelSnafu)?,
+            )
             .with_label(
                 Label::try_from(("prometheus.io/scrape", "true"))
                     .context(BuildPrometheusLabelSnafu)?,

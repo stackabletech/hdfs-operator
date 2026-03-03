@@ -48,6 +48,7 @@ mod discovery;
 mod event;
 mod hdfs_clusterrolebinding_nodes_controller;
 mod hdfs_controller;
+mod labels;
 mod operations;
 mod product_logging;
 mod security;
