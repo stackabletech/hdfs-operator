@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump stackable-operator to 0.106.2, and strum to 0.28 ([#760]).
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#747]).
 - Added warning and exit condition to format-namenodes container script to check for corrupted data after formatting ([#751]).
 
@@ -26,6 +27,7 @@ All notable changes to this project will be documented in this file.
 [#747]: https://github.com/stackabletech/hdfs-operator/pull/747
 [#751]: https://github.com/stackabletech/hdfs-operator/pull/751
 [#753]: https://github.com/stackabletech/hdfs-operator/pull/753
+[#760]: https://github.com/stackabletech/hdfs-operator/pull/760
 
 ## [25.11.0] - 2025-11-07
 
