@@ -13,12 +13,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bump stackable-operator to 0.106.2, and strum to 0.28 ([#760]).
+- Bump stackable-operator to 0.108.0, and strum to 0.28 ([#760], [#764]).
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#747]).
 - Added warning and exit condition to format-namenodes container script to check for corrupted data after formatting ([#751]).
 
 ### Fixed
 
+- Fix "404 page not found" error for the initial object list ([#764]).
 - Previously, some shell output of init-containers was not logged properly and therefore not aggregated, which is fixed now ([#746]).
 
 [#738]: https://github.com/stackabletech/hdfs-operator/pull/738
@@ -28,6 +29,7 @@ All notable changes to this project will be documented in this file.
 [#751]: https://github.com/stackabletech/hdfs-operator/pull/751
 [#753]: https://github.com/stackabletech/hdfs-operator/pull/753
 [#760]: https://github.com/stackabletech/hdfs-operator/pull/760
+[#764]: https://github.com/stackabletech/hdfs-operator/pull/764
 
 ## [25.11.0] - 2025-11-07
 
