@@ -18,7 +18,7 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::{
-        Api, ResourceExt,
+        Api, CustomResourceExt, ResourceExt,
         api::PartialObjectMeta,
         core::DeserializeGuard,
         runtime::{
@@ -31,7 +31,7 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
     telemetry::Tracing,
-    utils::signal::SignalWatcher,
+    utils::signal::{self, SignalWatcher},
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -215,8 +215,18 @@ async fn main() -> anyhow::Result<()> {
                 .instrument(info_span!("hdfs_controller"))
                 .map(anyhow::Ok);
 
+            let delayed_hdfs_controller = async {
+                signal::crd_established(&client, v1alpha1::HdfsCluster::crd_name(), None).await?;
+                hdfs_controller.await
+            };
+
             // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
-            futures::try_join!(hdfs_controller, reflector, eos_checker, webhook_server)?;
+            futures::try_join!(
+                delayed_hdfs_controller,
+                webhook_server,
+                eos_checker,
+                reflector,
+            )?;
         }
     };
 
