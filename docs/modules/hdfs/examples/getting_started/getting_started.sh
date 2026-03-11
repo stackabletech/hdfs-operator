@@ -48,9 +48,8 @@ exit 1
 ;;
 esac
 
-# As of SDP 26.3 CRDs are managed by the operator not helm, so there should be an initial delay
-# to allow the CRDs to be detected
-sleep 10
+# TODO: Remove once https://github.com/stackabletech/issues/issues/828 has been implemented (see that issue for details).
+until kubectl get crd hdfsclusters.hdfs.stackable.tech >/dev/null 2>&1; do echo "Waiting for CRDs to be installed" && sleep 1; done
 
 echo "Creating Zookeeper cluster"
 # tag::install-zk[]
