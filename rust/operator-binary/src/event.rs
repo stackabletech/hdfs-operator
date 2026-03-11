@@ -60,7 +60,7 @@ pub fn build_invalid_replica_message(
         Some(format!(
             "{role_name}: only has {replicas} replicas configured, it is strongly recommended to use at least [{min_replicas}]"
         ))
-    } else if !role.replicas_can_be_even() && replicas % 2 == 0 {
+    } else if !role.replicas_can_be_even() && replicas.is_multiple_of(2) {
         Some(format!(
             "{role_name}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"
         ))
