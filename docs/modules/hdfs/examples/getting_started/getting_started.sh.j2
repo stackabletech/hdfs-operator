@@ -15,6 +15,9 @@ then
   exit 1
 fi
 
+echo "Waiting for node(s) to be ready..."
+kubectl wait node --all --for=condition=Ready --timeout=120s
+
 cd "$(dirname "$0")"
 
 case "$1" in
@@ -45,6 +48,9 @@ exit 1
 ;;
 esac
 
+# TODO: Remove once https://github.com/stackabletech/issues/issues/828 has been implemented (see that issue for details).
+until kubectl get crd hdfsclusters.hdfs.stackable.tech >/dev/null 2>&1; do echo "Waiting for CRDs to be installed" && sleep 1; done
+
 echo "Creating Zookeeper cluster"
 # tag::install-zk[]
 kubectl apply -f zk.yaml
@@ -54,8 +60,6 @@ echo "Creating ZNode"
 # tag::install-zk[]
 kubectl apply -f znode.yaml
 # end::install-zk[]
-
-
 
 for (( i=1; i<=15; i++ ))
 do
