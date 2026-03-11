@@ -15,6 +15,9 @@ then
   exit 1
 fi
 
+echo "Waiting for node(s) to be ready..."
+kubectl wait node --all --for=condition=Ready --timeout=120s
+
 cd "$(dirname "$0")"
 
 case "$1" in
@@ -45,6 +48,10 @@ exit 1
 ;;
 esac
 
+# As of SDP 26.3 CRDs are managed by the operator not helm, so there should be an initial delay
+# to allow the CRDs to be detected
+sleep 10
+
 echo "Creating Zookeeper cluster"
 # tag::install-zk[]
 kubectl apply -f zk.yaml
@@ -54,8 +61,6 @@ echo "Creating ZNode"
 # tag::install-zk[]
 kubectl apply -f znode.yaml
 # end::install-zk[]
-
-
 
 for (( i=1; i<=15; i++ ))
 do
