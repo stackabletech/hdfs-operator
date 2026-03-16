@@ -3,8 +3,8 @@ helm:
   repo_name: sdp-charts
   repo_url: oci.stackable.tech
 versions:
-  commons: 26.3.0-rc1
-  secret: 26.3.0-rc1
-  listener: 26.3.0-rc1
-  zookeeper: 26.3.0-rc1
-  hdfs: 26.3.0-rc1
+  commons: 26.3.0
+  secret: 26.3.0
+  listener: 26.3.0
+  zookeeper: 26.3.0
+  hdfs: 26.3.0
