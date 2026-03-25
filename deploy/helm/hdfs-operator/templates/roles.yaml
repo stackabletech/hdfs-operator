@@ -6,29 +6,35 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-    verbs:
-      - list
-      - watch
-      - get
-  # For automatic cluster domain detection
+  # For automatic cluster domain detection (reads kubelet config via the nodes/proxy API).
   - apiGroups:
       - ""
     resources:
       - nodes/proxy
     verbs:
       - get
+  # Manage core workload resources created per HdfsCluster.
+  # All resources are applied via Server-Side Apply (create + patch) and tracked for
+  # orphan cleanup (list + delete). Resources watched by the controller also need watch.
+  # - configmaps: rolegroup config maps; watched via .owns() and .watches()
+  # - services: rolegroup headless and metrics services; watched via .owns()
   - apiGroups:
       - ""
     resources:
-      - pods
       - configmaps
-      - secrets
       - services
-      - endpoints
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - watch
+  # serviceaccounts are applied via SSA and tracked for orphan cleanup but not watched
+  # by the controller.
+  - apiGroups:
+      - ""
+    resources:
       - serviceaccounts
     verbs:
       - create
@@ -36,8 +42,8 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # rolebindings are applied via SSA and tracked for orphan cleanup but not watched
+  # by the controller.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -48,32 +54,20 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # statefulsets are applied via SSA, tracked for orphan cleanup, and watched via .owns().
   - apiGroups:
       - apps
     resources:
       - statefulsets
     verbs:
-      - get
-      - create
-      - delete
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - batch
-    resources:
-      - jobs
-    verbs:
       - create
       - delete
       - get
       - list
       - patch
-      - update
       - watch
+  # poddisruptionbudgets are applied via SSA and tracked for orphan cleanup but not watched
+  # by the controller.
   - apiGroups:
       - policy
     resources:
@@ -84,8 +78,6 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
   - apiGroups:
       - apiextensions.k8s.io
     resources:
@@ -108,20 +100,16 @@ rules:
     verbs:
       - create
       - patch
+  # Read listener addresses to build the discovery ConfigMap for downstream clients.
+  # Listeners are managed by the listener-operator; this operator only reads them.
   - apiGroups:
       - listeners.stackable.tech
     resources:
       - listeners
     verbs:
       - get
-      - list
-  - apiGroups:
-      - ""
-    resources:
-      - endpoints
-    verbs:
-      - get
-      - list
+  # Watch HdfsClusters for reconciliation (list + watch via Controller::new(), get during
+  # reconcile). Status is patched via a separate rule on the /status subresource.
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
@@ -129,7 +117,6 @@ rules:
     verbs:
       - get
       - list
-      - patch
       - watch
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
@@ -137,6 +124,9 @@ rules:
       - {{ include "operator.name" . }}clusters/status
     verbs:
       - patch
+  # Manage the hdfs-clusterrolebinding-nodes ClusterRoleBinding via Server-Side Apply.
+  # This binding grants the HDFS product pods (topology provider) access to node and pod
+  # information for rack awareness. Scoped to the specific ClusterRoleBinding by name.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -144,12 +134,9 @@ rules:
     resourceNames:
       - {{ include "operator.name" . }}-clusterrolebinding-nodes
     verbs:
-      - patch
-      - get
-      - update
-      - list
-      - watch
       - create
+      - patch
+  # Allow binding the product ClusterRole when creating per-cluster RoleBindings.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -166,6 +153,11 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
+  # Read configuration and identity resources mounted or referenced by product pods.
+  # - configmaps: HDFS configuration files
+  # - secrets: TLS certificates and Kerberos keytabs (provided by secret-operator volumes)
+  # - serviceaccounts: bound service account token projection
+  # - pods: pod self-inspection (e.g. hostname resolution, ZooKeeper coordination)
   - apiGroups:
       - ""
     resources:
@@ -175,6 +167,7 @@ rules:
       - pods
     verbs:
       - get
+  # List pods for topology detection and peer discovery.
   - apiGroups:
       - ""
     resources:
@@ -206,6 +199,11 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
+  # The topology provider (rack awareness) running inside HDFS pods queries pod, node, and
+  # endpoint information to compute rack labels for DataNodes.
+  # - pods: discover pod-to-node assignment for topology calculation; watched by pod informer
+  # - nodes: read rack labels (e.g. topology.kubernetes.io/zone) from the node the pod runs on
+  # - endpoints: map service endpoints to pod IPs for topology resolution
   - apiGroups:
       - ""
     resources:
@@ -217,6 +215,7 @@ rules:
       - list
       # needed for pod informer
       - watch
+  # Read listener addresses so HDFS pods can resolve external access endpoints.
   - apiGroups:
       - listeners.stackable.tech
     resources:
