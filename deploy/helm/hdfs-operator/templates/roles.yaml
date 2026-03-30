@@ -15,9 +15,7 @@ rules:
       - get
   # Manage core workload resources created per HdfsCluster.
   # All resources are applied via Server-Side Apply (create + patch) and tracked for
-  # orphan cleanup (list + delete). Resources watched by the controller also need watch.
-  # - configmaps: rolegroup config maps; watched via .owns() and .watches()
-  # - services: rolegroup headless and metrics services; watched via .owns()
+  # orphan cleanup (list + delete).
   - apiGroups:
       - ""
     resources:
@@ -30,8 +28,7 @@ rules:
       - list
       - patch
       - watch
-  # serviceaccounts are applied via SSA and tracked for orphan cleanup but not watched
-  # by the controller.
+  # serviceaccounts are applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - ""
     resources:
@@ -42,8 +39,7 @@ rules:
       - get
       - list
       - patch
-  # rolebindings are applied via SSA and tracked for orphan cleanup but not watched
-  # by the controller.
+  # rolebindings are applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -66,8 +62,7 @@ rules:
       - list
       - patch
       - watch
-  # poddisruptionbudgets are applied via SSA and tracked for orphan cleanup but not watched
-  # by the controller.
+  # poddisruptionbudgets are applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - policy
     resources:
@@ -78,6 +73,8 @@ rules:
       - get
       - list
       - patch
+  # Required for maintaining the CRDs within the operator (including the conversion webhook info).
+  # Also for the startup condition check before the controller can run.
   - apiGroups:
       - apiextensions.k8s.io
     resources:
@@ -92,6 +89,7 @@ rules:
       # Required for startup condition
       - list
       - watch
+  # Required to report reconciliation results and warnings back to the HdfsCluster object.
   - apiGroups:
       - events.k8s.io
     resources:
@@ -117,6 +115,7 @@ rules:
       - get
       - list
       - watch
+  # Status subresource: updated at the end of every reconciliation.
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
@@ -173,6 +172,7 @@ rules:
       - pods
     verbs:
       - list
+  # Required to report events from HDFS product pods.
   - apiGroups:
       - events.k8s.io
     resources:
@@ -181,6 +181,7 @@ rules:
       - create
       - patch
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
+  # Required on OpenShift to allow HDFS pods to run as a non-root user.
   - apiGroups:
       - security.openshift.io
     resources:
@@ -222,7 +223,7 @@ rules:
     verbs:
       - get
       - list
-  # needed to query the crd version (v1alpha1 etc.) before fetching listeners
+  # Required to discover the installed CRD API version before querying listeners.
   - apiGroups:
       - apiextensions.k8s.io
     resources:
