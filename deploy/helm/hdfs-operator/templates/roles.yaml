@@ -88,10 +88,10 @@ rules:
       {{- if .Values.maintenance.customResourceDefinitions.maintain }}
       - create
       - patch
+      {{- end }}
       # Required for startup condition
       - list
       - watch
-      {{- end }}
   - apiGroups:
       - events.k8s.io
     resources:
