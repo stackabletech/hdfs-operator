@@ -8,18 +8,6 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  # Read configuration and identity resources mounted or referenced by product pods.
-  # - configmaps: HDFS configuration files
-  # - secrets: TLS certificates and Kerberos keytabs (provided by secret-operator volumes)
-  # - serviceaccounts: bound service account token projection
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - secrets
-      - serviceaccounts
-    verbs:
-      - get
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   # Required on OpenShift to allow HDFS pods to run as a non-root user.
   - apiGroups:
