@@ -8,6 +8,18 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
+  # List and get pods for peer discovery (e.g. format-namenodes discovering namenode peers).
+  # These must live here in the product ClusterRole (not just in the nodes ClusterRole) because
+  # the nodes ClusterRoleBinding is updated asynchronously and may not yet include this service
+  # account when format-namenodes runs for the first time.
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   # Required on OpenShift to allow HDFS pods to run as a non-root user.
   - apiGroups:
