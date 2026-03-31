@@ -29,14 +29,6 @@ rules:
       - pods
     verbs:
       - list
-  # Required to report events from HDFS product pods.
-  - apiGroups:
-      - events.k8s.io
-    resources:
-      - events
-    verbs:
-      - create
-      - patch
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   # Required on OpenShift to allow HDFS pods to run as a non-root user.
   - apiGroups:
