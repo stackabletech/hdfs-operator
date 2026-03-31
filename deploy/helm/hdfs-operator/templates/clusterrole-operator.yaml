@@ -50,7 +50,7 @@ rules:
       - get
       - list
       - patch
-  # statefulsets are applied via SSA, tracked for orphan cleanup, and watched via .owns().
+  # statefulsets are applied via SSA, tracked for orphan cleanup.
   - apiGroups:
       - apps
     resources:
@@ -105,8 +105,7 @@ rules:
       - listeners
     verbs:
       - get
-  # Watch HdfsClusters for reconciliation (list + watch via Controller::new(), get during
-  # reconcile). Status is patched via a separate rule on the /status subresource.
+  # Watch HdfsClusters for reconciliation
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
