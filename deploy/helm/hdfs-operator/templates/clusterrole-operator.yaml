@@ -133,7 +133,13 @@ rules:
     verbs:
       - create
       - patch
-  # Allow binding the product ClusterRole when creating per-cluster RoleBindings.
+  # Allow binding the product ClusterRoles:
+  # - hdfs-clusterrole: referenced by per-cluster RoleBindings created by the operator
+  # - hdfs-clusterrole-nodes: referenced by the shared hdfs-clusterrolebinding-nodes
+  #   ClusterRoleBinding managed by the operator. The bind verb is required because the
+  #   operator itself does not hold all permissions that hdfs-clusterrole-nodes grants
+  #   (nodes, endpoints, pods, listeners), so Kubernetes would otherwise reject the
+  #   ClusterRoleBinding patch as a privilege escalation.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -142,3 +148,4 @@ rules:
       - bind
     resourceNames:
       - {{ include "operator.name" . }}-clusterrole
+      - {{ include "operator.name" . }}-clusterrole-nodes
