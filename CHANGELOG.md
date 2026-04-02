@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Helm deployed RBAC permissions documented, with unnecessary permissions removed ([#770]).
+- Document Helm deployed RBAC permissions and remove unnecessary permissions ([#770]).
 
 [#770]: https://github.com/stackabletech/hdfs-operator/pull/770
 
