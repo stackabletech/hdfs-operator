@@ -1,0 +1,75 @@
+---
+# Product ClusterRole: bound (via per-HdfsCluster RoleBinding) to the ServiceAccount that HDFS
+# workload pods (namenodes, datanodes, journalnodes) run as.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "operator.name" . }}-clusterrole
+  labels:
+  {{- include "operator.labels" . | nindent 4 }}
+rules:
+  # List and get pods for peer discovery (e.g. format-namenodes discovering namenode peers).
+  # These must live here in the product ClusterRole (not just in the nodes ClusterRole) because
+  # the nodes ClusterRoleBinding is updated asynchronously and may not yet include this service
+  # account when format-namenodes runs for the first time.
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+{{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
+  # Required on OpenShift to allow HDFS pods to run as a non-root user.
+  - apiGroups:
+      - security.openshift.io
+    resources:
+      - securitycontextconstraints
+    resourceNames:
+      - nonroot-v2
+    verbs:
+      - use
+{{ end }}
+---
+# Nodes ClusterRole: bound (via a single cluster-scoped ClusterRoleBinding) to the same
+# ServiceAccount. Grants the additional permissions needed by the HDFS topology provider
+# for rack awareness, which requires cluster-wide pod, node, and endpoint access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "operator.name" . }}-clusterrole-nodes
+  labels:
+  {{- include "operator.labels" . | nindent 4 }}
+rules:
+  # The topology provider (rack awareness) running inside HDFS pods queries pod, node, and
+  # endpoint information to compute rack labels for DataNodes.
+  # - pods: discover pod-to-node assignment for topology calculation; watched by pod informer
+  # - nodes: read rack labels (e.g. topology.kubernetes.io/zone) from the node the pod runs on
+  # - endpoints: map service endpoints to pod IPs for topology resolution
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - nodes
+      - endpoints
+    verbs:
+      - get
+      - list
+      # needed for pod informer
+      - watch
+  # Read listener addresses so HDFS pods can resolve external access endpoints.
+  - apiGroups:
+      - listeners.stackable.tech
+    resources:
+      - listeners
+    verbs:
+      - get
+      - list
+  # Required to discover the installed CRD API version before querying listeners.
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
