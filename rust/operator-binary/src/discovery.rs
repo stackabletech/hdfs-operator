@@ -58,7 +58,7 @@ pub fn build_discovery_configmap(
         .context(ObjectMissingMetadataForOwnerRefSnafu {
             hdfs: ObjectRef::from_obj(hdfs),
         })?
-        .with_recommended_labels(build_recommended_labels(
+        .with_recommended_labels(&build_recommended_labels(
             hdfs,
             controller,
             &resolved_product_image.app_version_label_value,

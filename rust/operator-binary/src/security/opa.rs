@@ -28,7 +28,7 @@ impl HdfsOpaConfig {
     ) -> Result<Self> {
         let authorization_connection_string = authorization_config
             .opa
-            .full_document_url_from_config_map(client, hdfs, Some("allow"), OpaApiVersion::V1)
+            .full_document_url_from_config_map(client, hdfs, Some("allow"), &OpaApiVersion::V1)
             .await
             .context(ConstructOpaEndpointForAuthorizerSnafu)?;
 
