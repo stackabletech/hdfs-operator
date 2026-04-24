@@ -1,7 +1,6 @@
 # Default values for hdfs-operator.
 ---
 image:
-  repository: oci.stackable.tech/sdp/hdfs-operator
   pullPolicy: IfNotPresent
   pullSecrets: []
 
