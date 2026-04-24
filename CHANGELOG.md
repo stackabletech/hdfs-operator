@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Document Helm deployed RBAC permissions and remove unnecessary permissions ([#770]).
 - BREAKING: `configOverrides` now only accepts the known config files (`hdfs-site.xml`,
   `core-site.xml`, `hadoop-policy.xml`, `ssl-server.xml`, `ssl-client.xml` and
   `security.properties`).
