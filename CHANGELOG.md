@@ -7,8 +7,14 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#770]).
+- BREAKING: `configOverrides` now only accepts the known config files (`hdfs-site.xml`,
+  `core-site.xml`, `hadoop-policy.xml`, `ssl-server.xml`, `ssl-client.xml` and
+  `security.properties`).
+  Previously, arbitrary file names were silently accepted and ignored ([#777]).
+- Bump `stackable-operator` to 0.110.1 ([#777]).
 
 [#770]: https://github.com/stackabletech/hdfs-operator/pull/770
+[#777]: https://github.com/stackabletech/hdfs-operator/pull/777
 
 ## [26.3.0] - 2026-03-16
 

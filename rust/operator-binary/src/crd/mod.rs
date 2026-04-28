@@ -24,6 +24,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::listener,
     deep_merger::ObjectOverrides,
     k8s_openapi::{
@@ -80,6 +81,27 @@ pub mod affinity;
 pub mod constants;
 pub mod security;
 pub mod storage;
+
+pub type NameNodeRoleType = Role<
+    NameNodeConfigFragment,
+    v1alpha1::HdfsConfigOverrides,
+    GenericRoleConfig,
+    JavaCommonConfig,
+>;
+
+pub type DataNodeRoleType = Role<
+    DataNodeConfigFragment,
+    v1alpha1::HdfsConfigOverrides,
+    GenericRoleConfig,
+    JavaCommonConfig,
+>;
+
+pub type JournalNodeRoleType = Role<
+    JournalNodeConfigFragment,
+    v1alpha1::HdfsConfigOverrides,
+    GenericRoleConfig,
+    JavaCommonConfig,
+>;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -168,16 +190,15 @@ pub mod versioned {
 
         // no doc string - See Role struct
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub name_nodes: Option<Role<NameNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        pub name_nodes: Option<NameNodeRoleType>,
 
         // no doc string - See Role struct
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub data_nodes: Option<Role<DataNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        pub data_nodes: Option<DataNodeRoleType>,
 
         // no doc string - See Role struct
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub journal_nodes:
-            Option<Role<JournalNodeConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        pub journal_nodes: Option<JournalNodeRoleType>,
     }
 
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -215,6 +236,69 @@ pub mod versioned {
 
         /// Configuration to control HDFS topology (rack) awareness feature
         pub rack_awareness: Option<Vec<TopologyLabel>>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HdfsConfigOverrides {
+        #[serde(
+            default,
+            rename = "hdfs-site.xml",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub hdfs_site_xml: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "core-site.xml",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub core_site_xml: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "hadoop-policy.xml",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub hadoop_policy_xml: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "ssl-server.xml",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub ssl_server_xml: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "ssl-client.xml",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub ssl_client_xml: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
+    }
+}
+
+impl KeyValueOverridesProvider for v1alpha1::HdfsConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        let field = match file {
+            HDFS_SITE_XML => self.hdfs_site_xml.as_ref(),
+            CORE_SITE_XML => self.core_site_xml.as_ref(),
+            HADOOP_POLICY_XML => self.hadoop_policy_xml.as_ref(),
+            SSL_SERVER_XML => self.ssl_server_xml.as_ref(),
+            SSL_CLIENT_XML => self.ssl_client_xml.as_ref(),
+            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
+            _ => None,
+        };
+        field
+            .map(KeyValueConfigOverrides::as_product_config_overrides)
+            .unwrap_or_default()
     }
 }
 
@@ -261,7 +345,8 @@ impl v1alpha1::HdfsCluster {
     pub fn namenode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<NameNodeConfigFragment, JavaCommonConfig>> {
+    ) -> Option<&RoleGroup<NameNodeConfigFragment, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>>
+    {
         self.spec.name_nodes.as_ref()?.role_groups.get(role_group)
     }
 
@@ -269,7 +354,8 @@ impl v1alpha1::HdfsCluster {
     pub fn datanode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<DataNodeConfigFragment, JavaCommonConfig>> {
+    ) -> Option<&RoleGroup<DataNodeConfigFragment, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>>
+    {
         self.spec.data_nodes.as_ref()?.role_groups.get(role_group)
     }
 
@@ -277,7 +363,9 @@ impl v1alpha1::HdfsCluster {
     pub fn journalnode_rolegroup(
         &self,
         role_group: &str,
-    ) -> Option<&RoleGroup<JournalNodeConfigFragment, JavaCommonConfig>> {
+    ) -> Option<
+        &RoleGroup<JournalNodeConfigFragment, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+    > {
         self.spec
             .journal_nodes
             .as_ref()?
@@ -530,6 +618,7 @@ impl v1alpha1::HdfsCluster {
                 Vec<PropertyNameKind>,
                 Role<
                     impl Configuration<Configurable = v1alpha1::HdfsCluster>,
+                    v1alpha1::HdfsConfigOverrides,
                     GenericRoleConfig,
                     JavaCommonConfig,
                 >,

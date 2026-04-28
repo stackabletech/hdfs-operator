@@ -27,7 +27,10 @@ use stackable_operator::{
             },
         },
     },
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        product_image_selection::ResolvedProductImage,
+        secret_class::SecretClassVolumeProvisionParts,
+    },
     k8s_openapi::{
         api::core::v1::{
             ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
@@ -276,6 +279,9 @@ impl ContainerConfig {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.tls_secret_class,
+                            // HDFS serves its own TLS endpoints, so the Pod needs both the public
+                            // certificate and the private key.
+                            SecretClassVolumeProvisionParts::PublicPrivate,
                         )
                         .with_pod_scope()
                         .with_node_scope()
@@ -302,6 +308,8 @@ impl ContainerConfig {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.kerberos.secret_class,
+                            // We need both public (krb5.conf) and private (keytab) parts.
+                            SecretClassVolumeProvisionParts::PublicPrivate,
                         )
                         .with_service_scope(hdfs.name_any())
                         .with_kerberos_service_name(role.kerberos_service_name())
