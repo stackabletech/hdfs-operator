@@ -279,6 +279,8 @@ impl ContainerConfig {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.tls_secret_class,
+                            // HDFS serves its own TLS endpoints, so the Pod needs both the public
+                            // certificate and the private key.
                             SecretClassVolumeProvisionParts::PublicPrivate,
                         )
                         .with_pod_scope()
@@ -306,6 +308,7 @@ impl ContainerConfig {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.kerberos.secret_class,
+                            // We need both public (krb5.conf) and private (keytab) parts.
                             SecretClassVolumeProvisionParts::PublicPrivate,
                         )
                         .with_service_scope(hdfs.name_any())
