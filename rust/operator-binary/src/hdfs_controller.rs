@@ -16,6 +16,7 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{PodBuilder, security::PodSecurityContextBuilder},
     },
+    cli::OperatorEnvironmentOptions,
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
@@ -76,7 +77,7 @@ pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controlle
 const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
 pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-const DOCKER_IMAGE_BASE_NAME: &str = "hadoop";
+const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -262,6 +263,7 @@ pub struct Ctx {
     pub client: Client,
     pub product_config: ProductConfigManager,
     pub event_recorder: Arc<Recorder>,
+    pub operator_environment: OperatorEnvironmentOptions,
 }
 
 pub async fn reconcile_hdfs(
@@ -280,7 +282,11 @@ pub async fn reconcile_hdfs(
     let resolved_product_image = hdfs
         .spec
         .image
-        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .resolve(
+            CONTAINER_IMAGE_BASE_NAME,
+            &ctx.operator_environment.image_repository,
+            crate::built_info::PKG_VERSION,
+        )
         .context(ResolveProductImageSnafu)?;
 
     let validated_config = {
@@ -995,7 +1001,7 @@ properties: []
         let resolved_product_image = hdfs
             .spec
             .image
-            .resolve(DOCKER_IMAGE_BASE_NAME, "0.0.0-dev")
+            .resolve(CONTAINER_IMAGE_BASE_NAME, "oci.example.org", "0.0.0-dev")
             .expect("test resolved product image is always valid");
 
         let mut pb = PodBuilder::new();
