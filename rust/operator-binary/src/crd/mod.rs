@@ -2056,7 +2056,69 @@ spec:
 
     impl RoundtripTestData for v1alpha1::HdfsClusterSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            vec![]
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+              - image:
+                  productVersion: 3.4.2
+                  pullPolicy: IfNotPresent
+                clusterOperation:
+                  reconciliationPaused: false
+                  stopped: true
+                clusterConfig:
+                  zookeeperConfigMapName: hdfs-zk
+                  dfsReplication: 1
+                  vectorAggregatorConfigMapName: vector-aggregator-discovery
+                  authentication:
+                    tlsSecretClass: tls
+                    kerberos:
+                      secretClass: kerberos
+                  authorization:
+                    opa:
+                      configMapName: opa
+                      package: hdfs
+                  rackAwareness:
+                    - nodeLabel: kubernetes.io/zone
+                    - podLabel: app.kubernetes.io/role-group
+                nameNodes:
+                  envOverrides:
+                    COMMON_VAR: role-value
+                    ROLE_VAR: role-value
+                  config:
+                    listenerClass: cluster-internal
+                    resources:
+                      cpu:
+                        min: 250m
+                        max: "1"
+                      memory:
+                        limit: 1Gi
+                    logging:
+                      enableVectorAgent: true
+                      containers:
+                        hdfs:
+                          console:
+                            level: INFO
+                  roleGroups:
+                    default:
+                      replicas: 2
+                      envOverrides:
+                        COMMON_VAR: group-value
+                        GROUP_VAR: group-value
+                dataNodes:
+                  config:
+                    listenerClass: cluster-internal
+                    logging:
+                      enableVectorAgent: true
+                  roleGroups:
+                    default:
+                      replicas: 1
+                journalNodes:
+                  config:
+                    logging:
+                      enableVectorAgent: true
+                  roleGroups:
+                    default:
+                      replicas: 1
+            "#})
+            .expect("Failed to parse HdfsClusterSpec YAML")
         }
     }
 }
