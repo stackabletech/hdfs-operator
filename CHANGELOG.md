@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#778]).
+
 ### Changed
 
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#770]).
@@ -15,6 +19,7 @@ All notable changes to this project will be documented in this file.
 
 [#770]: https://github.com/stackabletech/hdfs-operator/pull/770
 [#777]: https://github.com/stackabletech/hdfs-operator/pull/777
+[#778]: https://github.com/stackabletech/hdfs-operator/pull/778
 
 ## [26.3.0] - 2026-03-16
 
