@@ -283,19 +283,19 @@ pub async fn reconcile_hdfs(
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
         .context(ResolveProductImageSnafu)?;
 
-    let validated_config = validate_all_roles_and_groups_config(
-        &resolved_product_image.product_version,
-        &transform_all_roles_to_config(
-            hdfs,
-            hdfs.build_role_properties()
-                .context(BuildRolePropertiesSnafu)?,
+    let validated_config = {
+        let roles = hdfs
+            .build_role_properties()
+            .context(BuildRolePropertiesSnafu)?;
+        validate_all_roles_and_groups_config(
+            &resolved_product_image.product_version,
+            &transform_all_roles_to_config(hdfs, &roles).context(InvalidRoleConfigSnafu)?,
+            &ctx.product_config,
+            false,
+            false,
         )
-        .context(InvalidRoleConfigSnafu)?,
-        &ctx.product_config,
-        false,
-        false,
-    )
-    .context(InvalidProductConfigSnafu)?;
+        .context(InvalidProductConfigSnafu)?
+    };
 
     let hdfs_obj_ref = hdfs.object_ref(&());
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
@@ -408,7 +408,7 @@ pub async fn reconcile_hdfs(
                 .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                     obj_ref: ObjectRef::from_obj(hdfs),
                 })?
-                .with_recommended_labels(build_recommended_labels(
+                .with_recommended_labels(&build_recommended_labels(
                     hdfs,
                     RESOURCE_MANAGER_HDFS_CONTROLLER,
                     &resolved_product_image.app_version_label_value,
@@ -970,8 +970,8 @@ properties: []
 
         let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
-        let config =
-            transform_all_roles_to_config(&hdfs, hdfs.build_role_properties().unwrap()).unwrap();
+        let roles = hdfs.build_role_properties().unwrap();
+        let config = transform_all_roles_to_config(&hdfs, &roles).unwrap();
 
         let validated_config = validate_all_roles_and_groups_config(
             "3.4.0",

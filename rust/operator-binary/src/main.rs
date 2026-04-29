@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => HdfsCluster::merged_crd(HdfsClusterVersion::V1Alpha1)?
-            .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
+            .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?,
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
             let sigterm_watcher = SignalWatcher::sigterm()?;
 
             let eos_checker =
-                EndOfSupportChecker::new(built_info::BUILT_TIME_UTC, maintenance.end_of_support)?
+                EndOfSupportChecker::new(built_info::BUILT_TIME_UTC, &maintenance.end_of_support)?
                     .run(sigterm_watcher.handle())
                     .map(anyhow::Ok);
 

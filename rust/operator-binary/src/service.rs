@@ -53,7 +53,7 @@ pub(crate) fn rolegroup_headless_service(
         .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
             obj_ref: ObjectRef::from_obj(hdfs),
         })?
-        .with_recommended_labels(build_recommended_labels(
+        .with_recommended_labels(&build_recommended_labels(
             hdfs,
             RESOURCE_MANAGER_HDFS_CONTROLLER,
             &resolved_product_image.app_version_label_value,
@@ -133,7 +133,7 @@ pub(crate) fn rolegroup_metrics_service(
             .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                 obj_ref: ObjectRef::from_obj(hdfs),
             })?
-            .with_recommended_labels(build_recommended_labels(
+            .with_recommended_labels(&build_recommended_labels(
                 hdfs,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
                 &resolved_product_image.app_version_label_value,
