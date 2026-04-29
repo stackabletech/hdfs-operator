@@ -1698,8 +1698,11 @@ pub struct HdfsClusterStatus {
 
 #[cfg(test)]
 mod test {
-    use stackable_operator::k8s_openapi::{
-        api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
+    use stackable_operator::{
+        k8s_openapi::{
+            api::core::v1::ResourceRequirements, apimachinery::pkg::api::resource::Quantity,
+        },
+        versioned::test_utils::RoundtripTestData,
     };
 
     use super::*;
@@ -2049,5 +2052,11 @@ spec:
             Some("Node:kubernetes.io/zone;Pod:app.kubernetes.io/role-group".to_string()),
             rack_awareness
         );
+    }
+
+    impl RoundtripTestData for v1alpha1::HdfsClusterSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            vec![]
+        }
     }
 }
