@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
   `core-site.xml`, `hadoop-policy.xml`, `ssl-server.xml`, `ssl-client.xml` and
   `security.properties`).
   Previously, arbitrary file names were silently accepted and ignored ([#777]).
-- Bump `stackable-operator` to 0.110.1 ([#777]).
+- Bump `stackable-operator` to 0.111.1 ([#777], [#778]).
 
 [#770]: https://github.com/stackabletech/hdfs-operator/pull/770
 [#777]: https://github.com/stackabletech/hdfs-operator/pull/777
