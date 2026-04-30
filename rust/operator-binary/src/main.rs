@@ -190,9 +190,10 @@ async fn main() -> anyhow::Result<()> {
                     hdfs_controller::reconcile_hdfs,
                     hdfs_controller::error_policy,
                     Arc::new(hdfs_controller::Ctx {
-                        client: client.clone(),
-                        product_config,
                         event_recorder: hdfs_event_recorder.clone(),
+                        client: client.clone(),
+                        operator_environment,
+                        product_config,
                     }),
                 )
                 // We can let the reporting happen in the background
