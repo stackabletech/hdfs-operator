@@ -76,9 +76,7 @@ pub fn validate_cluster(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let roles = hdfs
-        .build_role_properties()
-        .context(RolePropertiesSnafu)?;
+    let roles = hdfs.build_role_properties().context(RolePropertiesSnafu)?;
 
     let validated_config = validate_all_roles_and_groups_config(
         &resolved_product_image.product_version,

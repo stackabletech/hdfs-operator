@@ -53,8 +53,8 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    controller::validate::{ValidatedRoleConfig, ValidatedRoleGroupConfig},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
+    controller::validate::{ValidatedRoleConfig, ValidatedRoleGroupConfig},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
         UpgradeStateError, constants::*, v1alpha1,
