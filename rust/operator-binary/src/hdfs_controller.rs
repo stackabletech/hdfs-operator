@@ -19,10 +19,7 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        product_image_selection::{self, ResolvedProductImage},
-        rbac::build_rbac_resources,
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     iter::reverse_if,
     k8s_openapi::{
         DeepMerge,
@@ -40,8 +37,7 @@ use stackable_operator::{
     },
     kvp::{LabelError, Labels},
     logging::controller::ReconcilerError,
-    product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
-    role_utils::{GenericRoleConfig, RoleGroupRef},
+    role_utils::RoleGroupRef,
     shared::time::Duration,
     status::{
         condition::{
@@ -57,6 +53,7 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    controller::validate::{ValidatedRoleConfig, ValidatedRoleGroupConfig},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
@@ -69,7 +66,7 @@ use crate::{
         pdb::add_pdbs,
     },
     product_logging::extend_role_group_config_map,
-    security::{self, kerberos, opa::HdfsOpaConfig},
+    security::{kerberos, opa::HdfsOpaConfig},
     service::{self, rolegroup_headless_service, rolegroup_metrics_service},
 };
 
@@ -77,19 +74,31 @@ pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controlle
 const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
 pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
+pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
+
+/// The validated cluster: proves that product-config validation and config merging
+/// succeeded for every role and role group before any resources are created.
+/// Placed in the controller so that subsequent steps that reference this struct
+/// only depend on the controller.
+#[derive(Clone, Debug)]
+pub struct ValidatedCluster {
+    pub image: ResolvedProductImage,
+    pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
+    pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+    pub hdfs_opa_config: Option<HdfsOpaConfig>,
+}
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
-    #[snafu(display("invalid role configuration"))]
-    InvalidRoleConfig {
-        source: stackable_operator::product_config_utils::Error,
+    #[snafu(display("failed to dereference cluster resources"))]
+    Dereference {
+        source: crate::controller::dereference::Error,
     },
 
-    #[snafu(display("invalid product configuration"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
+    #[snafu(display("failed to validate cluster configuration"))]
+    Validate {
+        source: crate::controller::validate::Error,
     },
 
     #[snafu(display("invalid upgrade state"))]
@@ -123,12 +132,6 @@ pub enum Error {
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
         obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
-    },
-
-    #[snafu(display("invalid role {role:?}"))]
-    InvalidRole {
-        source: strum::ParseError,
-        role: String,
     },
 
     #[snafu(display("object has no name"))]
@@ -172,17 +175,11 @@ pub enum Error {
     #[snafu(display("failed to create pod references"))]
     CreatePodReferences { source: crate::crd::Error },
 
-    #[snafu(display("failed to build role properties"))]
-    BuildRoleProperties { source: crate::crd::Error },
-
     #[snafu(display("failed to add the logging configuration to the ConfigMap {cm_name:?}"))]
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
     },
-
-    #[snafu(display("failed to merge config"))]
-    ConfigMerge { source: crate::crd::Error },
 
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
@@ -234,17 +231,9 @@ pub enum Error {
     #[snafu(display("failed to build security config"))]
     BuildSecurityConfig { source: kerberos::Error },
 
-    #[snafu(display("invalid OPA configuration"))]
-    InvalidOpaConfig { source: security::opa::Error },
-
     #[snafu(display("HdfsCluster object is invalid"))]
     InvalidHdfsCluster {
         source: error_boundary::InvalidObject,
-    },
-
-    #[snafu(display("failed to resolve product image"))]
-    ResolveProductImage {
-        source: product_image_selection::Error,
     },
 
     #[snafu(display("failed to builds service"))]
@@ -279,29 +268,19 @@ pub async fn reconcile_hdfs(
         .context(InvalidHdfsClusterSnafu)?;
     let client = &ctx.client;
 
-    let resolved_product_image = hdfs
-        .spec
-        .image
-        .resolve(
-            CONTAINER_IMAGE_BASE_NAME,
-            &ctx.operator_environment.image_repository,
-            crate::built_info::PKG_VERSION,
-        )
-        .context(ResolveProductImageSnafu)?;
+    let dereferenced = crate::controller::dereference::dereference(client, hdfs)
+        .await
+        .context(DereferenceSnafu)?;
 
-    let validated_config = {
-        let roles = hdfs
-            .build_role_properties()
-            .context(BuildRolePropertiesSnafu)?;
-        validate_all_roles_and_groups_config(
-            &resolved_product_image.product_version,
-            &transform_all_roles_to_config(hdfs, &roles).context(InvalidRoleConfigSnafu)?,
-            &ctx.product_config,
-            false,
-            false,
-        )
-        .context(InvalidProductConfigSnafu)?
-    };
+    let validated = crate::controller::validate::validate_cluster(
+        hdfs,
+        &ctx.operator_environment.image_repository,
+        &ctx.product_config,
+        dereferenced.hdfs_opa_config,
+    )
+    .context(ValidateSnafu)?;
+
+    let resolved_product_image = &validated.image;
 
     let hdfs_obj_ref = hdfs.object_ref(&());
     // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
@@ -341,15 +320,6 @@ pub async fn reconcile_hdfs(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let hdfs_opa_config = match &hdfs.spec.cluster_config.authorization {
-        Some(opa_config) => Some(
-            HdfsOpaConfig::from_opa_config(client, hdfs, opa_config)
-                .await
-                .context(InvalidOpaConfigSnafu)?,
-        ),
-        None => None,
-    };
-
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
@@ -371,7 +341,7 @@ pub async fn reconcile_hdfs(
     );
     'roles: for role in roles {
         let role_name: &str = role.into();
-        let Some(group_config) = validated_config.get(role_name) else {
+        let Some(group_config) = validated.role_groups.get(&role) else {
             tracing::debug!(?role, "role has no configuration, skipping");
             continue;
         };
@@ -388,20 +358,20 @@ pub async fn reconcile_hdfs(
             .context(FailedToCreateClusterEventSnafu)?;
         }
 
-        for (rolegroup_name, rolegroup_config) in group_config.iter() {
-            let merged_config = role
-                .merged_config(hdfs, rolegroup_name)
-                .context(ConfigMergeSnafu)?;
+        for (rolegroup_name, validated_rg_config) in group_config.iter() {
+            let merged_config = &validated_rg_config.merged_config;
 
-            let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
+            let env_overrides = validated_rg_config
+                .product_config_properties
+                .get(&PropertyNameKind::Env);
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
             let rg_service =
-                rolegroup_headless_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
+                rolegroup_headless_service(hdfs, &role, &rolegroup_ref, resolved_product_image)
                     .context(BuildServiceSnafu)?;
             let rg_metrics_service =
-                rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, &resolved_product_image)
+                rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, resolved_product_image)
                     .context(BuildServiceSnafu)?;
 
             // We need to split the creation and the usage of the "metadata" variable in two statements.
@@ -428,11 +398,11 @@ pub async fn reconcile_hdfs(
                 &client.kubernetes_cluster_info,
                 metadata,
                 &rolegroup_ref,
-                rolegroup_config,
+                &validated_rg_config.product_config_properties,
                 &namenode_podrefs,
                 &journalnode_podrefs,
-                &merged_config,
-                &hdfs_opa_config,
+                merged_config,
+                &validated.hdfs_opa_config,
             )?;
 
             let rg_statefulset = rolegroup_statefulset(
@@ -441,9 +411,9 @@ pub async fn reconcile_hdfs(
                 metadata,
                 &role,
                 &rolegroup_ref,
-                &resolved_product_image,
+                resolved_product_image,
                 env_overrides,
-                &merged_config,
+                merged_config,
                 &namenode_podrefs,
                 &rbac_sa,
             )?;
@@ -498,14 +468,16 @@ pub async fn reconcile_hdfs(
             }
         }
 
-        let role_config = hdfs.role_config(&role);
-        if let Some(GenericRoleConfig {
-            pod_disruption_budget: pdb,
-        }) = role_config
-        {
-            add_pdbs(pdb, hdfs, &role, client, &mut cluster_resources)
-                .await
-                .context(FailedToCreatePdbSnafu)?;
+        if let Some(validated_role_config) = validated.role_configs.get(&role) {
+            add_pdbs(
+                &validated_role_config.pdb,
+                hdfs,
+                &role,
+                client,
+                &mut cluster_resources,
+            )
+            .await
+            .context(FailedToCreatePdbSnafu)?;
         }
     }
 
@@ -519,7 +491,7 @@ pub async fn reconcile_hdfs(
             .namenode_listener_refs(client)
             .await
             .context(CollectDiscoveryConfigSnafu)?,
-        &resolved_product_image,
+        resolved_product_image,
     )
     .context(BuildDiscoveryConfigMapSnafu)?;
 
@@ -930,7 +902,12 @@ pub fn error_policy(
 
 #[cfg(test)]
 mod test {
-    use stackable_operator::commons::networking::DomainName;
+    use stackable_operator::{
+        commons::networking::DomainName,
+        product_config_utils::{
+            transform_all_roles_to_config, validate_all_roles_and_groups_config,
+        },
+    };
 
     use super::*;
 

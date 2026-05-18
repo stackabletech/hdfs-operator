@@ -16,6 +16,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[derive(Clone, Debug)]
 pub struct HdfsOpaConfig {
     authorization_connection_string: String,
 }
