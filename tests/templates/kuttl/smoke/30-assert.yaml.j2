@@ -3,26 +3,266 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-namenode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: rpc
+    port: 8020
+    protocol: TCP
+  - name: http
+    port: 9870
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /prom
+    prometheus.io/port: "9870"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  name: hdfs-namenode-default-metrics
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9870
+    protocol: TCP
+  - name: jmx-metrics
+    port: 8183
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-datanode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: data
+    port: 9866
+    protocol: TCP
+  - name: ipc
+    port: 9867
+    protocol: TCP
+  - name: http
+    port: 9864
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /prom
+    prometheus.io/port: "9864"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  name: hdfs-datanode-default-metrics
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9864
+    protocol: TCP
+  - name: jmx-metrics
+    port: 8082
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-journalnode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: rpc
+    port: 8485
+    protocol: TCP
+  - name: http
+    port: 8480
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /prom
+    prometheus.io/port: "8480"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  name: hdfs-journalnode-default-metrics
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 8480
+    protocol: TCP
+  - name: jmx-metrics
+    port: 8081
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
   name: hdfs-namenode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 spec:
+  podManagementPolicy: OrderedReady
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: namenode
+      app.kubernetes.io/instance: hdfs
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/role-group: default
+  serviceName: hdfs-namenode-default
   template:
     spec:
       containers:
-        - name: namenode
-          resources:
-            requests:
-              cpu: 250m # From defaults
-              memory: 1Gi
-            limits:
-              cpu: "1" # From defaults
-              memory: 1Gi
+      - name: namenode
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: "1"
+            memory: 1Gi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - name: vector
 {% endif %}
-        - name: zkfc
+      - name: zkfc
       terminationGracePeriodSeconds: 900
 status:
   readyReplicas: 2
@@ -31,145 +271,221 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hdfs-journalnode-default
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-datanode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 spec:
+  podManagementPolicy: OrderedReady
+  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: datanode
+      app.kubernetes.io/instance: hdfs
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/role-group: default
+  serviceName: hdfs-datanode-default
   template:
     spec:
       containers:
-        - name: journalnode
-          resources:
-            requests:
-              cpu: 110m # From podOverrides
-              memory: 512Mi
-            limits:
-              cpu: 410m # From podOverrides
-              memory: 512Mi
+      - name: datanode
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 400m
+            memory: 512Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - name: vector
+{% endif %}
+      terminationGracePeriodSeconds: 1800
+status:
+  readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
+  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-journalnode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: journalnode
+      app.kubernetes.io/instance: hdfs
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/role-group: default
+  serviceName: hdfs-journalnode-default
+  template:
+    spec:
+      containers:
+      - name: journalnode
+        resources:
+          requests:
+            cpu: 110m
+            memory: 512Mi
+          limits:
+            cpu: 410m
+            memory: 512Mi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+      - name: vector
 {% endif %}
       terminationGracePeriodSeconds: 900
 status:
   readyReplicas: 1
   replicas: 1
 ---
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: hdfs-datanode-default
-spec:
-  template:
-    spec:
-      containers:
-        - name: datanode
-          resources:
-            requests:
-              cpu: 100m # From defaults
-              memory: 512Mi
-            limits:
-              cpu: 400m # From defaults
-              memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
-{% endif %}
-      terminationGracePeriodSeconds: 1800
-status:
-  readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
-  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
-{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
----
 apiVersion: v1
-kind: Service
+kind: ConfigMap
 metadata:
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
   name: hdfs-namenode-default
-spec:
-  ports:
-  - name: rpc
-    port: 8020
-    protocol: TCP
-    targetPort: 8020
-  - name: http
-    port: 9870
-    protocol: TCP
-    targetPort: 9870
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 ---
 apiVersion: v1
-kind: Service
+kind: ConfigMap
 metadata:
-  name: hdfs-namenode-default-metrics
-spec:
-  ports:
-  - name: metrics
-    port: 9870
-    protocol: TCP
-    targetPort: 9870
-  - name: jmx-metrics
-    port: 8183
-    protocol: TCP
-    targetPort: 8183
----
-apiVersion: v1
-kind: Service
-metadata:
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
   name: hdfs-datanode-default
-spec:
-  ports:
-  - name: data
-    port: 9866
-    protocol: TCP
-    targetPort: 9866
-  - name: ipc
-    port: 9867
-    protocol: TCP
-    targetPort: 9867
-  - name: http
-    port: 9864
-    protocol: TCP
-    targetPort: 9864
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 ---
 apiVersion: v1
-kind: Service
+kind: ConfigMap
 metadata:
-  name: hdfs-datanode-default-metrics
-spec:
-  ports:
-  - name: metrics
-    port: 9864
-    protocol: TCP
-    targetPort: 9864
-  - name: jmx-metrics
-    port: 8082
-    protocol: TCP
-    targetPort: 8082
----
-apiVersion: v1
-kind: Service
-metadata:
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
   name: hdfs-journalnode-default
-spec:
-  ports:
-  - name: rpc
-    port: 8485
-    protocol: TCP
-    targetPort: 8485
-  - name: http
-    port: 8480
-    protocol: TCP
-    targetPort: 8480
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 ---
 apiVersion: v1
-kind: Service
+kind: ServiceAccount
 metadata:
-  name: hdfs-journalnode-default-metrics
-spec:
-  ports:
-  - name: metrics
-    port: 8480
-    protocol: TCP
-    targetPort: 8480
-  - name: jmx-metrics
-    port: 8081
-    protocol: TCP
-    targetPort: 8081
+  labels:
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+  name: hdfs-serviceaccount
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+  name: hdfs-rolebinding
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hdfs-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: hdfs-serviceaccount
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-namenode
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+status:
+  expectedPods: 2
+  currentHealthy: 2
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-datanode
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+status:
+  expectedPods: {{ test_scenario['values']['number-of-datanodes'] }}
+  currentHealthy: {{ test_scenario['values']['number-of-datanodes'] }}
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-journalnode
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+status:
+  expectedPods: 1
+  currentHealthy: 1
+  disruptionsAllowed: 1
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -210,30 +526,3 @@ status:
     - ReadWriteOnce
   phase: Bound
 {% endif %}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: hdfs-journalnode
-status:
-  expectedPods: 1
-  currentHealthy: 1
-  disruptionsAllowed: 1
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: hdfs-namenode
-status:
-  expectedPods: 2
-  currentHealthy: 2
-  disruptionsAllowed: 1
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: hdfs-datanode
-status:
-  expectedPods: {{ test_scenario['values']['number-of-datanodes'] }}
-  currentHealthy: {{ test_scenario['values']['number-of-datanodes'] }}
-  disruptionsAllowed: 1
