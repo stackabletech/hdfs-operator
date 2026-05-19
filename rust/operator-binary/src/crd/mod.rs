@@ -993,7 +993,7 @@ pub struct CommonNodeConfig {
 }
 
 /// Configuration for a rolegroup of an unknown type.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum AnyNodeConfig {
     Name(NameNodeConfig),
     Data(DataNodeConfig),
@@ -1087,7 +1087,9 @@ impl AnyNodeConfig {
     Eq,
     Hash,
     JsonSchema,
+    Ord,
     PartialEq,
+    PartialOrd,
     Serialize,
 )]
 pub enum HdfsNodeRole {
