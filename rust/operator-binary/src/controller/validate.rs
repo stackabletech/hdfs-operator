@@ -1,9 +1,6 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-};
+use std::{collections::BTreeMap, str::FromStr};
 
-use product_config::{ProductConfigManager, types::PropertyNameKind};
+use product_config::ProductConfigManager;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
@@ -12,8 +9,10 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{AnyNodeConfig, HdfsNodeRole, v1alpha1},
-    hdfs_controller::{CONTAINER_IMAGE_BASE_NAME, ValidatedCluster},
+    crd::{HdfsNodeRole, v1alpha1},
+    hdfs_controller::{
+        CONTAINER_IMAGE_BASE_NAME, ValidatedCluster, ValidatedRoleConfig, ValidatedRoleGroupConfig,
+    },
     security::opa::HdfsOpaConfig,
 };
 
@@ -45,19 +44,6 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
-}
-
-/// Per-role configuration extracted during validation.
-#[derive(Clone, Debug)]
-pub struct ValidatedRoleConfig {
-    pub pdb: stackable_operator::commons::pdb::PdbConfig,
-}
-
-/// Per-rolegroup configuration: the merged CRD config plus the product-config properties.
-#[derive(Clone, Debug)]
-pub struct ValidatedRoleGroupConfig {
-    pub merged_config: AnyNodeConfig,
-    pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
 }
 
 pub fn validate_cluster(

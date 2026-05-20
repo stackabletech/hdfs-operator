@@ -54,7 +54,6 @@ use crate::{
     OPERATOR_NAME, build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    controller::validate::{ValidatedRoleConfig, ValidatedRoleGroupConfig},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
         UpgradeStateError, constants::*, v1alpha1,
@@ -86,6 +85,19 @@ pub struct ValidatedCluster {
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
     pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
     pub hdfs_opa_config: Option<HdfsOpaConfig>,
+}
+
+/// Per-role configuration extracted during validation.
+#[derive(Clone, Debug)]
+pub struct ValidatedRoleConfig {
+    pub pdb: stackable_operator::commons::pdb::PdbConfig,
+}
+
+/// Per-rolegroup configuration: the merged CRD config plus the product-config properties.
+#[derive(Clone, Debug)]
+pub struct ValidatedRoleGroupConfig {
+    pub merged_config: AnyNodeConfig,
+    pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
 }
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
