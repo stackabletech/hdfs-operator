@@ -4,9 +4,19 @@
 #
 # Expected data lives in 31_configmap_*.yaml files alongside this assert.
 # envsubst expands only the listed shell variables ($NAMESPACE etc.),
-# leaving Hadoop ${env.FOO} references untouched. Both sides are
-# normalised through yq so formatting differences don't cause false
-# failures.
+# leaving Hadoop ${env.FOO} references untouched.
+#
+# Both sides are converted to JSON via yq, then jq normalises trailing
+# newlines in string values (collapsing \n+ to \n) so YAML block scalar
+# style (|, |+) differences don't cause false failures.
+# vector.toml is excluded because its presence depends on the
+# VECTOR_AGGREGATOR env var set by the CI/test runner. The snapshot
+# files are plain YAML (not Jinja2 templates), so they cannot
+# conditionally include it.
+#
+# kuttl runs script commands with sh, not bash, so process substitution
+# is unavailable. Temp files namespaced under $NAMESPACE are used for
+# diff output to avoid collisions when tests run concurrently.
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
@@ -15,13 +25,10 @@ commands:
   # ConfigMap data snapshot: hdfs-namenode-default
   #
   - script: |
-      expected=$(envsubst '$NAMESPACE' < 31_configmap_hdfs-namenode-default.yaml | yq -o=json)
-      actual=$(kubectl -n $NAMESPACE get cm hdfs-namenode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])')
-      if [ "$expected" != "$actual" ]; then
+      envsubst '$NAMESPACE' < 31_configmap_hdfs-namenode-default.yaml | yq -o=json | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-expected.json
+      kubectl -n $NAMESPACE get cm hdfs-namenode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])' | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-actual.json
+      if ! diff /tmp/$NAMESPACE-expected.json /tmp/$NAMESPACE-actual.json; then
         echo "ERROR: ConfigMap hdfs-namenode-default data drifted from snapshot."
-        echo "$expected" > /tmp/expected.json
-        echo "$actual" > /tmp/actual.json
-        diff /tmp/expected.json /tmp/actual.json
         exit 1
       fi
   #
@@ -33,25 +40,19 @@ commands:
 {% else %}
       export DATANODE_DATA_DIR='[DISK]/stackable/data/data/datanode'
 {% endif %}
-      expected=$(envsubst '$NAMESPACE $DATANODE_DATA_DIR' < 31_configmap_hdfs-datanode-default.yaml | yq -o=json)
-      actual=$(kubectl -n $NAMESPACE get cm hdfs-datanode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])')
-      if [ "$expected" != "$actual" ]; then
+      envsubst '$NAMESPACE $DATANODE_DATA_DIR' < 31_configmap_hdfs-datanode-default.yaml | yq -o=json | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-expected.json
+      kubectl -n $NAMESPACE get cm hdfs-datanode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])' | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-actual.json
+      if ! diff /tmp/$NAMESPACE-expected.json /tmp/$NAMESPACE-actual.json; then
         echo "ERROR: ConfigMap hdfs-datanode-default data drifted from snapshot."
-        echo "$expected" > /tmp/expected.json
-        echo "$actual" > /tmp/actual.json
-        diff /tmp/expected.json /tmp/actual.json
         exit 1
       fi
   #
   # ConfigMap data snapshot: hdfs-journalnode-default
   #
   - script: |
-      expected=$(envsubst '$NAMESPACE' < 31_configmap_hdfs-journalnode-default.yaml | yq -o=json)
-      actual=$(kubectl -n $NAMESPACE get cm hdfs-journalnode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])')
-      if [ "$expected" != "$actual" ]; then
+      envsubst '$NAMESPACE' < 31_configmap_hdfs-journalnode-default.yaml | yq -o=json | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-expected.json
+      kubectl -n $NAMESPACE get cm hdfs-journalnode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])' | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-actual.json
+      if ! diff /tmp/$NAMESPACE-expected.json /tmp/$NAMESPACE-actual.json; then
         echo "ERROR: ConfigMap hdfs-journalnode-default data drifted from snapshot."
-        echo "$expected" > /tmp/expected.json
-        echo "$actual" > /tmp/actual.json
-        diff /tmp/expected.json /tmp/actual.json
         exit 1
       fi
