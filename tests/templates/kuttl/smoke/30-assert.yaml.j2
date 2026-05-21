@@ -247,23 +247,318 @@ spec:
       app.kubernetes.io/instance: hdfs
       app.kubernetes.io/name: hdfs
       app.kubernetes.io/role-group: default
+      group: default
+      role: namenode
   serviceName: hdfs-namenode-default
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: namenode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: namenode
     spec:
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 20
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: namenode
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 70
       containers:
-      - name: namenode
+      - command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/namenode
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: HDFS_NAMENODE_OPTS
+          value: -Xms819m -Xmx819m -Djava.security.properties=/stackable/config/namenode/security.properties
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        name: namenode
+        ports:
+        - containerPort: 8020
+          name: rpc
+          protocol: TCP
+        - containerPort: 9870
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: rpc
+          timeoutSeconds: 1
         resources:
-          requests:
-            cpu: 250m
-            memory: 1Gi
           limits:
             cpu: "1"
             memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/namenode
+          name: hdfs-config
+        - mountPath: /stackable/mount/log/namenode
+          name: hdfs-log-config
+        - mountPath: /stackable/listener
+          name: listener
+        - mountPath: /stackable/data
+          name: data
+      - command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/zkfc
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        name: zkfc
+        resources:
+          limits:
+            cpu: 400m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/zkfc
+          name: zkfc-config
+        - mountPath: /stackable/mount/log/zkfc
+          name: zkfc-log-config
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       - name: vector
 {% endif %}
-      - name: zkfc
+      enableServiceLinks: false
+      initContainers:
+      - command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/format-namenodes
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        name: format-namenodes
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/format-namenodes
+          name: format-namenodes-config
+        - mountPath: /stackable/mount/log/format-namenodes
+          name: format-namenodes-log-config
+        - mountPath: /stackable/data
+          name: data
+      - command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/format-zookeeper
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        name: format-zookeeper
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/format-zookeeper
+          name: format-zookeeper-config
+        - mountPath: /stackable/mount/log/format-zookeeper
+          name: format-zookeeper-log-config
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: hdfs-serviceaccount
       terminationGracePeriodSeconds: 900
+      volumes:
+      - emptyDir:
+          sizeLimit: 150Mi
+        name: log
+      - configMap:
+          name: hdfs-namenode-default
+        name: hdfs-config
+      - configMap:
+          name: hdfs-namenode-default
+        name: hdfs-log-config
+      - configMap:
+          name: hdfs-namenode-default
+        name: zkfc-config
+      - configMap:
+          name: hdfs-namenode-default
+        name: zkfc-log-config
+      - configMap:
+          name: hdfs-namenode-default
+        name: format-namenodes-config
+      - configMap:
+          name: hdfs-namenode-default
+        name: format-namenodes-log-config
+      - configMap:
+          name: hdfs-namenode-default
+        name: format-zookeeper-config
+      - configMap:
+          name: hdfs-namenode-default
+        name: format-zookeeper-log-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+  - metadata:
+      annotations:
+        listeners.stackable.tech/listener-class: {{ test_scenario['values']['listener-class'] }}
+      labels:
+        app.kubernetes.io/component: namenode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: namenode
+      name: listener
+    spec:
+      accessModes:
+      - ReadWriteMany
+      resources:
+        requests:
+          storage: "1"
+      storageClassName: listeners.stackable.tech
+      volumeMode: Filesystem
 status:
   readyReplicas: 2
   replicas: 2
@@ -293,22 +588,259 @@ spec:
       app.kubernetes.io/instance: hdfs
       app.kubernetes.io/name: hdfs
       app.kubernetes.io/role-group: default
+      group: default
+      role: datanode
   serviceName: hdfs-datanode-default
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: datanode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: datanode
     spec:
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 20
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: datanode
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 70
       containers:
-      - name: datanode
+      - command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/datanode
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: HDFS_DATANODE_OPTS
+          value: -Xms409m -Xmx409m -Djava.security.properties=/stackable/config/datanode/security.properties
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8082:/stackable/jmx/datanode.yaml
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        name: datanode
+        ports:
+        - containerPort: 9866
+          name: data
+          protocol: TCP
+        - containerPort: 9867
+          name: ipc
+          protocol: TCP
+        - containerPort: 9864
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: ipc
+          timeoutSeconds: 1
         resources:
-          requests:
-            cpu: 100m
-            memory: 512Mi
           limits:
             cpu: 400m
             memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/datanode
+          name: hdfs-config
+        - mountPath: /stackable/mount/log/datanode
+          name: hdfs-log-config
+        - mountPath: /stackable/listener
+          name: listener
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+        - mountPath: /stackable/data/hdd
+          name: hdd
+        - mountPath: /stackable/data/hdd-1
+          name: hdd-1
+        - mountPath: /stackable/data/ssd
+          name: ssd
+{% else %}
+        - mountPath: /stackable/data/data
+          name: data
+{% endif %}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       - name: vector
 {% endif %}
+      enableServiceLinks: false
+      initContainers:
+      - command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/wait-for-namenodes
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        name: wait-for-namenodes
+        resources:
+          limits:
+            cpu: 400m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/wait-for-namenodes
+          name: wait-for-namenodes-config
+        - mountPath: /stackable/mount/log/wait-for-namenodes
+          name: wait-for-namenodes-log-config
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: hdfs-serviceaccount
       terminationGracePeriodSeconds: 1800
+      volumes:
+      - ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                listeners.stackable.tech/listener-class: {{ test_scenario['values']['listener-class'] }}
+              labels:
+                app.kubernetes.io/component: datanode
+                app.kubernetes.io/instance: hdfs
+                app.kubernetes.io/name: hdfs
+                app.kubernetes.io/role-group: default
+                group: default
+                role: datanode
+            spec:
+              accessModes:
+              - ReadWriteMany
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: listeners.stackable.tech
+              volumeMode: Filesystem
+        name: listener
+      - emptyDir:
+          sizeLimit: 150Mi
+        name: log
+      - configMap:
+          name: hdfs-datanode-default
+        name: hdfs-config
+      - configMap:
+          name: hdfs-datanode-default
+        name: hdfs-log-config
+      - configMap:
+          name: hdfs-datanode-default
+        name: wait-for-namenodes-config
+      - configMap:
+          name: hdfs-datanode-default
+        name: wait-for-namenodes-log-config
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+  volumeClaimTemplates:
+  - metadata:
+      name: hdd
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+  - metadata:
+      name: hdd-1
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+  - metadata:
+      name: ssd
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeMode: Filesystem
+{% else %}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+{% endif %}
 status:
   readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
   replicas: {{ test_scenario['values']['number-of-datanodes'] }}
@@ -338,22 +870,144 @@ spec:
       app.kubernetes.io/instance: hdfs
       app.kubernetes.io/name: hdfs
       app.kubernetes.io/role-group: default
+      group: default
+      role: journalnode
   serviceName: hdfs-journalnode-default
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: journalnode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: journalnode
     spec:
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 20
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: journalnode
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 70
       containers:
-      - name: journalnode
+      - command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/journalnode
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: HDFS_JOURNALNODE_OPTS
+          value: -Xms409m -Xmx409m -Djava.security.properties=/stackable/config/journalnode/security.properties
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8081:/stackable/jmx/journalnode.yaml
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        name: journalnode
+        ports:
+        - containerPort: 8485
+          name: rpc
+          protocol: TCP
+        - containerPort: 8480
+          name: http
+          protocol: TCP
+        - containerPort: 1234
+          name: dashed-port
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: rpc
+          timeoutSeconds: 1
         resources:
-          requests:
-            cpu: 110m
-            memory: 512Mi
           limits:
             cpu: 410m
             memory: 512Mi
+          requests:
+            cpu: 110m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/journalnode
+          name: hdfs-config
+        - mountPath: /stackable/mount/log/journalnode
+          name: hdfs-log-config
+        - mountPath: /stackable/data
+          name: data
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       - name: vector
 {% endif %}
+      enableServiceLinks: false
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: hdfs-serviceaccount
       terminationGracePeriodSeconds: 900
+      volumes:
+      - emptyDir:
+          sizeLimit: 150Mi
+        name: log
+      - configMap:
+          name: hdfs-journalnode-default
+        name: hdfs-config
+      - configMap:
+          name: hdfs-journalnode-default
+        name: hdfs-log-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeMode: Filesystem
 status:
   readyReplicas: 1
   replicas: 1

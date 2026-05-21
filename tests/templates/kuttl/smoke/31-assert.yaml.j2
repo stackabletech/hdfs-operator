@@ -1,5 +1,5 @@
 ---
-# Snapshot the full .data of each operator-managed ConfigMap and verify envOverrides.
+# Snapshot the full .data of each operator-managed ConfigMap.
 # Any code change that alters rendered config values will fail these diffs.
 #
 # The heredoc is quoted (<<'YAMLEOF') so shell substitution is disabled and
@@ -12,21 +12,6 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 commands:
-  #
-  # Test envOverrides for all roles
-  #
-  - script: |
-      kubectl -n $NAMESPACE get sts hdfs-datanode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "datanode") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-datanode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "datanode") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-datanode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "datanode") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
-  - script: |
-      kubectl -n $NAMESPACE get sts hdfs-journalnode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "journalnode") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-journalnode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "journalnode") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-journalnode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "journalnode") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
-  - script: |
-      kubectl -n $NAMESPACE get sts hdfs-namenode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "namenode") | .env[] | select (.name == "COMMON_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-namenode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "namenode") | .env[] | select (.name == "GROUP_VAR" and .value == "group-value")'
-      kubectl -n $NAMESPACE get sts hdfs-namenode-default -o yaml | yq -e '.spec.template.spec.containers[] | select (.name == "namenode") | .env[] | select (.name == "ROLE_VAR" and .value == "role-value")'
   #
   # ConfigMap data snapshot: hdfs-namenode-default
   #
