@@ -1,0 +1,211 @@
+---
+core-site.xml: |-
+  <?xml version="1.0"?>
+  <configuration>
+    <property>
+      <name>fs.defaultFS</name>
+      <value>hdfs://hdfs/</value>
+    </property>
+    <property>
+      <name>ha.zookeeper.quorum</name>
+      <value>${env.ZOOKEEPER}</value>
+    </property>
+    <property>
+      <name>hadoop.prometheus.endpoint.enabled</name>
+      <value>true</value>
+    </property>
+    <property>
+      <name>io.file.buffer.size</name>
+      <value>131072</value>
+    </property>
+  </configuration>
+format-namenodes.log4j.properties: |+
+  log4j.rootLogger=INFO, CONSOLE, FILE
+
+  log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender
+  log4j.appender.CONSOLE.Threshold=INFO
+  log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout
+  log4j.appender.CONSOLE.layout.ConversionPattern=%d{ISO8601} %-5p %c{2} (%F:%M(%L)) - %m%n
+
+  log4j.appender.FILE=org.apache.log4j.RollingFileAppender
+  log4j.appender.FILE.Threshold=INFO
+  log4j.appender.FILE.File=/stackable/log/format-namenodes/format-namenodes.log4j.xml
+  log4j.appender.FILE.MaxFileSize=5MB
+  log4j.appender.FILE.MaxBackupIndex=1
+  log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+
+format-zookeeper.log4j.properties: |+
+  log4j.rootLogger=INFO, CONSOLE, FILE
+
+  log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender
+  log4j.appender.CONSOLE.Threshold=INFO
+  log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout
+  log4j.appender.CONSOLE.layout.ConversionPattern=%d{ISO8601} %-5p %c{2} (%F:%M(%L)) - %m%n
+
+  log4j.appender.FILE=org.apache.log4j.RollingFileAppender
+  log4j.appender.FILE.Threshold=INFO
+  log4j.appender.FILE.File=/stackable/log/format-zookeeper/format-zookeeper.log4j.xml
+  log4j.appender.FILE.MaxFileSize=5MB
+  log4j.appender.FILE.MaxBackupIndex=1
+  log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+
+hadoop-policy.xml: |-
+  <?xml version="1.0"?>
+  <configuration>
+  </configuration>
+hdfs-site.xml: |-
+  <?xml version="1.0"?>
+  <configuration>
+    <property>
+      <name>dfs.client.failover.proxy.provider.hdfs</name>
+      <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+    </property>
+    <property>
+      <name>dfs.datanode.handler.count</name>
+      <value>50</value>
+    </property>
+    <property>
+      <name>dfs.datanode.max.transfer.threads</name>
+      <value>8192</value>
+    </property>
+    <property>
+      <name>dfs.datanode.registered.hostname</name>
+      <value>${env.POD_ADDRESS}</value>
+    </property>
+    <property>
+      <name>dfs.datanode.registered.http.port</name>
+      <value>${env.HTTP_PORT}</value>
+    </property>
+    <property>
+      <name>dfs.datanode.registered.ipc.port</name>
+      <value>${env.IPC_PORT}</value>
+    </property>
+    <property>
+      <name>dfs.datanode.registered.port</name>
+      <value>${env.DATA_PORT}</value>
+    </property>
+    <property>
+      <name>dfs.datanode.sync.behind.writes</name>
+      <value>true</value>
+    </property>
+    <property>
+      <name>dfs.datanode.synconclose</name>
+      <value>true</value>
+    </property>
+    <property>
+      <name>dfs.ha.automatic-failover.enabled</name>
+      <value>true</value>
+    </property>
+    <property>
+      <name>dfs.ha.fencing.methods</name>
+      <value>shell(/bin/true)</value>
+    </property>
+    <property>
+      <name>dfs.ha.namenode.id</name>
+      <value>${env.POD_NAME}</value>
+    </property>
+    <property>
+      <name>dfs.ha.namenodes.hdfs</name>
+      <value>hdfs-namenode-default-0,hdfs-namenode-default-1</value>
+    </property>
+    <property>
+      <name>dfs.journalnode.edits.dir</name>
+      <value>/stackable/data/journalnode</value>
+    </property>
+    <property>
+      <name>dfs.namenode.datanode.registration.unsafe.allow-address-override</name>
+      <value>true</value>
+    </property>
+    <property>
+      <name>dfs.namenode.handler.count</name>
+      <value>50</value>
+    </property>
+    <property>
+      <name>dfs.namenode.http-address.hdfs.hdfs-namenode-default-0</name>
+      <value>hdfs-namenode-default-0.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:9870</value>
+    </property>
+    <property>
+      <name>dfs.namenode.http-address.hdfs.hdfs-namenode-default-1</name>
+      <value>hdfs-namenode-default-1.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:9870</value>
+    </property>
+    <property>
+      <name>dfs.namenode.name.dir</name>
+      <value>/stackable/data/namenode</value>
+    </property>
+    <property>
+      <name>dfs.namenode.name.dir.hdfs.hdfs-namenode-default-0</name>
+      <value>/stackable/data/namenode</value>
+    </property>
+    <property>
+      <name>dfs.namenode.name.dir.hdfs.hdfs-namenode-default-1</name>
+      <value>/stackable/data/namenode</value>
+    </property>
+    <property>
+      <name>dfs.namenode.replication.max-streams</name>
+      <value>4</value>
+    </property>
+    <property>
+      <name>dfs.namenode.replication.max-streams-hard-limit</name>
+      <value>8</value>
+    </property>
+    <property>
+      <name>dfs.namenode.rpc-address.hdfs.hdfs-namenode-default-0</name>
+      <value>hdfs-namenode-default-0.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:8020</value>
+    </property>
+    <property>
+      <name>dfs.namenode.rpc-address.hdfs.hdfs-namenode-default-1</name>
+      <value>hdfs-namenode-default-1.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:8020</value>
+    </property>
+    <property>
+      <name>dfs.namenode.shared.edits.dir</name>
+      <value>qjournal://hdfs-journalnode-default-0.hdfs-journalnode-default.$NAMESPACE.svc.cluster.local:8485/hdfs</value>
+    </property>
+    <property>
+      <name>dfs.nameservices</name>
+      <value>hdfs</value>
+    </property>
+    <property>
+      <name>dfs.replication</name>
+      <value>1</value>
+    </property>
+  </configuration>
+hdfs.log4j.properties: |+
+  log4j.rootLogger=INFO, CONSOLE, FILE
+
+  log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender
+  log4j.appender.CONSOLE.Threshold=INFO
+  log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout
+  log4j.appender.CONSOLE.layout.ConversionPattern=%d{ISO8601} %-5p %c{2} (%F:%M(%L)) - %m%n
+
+  log4j.appender.FILE=org.apache.log4j.RollingFileAppender
+  log4j.appender.FILE.Threshold=INFO
+  log4j.appender.FILE.File=/stackable/log/hdfs/hdfs.log4j.xml
+  log4j.appender.FILE.MaxFileSize=5MB
+  log4j.appender.FILE.MaxBackupIndex=1
+  log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+
+security.properties: |
+  networkaddress.cache.negative.ttl=0
+  networkaddress.cache.ttl=30
+ssl-client.xml: |-
+  <?xml version="1.0"?>
+  <configuration>
+  </configuration>
+ssl-server.xml: |-
+  <?xml version="1.0"?>
+  <configuration>
+  </configuration>
+zkfc.log4j.properties: |+
+  log4j.rootLogger=INFO, CONSOLE, FILE
+
+  log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender
+  log4j.appender.CONSOLE.Threshold=INFO
+  log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout
+  log4j.appender.CONSOLE.layout.ConversionPattern=%d{ISO8601} %-5p %c{2} (%F:%M(%L)) - %m%n
+
+  log4j.appender.FILE=org.apache.log4j.RollingFileAppender
+  log4j.appender.FILE.Threshold=INFO
+  log4j.appender.FILE.File=/stackable/log/zkfc/zkfc.log4j.xml
+  log4j.appender.FILE.MaxFileSize=5MB
+  log4j.appender.FILE.MaxBackupIndex=1
+  log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout

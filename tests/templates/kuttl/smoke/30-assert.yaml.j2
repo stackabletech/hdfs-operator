@@ -3,27 +3,741 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-namenode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: rpc
+    port: 8020
+    protocol: TCP
+  - name: http
+    port: 9870
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /prom
+    prometheus.io/port: "9870"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  name: hdfs-namenode-default-metrics
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9870
+    protocol: TCP
+  - name: jmx-metrics
+    port: 8183
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-datanode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: data
+    port: 9866
+    protocol: TCP
+  - name: ipc
+    port: 9867
+    protocol: TCP
+  - name: http
+    port: 9864
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /prom
+    prometheus.io/port: "9864"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  name: hdfs-datanode-default-metrics
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9864
+    protocol: TCP
+  - name: jmx-metrics
+    port: 8082
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-journalnode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: rpc
+    port: 8485
+    protocol: TCP
+  - name: http
+    port: 8480
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /prom
+    prometheus.io/port: "8480"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  name: hdfs-journalnode-default-metrics
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 8480
+    protocol: TCP
+  - name: jmx-metrics
+    port: 8081
+    protocol: TCP
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
   name: hdfs-namenode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 spec:
+  podManagementPolicy: OrderedReady
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: namenode
+      app.kubernetes.io/instance: hdfs
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/role-group: default
+      group: default
+      role: namenode
+  serviceName: hdfs-namenode-default
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: namenode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: namenode
     spec:
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 20
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: namenode
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 70
       containers:
-        - name: namenode
-          resources:
-            requests:
-              cpu: 250m # From defaults
-              memory: 1Gi
-            limits:
-              cpu: "1" # From defaults
-              memory: 1Gi
+      - args:
+        - |
+          mkdir -p /stackable/config/namenode
+          cp /stackable/mount/config/namenode/*.xml /stackable/config/namenode
+          cp /stackable/mount/config/namenode/hdfs.log4j.properties /stackable/config/namenode/log4j.properties
+          \
+
+          prepare_signal_handlers()
+          {
+              unset term_child_pid
+              unset term_kill_needed
+              trap 'handle_term_signal' TERM
+          }
+
+          handle_term_signal()
+          {
+              if [ "${term_child_pid}" ]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              else
+                  term_kill_needed="yes"
+              fi
+          }
+
+          wait_for_termination()
+          {
+              set +e
+              term_child_pid=$1
+              if [[ -v term_kill_needed ]]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              fi
+              wait ${term_child_pid} 2>/dev/null
+              trap - TERM
+              wait ${term_child_pid} 2>/dev/null
+              set -e
+          }
+
+          rm -f /stackable/log/_vector/shutdown
+          prepare_signal_handlers
+          containerdebug --output=/stackable/log/containerdebug-state.json --loop &
+          if [[ -d /stackable/listener ]]; then
+              export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
+              for i in /stackable/listener/default-address/ports/*; do
+                  export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
+              done
+          fi
+          /stackable/hadoop/bin/hdfs namenode  &
+          wait_for_termination $!
+          mkdir -p /stackable/log/_vector && touch /stackable/log/_vector/shutdown
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/namenode
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: HDFS_NAMENODE_OPTS
+          value: -Xms819m -Xmx819m -Djava.security.properties=/stackable/config/namenode/security.properties
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        name: namenode
+        ports:
+        - containerPort: 8020
+          name: rpc
+          protocol: TCP
+        - containerPort: 9870
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: rpc
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/namenode
+          name: hdfs-config
+        - mountPath: /stackable/mount/log/namenode
+          name: hdfs-log-config
+        - mountPath: /stackable/listener
+          name: listener
+        - mountPath: /stackable/data
+          name: data
+      - args:
+        - |
+          mkdir -p /stackable/config/zkfc
+          cp /stackable/mount/config/zkfc/*.xml /stackable/config/zkfc
+          cp /stackable/mount/config/zkfc/zkfc.log4j.properties /stackable/config/zkfc/log4j.properties
+          /stackable/hadoop/bin/hdfs zkfc
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/zkfc
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        imagePullPolicy: IfNotPresent
+        name: zkfc
+        resources:
+          limits:
+            cpu: 400m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/zkfc
+          name: zkfc-config
+        - mountPath: /stackable/mount/log/zkfc
+          name: zkfc-log-config
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - name: vector
 {% endif %}
-        - name: zkfc
+      enableServiceLinks: false
+      initContainers:
+      - args:
+        - |
+          mkdir -p /stackable/config/format-namenodes
+          cp /stackable/mount/config/format-namenodes/*.xml /stackable/config/format-namenodes
+          # Store the original stdout/stderr globally so we can always find our way back
+          # 3 and 4 are usually safe, but we'll be explicit.
+          exec 3>&1
+          exec 4>&2
+
+          start_capture() {
+              # We redirect 1 and 2 to the background tee processes
+              mkdir --parents /stackable/log/format-namenodes && exec > >(tee /stackable/log/format-namenodes/container.stdout.log) 2> >(tee /stackable/log/format-namenodes/container.stderr.log >&2)
+          }
+
+          stop_capture() {
+              # Restore stdout and stderr from our saved descriptors
+              exec 1>&3 2>&4
+          }
+
+          exclude_from_capture() {
+              # Temporarily restore original FDs just for the duration of this command
+              # We use 'local' for the exit code to keep things clean
+              "$@" 1>&3 2>&4
+              echo $?
+          }
+
+          start_capture
+          cp /stackable/mount/config/format-namenodes/format-namenodes.log4j.properties /stackable/config/format-namenodes/log4j.properties
+          echo "Start formatting namenode $POD_NAME. Checking for active namenodes:"
+          for namenode_id in hdfs-namenode-default-0 hdfs-namenode-default-1
+          do
+            echo -n "Checking pod $namenode_id... "
+
+            # We only redirect 2 (stderr) to 4 (console).
+            # We leave 1 (stdout) alone so the $(...) can catch it.
+            SERVICE_STATE=$(/stackable/hadoop/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
+
+            if [ "$SERVICE_STATE" == "active" ]
+            then
+              ACTIVE_NAMENODE="$namenode_id"
+              echo "active"
+              break
+            else
+              echo "unknown / unreachable"
+            fi
+          done
+
+          if [ ! -f "/stackable/data/namenode/current/VERSION" ]
+          then
+            if [ -z ${ACTIVE_NAMENODE+x} ]
+            then
+              echo "No active namenode found. Formatting $POD_NAME as active."
+              exclude_from_capture /stackable/hadoop/bin/hdfs namenode -format -noninteractive
+            else
+              echo "Active namenode is $ACTIVE_NAMENODE. Bootstrapping standby."
+              exclude_from_capture /stackable/hadoop/bin/hdfs namenode -bootstrapStandby -nonInteractive
+            fi
+          else
+            # Sanity check for initial format data corruption: VERSION file exists but no fsimage files were created.
+            FSIMAGE_COUNT=$(find "/stackable/data/namenode/current" -maxdepth 1 -regextype posix-egrep -regex ".*/fsimage_[0-9]+" | wc -l)
+
+            if [ "${FSIMAGE_COUNT}" -eq 0 ]
+            then
+              echo "WARNING: /stackable/data/namenode/current/VERSION file exists but no fsimage files were found."
+              echo "This indicates an incomplete and corrupted namenode formatting. Please check the troubleshooting guide."
+              exit 1
+            fi
+
+            cat "/stackable/data/namenode/current/VERSION"
+            echo "Pod $POD_NAME already formatted. Skipping..."
+          fi
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/format-namenodes
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        imagePullPolicy: IfNotPresent
+        name: format-namenodes
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/format-namenodes
+          name: format-namenodes-config
+        - mountPath: /stackable/mount/log/format-namenodes
+          name: format-namenodes-log-config
+        - mountPath: /stackable/data
+          name: data
+      - args:
+        - |
+          mkdir -p /stackable/config/format-zookeeper
+          cp /stackable/mount/config/format-zookeeper/*.xml /stackable/config/format-zookeeper
+          # Store the original stdout/stderr globally so we can always find our way back
+          # 3 and 4 are usually safe, but we'll be explicit.
+          exec 3>&1
+          exec 4>&2
+
+          start_capture() {
+              # We redirect 1 and 2 to the background tee processes
+              mkdir --parents /stackable/log/format-zookeeper && exec > >(tee /stackable/log/format-zookeeper/container.stdout.log) 2> >(tee /stackable/log/format-zookeeper/container.stderr.log >&2)
+          }
+
+          stop_capture() {
+              # Restore stdout and stderr from our saved descriptors
+              exec 1>&3 2>&4
+          }
+
+          exclude_from_capture() {
+              # Temporarily restore original FDs just for the duration of this command
+              # We use 'local' for the exit code to keep things clean
+              "$@" 1>&3 2>&4
+              echo $?
+          }
+
+          start_capture
+          cp /stackable/mount/config/format-zookeeper/format-zookeeper.log4j.properties /stackable/config/format-zookeeper/log4j.properties
+          echo "Attempt to format ZooKeeper ZNode for $POD_NAME ..."
+          if [[ "0" -eq "$(echo $POD_NAME | sed -e 's/.*-//')" ]] ; then
+            EXITCODE=$(exclude_from_capture /stackable/hadoop/bin/hdfs zkfc -formatZK -nonInteractive)
+            if [[ $EXITCODE -eq 0 ]]; then
+              echo "Successfully formatted ZooKeeper ZNode."
+            elif [[ $EXITCODE -eq 2 ]]; then
+              echo "ZNode already exists, nothing to do."
+            else
+              echo "ZooKeeper format ZNode failed with exit code $EXITCODE".
+              exit $EXITCODE
+            fi
+          else
+            echo "ZooKeeper ZNode already formatted!"
+          fi
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/format-zookeeper
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        imagePullPolicy: IfNotPresent
+        name: format-zookeeper
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/format-zookeeper
+          name: format-zookeeper-config
+        - mountPath: /stackable/mount/log/format-zookeeper
+          name: format-zookeeper-log-config
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: hdfs-serviceaccount
       terminationGracePeriodSeconds: 900
+      volumes:
+      - emptyDir:
+          sizeLimit: 150Mi
+        name: log
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: hdfs-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: hdfs-log-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: zkfc-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: zkfc-log-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: format-namenodes-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: format-namenodes-log-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: format-zookeeper-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-namenode-default
+        name: format-zookeeper-log-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+  - metadata:
+      annotations:
+        listeners.stackable.tech/listener-class: {{ test_scenario['values']['listener-class'] }}
+      labels:
+        app.kubernetes.io/component: namenode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: namenode
+      name: listener
+    spec:
+      accessModes:
+      - ReadWriteMany
+      resources:
+        requests:
+          storage: "1"
+      storageClassName: listeners.stackable.tech
+      volumeMode: Filesystem
 status:
   readyReplicas: 2
   replicas: 2
@@ -31,145 +745,743 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hdfs-journalnode-default
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-datanode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 spec:
+  podManagementPolicy: OrderedReady
+  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: datanode
+      app.kubernetes.io/instance: hdfs
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/role-group: default
+      group: default
+      role: datanode
+  serviceName: hdfs-datanode-default
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: datanode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: datanode
     spec:
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 20
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: datanode
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 70
       containers:
-        - name: journalnode
-          resources:
-            requests:
-              cpu: 110m # From podOverrides
-              memory: 512Mi
-            limits:
-              cpu: 410m # From podOverrides
-              memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
+      - args:
+        - |
+          mkdir -p /stackable/config/datanode
+          cp /stackable/mount/config/datanode/*.xml /stackable/config/datanode
+          cp /stackable/mount/config/datanode/hdfs.log4j.properties /stackable/config/datanode/log4j.properties
+          \
+
+          prepare_signal_handlers()
+          {
+              unset term_child_pid
+              unset term_kill_needed
+              trap 'handle_term_signal' TERM
+          }
+
+          handle_term_signal()
+          {
+              if [ "${term_child_pid}" ]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              else
+                  term_kill_needed="yes"
+              fi
+          }
+
+          wait_for_termination()
+          {
+              set +e
+              term_child_pid=$1
+              if [[ -v term_kill_needed ]]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              fi
+              wait ${term_child_pid} 2>/dev/null
+              trap - TERM
+              wait ${term_child_pid} 2>/dev/null
+              set -e
+          }
+
+          rm -f /stackable/log/_vector/shutdown
+          prepare_signal_handlers
+          containerdebug --output=/stackable/log/containerdebug-state.json --loop &
+          if [[ -d /stackable/listener ]]; then
+              export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
+              for i in /stackable/listener/default-address/ports/*; do
+                  export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
+              done
+          fi
+          /stackable/hadoop/bin/hdfs datanode  &
+          wait_for_termination $!
+          mkdir -p /stackable/log/_vector && touch /stackable/log/_vector/shutdown
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/datanode
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: HDFS_DATANODE_OPTS
+          value: -Xms409m -Xmx409m -Djava.security.properties=/stackable/config/datanode/security.properties
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8082:/stackable/jmx/datanode.yaml
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        name: datanode
+        ports:
+        - containerPort: 9866
+          name: data
+          protocol: TCP
+        - containerPort: 9867
+          name: ipc
+          protocol: TCP
+        - containerPort: 9864
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: ipc
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 400m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/datanode
+          name: hdfs-config
+        - mountPath: /stackable/mount/log/datanode
+          name: hdfs-log-config
+        - mountPath: /stackable/listener
+          name: listener
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+        - mountPath: /stackable/data/hdd
+          name: hdd
+        - mountPath: /stackable/data/hdd-1
+          name: hdd-1
+        - mountPath: /stackable/data/ssd
+          name: ssd
+{% else %}
+        - mountPath: /stackable/data/data
+          name: data
 {% endif %}
-      terminationGracePeriodSeconds: 900
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+      - name: vector
+{% endif %}
+      enableServiceLinks: false
+      initContainers:
+      - args:
+        - |
+          mkdir -p /stackable/config/wait-for-namenodes
+          cp /stackable/mount/config/wait-for-namenodes/*.xml /stackable/config/wait-for-namenodes
+          # Store the original stdout/stderr globally so we can always find our way back
+          # 3 and 4 are usually safe, but we'll be explicit.
+          exec 3>&1
+          exec 4>&2
+
+          start_capture() {
+              # We redirect 1 and 2 to the background tee processes
+              mkdir --parents /stackable/log/wait-for-namenodes && exec > >(tee /stackable/log/wait-for-namenodes/container.stdout.log) 2> >(tee /stackable/log/wait-for-namenodes/container.stderr.log >&2)
+          }
+
+          stop_capture() {
+              # Restore stdout and stderr from our saved descriptors
+              exec 1>&3 2>&4
+          }
+
+          exclude_from_capture() {
+              # Temporarily restore original FDs just for the duration of this command
+              # We use 'local' for the exit code to keep things clean
+              "$@" 1>&3 2>&4
+              echo $?
+          }
+
+          start_capture
+          cp /stackable/mount/config/wait-for-namenodes/wait-for-namenodes.log4j.properties /stackable/config/wait-for-namenodes/log4j.properties
+          echo "Waiting for namenodes to get ready:"
+          n=0
+          while [ ${n} -lt 12 ];
+          do
+            ALL_NODES_READY=true
+            for namenode_id in hdfs-namenode-default-0 hdfs-namenode-default-1
+            do
+              echo -n "Checking pod $namenode_id... "
+
+              # We only redirect 2 (stderr) to 4 (console).
+              # We leave 1 (stdout) alone so the $(...) can catch it.
+              SERVICE_STATE=$(/stackable/hadoop/bin/hdfs haadmin -getServiceState "$namenode_id" 2>&4 | tail -n1 || true)
+
+              if [ "$SERVICE_STATE" = "active" ] || [ "$SERVICE_STATE" = "standby" ]
+              then
+                echo "$SERVICE_STATE"
+              else
+                echo "not ready"
+                ALL_NODES_READY=false
+              fi
+            done
+            if [ "$ALL_NODES_READY" == "true" ]
+            then
+              echo "All namenodes ready!"
+              break
+            fi
+            echo ""
+            n=$(( n  + 1))
+            sleep 5
+          done
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/wait-for-namenodes
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        imagePullPolicy: IfNotPresent
+        name: wait-for-namenodes
+        resources:
+          limits:
+            cpu: 400m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/wait-for-namenodes
+          name: wait-for-namenodes-config
+        - mountPath: /stackable/mount/log/wait-for-namenodes
+          name: wait-for-namenodes-log-config
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: hdfs-serviceaccount
+      terminationGracePeriodSeconds: 1800
+      volumes:
+      - ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                listeners.stackable.tech/listener-class: {{ test_scenario['values']['listener-class'] }}
+              labels:
+                app.kubernetes.io/component: datanode
+                app.kubernetes.io/instance: hdfs
+                app.kubernetes.io/name: hdfs
+                app.kubernetes.io/role-group: default
+                group: default
+                role: datanode
+            spec:
+              accessModes:
+              - ReadWriteMany
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: listeners.stackable.tech
+              volumeMode: Filesystem
+        name: listener
+      - emptyDir:
+          sizeLimit: 150Mi
+        name: log
+      - configMap:
+          defaultMode: 420
+          name: hdfs-datanode-default
+        name: hdfs-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-datanode-default
+        name: hdfs-log-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-datanode-default
+        name: wait-for-namenodes-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-datanode-default
+        name: wait-for-namenodes-log-config
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
+  volumeClaimTemplates:
+  - metadata:
+      name: hdd
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+  - metadata:
+      name: hdd-1
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      volumeMode: Filesystem
+  - metadata:
+      name: ssd
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeMode: Filesystem
+{% else %}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      volumeMode: Filesystem
+{% endif %}
 status:
-  readyReplicas: 1
-  replicas: 1
+  readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
+  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hdfs-datanode-default
-spec:
-  template:
-    spec:
-      containers:
-        - name: datanode
-          resources:
-            requests:
-              cpu: 100m # From defaults
-              memory: 512Mi
-            limits:
-              cpu: 400m # From defaults
-              memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-        - name: vector
-{% endif %}
-      terminationGracePeriodSeconds: 1800
-status:
-  readyReplicas: {{ test_scenario['values']['number-of-datanodes'] }}
-  replicas: {{ test_scenario['values']['number-of-datanodes'] }}
-{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hdfs-namenode-default
-spec:
-  ports:
-  - name: rpc
-    port: 8020
-    protocol: TCP
-    targetPort: 8020
-  - name: http
-    port: 9870
-    protocol: TCP
-    targetPort: 9870
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hdfs-namenode-default-metrics
-spec:
-  ports:
-  - name: metrics
-    port: 9870
-    protocol: TCP
-    targetPort: 9870
-  - name: jmx-metrics
-    port: 8183
-    protocol: TCP
-    targetPort: 8183
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hdfs-datanode-default
-spec:
-  ports:
-  - name: data
-    port: 9866
-    protocol: TCP
-    targetPort: 9866
-  - name: ipc
-    port: 9867
-    protocol: TCP
-    targetPort: 9867
-  - name: http
-    port: 9864
-    protocol: TCP
-    targetPort: 9864
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hdfs-datanode-default-metrics
-spec:
-  ports:
-  - name: metrics
-    port: 9864
-    protocol: TCP
-    targetPort: 9864
-  - name: jmx-metrics
-    port: 8082
-    protocol: TCP
-    targetPort: 8082
----
-apiVersion: v1
-kind: Service
-metadata:
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
   name: hdfs-journalnode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
 spec:
-  ports:
-  - name: rpc
-    port: 8485
-    protocol: TCP
-    targetPort: 8485
-  - name: http
-    port: 8480
-    protocol: TCP
-    targetPort: 8480
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: journalnode
+      app.kubernetes.io/instance: hdfs
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/role-group: default
+      group: default
+      role: journalnode
+  serviceName: hdfs-journalnode-default
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: journalnode
+        app.kubernetes.io/instance: hdfs
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/role-group: default
+        group: default
+        role: journalnode
+    spec:
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 20
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: journalnode
+                  app.kubernetes.io/instance: hdfs
+                  app.kubernetes.io/name: hdfs
+              topologyKey: kubernetes.io/hostname
+            weight: 70
+      containers:
+      - args:
+        - |
+          mkdir -p /stackable/config/journalnode
+          cp /stackable/mount/config/journalnode/*.xml /stackable/config/journalnode
+          cp /stackable/mount/config/journalnode/hdfs.log4j.properties /stackable/config/journalnode/log4j.properties
+          \
+
+          prepare_signal_handlers()
+          {
+              unset term_child_pid
+              unset term_kill_needed
+              trap 'handle_term_signal' TERM
+          }
+
+          handle_term_signal()
+          {
+              if [ "${term_child_pid}" ]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              else
+                  term_kill_needed="yes"
+              fi
+          }
+
+          wait_for_termination()
+          {
+              set +e
+              term_child_pid=$1
+              if [[ -v term_kill_needed ]]; then
+                  kill -TERM "${term_child_pid}" 2>/dev/null
+              fi
+              wait ${term_child_pid} 2>/dev/null
+              trap - TERM
+              wait ${term_child_pid} 2>/dev/null
+              set -e
+          }
+
+          rm -f /stackable/log/_vector/shutdown
+          prepare_signal_handlers
+          containerdebug --output=/stackable/log/containerdebug-state.json --loop &
+          if [[ -d /stackable/listener ]]; then
+              export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
+              for i in /stackable/listener/default-address/ports/*; do
+                  export $(basename $i | tr a-z- A-Z_)_PORT="$(cat $i)"
+              done
+          fi
+          /stackable/hadoop/bin/hdfs journalnode  &
+          wait_for_termination $!
+          mkdir -p /stackable/log/_vector && touch /stackable/log/_vector/shutdown
+        command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        env:
+        - name: COMMON_VAR
+          value: group-value
+        - name: CONTAINERDEBUG_LOG_DIRECTORY
+          value: /stackable/log/containerdebug
+        - name: GROUP_VAR
+          value: group-value
+        - name: HADOOP_CONF_DIR
+          value: /stackable/config/journalnode
+        - name: HADOOP_HOME
+          value: /stackable/hadoop
+        - name: HADOOP_OPTS
+        - name: HDFS_JOURNALNODE_OPTS
+          value: -Xms409m -Xmx409m -Djava.security.properties=/stackable/config/journalnode/security.properties
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8081:/stackable/jmx/journalnode.yaml
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: ROLE_VAR
+          value: role-value
+        - name: ZOOKEEPER
+          valueFrom:
+            configMapKeyRef:
+              key: ZOOKEEPER
+              name: hdfs-znode
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: http
+          timeoutSeconds: 1
+        name: journalnode
+        ports:
+        - containerPort: 8485
+          name: rpc
+          protocol: TCP
+        - containerPort: 8480
+          name: http
+          protocol: TCP
+        - containerPort: 1234
+          name: dashed-port
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: rpc
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 410m
+            memory: 512Mi
+          requests:
+            cpu: 110m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /stackable/log
+          name: log
+        - mountPath: /stackable/mount/config/journalnode
+          name: hdfs-config
+        - mountPath: /stackable/mount/log/journalnode
+          name: hdfs-log-config
+        - mountPath: /stackable/data
+          name: data
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+      - name: vector
+{% endif %}
+      enableServiceLinks: false
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: hdfs-serviceaccount
+      terminationGracePeriodSeconds: 900
+      volumes:
+      - emptyDir:
+          sizeLimit: 150Mi
+        name: log
+      - configMap:
+          defaultMode: 420
+          name: hdfs-journalnode-default
+        name: hdfs-config
+      - configMap:
+          defaultMode: 420
+          name: hdfs-journalnode-default
+        name: hdfs-log-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeMode: Filesystem
+status:
+  readyReplicas: 1
+  replicas: 1
 ---
 apiVersion: v1
-kind: Service
+kind: ConfigMap
 metadata:
-  name: hdfs-journalnode-default-metrics
-spec:
-  ports:
-  - name: metrics
-    port: 8480
-    protocol: TCP
-    targetPort: 8480
-  - name: jmx-metrics
-    port: 8081
-    protocol: TCP
-    targetPort: 8081
+  labels:
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-namenode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-datanode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: journalnode
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  name: hdfs-journalnode-default
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+  name: hdfs-serviceaccount
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: hdfs
+    app.kubernetes.io/managed-by: hdfs.stackable.tech_hdfs-operator-hdfs-controller
+    app.kubernetes.io/name: hdfs
+  name: hdfs-rolebinding
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hdfs-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: hdfs-serviceaccount
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-namenode
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+status:
+  expectedPods: 2
+  currentHealthy: 2
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-datanode
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+status:
+  expectedPods: {{ test_scenario['values']['number-of-datanodes'] }}
+  currentHealthy: {{ test_scenario['values']['number-of-datanodes'] }}
+  disruptionsAllowed: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hdfs-journalnode
+  ownerReferences:
+  - apiVersion: hdfs.stackable.tech/v1alpha1
+    controller: true
+    kind: HdfsCluster
+    name: hdfs
+status:
+  expectedPods: 1
+  currentHealthy: 1
+  disruptionsAllowed: 1
+{% if test_scenario['values']['datanode-pvcs'] == '2hdd-1ssd' %}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -210,30 +1522,3 @@ status:
     - ReadWriteOnce
   phase: Bound
 {% endif %}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: hdfs-journalnode
-status:
-  expectedPods: 1
-  currentHealthy: 1
-  disruptionsAllowed: 1
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: hdfs-namenode
-status:
-  expectedPods: 2
-  currentHealthy: 2
-  disruptionsAllowed: 1
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: hdfs-datanode
-status:
-  expectedPods: {{ test_scenario['values']['number-of-datanodes'] }}
-  currentHealthy: {{ test_scenario['values']['number-of-datanodes'] }}
-  disruptionsAllowed: 1

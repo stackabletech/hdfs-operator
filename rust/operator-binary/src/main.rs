@@ -43,6 +43,7 @@ use crate::{
 
 mod config;
 mod container;
+mod controller;
 mod crd;
 mod discovery;
 mod event;
