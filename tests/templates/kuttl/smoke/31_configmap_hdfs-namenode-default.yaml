@@ -208,4 +208,3 @@ zkfc.log4j.properties: |+
   log4j.appender.FILE.MaxFileSize=5MB
   log4j.appender.FILE.MaxBackupIndex=1
   log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
-
