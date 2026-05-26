@@ -782,7 +782,7 @@ vector.yaml: |
         - extended_logs_*
       type: remap
       source: |
-        .namespace = "test"
+        .namespace = "$NAMESPACE"
         .cluster = "hdfs"
         .role = "namenode"
         .roleGroup = "default"
@@ -793,7 +793,7 @@ vector.yaml: |
         - extended_logs
       type: vector
       address: $VECTOR_AGGREGATOR_ADDRESS
-{% endif %}
+{% endif -%}
 zkfc.log4j.properties: |+
   log4j.rootLogger=INFO, CONSOLE, FILE
 

@@ -164,7 +164,8 @@ ssl-server.xml: |-
   <?xml version="1.0"?>
   <configuration>
   </configuration>
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+{%- if lookup('env', 'VECTOR_AGGREGATOR') %}
+
 vector.yaml: |
   data_dir: /stackable/log/_vector-state
 
@@ -752,7 +753,7 @@ vector.yaml: |
         - extended_logs_*
       type: remap
       source: |
-        .namespace = "test"
+        .namespace = "$NAMESPACE"
         .cluster = "hdfs"
         .role = "journalnode"
         .roleGroup = "default"
@@ -763,4 +764,4 @@ vector.yaml: |
         - extended_logs
       type: vector
       address: $VECTOR_AGGREGATOR_ADDRESS
-{%- endif %}
+{%- endif -%}
