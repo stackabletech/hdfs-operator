@@ -6,28 +6,20 @@
 # envsubst expands only the listed shell variables ($NAMESPACE etc.),
 # leaving Hadoop ${env.FOO} references untouched.
 #
-# Both sides are converted to JSON via yq, then jq normalises trailing
-# newlines in string values (collapsing \n+ to \n) so YAML block scalar
-# style (|, |+) differences don't cause false failures.
-# vector.toml is excluded because its presence depends on the
-# VECTOR_AGGREGATOR env var set by the CI/test runner. The snapshot
-# files are plain YAML (not Jinja2 templates), so they cannot
-# conditionally include it.
-#
 # kuttl runs script commands with sh, not bash, so process substitution
 # is unavailable. Temp files namespaced under $NAMESPACE are used for
 # diff output to avoid collisions when tests run concurrently.
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 600
+timeout: 60
 commands:
   #
   # ConfigMap data snapshot: hdfs-namenode-default
   #
   - script: |
-      envsubst '$NAMESPACE' < 31_configmap_hdfs-namenode-default.yaml | yq -o=json | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-expected.json
-      kubectl -n $NAMESPACE get cm hdfs-namenode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])' | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-actual.json
-      if ! diff /tmp/$NAMESPACE-expected.json /tmp/$NAMESPACE-actual.json; then
+      envsubst '$NAMESPACE' < 31_configmap_hdfs-namenode-default.yaml > /tmp/$NAMESPACE-expected.yaml
+      kubectl -n $NAMESPACE get cm hdfs-namenode-default -o yaml | yq '.data' > /tmp/$NAMESPACE-actual.yaml
+      if ! diff /tmp/$NAMESPACE-expected.yaml /tmp/$NAMESPACE-actual.yaml; then
         echo "ERROR: ConfigMap hdfs-namenode-default data drifted from snapshot."
         exit 1
       fi
@@ -40,9 +32,9 @@ commands:
 {% else %}
       export DATANODE_DATA_DIR='[DISK]/stackable/data/data/datanode'
 {% endif %}
-      envsubst '$NAMESPACE $DATANODE_DATA_DIR' < 31_configmap_hdfs-datanode-default.yaml | yq -o=json | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-expected.json
-      kubectl -n $NAMESPACE get cm hdfs-datanode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])' | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-actual.json
-      if ! diff /tmp/$NAMESPACE-expected.json /tmp/$NAMESPACE-actual.json; then
+      envsubst '$NAMESPACE $DATANODE_DATA_DIR' < 31_configmap_hdfs-datanode-default.yaml > /tmp/$NAMESPACE-expected.yaml
+      kubectl -n $NAMESPACE get cm hdfs-datanode-default -o yaml | yq '.data' > /tmp/$NAMESPACE-actual.yaml
+      if ! diff /tmp/$NAMESPACE-expected.yaml /tmp/$NAMESPACE-actual.yaml; then
         echo "ERROR: ConfigMap hdfs-datanode-default data drifted from snapshot."
         exit 1
       fi
@@ -50,9 +42,9 @@ commands:
   # ConfigMap data snapshot: hdfs-journalnode-default
   #
   - script: |
-      envsubst '$NAMESPACE' < 31_configmap_hdfs-journalnode-default.yaml | yq -o=json | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-expected.json
-      kubectl -n $NAMESPACE get cm hdfs-journalnode-default -o yaml | yq -o=json '.data | del(.["vector.toml"])' | jq 'with_entries(.value |= sub("\n+$"; "\n"))' > /tmp/$NAMESPACE-actual.json
-      if ! diff /tmp/$NAMESPACE-expected.json /tmp/$NAMESPACE-actual.json; then
+      envsubst '$NAMESPACE' < 31_configmap_hdfs-journalnode-default.yaml > /tmp/$NAMESPACE-expected.yaml
+      kubectl -n $NAMESPACE get cm hdfs-journalnode-default -o yaml | yq '.data' > /tmp/$NAMESPACE-actual.yaml
+      if ! diff /tmp/$NAMESPACE-expected.yaml /tmp/$NAMESPACE-actual.yaml; then
         echo "ERROR: ConfigMap hdfs-journalnode-default data drifted from snapshot."
         exit 1
       fi
