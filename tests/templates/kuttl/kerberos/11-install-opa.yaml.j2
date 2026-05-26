@@ -5,11 +5,11 @@ metadata:
   name: opa
 spec:
   image:
-{% if test_scenario['values']['opa'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['opa'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['opa'].split(',')[0] }}"
+{% if test_scenario['values']['opa-latest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['opa-latest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['opa-latest'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['opa'] }}"
+    productVersion: "{{ test_scenario['values']['opa-latest'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   servers:
