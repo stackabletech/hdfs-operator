@@ -17,11 +17,13 @@ All notable changes to this project will be documented in this file.
   Previously, arbitrary file names were silently accepted and ignored ([#777]).
 - Bump `stackable-operator` to 0.111.1 ([#777], [#778]).
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#783]).
+- test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#787]).
 
 [#770]: https://github.com/stackabletech/hdfs-operator/pull/770
 [#777]: https://github.com/stackabletech/hdfs-operator/pull/777
 [#778]: https://github.com/stackabletech/hdfs-operator/pull/778
 [#783]: https://github.com/stackabletech/hdfs-operator/pull/783
+[#787]: https://github.com/stackabletech/hdfs-operator/pull/787
 
 ## [26.3.0] - 2026-03-16
 
