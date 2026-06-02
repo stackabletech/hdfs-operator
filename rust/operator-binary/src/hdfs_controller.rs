@@ -52,6 +52,7 @@ use crate::{
         CoreSiteConfigBuilder, HdfsSiteConfigBuilder,
         writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
     },
+    controller::build::properties::ConfigFileName,
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
@@ -776,13 +777,13 @@ fn rolegroup_config_map(
 
     builder
         .metadata(metadata.build())
-        .add_data(CORE_SITE_XML.to_string(), core_site_xml)
-        .add_data(HDFS_SITE_XML.to_string(), hdfs_site_xml)
-        .add_data(HADOOP_POLICY_XML.to_string(), hadoop_policy_xml)
-        .add_data(SSL_SERVER_XML, ssl_server_xml)
-        .add_data(SSL_CLIENT_XML, ssl_client_xml)
+        .add_data(ConfigFileName::CoreSite.to_string(), core_site_xml)
+        .add_data(ConfigFileName::HdfsSite.to_string(), hdfs_site_xml)
+        .add_data(ConfigFileName::HadoopPolicy.to_string(), hadoop_policy_xml)
+        .add_data(ConfigFileName::SslServer.to_string(), ssl_server_xml)
+        .add_data(ConfigFileName::SslClient.to_string(), ssl_client_xml)
         .add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
+            ConfigFileName::Security.to_string(),
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
                 JvmSecurityPropertiesSnafu {
                     rolegroup: rolegroup_ref.role_group.clone(),
