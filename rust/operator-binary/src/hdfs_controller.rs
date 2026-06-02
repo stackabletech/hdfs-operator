@@ -48,9 +48,10 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder, writer::PropertiesWriterError},
+    config::writer::PropertiesWriterError,
     controller::build::properties::{
-        ConfigFileName, hadoop_policy, security_properties, ssl_client, ssl_server,
+        ConfigFileName, core_site, hadoop_policy, hdfs_site, security_properties, ssl_client,
+        ssl_server,
     },
     container::{self, ContainerConfig},
     crd::{
@@ -64,7 +65,7 @@ use crate::{
         pdb::add_pdbs,
     },
     product_logging::extend_role_group_config_map,
-    security::{kerberos, opa::HdfsOpaConfig},
+    security::opa::HdfsOpaConfig,
     service::{self, rolegroup_headless_service, rolegroup_metrics_service},
 };
 
@@ -239,8 +240,8 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
     },
 
-    #[snafu(display("failed to build security config"))]
-    BuildSecurityConfig { source: kerberos::Error },
+    #[snafu(display("failed to build core-site.xml"))]
+    BuildCoreSiteXml { source: core_site::Error },
 
     #[snafu(display("HdfsCluster object is invalid"))]
     InvalidHdfsCluster {
@@ -596,107 +597,26 @@ fn rolegroup_config_map(
     for (property_name_kind, config) in rolegroup_config {
         match property_name_kind {
             PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
-                // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
-                // be formatted by the namenode, or used by the other services.
-                // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
-                //
-                // Notes on configuration choices
-                // ===============================
-                // We used to set `dfs.ha.nn.not-become-active-in-safemode` to true here due to
-                // badly worded HDFS documentation:
-                // https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithNFS.html
-                // This caused a deadlock with no namenode becoming active during a startup after
-                // HDFS was completely down for a while.
-
-                let mut hdfs_site = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
-                hdfs_site
-                    .dfs_namenode_name_dir()
-                    .dfs_datanode_data_dir(
-                        merged_config
-                            .as_datanode()
-                            .map(|node| node.resources.storage.clone()),
-                    )
-                    .dfs_journalnode_edits_dir()
-                    .dfs_replication(hdfs.spec.cluster_config.dfs_replication)
-                    .dfs_name_services()
-                    .dfs_ha_namenodes(namenode_podrefs)
-                    .dfs_namenode_shared_edits_dir(cluster_info, journalnode_podrefs)
-                    .dfs_namenode_name_dir_ha(namenode_podrefs)
-                    .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
-                    .dfs_namenode_http_address_ha(hdfs, cluster_info, namenode_podrefs)
-                    .dfs_client_failover_proxy_provider()
-                    .security_config(hdfs)
-                    .add("dfs.ha.fencing.methods", "shell(/bin/true)")
-                    .add("dfs.ha.automatic-failover.enabled", "true")
-                    .add("dfs.ha.namenode.id", "${env.POD_NAME}")
-                    .add(
-                        "dfs.namenode.datanode.registration.unsafe.allow-address-override",
-                        "true",
-                    )
-                    .add("dfs.datanode.registered.hostname", "${env.POD_ADDRESS}")
-                    .add("dfs.datanode.registered.port", "${env.DATA_PORT}")
-                    .add("dfs.datanode.registered.ipc.port", "${env.IPC_PORT}")
-                    // The following two properties are set to "true" because there is a minor chance that data
-                    // written to HDFS is not synced to disk even if a block has been closed.
-                    // Users in HBase can control this explicitly for the WAL, but for flushes and compactions
-                    // I believe they can't as easily (if at all).
-                    // In theory, HBase should be able to recover from these failures, but that comes at a cost
-                    // and there's always a risk.
-                    // Enabling this behavior causes HDFS to sync to disk as soon as possible.
-                    .add("dfs.datanode.sync.behind.writes", "true")
-                    .add("dfs.datanode.synconclose", "true")
-                    // Defaults to 10 since at least 2011.
-                    // This controls the concurrent number of client connections (this includes DataNodes)
-                    // to the NameNode. Ideally, we'd scale this with the number of DataNodes but this would
-                    // lead to restarts of the NameNode.
-                    // This should lead to better performance due to more concurrency.
-                    .add("dfs.namenode.handler.count", "50")
-                    // Defaults to 10 since at least 2012.
-                    // This controls the concurrent number of client connections to the DataNodes.
-                    // We have no idea how many clients there may be, so it's hard to assign a good default.
-                    // Increasing to 50 should lead to better performance due to more concurrency, especially
-                    // with use-cases like HBase.
-                    .add("dfs.datanode.handler.count", "50")
-                    // The following two properties default to 2 and 4 respectively since around 2013.
-                    // They control the number of maximum replication "jobs" a NameNode assigns to
-                    // a DataNode in a single heartbeat.
-                    // Increasing this number will increase network usage during replication events
-                    // but can lead to faster recovery.
-                    .add("dfs.namenode.replication.max-streams", "4")
-                    .add("dfs.namenode.replication.max-streams-hard-limit", "8")
-                    // Defaults to 4096 and hasn't changed since at least 2011.
-                    // The number of threads used for actual data transfer, so not very CPU heavy
-                    // but IO bound. This is why the number is relatively high.
-                    // But today's Java and IO should be able to handle more, so bump it to 8192 for
-                    // better performance/concurrency.
-                    .add("dfs.datanode.max.transfer.threads", "8192");
-                if hdfs.has_https_enabled() {
-                    hdfs_site.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
-                } else {
-                    hdfs_site.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");
-                }
-                if let Some(hdfs_opa_config) = hdfs_opa_config {
-                    hdfs_opa_config.add_hdfs_site_config(&mut hdfs_site);
-                }
-                // the extend with config must come last in order to have overrides working!!!
-                hdfs_site_xml = hdfs_site.extend(config).build_as_xml();
+                hdfs_site_xml = hdfs_site::build(
+                    hdfs,
+                    hdfs_name,
+                    cluster_info,
+                    merged_config,
+                    namenode_podrefs,
+                    journalnode_podrefs,
+                    hdfs_opa_config.as_ref(),
+                    config,
+                );
             }
             PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
-                let mut core_site = CoreSiteConfigBuilder::new(hdfs_name.to_string());
-                core_site
-                    .fs_default_fs()
-                    .ha_zookeeper_quorum()
-                    .security_config(hdfs, cluster_info)
-                    .context(BuildSecurityConfigSnafu)?
-                    .enable_prometheus_endpoint()
-                    // The default (4096) hasn't changed since 2009.
-                    // Increase to 128k to allow for faster transfers.
-                    .add("io.file.buffer.size", "131072");
-                if let Some(hdfs_opa_config) = hdfs_opa_config {
-                    hdfs_opa_config.add_core_site_config(&mut core_site);
-                }
-                // the extend with config must come last in order to have overrides working!!!
-                core_site_xml = core_site.extend(config).build_as_xml();
+                core_site_xml = core_site::build(
+                    hdfs,
+                    hdfs_name,
+                    cluster_info,
+                    hdfs_opa_config.as_ref(),
+                    config,
+                )
+                .context(BuildCoreSiteXmlSnafu)?;
             }
             PropertyNameKind::File(file_name) if file_name == HADOOP_POLICY_XML => {
                 hadoop_policy_xml = hadoop_policy::build(config);

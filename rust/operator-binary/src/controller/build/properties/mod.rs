@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 
+pub mod core_site;
 pub mod hadoop_policy;
+pub mod hdfs_site;
 pub mod security_properties;
 pub mod ssl_client;
 pub mod ssl_server;
@@ -48,5 +50,50 @@ mod tests {
         assert_eq!(ConfigFileName::SslServer.to_string(), "ssl-server.xml");
         assert_eq!(ConfigFileName::SslClient.to_string(), "ssl-client.xml");
         assert_eq!(ConfigFileName::Security.to_string(), "security.properties");
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use stackable_operator::{
+        commons::networking::DomainName, utils::cluster_info::KubernetesClusterInfo,
+    };
+
+    use crate::crd::v1alpha1;
+
+    /// A minimal three-role HdfsCluster used to drive the per-file builder tests.
+    pub const MINIMAL_HDFS_YAML: &str = r#"
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+"#;
+
+    pub fn minimal_hdfs() -> v1alpha1::HdfsCluster {
+        serde_yaml::from_str(MINIMAL_HDFS_YAML).expect("invalid test HdfsCluster YAML")
+    }
+
+    pub fn cluster_info() -> KubernetesClusterInfo {
+        KubernetesClusterInfo {
+            cluster_domain: DomainName::try_from("cluster.local").unwrap(),
+        }
     }
 }
