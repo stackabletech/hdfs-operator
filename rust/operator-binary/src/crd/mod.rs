@@ -617,7 +617,7 @@ impl v1alpha1::HdfsCluster {
             (
                 Vec<PropertyNameKind>,
                 Role<
-                    impl Configuration<Configurable = v1alpha1::HdfsCluster>,
+                    impl Configuration<Configurable = v1alpha1::HdfsCluster> + use<>,
                     v1alpha1::HdfsConfigOverrides,
                     GenericRoleConfig,
                     JavaCommonConfig,
@@ -1412,10 +1412,10 @@ impl Configuration for NameNodeConfigFragment {
         // If rack awareness is configured, insert the labels into an env var to configure
         // the topology-provider and add the artifact to the classpath.
         // This is only needed on namenodes.
-        if role_name == HdfsNodeRole::Name.to_string() {
-            if let Some(awareness_config) = resource.rackawareness_config() {
-                result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
-            }
+        if role_name == HdfsNodeRole::Name.to_string()
+            && let Some(awareness_config) = resource.rackawareness_config()
+        {
+            result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
         }
         Ok(result)
     }
@@ -1440,13 +1440,14 @@ impl Configuration for NameNodeConfigFragment {
                 DFS_REPLICATION.to_string(),
                 Some(resource.spec.cluster_config.dfs_replication.to_string()),
             );
-        } else if file == CORE_SITE_XML && role_name == HdfsNodeRole::Name.to_string() {
-            if let Some(_awareness_config) = resource.rackawareness_config() {
-                config.insert(
-                    "net.topology.node.switch.mapping.impl".to_string(),
-                    Some("tech.stackable.hadoop.StackableTopologyProvider".to_string()),
-                );
-            }
+        } else if file == CORE_SITE_XML
+            && role_name == HdfsNodeRole::Name.to_string()
+            && let Some(_awareness_config) = resource.rackawareness_config()
+        {
+            config.insert(
+                "net.topology.node.switch.mapping.impl".to_string(),
+                Some("tech.stackable.hadoop.StackableTopologyProvider".to_string()),
+            );
         }
 
         Ok(config)
