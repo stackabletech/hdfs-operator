@@ -38,6 +38,7 @@ use stackable_operator::{
         rollout::check_statefulset_rollout_complete,
     },
     utils::cluster_info::KubernetesClusterInfo,
+    v2::types::operator::ClusterName,
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
@@ -70,6 +71,8 @@ pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 /// the controller.
 #[derive(Clone, Debug)]
 pub struct ValidatedCluster {
+    /// The logical (and Kubernetes object) name of the cluster.
+    pub name: ClusterName,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
@@ -81,8 +84,6 @@ pub struct ValidatedCluster {
 /// the same `HdfsCluster` predicates used previously, just resolved up-front.
 #[derive(Clone, Debug)]
 pub struct ValidatedClusterConfig {
-    /// The logical (and Kubernetes object) name of the cluster.
-    pub name: String,
     /// The cluster namespace, used to build kerberos principals.
     pub namespace: Option<String>,
     pub dfs_replication: u8,
@@ -100,7 +101,6 @@ impl ValidatedClusterConfig {
         authorization: Option<HdfsOpaConfig>,
     ) -> ValidatedClusterConfig {
         ValidatedClusterConfig {
-            name: hdfs.name_any(),
             namespace: hdfs.namespace(),
             dfs_replication: hdfs.spec.cluster_config.dfs_replication,
             https_enabled: hdfs.has_https_enabled(),

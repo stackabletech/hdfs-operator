@@ -10,19 +10,20 @@ use crate::{
     config::HdfsSiteConfigBuilder,
     controller::build::properties::resolved_overrides,
     crd::{AnyNodeConfig, HdfsPodRef},
-    hdfs_controller::ValidatedClusterConfig,
+    hdfs_controller::ValidatedCluster,
 };
 
 /// Renders `hdfs-site.xml`: operator defaults, HA wiring derived from the pod
 /// refs, kerberos/OPA security config, with user `configOverrides` applied last.
 pub fn build(
-    cluster_config: &ValidatedClusterConfig,
+    cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     merged_config: &AnyNodeConfig,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     overrides: KeyValueConfigOverrides,
 ) -> String {
+    let cluster_config = &cluster.cluster_config;
     // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
     // be formatted by the namenode, or used by the other services.
     // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
@@ -34,7 +35,7 @@ pub fn build(
     // https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithNFS.html
     // This caused a deadlock with no namenode becoming active during a startup after
     // HDFS was completely down for a while.
-    let mut hdfs_site = HdfsSiteConfigBuilder::new(cluster_config.name.clone());
+    let mut hdfs_site = HdfsSiteConfigBuilder::new(cluster.name.as_ref().to_owned());
     hdfs_site
         .dfs_namenode_name_dir()
         .dfs_datanode_data_dir(
@@ -114,7 +115,7 @@ mod tests {
     use super::*;
     use crate::{
         controller::build::properties::test_support::{
-            cluster_info, config_overrides, minimal_hdfs, validated_cluster_config,
+            cluster_info, config_overrides, minimal_hdfs, validated_cluster,
         },
         crd::{HdfsNodeRole, v1alpha1},
     };
@@ -129,7 +130,7 @@ mod tests {
     fn renders_operator_defaults() {
         let merged = namenode_merged_config(&minimal_hdfs());
         let xml = build(
-            &validated_cluster_config(),
+            &validated_cluster(),
             &cluster_info(),
             &merged,
             &[],
@@ -150,7 +151,7 @@ mod tests {
     fn user_overrides_win_over_defaults() {
         let merged = namenode_merged_config(&minimal_hdfs());
         let xml = build(
-            &validated_cluster_config(),
+            &validated_cluster(),
             &cluster_info(),
             &merged,
             &[],

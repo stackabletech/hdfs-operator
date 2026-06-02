@@ -7,13 +7,15 @@
 //! validated via [`HdfsNodeRole::merged_config`], and the per-file
 //! `configOverrides` / `envOverrides` are merged here (role group wins).
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
     config::merge::Merge,
+    kube::ResourceExt,
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role},
+    v2::types::operator::ClusterName,
 };
 use strum::IntoEnumIterator;
 
@@ -31,6 +33,11 @@ pub enum Error {
     #[snafu(display("failed to resolve product image"))]
     ResolveProductImage {
         source: product_image_selection::Error,
+    },
+
+    #[snafu(display("invalid cluster name"))]
+    InvalidClusterName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
@@ -97,6 +104,7 @@ pub fn validate_cluster(
     }
 
     Ok(ValidatedCluster {
+        name: ClusterName::from_str(&hdfs.name_any()).context(InvalidClusterNameSnafu)?,
         image: resolved_product_image,
         cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,

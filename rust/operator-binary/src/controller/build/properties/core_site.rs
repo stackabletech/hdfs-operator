@@ -11,7 +11,7 @@ use crate::{
     config::CoreSiteConfigBuilder,
     controller::build::properties::resolved_overrides,
     crd::HdfsNodeRole,
-    hdfs_controller::ValidatedClusterConfig,
+    hdfs_controller::ValidatedCluster,
     security::kerberos::{self, KerberosConfig},
 };
 
@@ -24,20 +24,21 @@ pub enum Error {
 /// Renders `core-site.xml`: operator defaults + kerberos/OPA security config,
 /// with user `configOverrides` applied last.
 pub fn build(
-    cluster_config: &ValidatedClusterConfig,
+    cluster: &ValidatedCluster,
     role: HdfsNodeRole,
     cluster_info: &KubernetesClusterInfo,
     overrides: KeyValueConfigOverrides,
 ) -> Result<String, Error> {
+    let cluster_config = &cluster.cluster_config;
     let kerberos = KerberosConfig {
-        cluster_name: &cluster_config.name,
+        cluster_name: cluster.name.as_ref(),
         cluster_namespace: cluster_config.namespace.as_deref(),
         authentication_enabled: cluster_config.authentication_enabled,
         kerberos_enabled: cluster_config.kerberos_enabled,
         authorization_enabled: cluster_config.authorization_enabled,
     };
 
-    let mut core_site = CoreSiteConfigBuilder::new(cluster_config.name.clone());
+    let mut core_site = CoreSiteConfigBuilder::new(cluster.name.as_ref().to_owned());
     core_site
         .fs_default_fs()
         .ha_zookeeper_quorum()
@@ -67,13 +68,13 @@ pub fn build(
 mod tests {
     use super::*;
     use crate::controller::build::properties::test_support::{
-        cluster_info, config_overrides, validated_cluster_config,
+        cluster_info, config_overrides, validated_cluster,
     };
 
     #[test]
     fn renders_operator_defaults() {
         let xml = build(
-            &validated_cluster_config(),
+            &validated_cluster(),
             HdfsNodeRole::Name,
             &cluster_info(),
             config_overrides(&[]),
@@ -98,7 +99,7 @@ mod tests {
     #[test]
     fn user_overrides_win_over_defaults() {
         let xml = build(
-            &validated_cluster_config(),
+            &validated_cluster(),
             HdfsNodeRole::Name,
             &cluster_info(),
             config_overrides(&[("io.file.buffer.size", "65536")]),

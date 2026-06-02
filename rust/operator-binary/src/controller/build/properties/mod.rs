@@ -73,7 +73,9 @@ pub(crate) mod test_support {
         v2::config_overrides::KeyValueConfigOverrides,
     };
 
-    use crate::{crd::v1alpha1, hdfs_controller::ValidatedClusterConfig};
+    use crate::{
+        controller::validate::validate_cluster, crd::v1alpha1, hdfs_controller::ValidatedCluster,
+    };
 
     /// Builds a [`KeyValueConfigOverrides`] from `(key, value)` pairs for tests.
     pub fn config_overrides(pairs: &[(&str, &str)]) -> KeyValueConfigOverrides {
@@ -121,7 +123,8 @@ spec:
         }
     }
 
-    pub fn validated_cluster_config() -> ValidatedClusterConfig {
-        ValidatedClusterConfig::resolve(&minimal_hdfs(), None)
+    pub fn validated_cluster() -> ValidatedCluster {
+        validate_cluster(&minimal_hdfs(), "oci.example.org", None)
+            .expect("validate should succeed for the minimal fixture")
     }
 }

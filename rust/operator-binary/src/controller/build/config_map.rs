@@ -85,7 +85,7 @@ pub fn build_rolegroup_config_map(
     let cluster_config = &cluster.cluster_config;
 
     let hdfs_site_xml = hdfs_site::build(
-        cluster_config,
+        cluster,
         cluster_info,
         merged_config,
         namenode_podrefs,
@@ -93,7 +93,7 @@ pub fn build_rolegroup_config_map(
         config_overrides.hdfs_site_xml.clone(),
     );
     let core_site_xml = core_site::build(
-        cluster_config,
+        cluster,
         role,
         cluster_info,
         config_overrides.core_site_xml.clone(),
