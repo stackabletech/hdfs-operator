@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use product_config::writer::to_hadoop_xml;
 use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
+
+use crate::config::writer::to_hadoop_xml;
 
 use crate::crd::{
     HdfsPodRef,
@@ -20,6 +21,7 @@ use crate::crd::{
 };
 
 pub mod jvm;
+pub mod writer;
 
 #[derive(Clone)]
 pub struct HdfsSiteConfigBuilder {

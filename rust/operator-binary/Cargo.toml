@@ -17,6 +17,7 @@ clap.workspace = true
 const_format.workspace = true
 futures.workspace = true
 indoc.workspace = true
+java-properties.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 snafu.workspace = true
@@ -24,6 +25,7 @@ strum.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
+xml.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

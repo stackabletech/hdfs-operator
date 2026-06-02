@@ -4,11 +4,7 @@ use std::{
 };
 
 use const_format::concatcp;
-use product_config::{
-    ProductConfigManager,
-    types::PropertyNameKind,
-    writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
-};
+use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -52,7 +48,10 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    config::{
+        CoreSiteConfigBuilder, HdfsSiteConfigBuilder,
+        writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
+    },
     container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
