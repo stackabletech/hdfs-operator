@@ -1,10 +1,9 @@
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use const_format::concatcp;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{
-        configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{PodBuilder, security::PodSecurityContextBuilder},
     },
@@ -17,7 +16,7 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, ServiceAccount},
+            core::v1::ServiceAccount,
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
@@ -44,12 +43,7 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
-    config::writer::PropertiesWriterError,
     container::{self, ContainerConfig},
-    controller::build::properties::{
-        ConfigFileName, core_site, hadoop_policy, hdfs_site, security_properties, ssl_client,
-        ssl_server,
-    },
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
         UpgradeStateError, constants::*, v1alpha1,
@@ -60,7 +54,6 @@ use crate::{
         graceful_shutdown::{self, add_graceful_shutdown_config},
         pdb::add_pdbs,
     },
-    product_logging::extend_role_group_config_map,
     security::opa::HdfsOpaConfig,
     service::{self, rolegroup_headless_service, rolegroup_metrics_service},
 };
@@ -144,16 +137,9 @@ pub enum Error {
         obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
     },
 
-    #[snafu(display("object has no name"))]
-    ObjectHasNoName {
-        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
-    },
-
-    #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
+    #[snafu(display("failed to build the role group ConfigMap"))]
     BuildRoleGroupConfigMap {
-        source: stackable_operator::builder::configmap::Error,
-        role: String,
-        role_group: String,
+        source: crate::controller::build::config_map::Error,
     },
 
     #[snafu(display("cannot collect discovery configuration"))]
@@ -185,12 +171,6 @@ pub enum Error {
     #[snafu(display("failed to create pod references"))]
     CreatePodReferences { source: crate::crd::Error },
 
-    #[snafu(display("failed to add the logging configuration to the ConfigMap {cm_name:?}"))]
-    InvalidLoggingConfig {
-        source: crate::product_logging::Error,
-        cm_name: String,
-    },
-
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
 
@@ -212,18 +192,6 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("failed to serialize {} for {rolegroup}", ConfigFileName::Security))]
-    JvmSecurityProperties {
-        source: PropertiesWriterError,
-        rolegroup: String,
-    },
-
-    #[snafu(display("could not parse HDFS role [{role}]"))]
-    UnidentifiedHdfsRole {
-        source: strum::ParseError,
-        role: String,
-    },
-
     #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown { source: graceful_shutdown::Error },
 
@@ -240,9 +208,6 @@ pub enum Error {
     ObjectMeta {
         source: stackable_operator::builder::meta::Error,
     },
-
-    #[snafu(display("failed to build core-site.xml"))]
-    BuildCoreSiteXml { source: core_site::Error },
 
     #[snafu(display("HdfsCluster object is invalid"))]
     InvalidHdfsCluster {
@@ -402,17 +367,16 @@ pub async fn reconcile_hdfs(
                 ))
                 .context(ObjectMetaSnafu)?;
 
-            let rg_configmap = rolegroup_config_map(
+            let rg_configmap = crate::controller::build::config_map::build_rolegroup_config_map(
+                &validated,
                 hdfs,
                 &client.kubernetes_cluster_info,
                 metadata,
                 &rolegroup_ref,
-                &validated_rg_config.config_overrides,
                 &namenode_podrefs,
                 &journalnode_podrefs,
-                merged_config,
-                &validated.hdfs_opa_config,
-            )?;
+            )
+            .context(BuildRoleGroupConfigMapSnafu)?;
 
             let rg_statefulset = rolegroup_statefulset(
                 hdfs,
@@ -562,93 +526,6 @@ pub async fn reconcile_hdfs(
         .context(ApplyStatusSnafu)?;
 
     Ok(Action::await_change())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn rolegroup_config_map(
-    hdfs: &v1alpha1::HdfsCluster,
-    cluster_info: &KubernetesClusterInfo,
-    metadata: &ObjectMetaBuilder,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    config_overrides: &v1alpha1::HdfsConfigOverrides,
-    namenode_podrefs: &[HdfsPodRef],
-    journalnode_podrefs: &[HdfsPodRef],
-    merged_config: &AnyNodeConfig,
-    hdfs_opa_config: &Option<HdfsOpaConfig>,
-) -> HdfsOperatorResult<ConfigMap> {
-    tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
-
-    let role = HdfsNodeRole::from_str(&rolegroup_ref.role).with_context(|_| {
-        UnidentifiedHdfsRoleSnafu {
-            role: rolegroup_ref.role.clone(),
-        }
-    })?;
-    let hdfs_name = hdfs
-        .metadata
-        .name
-        .as_deref()
-        .with_context(|| ObjectHasNoNameSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
-
-    let hdfs_site_xml = hdfs_site::build(
-        hdfs,
-        hdfs_name,
-        cluster_info,
-        merged_config,
-        namenode_podrefs,
-        journalnode_podrefs,
-        hdfs_opa_config.as_ref(),
-        config_overrides.hdfs_site_xml.clone(),
-    );
-    let core_site_xml = core_site::build(
-        hdfs,
-        hdfs_name,
-        role,
-        cluster_info,
-        hdfs_opa_config.as_ref(),
-        config_overrides.core_site_xml.clone(),
-    )
-    .context(BuildCoreSiteXmlSnafu)?;
-    let hadoop_policy_xml = hadoop_policy::build(config_overrides.hadoop_policy_xml.clone());
-    let ssl_server_xml = ssl_server::build(
-        hdfs.has_https_enabled(),
-        config_overrides.ssl_server_xml.clone(),
-    );
-    let ssl_client_xml = ssl_client::build(
-        hdfs.has_https_enabled(),
-        config_overrides.ssl_client_xml.clone(),
-    );
-
-    let mut builder = ConfigMapBuilder::new();
-    builder
-        .metadata(metadata.build())
-        .add_data(ConfigFileName::CoreSite.to_string(), core_site_xml)
-        .add_data(ConfigFileName::HdfsSite.to_string(), hdfs_site_xml)
-        .add_data(ConfigFileName::HadoopPolicy.to_string(), hadoop_policy_xml)
-        .add_data(ConfigFileName::SslServer.to_string(), ssl_server_xml)
-        .add_data(ConfigFileName::SslClient.to_string(), ssl_client_xml)
-        .add_data(
-            ConfigFileName::Security.to_string(),
-            security_properties::build(config_overrides.security_properties.clone()).with_context(
-                |_| JvmSecurityPropertiesSnafu {
-                    rolegroup: rolegroup_ref.role_group.clone(),
-                },
-            )?,
-        );
-
-    extend_role_group_config_map(rolegroup_ref, merged_config, &mut builder).context(
-        InvalidLoggingConfigSnafu {
-            cm_name: rolegroup_ref.object_name(),
-        },
-    )?;
-
-    builder
-        .build()
-        .with_context(|_| BuildRoleGroupConfigMapSnafu {
-            role: rolegroup_ref.role.clone(),
-            role_group: rolegroup_ref.role_group.clone(),
-        })
 }
 
 #[allow(clippy::too_many_arguments)]
