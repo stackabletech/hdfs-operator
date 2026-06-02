@@ -9615,10 +9615,6 @@ rec {
             packageId = "java-properties";
           }
           {
-            name = "product-config";
-            packageId = "product-config";
-          }
-          {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];

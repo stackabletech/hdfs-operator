@@ -2913,7 +2913,6 @@ dependencies = [
  "futures 0.3.32",
  "indoc",
  "java-properties",
- "product-config",
  "rstest",
  "serde",
  "serde_json",
