@@ -48,12 +48,11 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
-    config::{
-        CoreSiteConfigBuilder, HdfsSiteConfigBuilder,
-        writer::{PropertiesWriterError, to_hadoop_xml, to_java_properties_string},
+    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder, writer::PropertiesWriterError},
+    controller::build::properties::{
+        ConfigFileName, hadoop_policy, security_properties, ssl_client, ssl_server,
     },
-    controller::build::properties::ConfigFileName,
-    container::{self, ContainerConfig, TLS_STORE_DIR, TLS_STORE_PASSWORD},
+    container::{self, ContainerConfig},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
         UpgradeStateError, constants::*, v1alpha1,
@@ -700,64 +699,13 @@ fn rolegroup_config_map(
                 core_site_xml = core_site.extend(config).build_as_xml();
             }
             PropertyNameKind::File(file_name) if file_name == HADOOP_POLICY_XML => {
-                // We don't add any settings here, the main purpose is to have a configOverride for users.
-                let mut config_opts: BTreeMap<String, Option<String>> = BTreeMap::new();
-                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                hadoop_policy_xml = to_hadoop_xml(config_opts.iter());
+                hadoop_policy_xml = hadoop_policy::build(config);
             }
             PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
-                let mut config_opts = BTreeMap::new();
-                if hdfs.has_https_enabled() {
-                    config_opts.extend([
-                        (
-                            "ssl.server.truststore.location".to_string(),
-                            Some(format!("{TLS_STORE_DIR}/truststore.p12")),
-                        ),
-                        (
-                            "ssl.server.truststore.type".to_string(),
-                            Some("pkcs12".to_string()),
-                        ),
-                        (
-                            "ssl.server.truststore.password".to_string(),
-                            Some(TLS_STORE_PASSWORD.to_string()),
-                        ),
-                        (
-                            "ssl.server.keystore.location".to_string(),
-                            Some(format!("{TLS_STORE_DIR}/keystore.p12")),
-                        ),
-                        (
-                            "ssl.server.keystore.type".to_string(),
-                            Some("pkcs12".to_string()),
-                        ),
-                        (
-                            "ssl.server.keystore.password".to_string(),
-                            Some(TLS_STORE_PASSWORD.to_string()),
-                        ),
-                    ]);
-                }
-                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                ssl_server_xml = to_hadoop_xml(config_opts.iter());
+                ssl_server_xml = ssl_server::build(hdfs.has_https_enabled(), config);
             }
             PropertyNameKind::File(file_name) if file_name == SSL_CLIENT_XML => {
-                let mut config_opts = BTreeMap::new();
-                if hdfs.has_https_enabled() {
-                    config_opts.extend([
-                        (
-                            "ssl.client.truststore.location".to_string(),
-                            Some(format!("{TLS_STORE_DIR}/truststore.p12")),
-                        ),
-                        (
-                            "ssl.client.truststore.type".to_string(),
-                            Some("pkcs12".to_string()),
-                        ),
-                        (
-                            "ssl.client.truststore.password".to_string(),
-                            Some(TLS_STORE_PASSWORD.to_string()),
-                        ),
-                    ]);
-                }
-                config_opts.extend(config.iter().map(|(k, v)| (k.clone(), Some(v.clone()))));
-                ssl_client_xml = to_hadoop_xml(config_opts.iter());
+                ssl_client_xml = ssl_client::build(hdfs.has_https_enabled(), config);
             }
             _ => {}
         }
@@ -765,15 +713,12 @@ fn rolegroup_config_map(
 
     let mut builder = ConfigMapBuilder::new();
 
-    let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
+    let security_properties_overrides = rolegroup_config
         .get(&PropertyNameKind::File(
             JVM_SECURITY_PROPERTIES_FILE.to_string(),
         ))
         .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(k, v)| (k, Some(v)))
-        .collect();
+        .unwrap_or_default();
 
     builder
         .metadata(metadata.build())
@@ -784,7 +729,7 @@ fn rolegroup_config_map(
         .add_data(ConfigFileName::SslClient.to_string(), ssl_client_xml)
         .add_data(
             ConfigFileName::Security.to_string(),
-            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+            security_properties::build(&security_properties_overrides).with_context(|_| {
                 JvmSecurityPropertiesSnafu {
                     rolegroup: rolegroup_ref.role_group.clone(),
                 }

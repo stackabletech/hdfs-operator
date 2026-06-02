@@ -3,6 +3,22 @@
 //! config file; the shared [`crate::config::writer`] module serializes maps to
 //! the Hadoop-XML / Java-properties on-wire format.
 
+use std::collections::BTreeMap;
+
+pub mod hadoop_policy;
+pub mod security_properties;
+pub mod ssl_client;
+pub mod ssl_server;
+
+/// Converts a `key -> value` override map into the `key -> Some(value)` shape the
+/// writers consume.
+fn optional_values(overrides: &BTreeMap<String, String>) -> BTreeMap<String, Option<String>> {
+    overrides
+        .iter()
+        .map(|(k, v)| (k.clone(), Some(v.clone())))
+        .collect()
+}
+
 /// The names of the HDFS config files assembled into the rolegroup `ConfigMap`.
 #[derive(Clone, Copy, Debug, strum::Display)]
 pub enum ConfigFileName {
