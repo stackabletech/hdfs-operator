@@ -6,7 +6,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::runtime::reflector::ObjectRef,
     role_utils::RoleGroupRef,
     utils::cluster_info::KubernetesClusterInfo,
 };
@@ -24,11 +23,6 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object has no name"))]
-    ObjectHasNoName {
-        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
-    },
-
     #[snafu(display("could not parse HDFS role [{role}]"))]
     UnidentifiedHdfsRole {
         source: strum::ParseError,
@@ -63,10 +57,8 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[allow(clippy::too_many_arguments)]
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
-    hdfs: &v1alpha1::HdfsCluster,
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
@@ -90,42 +82,30 @@ pub fn build_rolegroup_config_map(
         })?;
     let merged_config = &rolegroup_config.merged_config;
     let config_overrides = &rolegroup_config.config_overrides;
-    let hdfs_opa_config = cluster.hdfs_opa_config.as_ref();
-
-    let hdfs_name = hdfs
-        .metadata
-        .name
-        .as_deref()
-        .with_context(|| ObjectHasNoNameSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
+    let cluster_config = &cluster.cluster_config;
 
     let hdfs_site_xml = hdfs_site::build(
-        hdfs,
-        hdfs_name,
+        cluster_config,
         cluster_info,
         merged_config,
         namenode_podrefs,
         journalnode_podrefs,
-        hdfs_opa_config,
         config_overrides.hdfs_site_xml.clone(),
     );
     let core_site_xml = core_site::build(
-        hdfs,
-        hdfs_name,
+        cluster_config,
         role,
         cluster_info,
-        hdfs_opa_config,
         config_overrides.core_site_xml.clone(),
     )
     .context(BuildCoreSiteXmlSnafu)?;
     let hadoop_policy_xml = hadoop_policy::build(config_overrides.hadoop_policy_xml.clone());
     let ssl_server_xml = ssl_server::build(
-        hdfs.has_https_enabled(),
+        cluster_config.https_enabled,
         config_overrides.ssl_server_xml.clone(),
     );
     let ssl_client_xml = ssl_client::build(
-        hdfs.has_https_enabled(),
+        cluster_config.https_enabled,
         config_overrides.ssl_client_xml.clone(),
     );
 

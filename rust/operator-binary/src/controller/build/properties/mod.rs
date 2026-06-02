@@ -73,7 +73,7 @@ pub(crate) mod test_support {
         v2::config_overrides::KeyValueConfigOverrides,
     };
 
-    use crate::crd::v1alpha1;
+    use crate::{crd::v1alpha1, hdfs_controller::ValidatedClusterConfig};
 
     /// Builds a [`KeyValueConfigOverrides`] from `(key, value)` pairs for tests.
     pub fn config_overrides(pairs: &[(&str, &str)]) -> KeyValueConfigOverrides {
@@ -119,5 +119,9 @@ spec:
         KubernetesClusterInfo {
             cluster_domain: DomainName::try_from("cluster.local").unwrap(),
         }
+    }
+
+    pub fn validated_cluster_config() -> ValidatedClusterConfig {
+        ValidatedClusterConfig::resolve(&minimal_hdfs(), None)
     }
 }

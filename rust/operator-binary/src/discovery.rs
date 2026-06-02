@@ -12,7 +12,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     controller::build::properties::ConfigFileName,
     crd::{HdfsNodeRole, HdfsPodRef, v1alpha1},
-    security::kerberos,
+    security::kerberos::{self, KerberosConfig},
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -89,9 +89,9 @@ fn build_discovery_hdfs_site_xml(
         .dfs_name_services()
         .dfs_ha_namenodes(namenode_podrefs)
         .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
-        .dfs_namenode_http_address_ha(hdfs, cluster_info, namenode_podrefs)
+        .dfs_namenode_http_address_ha(hdfs.has_https_enabled(), cluster_info, namenode_podrefs)
         .dfs_client_failover_proxy_provider()
-        .security_discovery_config(hdfs)
+        .security_discovery_config(hdfs.has_kerberos_enabled())
         .build_as_xml()
 }
 
@@ -100,9 +100,18 @@ fn build_discovery_core_site_xml(
     cluster_info: &KubernetesClusterInfo,
     logical_name: String,
 ) -> Result<String> {
+    let cluster_name = hdfs.name_any();
+    let cluster_namespace = hdfs.namespace();
+    let kerberos = KerberosConfig {
+        cluster_name: &cluster_name,
+        cluster_namespace: cluster_namespace.as_deref(),
+        authentication_enabled: hdfs.authentication_config().is_some(),
+        kerberos_enabled: hdfs.has_kerberos_enabled(),
+        authorization_enabled: hdfs.has_authorization_enabled(),
+    };
     Ok(CoreSiteConfigBuilder::new(logical_name)
         .fs_default_fs()
-        .security_discovery_config(hdfs, cluster_info)
+        .security_discovery_config(&kerberos, cluster_info)
         .context(BuildSecurityDiscoveryConfigMapSnafu)?
         .build_as_xml())
 }

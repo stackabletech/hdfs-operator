@@ -17,7 +17,6 @@ use crate::{
             SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_RPC,
         },
         storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType},
-        v1alpha1,
     },
 };
 
@@ -168,11 +167,11 @@ impl HdfsSiteConfigBuilder {
 
     pub fn dfs_namenode_http_address_ha(
         &mut self,
-        hdfs: &v1alpha1::HdfsCluster,
+        https_enabled: bool,
         cluster_info: &KubernetesClusterInfo,
         namenode_podrefs: &[HdfsPodRef],
     ) -> &mut Self {
-        if hdfs.has_https_enabled() {
+        if https_enabled {
             self.dfs_namenode_address_ha(
                 cluster_info,
                 namenode_podrefs,

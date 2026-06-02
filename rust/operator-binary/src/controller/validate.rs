@@ -20,7 +20,8 @@ use strum::IntoEnumIterator;
 use crate::{
     crd::{HdfsNodeRole, v1alpha1},
     hdfs_controller::{
-        CONTAINER_IMAGE_BASE_NAME, ValidatedCluster, ValidatedRoleConfig, ValidatedRoleGroupConfig,
+        CONTAINER_IMAGE_BASE_NAME, ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
+        ValidatedRoleGroupConfig,
     },
     security::opa::HdfsOpaConfig,
 };
@@ -97,9 +98,9 @@ pub fn validate_cluster(
 
     Ok(ValidatedCluster {
         image: resolved_product_image,
+        cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,
         role_configs,
-        hdfs_opa_config,
     })
 }
 

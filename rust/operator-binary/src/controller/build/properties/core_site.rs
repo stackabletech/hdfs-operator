@@ -10,8 +10,9 @@ use stackable_operator::{
 use crate::{
     config::CoreSiteConfigBuilder,
     controller::build::properties::resolved_overrides,
-    crd::{HdfsNodeRole, v1alpha1},
-    security::{kerberos, opa::HdfsOpaConfig},
+    crd::HdfsNodeRole,
+    hdfs_controller::ValidatedClusterConfig,
+    security::kerberos::{self, KerberosConfig},
 };
 
 #[derive(Debug, Snafu)]
@@ -23,18 +24,24 @@ pub enum Error {
 /// Renders `core-site.xml`: operator defaults + kerberos/OPA security config,
 /// with user `configOverrides` applied last.
 pub fn build(
-    hdfs: &v1alpha1::HdfsCluster,
-    hdfs_name: &str,
+    cluster_config: &ValidatedClusterConfig,
     role: HdfsNodeRole,
     cluster_info: &KubernetesClusterInfo,
-    opa_config: Option<&HdfsOpaConfig>,
     overrides: KeyValueConfigOverrides,
 ) -> Result<String, Error> {
-    let mut core_site = CoreSiteConfigBuilder::new(hdfs_name.to_string());
+    let kerberos = KerberosConfig {
+        cluster_name: &cluster_config.name,
+        cluster_namespace: cluster_config.namespace.as_deref(),
+        authentication_enabled: cluster_config.authentication_enabled,
+        kerberos_enabled: cluster_config.kerberos_enabled,
+        authorization_enabled: cluster_config.authorization_enabled,
+    };
+
+    let mut core_site = CoreSiteConfigBuilder::new(cluster_config.name.clone());
     core_site
         .fs_default_fs()
         .ha_zookeeper_quorum()
-        .security_config(hdfs, cluster_info)
+        .security_config(&kerberos, cluster_info)
         .context(BuildSecurityConfigSnafu)?
         .enable_prometheus_endpoint()
         // The default (4096) hasn't changed since 2009.
@@ -42,13 +49,13 @@ pub fn build(
         .add("io.file.buffer.size", "131072");
     // Rack awareness topology provider, namenode only. Previously injected via
     // the product-config `Configuration::compute_files`.
-    if role == HdfsNodeRole::Name && hdfs.rackawareness_config().is_some() {
+    if role == HdfsNodeRole::Name && cluster_config.rack_awareness.is_some() {
         core_site.add(
             "net.topology.node.switch.mapping.impl",
             "tech.stackable.hadoop.StackableTopologyProvider",
         );
     }
-    if let Some(opa_config) = opa_config {
+    if let Some(opa_config) = &cluster_config.authorization {
         opa_config.add_core_site_config(&mut core_site);
     }
     // the extend with config must come last in order to have overrides working!!!
@@ -60,18 +67,15 @@ pub fn build(
 mod tests {
     use super::*;
     use crate::controller::build::properties::test_support::{
-        cluster_info, config_overrides, minimal_hdfs,
+        cluster_info, config_overrides, validated_cluster_config,
     };
 
     #[test]
     fn renders_operator_defaults() {
-        let hdfs = minimal_hdfs();
         let xml = build(
-            &hdfs,
-            "hdfs",
+            &validated_cluster_config(),
             HdfsNodeRole::Name,
             &cluster_info(),
-            None,
             config_overrides(&[]),
         )
         .unwrap();
@@ -93,13 +97,10 @@ mod tests {
 
     #[test]
     fn user_overrides_win_over_defaults() {
-        let hdfs = minimal_hdfs();
         let xml = build(
-            &hdfs,
-            "hdfs",
+            &validated_cluster_config(),
             HdfsNodeRole::Name,
             &cluster_info(),
-            None,
             config_overrides(&[("io.file.buffer.size", "65536")]),
         )
         .unwrap();

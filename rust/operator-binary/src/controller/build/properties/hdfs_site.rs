@@ -9,21 +9,18 @@ use stackable_operator::{
 use crate::{
     config::HdfsSiteConfigBuilder,
     controller::build::properties::resolved_overrides,
-    crd::{AnyNodeConfig, HdfsPodRef, v1alpha1},
-    security::opa::HdfsOpaConfig,
+    crd::{AnyNodeConfig, HdfsPodRef},
+    hdfs_controller::ValidatedClusterConfig,
 };
 
 /// Renders `hdfs-site.xml`: operator defaults, HA wiring derived from the pod
 /// refs, kerberos/OPA security config, with user `configOverrides` applied last.
-#[allow(clippy::too_many_arguments)]
 pub fn build(
-    hdfs: &v1alpha1::HdfsCluster,
-    hdfs_name: &str,
+    cluster_config: &ValidatedClusterConfig,
     cluster_info: &KubernetesClusterInfo,
     merged_config: &AnyNodeConfig,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
-    opa_config: Option<&HdfsOpaConfig>,
     overrides: KeyValueConfigOverrides,
 ) -> String {
     // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
@@ -37,7 +34,7 @@ pub fn build(
     // https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithNFS.html
     // This caused a deadlock with no namenode becoming active during a startup after
     // HDFS was completely down for a while.
-    let mut hdfs_site = HdfsSiteConfigBuilder::new(hdfs_name.to_string());
+    let mut hdfs_site = HdfsSiteConfigBuilder::new(cluster_config.name.clone());
     hdfs_site
         .dfs_namenode_name_dir()
         .dfs_datanode_data_dir(
@@ -46,15 +43,15 @@ pub fn build(
                 .map(|node| node.resources.storage.clone()),
         )
         .dfs_journalnode_edits_dir()
-        .dfs_replication(hdfs.spec.cluster_config.dfs_replication)
+        .dfs_replication(cluster_config.dfs_replication)
         .dfs_name_services()
         .dfs_ha_namenodes(namenode_podrefs)
         .dfs_namenode_shared_edits_dir(cluster_info, journalnode_podrefs)
         .dfs_namenode_name_dir_ha(namenode_podrefs)
         .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
-        .dfs_namenode_http_address_ha(hdfs, cluster_info, namenode_podrefs)
+        .dfs_namenode_http_address_ha(cluster_config.https_enabled, cluster_info, namenode_podrefs)
         .dfs_client_failover_proxy_provider()
-        .security_config(hdfs)
+        .security_config(cluster_config.kerberos_enabled)
         .add("dfs.ha.fencing.methods", "shell(/bin/true)")
         .add("dfs.ha.automatic-failover.enabled", "true")
         .add("dfs.ha.namenode.id", "${env.POD_NAME}")
@@ -99,12 +96,12 @@ pub fn build(
         // But today's Java and IO should be able to handle more, so bump it to 8192 for
         // better performance/concurrency.
         .add("dfs.datanode.max.transfer.threads", "8192");
-    if hdfs.has_https_enabled() {
+    if cluster_config.https_enabled {
         hdfs_site.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
     } else {
         hdfs_site.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");
     }
-    if let Some(opa_config) = opa_config {
+    if let Some(opa_config) = &cluster_config.authorization {
         opa_config.add_hdfs_site_config(&mut hdfs_site);
     }
     // the extend with config must come last in order to have overrides working!!!
@@ -117,9 +114,9 @@ mod tests {
     use super::*;
     use crate::{
         controller::build::properties::test_support::{
-            cluster_info, config_overrides, minimal_hdfs,
+            cluster_info, config_overrides, minimal_hdfs, validated_cluster_config,
         },
-        crd::HdfsNodeRole,
+        crd::{HdfsNodeRole, v1alpha1},
     };
 
     fn namenode_merged_config(hdfs: &v1alpha1::HdfsCluster) -> AnyNodeConfig {
@@ -130,16 +127,13 @@ mod tests {
 
     #[test]
     fn renders_operator_defaults() {
-        let hdfs = minimal_hdfs();
-        let merged = namenode_merged_config(&hdfs);
+        let merged = namenode_merged_config(&minimal_hdfs());
         let xml = build(
-            &hdfs,
-            "hdfs",
+            &validated_cluster_config(),
             &cluster_info(),
             &merged,
             &[],
             &[],
-            None,
             config_overrides(&[]),
         );
         assert!(
@@ -154,16 +148,13 @@ mod tests {
 
     #[test]
     fn user_overrides_win_over_defaults() {
-        let hdfs = minimal_hdfs();
-        let merged = namenode_merged_config(&hdfs);
+        let merged = namenode_merged_config(&minimal_hdfs());
         let xml = build(
-            &hdfs,
-            "hdfs",
+            &validated_cluster_config(),
             &cluster_info(),
             &merged,
             &[],
             &[],
-            None,
             config_overrides(&[("dfs.replication", "5")]),
         );
         assert!(

@@ -71,9 +71,46 @@ pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 #[derive(Clone, Debug)]
 pub struct ValidatedCluster {
     pub image: ResolvedProductImage,
+    pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
     pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
-    pub hdfs_opa_config: Option<HdfsOpaConfig>,
+}
+
+/// Cluster-wide settings resolved once during validation, so the build steps no
+/// longer need the raw `HdfsCluster` to render config. The flags are computed by
+/// the same `HdfsCluster` predicates used previously, just resolved up-front.
+#[derive(Clone, Debug)]
+pub struct ValidatedClusterConfig {
+    /// The logical (and Kubernetes object) name of the cluster.
+    pub name: String,
+    /// The cluster namespace, used to build kerberos principals.
+    pub namespace: Option<String>,
+    pub dfs_replication: u8,
+    pub https_enabled: bool,
+    pub kerberos_enabled: bool,
+    pub authentication_enabled: bool,
+    pub authorization_enabled: bool,
+    pub rack_awareness: Option<String>,
+    pub authorization: Option<HdfsOpaConfig>,
+}
+
+impl ValidatedClusterConfig {
+    pub fn resolve(
+        hdfs: &v1alpha1::HdfsCluster,
+        authorization: Option<HdfsOpaConfig>,
+    ) -> ValidatedClusterConfig {
+        ValidatedClusterConfig {
+            name: hdfs.name_any(),
+            namespace: hdfs.namespace(),
+            dfs_replication: hdfs.spec.cluster_config.dfs_replication,
+            https_enabled: hdfs.has_https_enabled(),
+            kerberos_enabled: hdfs.has_kerberos_enabled(),
+            authentication_enabled: hdfs.authentication_config().is_some(),
+            authorization_enabled: hdfs.has_authorization_enabled(),
+            rack_awareness: hdfs.rackawareness_config(),
+            authorization,
+        }
+    }
 }
 
 /// Per-role configuration extracted during validation.
@@ -369,7 +406,6 @@ pub async fn reconcile_hdfs(
 
             let rg_configmap = crate::controller::build::config_map::build_rolegroup_config_map(
                 &validated,
-                hdfs,
                 &client.kubernetes_cluster_info,
                 metadata,
                 &rolegroup_ref,
