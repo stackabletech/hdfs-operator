@@ -15,10 +15,11 @@ dimensions:
       - 3.4.2
   - name: zookeeper
     values:
+      - 3.9.5
       - 3.9.4
   - name: zookeeper-latest
     values:
-      - 3.9.4
+      - 3.9.5
   - name: krb5
     values:
       - 1.21.1
