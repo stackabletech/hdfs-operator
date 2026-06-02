@@ -1,10 +1,6 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 use const_format::concatcp;
-use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -75,10 +71,10 @@ pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.',
 
 pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 
-/// The validated cluster: proves that product-config validation and config merging
-/// succeeded for every role and role group before any resources are created.
-/// Placed in the controller so that subsequent steps that reference this struct
-/// only depend on the controller.
+/// The validated cluster: proves that config merging and validation succeeded
+/// for every role and role group before any resources are created. Placed in the
+/// controller so that subsequent steps that reference this struct only depend on
+/// the controller.
 #[derive(Clone, Debug)]
 pub struct ValidatedCluster {
     pub image: ResolvedProductImage,
@@ -93,11 +89,13 @@ pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
 }
 
-/// Per-rolegroup configuration: the merged CRD config plus the product-config properties.
+/// Per-rolegroup configuration: the merged CRD config plus the merged
+/// (role <- role group) `configOverrides` and `envOverrides`.
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleGroupConfig {
     pub merged_config: AnyNodeConfig,
-    pub product_config_properties: HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    pub config_overrides: v1alpha1::HdfsConfigOverrides,
+    pub env_overrides: BTreeMap<String, String>,
 }
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -214,13 +212,16 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display(
-        "failed to serialize {JVM_SECURITY_PROPERTIES_FILE:?} for {}",
-        rolegroup
-    ))]
+    #[snafu(display("failed to serialize {} for {rolegroup}", ConfigFileName::Security))]
     JvmSecurityProperties {
         source: PropertiesWriterError,
         rolegroup: String,
+    },
+
+    #[snafu(display("could not parse HDFS role [{role}]"))]
+    UnidentifiedHdfsRole {
+        source: strum::ParseError,
+        role: String,
     },
 
     #[snafu(display("failed to configure graceful shutdown"))]
@@ -262,7 +263,6 @@ pub type HdfsOperatorResult<T> = Result<T, Error>;
 
 pub struct Ctx {
     pub client: Client,
-    pub product_config: ProductConfigManager,
     pub event_recorder: Arc<Recorder>,
     pub operator_environment: OperatorEnvironmentOptions,
 }
@@ -287,7 +287,6 @@ pub async fn reconcile_hdfs(
     let validated = crate::controller::validate::validate_cluster(
         hdfs,
         &ctx.operator_environment.image_repository,
-        &ctx.product_config,
         dereferenced.hdfs_opa_config,
     )
     .context(ValidateSnafu)?;
@@ -373,9 +372,7 @@ pub async fn reconcile_hdfs(
         for (rolegroup_name, validated_rg_config) in group_config.iter() {
             let merged_config = &validated_rg_config.merged_config;
 
-            let env_overrides = validated_rg_config
-                .product_config_properties
-                .get(&PropertyNameKind::Env);
+            let env_overrides = &validated_rg_config.env_overrides;
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
@@ -410,7 +407,7 @@ pub async fn reconcile_hdfs(
                 &client.kubernetes_cluster_info,
                 metadata,
                 &rolegroup_ref,
-                &validated_rg_config.product_config_properties,
+                &validated_rg_config.config_overrides,
                 &namenode_podrefs,
                 &journalnode_podrefs,
                 merged_config,
@@ -424,7 +421,7 @@ pub async fn reconcile_hdfs(
                 &role,
                 &rolegroup_ref,
                 resolved_product_image,
-                env_overrides,
+                Some(env_overrides),
                 merged_config,
                 &namenode_podrefs,
                 &rbac_sa,
@@ -573,13 +570,19 @@ fn rolegroup_config_map(
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    config_overrides: &v1alpha1::HdfsConfigOverrides,
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     merged_config: &AnyNodeConfig,
     hdfs_opa_config: &Option<HdfsOpaConfig>,
 ) -> HdfsOperatorResult<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
+
+    let role = HdfsNodeRole::from_str(&rolegroup_ref.role).with_context(|_| {
+        UnidentifiedHdfsRoleSnafu {
+            role: rolegroup_ref.role.clone(),
+        }
+    })?;
     let hdfs_name = hdfs
         .metadata
         .name
@@ -588,58 +591,32 @@ fn rolegroup_config_map(
             obj_ref: ObjectRef::from_obj(hdfs),
         })?;
 
-    let mut hdfs_site_xml = String::new();
-    let mut core_site_xml = String::new();
-    let mut hadoop_policy_xml = String::new();
-    let mut ssl_server_xml = String::new();
-    let mut ssl_client_xml = String::new();
-
-    for (property_name_kind, config) in rolegroup_config {
-        match property_name_kind {
-            PropertyNameKind::File(file_name) if file_name == HDFS_SITE_XML => {
-                hdfs_site_xml = hdfs_site::build(
-                    hdfs,
-                    hdfs_name,
-                    cluster_info,
-                    merged_config,
-                    namenode_podrefs,
-                    journalnode_podrefs,
-                    hdfs_opa_config.as_ref(),
-                    config,
-                );
-            }
-            PropertyNameKind::File(file_name) if file_name == CORE_SITE_XML => {
-                core_site_xml = core_site::build(
-                    hdfs,
-                    hdfs_name,
-                    cluster_info,
-                    hdfs_opa_config.as_ref(),
-                    config,
-                )
-                .context(BuildCoreSiteXmlSnafu)?;
-            }
-            PropertyNameKind::File(file_name) if file_name == HADOOP_POLICY_XML => {
-                hadoop_policy_xml = hadoop_policy::build(config);
-            }
-            PropertyNameKind::File(file_name) if file_name == SSL_SERVER_XML => {
-                ssl_server_xml = ssl_server::build(hdfs.has_https_enabled(), config);
-            }
-            PropertyNameKind::File(file_name) if file_name == SSL_CLIENT_XML => {
-                ssl_client_xml = ssl_client::build(hdfs.has_https_enabled(), config);
-            }
-            _ => {}
-        }
-    }
+    let hdfs_site_xml = hdfs_site::build(
+        hdfs,
+        hdfs_name,
+        cluster_info,
+        merged_config,
+        namenode_podrefs,
+        journalnode_podrefs,
+        hdfs_opa_config.as_ref(),
+        config_overrides.hdfs_site_xml.clone(),
+    );
+    let core_site_xml = core_site::build(
+        hdfs,
+        hdfs_name,
+        role,
+        cluster_info,
+        hdfs_opa_config.as_ref(),
+        config_overrides.core_site_xml.clone(),
+    )
+    .context(BuildCoreSiteXmlSnafu)?;
+    let hadoop_policy_xml = hadoop_policy::build(config_overrides.hadoop_policy_xml.clone());
+    let ssl_server_xml =
+        ssl_server::build(hdfs.has_https_enabled(), config_overrides.ssl_server_xml.clone());
+    let ssl_client_xml =
+        ssl_client::build(hdfs.has_https_enabled(), config_overrides.ssl_client_xml.clone());
 
     let mut builder = ConfigMapBuilder::new();
-
-    let security_properties_overrides = rolegroup_config
-        .get(&PropertyNameKind::File(
-            JVM_SECURITY_PROPERTIES_FILE.to_string(),
-        ))
-        .cloned()
-        .unwrap_or_default();
-
     builder
         .metadata(metadata.build())
         .add_data(ConfigFileName::CoreSite.to_string(), core_site_xml)
@@ -649,11 +626,11 @@ fn rolegroup_config_map(
         .add_data(ConfigFileName::SslClient.to_string(), ssl_client_xml)
         .add_data(
             ConfigFileName::Security.to_string(),
-            security_properties::build(&security_properties_overrides).with_context(|_| {
-                JvmSecurityPropertiesSnafu {
+            security_properties::build(config_overrides.security_properties.clone()).with_context(
+                |_| JvmSecurityPropertiesSnafu {
                     rolegroup: rolegroup_ref.role_group.clone(),
-                }
-            })?,
+                },
+            )?,
         );
 
     extend_role_group_config_map(rolegroup_ref, merged_config, &mut builder).context(
@@ -779,14 +756,10 @@ pub fn error_policy(
 
 #[cfg(test)]
 mod test {
-    use stackable_operator::{
-        commons::networking::DomainName,
-        product_config_utils::{
-            transform_all_roles_to_config, validate_all_roles_and_groups_config,
-        },
-    };
+    use stackable_operator::commons::networking::DomainName;
 
     use super::*;
+    use crate::controller::validate::validate_cluster;
 
     #[test]
     pub fn test_env_overrides() {
@@ -820,43 +793,21 @@ spec:
           GROUP_VAR: group-value # only defined here at group level
         replicas: 1
 ";
-        let product_config = "
----
-version: 0.1.0
-spec:
-  units: []
-properties: []
-";
-
         let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
-        let roles = hdfs.build_role_properties().unwrap();
-        let config = transform_all_roles_to_config(&hdfs, &roles).unwrap();
-
-        let validated_config = validate_all_roles_and_groups_config(
-            "3.4.0",
-            &config,
-            &product_config.parse::<ProductConfigManager>().unwrap(),
-            false,
-            false,
-        )
-        .unwrap();
+        let validated = validate_cluster(&hdfs, "oci.example.org", None).unwrap();
 
         let role = HdfsNodeRole::Data;
-        let rolegroup_config = validated_config
-            .get(&role.to_string())
+        let validated_rg_config = validated
+            .role_groups
+            .get(&role)
             .unwrap()
             .get("default")
             .unwrap();
         let rolegroup_ref = hdfs.rolegroup_ref(role.to_string(), "default");
-        let env_overrides = rolegroup_config.get(&PropertyNameKind::Env);
-
-        let merged_config = role.merged_config(&hdfs, "default").unwrap();
-        let resolved_product_image = hdfs
-            .spec
-            .image
-            .resolve(CONTAINER_IMAGE_BASE_NAME, "oci.example.org", "0.0.0-dev")
-            .expect("test resolved product image is always valid");
+        let env_overrides = &validated_rg_config.env_overrides;
+        let merged_config = &validated_rg_config.merged_config;
+        let resolved_product_image = &validated.image;
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
@@ -868,9 +819,9 @@ properties: []
             },
             &role,
             &rolegroup_ref,
-            &resolved_product_image,
-            &merged_config,
-            env_overrides,
+            resolved_product_image,
+            merged_config,
+            Some(env_overrides),
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
             &[],
             &Labels::new(),

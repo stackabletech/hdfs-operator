@@ -217,7 +217,7 @@ impl HdfsSiteConfigBuilder {
     }
 
     pub fn build_as_xml(&self) -> String {
-        let transformed_config = transform_for_product_config(&self.config);
+        let transformed_config = to_optional_values(&self.config);
 
         to_hadoop_xml(transformed_config.iter())
     }
@@ -264,7 +264,7 @@ impl CoreSiteConfigBuilder {
     }
 
     pub fn build_as_xml(&self) -> String {
-        let transformed_config = transform_for_product_config(&self.config);
+        let transformed_config = to_optional_values(&self.config);
         to_hadoop_xml(transformed_config.iter())
     }
 
@@ -275,7 +275,7 @@ impl CoreSiteConfigBuilder {
     }
 }
 
-fn transform_for_product_config(
+fn to_optional_values(
     config: &BTreeMap<String, String>,
 ) -> BTreeMap<String, Option<String>> {
     config

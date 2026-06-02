@@ -77,7 +77,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
-            product_config,
+            // product-config has been removed; the CLI argument is kept for
+            // backwards compatibility but ignored.
+            product_config: _,
             maintenance,
             common,
         }) => {
@@ -121,11 +123,6 @@ async fn main() -> anyhow::Result<()> {
             let webhook_server = webhook_server
                 .run(sigterm_watcher.handle())
                 .map_err(|err| anyhow!(err).context("failed to run webhook server"));
-
-            let product_config = product_config.load(&[
-                "deploy/config-spec/properties.yaml",
-                "/etc/stackable/hdfs-operator/config-spec/properties.yaml",
-            ])?;
 
             let (store, store_w) = reflector::store();
 
@@ -194,7 +191,6 @@ async fn main() -> anyhow::Result<()> {
                         event_recorder: hdfs_event_recorder.clone(),
                         client: client.clone(),
                         operator_environment,
-                        product_config,
                     }),
                 )
                 // We can let the reporting happen in the background

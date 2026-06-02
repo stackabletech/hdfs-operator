@@ -6,7 +6,6 @@ use std::{
 };
 
 use futures::future::try_join_all;
-use product_config::types::PropertyNameKind;
 use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -24,7 +23,6 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::listener,
     deep_merger::ObjectOverrides,
     k8s_openapi::{
@@ -33,7 +31,6 @@ use stackable_operator::{
     },
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     kvp::{LabelError, Labels},
-    product_config_utils::{Configuration, Error as ConfigError},
     product_logging::{
         self,
         spec::{ContainerLogConfig, Logging},
@@ -46,6 +43,7 @@ use stackable_operator::{
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::cluster_info::KubernetesClusterInfo,
+    v2::config_overrides::KeyValueConfigOverrides,
     versioned::versioned,
 };
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
@@ -53,22 +51,20 @@ use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 use crate::crd::{
     affinity::get_affinity,
     constants::{
-        APP_NAME, CORE_SITE_XML, DEFAULT_DATA_NODE_DATA_PORT,
-        DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_DATA_NODE_HTTP_PORT,
-        DEFAULT_DATA_NODE_HTTPS_PORT, DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
-        DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT,
-        DEFAULT_DFS_REPLICATION_FACTOR, DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
-        DEFAULT_JOURNAL_NODE_HTTP_PORT, DEFAULT_JOURNAL_NODE_HTTPS_PORT,
-        DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
+        APP_NAME, DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
+        DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_HTTPS_PORT, DEFAULT_DATA_NODE_IPC_PORT,
+        DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
+        DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_DFS_REPLICATION_FACTOR,
+        DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_JOURNAL_NODE_HTTP_PORT,
+        DEFAULT_JOURNAL_NODE_HTTPS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
+        DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
         DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_RPC_PORT,
         DEFAULT_LISTENER_CLASS, DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
         DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
         DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT, DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT,
-        DEFAULT_NAME_NODE_RPC_PORT, DFS_REPLICATION, HADOOP_POLICY_XML, HDFS_SITE_XML,
-        JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_NAME, SERVICE_PORT_NAME_DATA,
+        DEFAULT_NAME_NODE_RPC_PORT, LISTENER_VOLUME_NAME, SERVICE_PORT_NAME_DATA,
         SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
         SERVICE_PORT_NAME_JMX_METRICS, SERVICE_PORT_NAME_METRICS, SERVICE_PORT_NAME_RPC,
-        SSL_CLIENT_XML, SSL_SERVER_XML,
     },
     security::{AuthenticationConfig, KerberosConfig},
     storage::{
@@ -238,67 +234,32 @@ pub mod versioned {
         pub rack_awareness: Option<Vec<TopologyLabel>>,
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HdfsConfigOverrides {
-        #[serde(
-            default,
-            rename = "hdfs-site.xml",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub hdfs_site_xml: Option<KeyValueConfigOverrides>,
+        // File name defined in [`crate::controller::build::properties::ConfigFileName`]
+        #[serde(default, rename = "hdfs-site.xml")]
+        pub hdfs_site_xml: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "core-site.xml",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub core_site_xml: Option<KeyValueConfigOverrides>,
+        // File name defined in [`crate::controller::build::properties::ConfigFileName`]
+        #[serde(default, rename = "core-site.xml")]
+        pub core_site_xml: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "hadoop-policy.xml",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub hadoop_policy_xml: Option<KeyValueConfigOverrides>,
+        // File name defined in [`crate::controller::build::properties::ConfigFileName`]
+        #[serde(default, rename = "hadoop-policy.xml")]
+        pub hadoop_policy_xml: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "ssl-server.xml",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub ssl_server_xml: Option<KeyValueConfigOverrides>,
+        // File name defined in [`crate::controller::build::properties::ConfigFileName`]
+        #[serde(default, rename = "ssl-server.xml")]
+        pub ssl_server_xml: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "ssl-client.xml",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub ssl_client_xml: Option<KeyValueConfigOverrides>,
+        // File name defined in [`crate::controller::build::properties::ConfigFileName`]
+        #[serde(default, rename = "ssl-client.xml")]
+        pub ssl_client_xml: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::HdfsConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        let field = match file {
-            HDFS_SITE_XML => self.hdfs_site_xml.as_ref(),
-            CORE_SITE_XML => self.core_site_xml.as_ref(),
-            HADOOP_POLICY_XML => self.hadoop_policy_xml.as_ref(),
-            SSL_SERVER_XML => self.ssl_server_xml.as_ref(),
-            SSL_CLIENT_XML => self.ssl_client_xml.as_ref(),
-            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
-            _ => None,
-        };
-        field
-            .map(KeyValueConfigOverrides::as_product_config_overrides)
-            .unwrap_or_default()
+        // File name defined in [`crate::controller::build::properties::ConfigFileName`]
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -608,70 +569,6 @@ impl v1alpha1::HdfsCluster {
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn build_role_properties(
-        &self,
-    ) -> Result<
-        HashMap<
-            String,
-            (
-                Vec<PropertyNameKind>,
-                Role<
-                    impl Configuration<Configurable = v1alpha1::HdfsCluster>,
-                    v1alpha1::HdfsConfigOverrides,
-                    GenericRoleConfig,
-                    JavaCommonConfig,
-                >,
-            ),
-        >,
-        Error,
-    > {
-        let mut result = HashMap::new();
-        let pnk = vec![
-            PropertyNameKind::File(HDFS_SITE_XML.to_string()),
-            PropertyNameKind::File(CORE_SITE_XML.to_string()),
-            PropertyNameKind::File(HADOOP_POLICY_XML.to_string()),
-            PropertyNameKind::File(SSL_SERVER_XML.to_string()),
-            PropertyNameKind::File(SSL_CLIENT_XML.to_string()),
-            PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-            PropertyNameKind::Env,
-        ];
-
-        if let Some(name_nodes) = &self.spec.name_nodes {
-            result.insert(
-                HdfsNodeRole::Name.to_string(),
-                (pnk.clone(), name_nodes.clone().erase()),
-            );
-        } else {
-            return Err(Error::MissingRole {
-                role: HdfsNodeRole::Name.to_string(),
-            });
-        }
-
-        if let Some(data_nodes) = &self.spec.data_nodes {
-            result.insert(
-                HdfsNodeRole::Data.to_string(),
-                (pnk.clone(), data_nodes.clone().erase()),
-            );
-        } else {
-            return Err(Error::MissingRole {
-                role: HdfsNodeRole::Data.to_string(),
-            });
-        }
-
-        if let Some(journal_nodes) = &self.spec.journal_nodes {
-            result.insert(
-                HdfsNodeRole::Journal.to_string(),
-                (pnk, journal_nodes.clone().erase()),
-            );
-        } else {
-            return Err(Error::MissingRole {
-                role: HdfsNodeRole::Journal.to_string(),
-            });
-        }
-
-        Ok(result)
-    }
 
     pub fn upgrade_state(&self) -> Result<Option<UpgradeState>, UpgradeStateError> {
         use upgrade_state_error::*;
@@ -1399,60 +1296,6 @@ impl NameNodeConfigFragment {
     }
 }
 
-impl Configuration for NameNodeConfigFragment {
-    type Configurable = v1alpha1::HdfsCluster;
-
-    fn compute_env(
-        &self,
-        resource: &Self::Configurable,
-        role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        // If rack awareness is configured, insert the labels into an env var to configure
-        // the topology-provider and add the artifact to the classpath.
-        // This is only needed on namenodes.
-        if role_name == HdfsNodeRole::Name.to_string() {
-            if let Some(awareness_config) = resource.rackawareness_config() {
-                result.insert("TOPOLOGY_LABELS".to_string(), Some(awareness_config));
-            }
-        }
-        Ok(result)
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        resource: &Self::Configurable,
-        role_name: &str,
-        file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut config = BTreeMap::new();
-        if file == HDFS_SITE_XML {
-            config.insert(
-                DFS_REPLICATION.to_string(),
-                Some(resource.spec.cluster_config.dfs_replication.to_string()),
-            );
-        } else if file == CORE_SITE_XML && role_name == HdfsNodeRole::Name.to_string() {
-            if let Some(_awareness_config) = resource.rackawareness_config() {
-                config.insert(
-                    "net.topology.node.switch.mapping.impl".to_string(),
-                    Some("tech.stackable.hadoop.StackableTopologyProvider".to_string()),
-                );
-            }
-        }
-
-        Ok(config)
-    }
-}
-
 #[derive(
     Clone,
     Debug,
@@ -1541,43 +1384,6 @@ impl DataNodeConfigFragment {
     }
 }
 
-impl Configuration for DataNodeConfigFragment {
-    type Configurable = v1alpha1::HdfsCluster;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        resource: &Self::Configurable,
-        _role_name: &str,
-        file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut config = BTreeMap::new();
-        if file == HDFS_SITE_XML {
-            config.insert(
-                DFS_REPLICATION.to_string(),
-                Some(resource.spec.cluster_config.dfs_replication.to_string()),
-            );
-        }
-
-        Ok(config)
-    }
-}
-
 #[derive(
     Clone,
     Debug,
@@ -1651,35 +1457,6 @@ impl JournalNodeConfigFragment {
                 requested_secret_lifetime: Some(Self::DEFAULT_JOURNAL_NODE_SECRET_LIFETIME),
             },
         }
-    }
-}
-
-impl Configuration for JournalNodeConfigFragment {
-    type Configurable = v1alpha1::HdfsCluster;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
     }
 }
 

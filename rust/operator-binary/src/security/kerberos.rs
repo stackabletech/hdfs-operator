@@ -6,10 +6,8 @@ use stackable_operator::{
 
 use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    crd::{
-        constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
-        v1alpha1,
-    },
+    controller::build::properties::ConfigFileName,
+    crd::v1alpha1,
 };
 
 pub const KERBEROS_CONTAINER_PATH: &str = "/stackable/kerberos";
@@ -32,8 +30,14 @@ impl HdfsSiteConfigBuilder {
             self.add("dfs.block.access.token.enable", "true")
                 .add("dfs.http.policy", "HTTPS_ONLY")
                 .add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true")
-                .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
-                .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML);
+                .add(
+                    "dfs.https.server.keystore.resource",
+                    ConfigFileName::SslServer.to_string(),
+                )
+                .add(
+                    "dfs.https.client.keystore.resource",
+                    ConfigFileName::SslClient.to_string(),
+                );
             self.add_wire_encryption_settings();
         }
         self

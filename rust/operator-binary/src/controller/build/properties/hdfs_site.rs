@@ -2,10 +2,13 @@
 
 use std::collections::BTreeMap;
 
-use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
+use stackable_operator::{
+    utils::cluster_info::KubernetesClusterInfo, v2::config_overrides::KeyValueConfigOverrides,
+};
 
 use crate::{
     config::HdfsSiteConfigBuilder,
+    controller::build::properties::resolved_overrides,
     crd::{AnyNodeConfig, HdfsPodRef, v1alpha1},
     security::opa::HdfsOpaConfig,
 };
@@ -21,7 +24,7 @@ pub fn build(
     namenode_podrefs: &[HdfsPodRef],
     journalnode_podrefs: &[HdfsPodRef],
     opa_config: Option<&HdfsOpaConfig>,
-    overrides: &BTreeMap<String, String>,
+    overrides: KeyValueConfigOverrides,
 ) -> String {
     // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
     // be formatted by the namenode, or used by the other services.
@@ -105,14 +108,17 @@ pub fn build(
         opa_config.add_hdfs_site_config(&mut hdfs_site);
     }
     // the extend with config must come last in order to have overrides working!!!
-    hdfs_site.extend(overrides).build_as_xml()
+    let overrides: BTreeMap<String, String> = resolved_overrides(overrides).collect();
+    hdfs_site.extend(&overrides).build_as_xml()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        controller::build::properties::test_support::{cluster_info, minimal_hdfs},
+        controller::build::properties::test_support::{
+            cluster_info, config_overrides, minimal_hdfs,
+        },
         crd::HdfsNodeRole,
     };
 
@@ -134,7 +140,7 @@ mod tests {
             &[],
             &[],
             None,
-            &BTreeMap::new(),
+            config_overrides(&[]),
         );
         assert!(
             xml.contains("<name>dfs.replication</name>\n    <value>3</value>"),
@@ -152,7 +158,6 @@ mod tests {
     fn user_overrides_win_over_defaults() {
         let hdfs = minimal_hdfs();
         let merged = namenode_merged_config(&hdfs);
-        let overrides = BTreeMap::from([("dfs.replication".to_string(), "5".to_string())]);
         let xml = build(
             &hdfs,
             "hdfs",
@@ -161,7 +166,7 @@ mod tests {
             &[],
             &[],
             None,
-            &overrides,
+            config_overrides(&[("dfs.replication", "5")]),
         );
         assert!(
             xml.contains("<name>dfs.replication</name>\n    <value>5</value>"),

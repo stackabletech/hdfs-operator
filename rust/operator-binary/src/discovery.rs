@@ -10,11 +10,8 @@ use stackable_operator::{
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    crd::{
-        HdfsNodeRole, HdfsPodRef,
-        constants::{CORE_SITE_XML, HDFS_SITE_XML},
-        v1alpha1,
-    },
+    controller::build::properties::ConfigFileName,
+    crd::{HdfsNodeRole, HdfsPodRef, v1alpha1},
     security::kerberos,
 };
 
@@ -71,11 +68,11 @@ pub fn build_discovery_configmap(
     ConfigMapBuilder::new()
         .metadata(metadata)
         .add_data(
-            HDFS_SITE_XML,
+            ConfigFileName::HdfsSite.to_string(),
             build_discovery_hdfs_site_xml(hdfs, cluster_info, hdfs.name_any(), namenode_podrefs),
         )
         .add_data(
-            CORE_SITE_XML,
+            ConfigFileName::CoreSite.to_string(),
             build_discovery_core_site_xml(hdfs, cluster_info, hdfs.name_any())?,
         )
         .build()

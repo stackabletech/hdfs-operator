@@ -5,33 +5,35 @@
 
 use std::collections::BTreeMap;
 
-use crate::{config::writer::to_hadoop_xml, controller::build::properties::optional_values};
+use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
+
+use crate::{config::writer::to_hadoop_xml, controller::build::properties::resolved_overrides};
 
 /// Renders `hadoop-policy.xml` from the user-provided overrides only.
-pub fn build(overrides: &BTreeMap<String, String>) -> String {
-    to_hadoop_xml(optional_values(overrides).iter())
+pub fn build(overrides: KeyValueConfigOverrides) -> String {
+    let config: BTreeMap<String, Option<String>> = resolved_overrides(overrides)
+        .map(|(key, value)| (key, Some(value)))
+        .collect();
+    to_hadoop_xml(config.iter())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::controller::build::properties::test_support::config_overrides;
 
     #[test]
     fn empty_overrides_render_empty_configuration() {
         assert_eq!(
-            build(&BTreeMap::new()),
+            build(config_overrides(&[])),
             "<?xml version=\"1.0\"?>\n<configuration>\n</configuration>"
         );
     }
 
     #[test]
     fn overrides_are_rendered_as_properties() {
-        let overrides = BTreeMap::from([(
-            "security.client.protocol.acl".to_string(),
-            "*".to_string(),
-        )]);
         assert_eq!(
-            build(&overrides),
+            build(config_overrides(&[("security.client.protocol.acl", "*")])),
             "<?xml version=\"1.0\"?>\n<configuration>\n  \
              <property>\n    <name>security.client.protocol.acl</name>\n    \
              <value>*</value>\n  </property>\n</configuration>"

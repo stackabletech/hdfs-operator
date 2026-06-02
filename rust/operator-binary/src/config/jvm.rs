@@ -6,7 +6,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{HdfsNodeRole, constants::JVM_SECURITY_PROPERTIES_FILE, v1alpha1},
+    controller::build::properties::ConfigFileName,
+    crd::{HdfsNodeRole, v1alpha1},
     security::kerberos::KERBEROS_CONTAINER_PATH,
 };
 
@@ -78,7 +79,10 @@ pub fn construct_role_specific_jvm_args(
     }
 
     jvm_args.extend([
-        format!("-Djava.security.properties={config_dir}/{JVM_SECURITY_PROPERTIES_FILE}"),
+        format!(
+            "-Djava.security.properties={config_dir}/{}",
+            ConfigFileName::Security
+        ),
         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{hdfs_role}.yaml")
     ]);
     if kerberos_enabled {

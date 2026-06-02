@@ -7,13 +7,7 @@ pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";
 pub const APP_NAME: &str = "hdfs";
 pub const FIELD_MANAGER: &str = "hdfs-operator";
 
-pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
-pub const CORE_SITE_XML: &str = "core-site.xml";
-pub const HADOOP_POLICY_XML: &str = "hadoop-policy.xml";
-pub const SSL_SERVER_XML: &str = "ssl-server.xml";
-pub const SSL_CLIENT_XML: &str = "ssl-client.xml";
 pub const LOG4J_PROPERTIES: &str = "log4j.properties";
-pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
 pub const SERVICE_PORT_NAME_RPC: &str = "rpc";
 pub const SERVICE_PORT_NAME_IPC: &str = "ipc";
