@@ -69,7 +69,10 @@ mod tests {
 
     #[test]
     fn user_overrides_win_over_injected_defaults() {
-        let xml = build(true, config_overrides(&[("ssl.client.truststore.type", "jks")]));
+        let xml = build(
+            true,
+            config_overrides(&[("ssl.client.truststore.type", "jks")]),
+        );
         assert!(
             xml.contains("<name>ssl.client.truststore.type</name>\n    <value>jks</value>"),
             "{xml}"

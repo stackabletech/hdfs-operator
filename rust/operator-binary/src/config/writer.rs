@@ -121,7 +121,10 @@ mod tests {
     #[test]
     fn hadoop_xml_escapes_special_characters() {
         let rendered = xml(&[("k", Some("<a>&b"))]);
-        assert!(rendered.contains("<value>&lt;a&gt;&amp;b</value>"), "{rendered}");
+        assert!(
+            rendered.contains("<value>&lt;a&gt;&amp;b</value>"),
+            "{rendered}"
+        );
     }
 
     #[test]

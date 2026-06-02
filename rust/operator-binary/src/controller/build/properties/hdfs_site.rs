@@ -147,9 +147,7 @@ mod tests {
             "{xml}"
         );
         assert!(
-            xml.contains(
-                "<name>dfs.datanode.max.transfer.threads</name>\n    <value>8192</value>"
-            ),
+            xml.contains("<name>dfs.datanode.max.transfer.threads</name>\n    <value>8192</value>"),
             "{xml}"
         );
     }

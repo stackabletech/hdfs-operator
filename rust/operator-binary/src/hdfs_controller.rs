@@ -45,11 +45,11 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
     config::writer::PropertiesWriterError,
+    container::{self, ContainerConfig},
     controller::build::properties::{
         ConfigFileName, core_site, hadoop_policy, hdfs_site, security_properties, ssl_client,
         ssl_server,
     },
-    container::{self, ContainerConfig},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
         UpgradeStateError, constants::*, v1alpha1,
@@ -611,10 +611,14 @@ fn rolegroup_config_map(
     )
     .context(BuildCoreSiteXmlSnafu)?;
     let hadoop_policy_xml = hadoop_policy::build(config_overrides.hadoop_policy_xml.clone());
-    let ssl_server_xml =
-        ssl_server::build(hdfs.has_https_enabled(), config_overrides.ssl_server_xml.clone());
-    let ssl_client_xml =
-        ssl_client::build(hdfs.has_https_enabled(), config_overrides.ssl_client_xml.clone());
+    let ssl_server_xml = ssl_server::build(
+        hdfs.has_https_enabled(),
+        config_overrides.ssl_server_xml.clone(),
+    );
+    let ssl_client_xml = ssl_client::build(
+        hdfs.has_https_enabled(),
+        config_overrides.ssl_client_xml.clone(),
+    );
 
     let mut builder = ConfigMapBuilder::new();
     builder

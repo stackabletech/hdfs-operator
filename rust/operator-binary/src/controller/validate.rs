@@ -108,7 +108,11 @@ pub fn validate_cluster(
 /// product-config `transform_all_roles_to_config` step.
 fn collect_role_group_overrides<C>(
     role: Option<&Role<C, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
-) -> Vec<(String, v1alpha1::HdfsConfigOverrides, BTreeMap<String, String>)> {
+) -> Vec<(
+    String,
+    v1alpha1::HdfsConfigOverrides,
+    BTreeMap<String, String>,
+)> {
     let Some(role) = role else {
         return Vec::new();
     };

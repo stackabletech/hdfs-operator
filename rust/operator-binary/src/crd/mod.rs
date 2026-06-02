@@ -569,7 +569,6 @@ impl v1alpha1::HdfsCluster {
         }
     }
 
-
     pub fn upgrade_state(&self) -> Result<Option<UpgradeState>, UpgradeStateError> {
         use upgrade_state_error::*;
         let Some(status) = self.status.as_ref() else {

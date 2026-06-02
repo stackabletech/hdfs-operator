@@ -56,7 +56,10 @@ mod tests {
     fn file_names_match_the_hadoop_on_disk_names() {
         assert_eq!(ConfigFileName::HdfsSite.to_string(), "hdfs-site.xml");
         assert_eq!(ConfigFileName::CoreSite.to_string(), "core-site.xml");
-        assert_eq!(ConfigFileName::HadoopPolicy.to_string(), "hadoop-policy.xml");
+        assert_eq!(
+            ConfigFileName::HadoopPolicy.to_string(),
+            "hadoop-policy.xml"
+        );
         assert_eq!(ConfigFileName::SslServer.to_string(), "ssl-server.xml");
         assert_eq!(ConfigFileName::SslClient.to_string(), "ssl-client.xml");
         assert_eq!(ConfigFileName::Security.to_string(), "security.properties");
