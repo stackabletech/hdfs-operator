@@ -1,11 +1,9 @@
 //! The validate step in the HdfsCluster controller.
 //!
-//! Synchronously merges and validates the cluster spec into the typed
-//! [`ValidatedCluster`], consumed by `controller::build::*`. This replaces the
-//! product-config `transform_all_roles_to_config` /
-//! `validate_all_roles_and_groups_config` steps: config fragments are merged and
-//! validated via [`HdfsNodeRole::merged_config`], and the per-file
-//! `configOverrides` / `envOverrides` are merged here (role group wins).
+//! Synchronously merges and validates the cluster spec into the typed [`ValidatedCluster`]
+//! consumed by `controller::build::*`. Config fragments are merged and validated via
+//! [`HdfsNodeRole::merged_config`], and the per-file `configOverrides` / `envOverrides`
+//! are merged here (role group wins).
 
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -85,8 +83,7 @@ pub fn validate_cluster(
                 .merged_config(hdfs, &role_group_name)
                 .context(FailedToResolveConfigSnafu)?;
 
-            // Rack awareness topology labels, namenode only. Previously injected
-            // via the product-config `Configuration::compute_env`.
+            // Rack awareness topology labels, namenode only.
             if hdfs_role == HdfsNodeRole::Name {
                 if let Some(rack_awareness) = hdfs.rackawareness_config() {
                     env_overrides.insert("TOPOLOGY_LABELS".to_string(), rack_awareness);
@@ -127,8 +124,7 @@ pub fn validate_cluster(
 }
 
 /// Merges the role-level and role-group-level `configOverrides` and `envOverrides`
-/// for every role group of a role (the role group wins). Replaces the
-/// product-config `transform_all_roles_to_config` step.
+/// for every role group of a role (the role group wins).
 fn collect_role_group_overrides<C>(
     role: Option<&Role<C, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
 ) -> Vec<(

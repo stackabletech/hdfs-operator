@@ -1,8 +1,7 @@
 //! Builds the `security.properties` (JVM security) config file.
 //!
-//! The operator injects recommended JVM DNS cache TTLs (previously supplied via
-//! the product-config `properties.yaml`); user `configOverrides` are applied on
-//! top.
+//! The operator injects recommended JVM DNS cache TTLs.
+//! User `configOverrides` are applied on top.
 
 use std::collections::BTreeMap;
 

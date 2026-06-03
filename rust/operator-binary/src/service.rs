@@ -19,9 +19,6 @@ pub enum Error {
     #[snafu(display("failed to build prometheus label"))]
     BuildPrometheusLabel { source: LabelError },
 
-    #[snafu(display("failed to build role-group selector label"))]
-    BuildRoleGroupSelectorLabel { source: LabelError },
-
     #[snafu(display("failed to build object meta data"))]
     ObjectMeta {
         source: stackable_operator::builder::meta::Error,

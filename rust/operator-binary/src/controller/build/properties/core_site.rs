@@ -48,8 +48,7 @@ pub fn build(
         // The default (4096) hasn't changed since 2009.
         // Increase to 128k to allow for faster transfers.
         .add("io.file.buffer.size", "131072");
-    // Rack awareness topology provider, namenode only. Previously injected via
-    // the product-config `Configuration::compute_files`.
+    // Rack awareness topology provider, namenode only.
     if role == HdfsNodeRole::Name && cluster_config.rack_awareness.is_some() {
         core_site.add(
             "net.topology.node.switch.mapping.impl",
