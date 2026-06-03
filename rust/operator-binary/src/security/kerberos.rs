@@ -78,8 +78,11 @@ impl CoreSiteConfigBuilder {
         cluster_info: &KubernetesClusterInfo,
     ) -> Result<&mut Self> {
         if kerberos.authentication_enabled {
-            let principal_host_part =
-                principal_host_part(kerberos.cluster_name, kerberos.cluster_namespace, cluster_info)?;
+            let principal_host_part = principal_host_part(
+                kerberos.cluster_name,
+                kerberos.cluster_namespace,
+                cluster_info,
+            )?;
 
             self.add("hadoop.security.authentication", "kerberos")
                 // Not adding hadoop.registry.kerberos.realm, as it seems to not be used by our customers
@@ -148,8 +151,11 @@ impl CoreSiteConfigBuilder {
         cluster_info: &KubernetesClusterInfo,
     ) -> Result<&mut Self> {
         if kerberos.kerberos_enabled {
-            let principal_host_part =
-                principal_host_part(kerberos.cluster_name, kerberos.cluster_namespace, cluster_info)?;
+            let principal_host_part = principal_host_part(
+                kerberos.cluster_name,
+                kerberos.cluster_namespace,
+                cluster_info,
+            )?;
 
             self.add("hadoop.security.authentication", "kerberos")
                 .add(
