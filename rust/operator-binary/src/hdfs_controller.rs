@@ -77,6 +77,12 @@ pub struct ValidatedCluster {
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
     pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+    /// Pod references for all namenodes across all role groups. Needed for all
+    /// ConfigMaps and initialization checks. Resolved once during validation.
+    pub namenode_podrefs: Vec<HdfsPodRef>,
+    /// Pod references for all journalnodes across all role groups. Resolved once
+    /// during validation.
+    pub journalnode_podrefs: Vec<HdfsPodRef>,
 }
 
 /// Cluster-wide settings resolved once during validation, so the build steps no
@@ -205,9 +211,6 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to create pod references"))]
-    CreatePodReferences { source: crate::crd::Error },
-
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
 
@@ -296,13 +299,6 @@ pub async fn reconcile_hdfs(
     let resolved_product_image = &validated.image;
 
     let hdfs_obj_ref = hdfs.object_ref(&());
-    // A list of all name and journal nodes across all role groups is needed for all ConfigMaps and initialization checks.
-    let namenode_podrefs = hdfs
-        .pod_refs(&HdfsNodeRole::Name)
-        .context(CreatePodReferencesSnafu)?;
-    let journalnode_podrefs = hdfs
-        .pod_refs(&HdfsNodeRole::Journal)
-        .context(CreatePodReferencesSnafu)?;
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
@@ -409,8 +405,6 @@ pub async fn reconcile_hdfs(
                 &client.kubernetes_cluster_info,
                 metadata,
                 &rolegroup_ref,
-                &namenode_podrefs,
-                &journalnode_podrefs,
             )
             .context(BuildRoleGroupConfigMapSnafu)?;
 
@@ -423,7 +417,7 @@ pub async fn reconcile_hdfs(
                 resolved_product_image,
                 Some(env_overrides),
                 merged_config,
-                &namenode_podrefs,
+                &validated.namenode_podrefs,
                 &rbac_sa,
             )?;
 
@@ -686,6 +680,7 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: default
 spec:
   image:
     productVersion: 3.4.0

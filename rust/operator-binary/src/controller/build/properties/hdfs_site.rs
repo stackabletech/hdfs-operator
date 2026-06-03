@@ -7,10 +7,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    config::HdfsSiteConfigBuilder,
-    controller::build::properties::resolved_overrides,
-    crd::{AnyNodeConfig, HdfsPodRef},
-    hdfs_controller::ValidatedCluster,
+    config::HdfsSiteConfigBuilder, controller::build::properties::resolved_overrides,
+    crd::AnyNodeConfig, hdfs_controller::ValidatedCluster,
 };
 
 /// Renders `hdfs-site.xml`: operator defaults, HA wiring derived from the pod
@@ -19,11 +17,11 @@ pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     merged_config: &AnyNodeConfig,
-    namenode_podrefs: &[HdfsPodRef],
-    journalnode_podrefs: &[HdfsPodRef],
     overrides: KeyValueConfigOverrides,
 ) -> String {
     let cluster_config = &cluster.cluster_config;
+    let namenode_podrefs = &cluster.namenode_podrefs;
+    let journalnode_podrefs = &cluster.journalnode_podrefs;
     // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
     // be formatted by the namenode, or used by the other services.
     // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
@@ -133,8 +131,6 @@ mod tests {
             &validated_cluster(),
             &cluster_info(),
             &merged,
-            &[],
-            &[],
             config_overrides(&[]),
         );
         assert!(
@@ -154,8 +150,6 @@ mod tests {
             &validated_cluster(),
             &cluster_info(),
             &merged,
-            &[],
-            &[],
             config_overrides(&[("dfs.replication", "5")]),
         );
         assert!(

@@ -16,7 +16,7 @@ use crate::{
         ConfigFileName, core_site, hadoop_policy, hdfs_site, security_properties, ssl_client,
         ssl_server,
     },
-    crd::{HdfsNodeRole, HdfsPodRef, v1alpha1},
+    crd::{HdfsNodeRole, v1alpha1},
     hdfs_controller::ValidatedCluster,
     product_logging::extend_role_group_config_map,
 };
@@ -62,8 +62,6 @@ pub fn build_rolegroup_config_map(
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    namenode_podrefs: &[HdfsPodRef],
-    journalnode_podrefs: &[HdfsPodRef],
 ) -> Result<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
@@ -88,8 +86,6 @@ pub fn build_rolegroup_config_map(
         cluster,
         cluster_info,
         merged_config,
-        namenode_podrefs,
-        journalnode_podrefs,
         config_overrides.hdfs_site_xml.clone(),
     );
     let core_site_xml = core_site::build(

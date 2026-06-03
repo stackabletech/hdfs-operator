@@ -94,6 +94,7 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: default
 spec:
   image:
     productVersion: 3.4.0

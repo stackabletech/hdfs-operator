@@ -42,6 +42,9 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
+
+    #[snafu(display("failed to create pod references"))]
+    CreatePodReferences { source: crate::crd::Error },
 }
 
 pub fn validate_cluster(
@@ -103,12 +106,23 @@ pub fn validate_cluster(
         role_groups.insert(hdfs_role, group_configs);
     }
 
+    // A list of all name and journal nodes across all role groups is needed for all
+    // ConfigMaps and initialization checks.
+    let namenode_podrefs = hdfs
+        .pod_refs(&HdfsNodeRole::Name)
+        .context(CreatePodReferencesSnafu)?;
+    let journalnode_podrefs = hdfs
+        .pod_refs(&HdfsNodeRole::Journal)
+        .context(CreatePodReferencesSnafu)?;
+
     Ok(ValidatedCluster {
         name: ClusterName::from_str(&hdfs.name_any()).context(InvalidClusterNameSnafu)?,
         image: resolved_product_image,
         cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,
         role_configs,
+        namenode_podrefs,
+        journalnode_podrefs,
     })
 }
 

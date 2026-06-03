@@ -1161,6 +1161,7 @@ impl HdfsNodeRole {
 /// Reference to a single `Pod` that is a component of a [`HdfsCluster`]
 ///
 /// Used for service discovery.
+#[derive(Clone, Debug)]
 pub struct HdfsPodRef {
     pub namespace: String,
     pub role_group_service_name: String,
