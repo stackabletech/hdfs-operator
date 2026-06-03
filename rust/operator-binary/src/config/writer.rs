@@ -1,9 +1,7 @@
 //! Writers for Hadoop XML config files and Java `.properties` files.
 //!
 //! Vendored from the `product-config` crate's `writer` module so the operator no
-//! longer depends on `product-config` for rendering. The on-wire format is pinned
-//! by the kuttl ConfigMap snapshots under
-//! `tests/templates/kuttl/smoke/31_configmap_hdfs-*-default.yaml.j2`.
+//! longer depends on `product-config` for rendering.
 
 use std::io::Write;
 
