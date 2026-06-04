@@ -10,6 +10,7 @@ use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
 pub mod core_site;
 pub mod hadoop_policy;
 pub mod hdfs_site;
+pub mod logging;
 pub mod security_properties;
 pub mod ssl_client;
 pub mod ssl_server;

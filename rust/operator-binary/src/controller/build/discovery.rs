@@ -1,9 +1,10 @@
+//! Build the discovery `ConfigMap` for the HdfsCluster.
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
-    commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
+    kube::runtime::reflector::ObjectRef,
     utils::cluster_info::KubernetesClusterInfo,
 };
 
@@ -12,6 +13,7 @@ use crate::{
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     controller::build::properties::ConfigFileName,
     crd::{HdfsNodeRole, HdfsPodRef, v1alpha1},
+    hdfs_controller::{HDFS_CONTROLLER_NAME, ValidatedCluster},
     security::kerberos::{self, KerberosConfig},
 };
 
@@ -42,23 +44,26 @@ pub enum Error {
 
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
 /// for clients.
-pub fn build_discovery_configmap(
-    hdfs: &v1alpha1::HdfsCluster,
+///
+/// The rendered content comes entirely from `cluster` (with the externally-resolved
+/// `cluster_info` and `namenode_podrefs`); `owner_ref` is retained only for the ConfigMap
+/// ObjectMeta / owner reference.
+pub fn build_discovery_config_map(
+    cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    controller: &str,
     namenode_podrefs: &[HdfsPodRef],
-    resolved_product_image: &ResolvedProductImage,
+    owner_ref: &v1alpha1::HdfsCluster,
 ) -> Result<ConfigMap> {
     let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(hdfs)
-        .ownerreference_from_resource(hdfs, None, Some(true))
+        .name_and_namespace(owner_ref)
+        .ownerreference_from_resource(owner_ref, None, Some(true))
         .context(ObjectMissingMetadataForOwnerRefSnafu {
-            hdfs: ObjectRef::from_obj(hdfs),
+            hdfs: ObjectRef::from_obj(owner_ref),
         })?
         .with_recommended_labels(&build_recommended_labels(
-            hdfs,
-            controller,
-            &resolved_product_image.app_version_label_value,
+            owner_ref,
+            HDFS_CONTROLLER_NAME,
+            &cluster.image.app_version_label_value,
             &HdfsNodeRole::Name.to_string(),
             "discovery",
         ))
@@ -69,47 +74,48 @@ pub fn build_discovery_configmap(
         .metadata(metadata)
         .add_data(
             ConfigFileName::HdfsSite.to_string(),
-            build_discovery_hdfs_site_xml(hdfs, cluster_info, hdfs.name_any(), namenode_podrefs),
+            build_discovery_hdfs_site_xml(cluster, cluster_info, namenode_podrefs),
         )
         .add_data(
             ConfigFileName::CoreSite.to_string(),
-            build_discovery_core_site_xml(hdfs, cluster_info, hdfs.name_any())?,
+            build_discovery_core_site_xml(cluster, cluster_info)?,
         )
         .build()
         .context(BuildConfigMapSnafu)
 }
 
 fn build_discovery_hdfs_site_xml(
-    hdfs: &v1alpha1::HdfsCluster,
+    cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    logical_name: String,
     namenode_podrefs: &[HdfsPodRef],
 ) -> String {
-    HdfsSiteConfigBuilder::new(logical_name)
+    HdfsSiteConfigBuilder::new(cluster.name.as_ref().to_owned())
         .dfs_name_services()
         .dfs_ha_namenodes(namenode_podrefs)
         .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
-        .dfs_namenode_http_address_ha(hdfs.has_https_enabled(), cluster_info, namenode_podrefs)
+        .dfs_namenode_http_address_ha(
+            cluster.cluster_config.https_enabled,
+            cluster_info,
+            namenode_podrefs,
+        )
         .dfs_client_failover_proxy_provider()
-        .security_discovery_config(hdfs.has_kerberos_enabled())
+        .security_discovery_config(cluster.cluster_config.kerberos_enabled)
         .build_as_xml()
 }
 
 fn build_discovery_core_site_xml(
-    hdfs: &v1alpha1::HdfsCluster,
+    cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    logical_name: String,
 ) -> Result<String> {
-    let cluster_name = hdfs.name_any();
-    let cluster_namespace = hdfs.namespace();
+    let cluster_config = &cluster.cluster_config;
     let kerberos = KerberosConfig {
-        cluster_name: &cluster_name,
-        cluster_namespace: cluster_namespace.as_deref(),
-        authentication_enabled: hdfs.authentication_config().is_some(),
-        kerberos_enabled: hdfs.has_kerberos_enabled(),
-        authorization_enabled: hdfs.has_authorization_enabled(),
+        cluster_name: cluster.name.as_ref(),
+        cluster_namespace: cluster.namespace.as_deref(),
+        authentication_enabled: cluster_config.authentication_enabled,
+        kerberos_enabled: cluster_config.kerberos_enabled,
+        authorization_enabled: cluster_config.authorization_enabled,
     };
-    Ok(CoreSiteConfigBuilder::new(logical_name)
+    Ok(CoreSiteConfigBuilder::new(cluster.name.as_ref().to_owned())
         .fs_default_fs()
         .security_discovery_config(&kerberos, cluster_info)
         .context(BuildSecurityDiscoveryConfigMapSnafu)?

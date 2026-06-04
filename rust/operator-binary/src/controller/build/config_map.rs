@@ -6,6 +6,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE,
     role_utils::RoleGroupRef,
     utils::cluster_info::KubernetesClusterInfo,
 };
@@ -13,12 +14,11 @@ use stackable_operator::{
 use crate::{
     config::writer::PropertiesWriterError,
     controller::build::properties::{
-        ConfigFileName, core_site, hadoop_policy, hdfs_site, security_properties, ssl_client,
-        ssl_server,
+        ConfigFileName, core_site, hadoop_policy, hdfs_site, logging, security_properties,
+        ssl_client, ssl_server,
     },
     crd::{HdfsNodeRole, v1alpha1},
     hdfs_controller::ValidatedCluster,
-    product_logging::extend_role_group_config_map,
 };
 
 #[derive(Snafu, Debug)]
@@ -39,12 +39,6 @@ pub enum Error {
     JvmSecurityProperties {
         source: PropertiesWriterError,
         rolegroup: String,
-    },
-
-    #[snafu(display("failed to add the logging configuration to the ConfigMap {cm_name:?}"))]
-    InvalidLoggingConfig {
-        source: crate::product_logging::Error,
-        cm_name: String,
     },
 
     #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
@@ -122,11 +116,12 @@ pub fn build_rolegroup_config_map(
             )?,
         );
 
-    extend_role_group_config_map(rolegroup_ref, merged_config, &mut builder).context(
-        InvalidLoggingConfigSnafu {
-            cm_name: rolegroup_ref.object_name(),
-        },
-    )?;
+    for (log_config_file, log4j_config) in logging::build_log4j_configs(merged_config) {
+        builder.add_data(log_config_file, log4j_config);
+    }
+    if let Some(vector_config) = logging::build_vector_config(rolegroup_ref, merged_config) {
+        builder.add_data(VECTOR_CONFIG_FILE, vector_config);
+    }
 
     builder.build().with_context(|_| AssembleSnafu {
         role: rolegroup_ref.role.clone(),

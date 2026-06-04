@@ -45,11 +45,11 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 use crate::{
     OPERATOR_NAME, build_recommended_labels,
     container::{self, ContainerConfig},
+    controller::build::discovery::{self, build_discovery_config_map},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
         UpgradeStateError, constants::*, v1alpha1,
     },
-    discovery::{self, build_discovery_configmap},
     event::{build_invalid_replica_message, publish_warning_event},
     operations::{
         graceful_shutdown::{self, add_graceful_shutdown_config},
@@ -60,7 +60,7 @@ use crate::{
 };
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
-const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
+pub const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
 pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
 pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
@@ -73,6 +73,8 @@ pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 pub struct ValidatedCluster {
     /// The logical (and Kubernetes object) name of the cluster.
     pub name: ClusterName,
+    /// The cluster namespace, used to build kerberos principals.
+    pub namespace: Option<String>,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
@@ -90,8 +92,6 @@ pub struct ValidatedCluster {
 /// the same `HdfsCluster` predicates used previously, just resolved up-front.
 #[derive(Clone, Debug)]
 pub struct ValidatedClusterConfig {
-    /// The cluster namespace, used to build kerberos principals.
-    pub namespace: Option<String>,
     pub dfs_replication: u8,
     pub https_enabled: bool,
     pub kerberos_enabled: bool,
@@ -107,7 +107,6 @@ impl ValidatedClusterConfig {
         authorization: Option<HdfsOpaConfig>,
     ) -> ValidatedClusterConfig {
         ValidatedClusterConfig {
-            namespace: hdfs.namespace(),
             dfs_replication: hdfs.spec.cluster_config.dfs_replication,
             https_enabled: hdfs.has_https_enabled(),
             kerberos_enabled: hdfs.has_kerberos_enabled(),
@@ -486,15 +485,14 @@ pub async fn reconcile_hdfs(
 
     // Discovery CM will fail to build until the rest of the cluster has been deployed, so do it last
     // so that failure won't inhibit the rest of the cluster from booting up.
-    let discovery_cm = build_discovery_configmap(
-        hdfs,
+    let discovery_cm = build_discovery_config_map(
+        &validated,
         &client.kubernetes_cluster_info,
-        HDFS_CONTROLLER_NAME,
         &hdfs
             .namenode_listener_refs(client)
             .await
             .context(CollectDiscoveryConfigSnafu)?,
-        resolved_product_image,
+        hdfs,
     )
     .context(BuildDiscoveryConfigMapSnafu)?;
 

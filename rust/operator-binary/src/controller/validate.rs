@@ -114,6 +114,7 @@ pub fn validate_cluster(
 
     Ok(ValidatedCluster {
         name: ClusterName::from_str(&hdfs.name_any()).context(InvalidClusterNameSnafu)?,
+        namespace: hdfs.namespace(),
         image: resolved_product_image,
         cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,

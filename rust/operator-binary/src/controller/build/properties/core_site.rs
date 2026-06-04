@@ -32,7 +32,7 @@ pub fn build(
     let cluster_config = &cluster.cluster_config;
     let kerberos = KerberosConfig {
         cluster_name: cluster.name.as_ref(),
-        cluster_namespace: cluster_config.namespace.as_deref(),
+        cluster_namespace: cluster.namespace.as_deref(),
         authentication_enabled: cluster_config.authentication_enabled,
         kerberos_enabled: cluster_config.kerberos_enabled,
         authorization_enabled: cluster_config.authorization_enabled,
