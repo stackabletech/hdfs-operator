@@ -5,12 +5,12 @@
 
 use std::collections::BTreeMap;
 
-use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
-
-use crate::{
-    config::writer::{PropertiesWriterError, to_java_properties_string},
-    controller::build::properties::resolved_overrides,
+use stackable_operator::v2::{
+    config_file_writer::{PropertiesWriterError, to_java_properties_string},
+    config_overrides::KeyValueConfigOverrides,
 };
+
+use crate::controller::build::properties::resolved_overrides;
 
 /// Renders `security.properties`: recommended DNS cache TTLs plus user overrides.
 pub fn build(overrides: KeyValueConfigOverrides) -> Result<String, PropertiesWriterError> {

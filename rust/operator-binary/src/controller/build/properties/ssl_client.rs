@@ -5,10 +5,11 @@
 
 use std::collections::BTreeMap;
 
-use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
+use stackable_operator::v2::{
+    config_file_writer::to_hadoop_xml, config_overrides::KeyValueConfigOverrides,
+};
 
 use crate::{
-    config::writer::to_hadoop_xml,
     container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
     controller::build::properties::resolved_overrides,
 };

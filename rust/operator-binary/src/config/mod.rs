@@ -1,27 +1,25 @@
 use std::collections::BTreeMap;
 
-use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
+use stackable_operator::{
+    utils::cluster_info::KubernetesClusterInfo, v2::config_file_writer::to_hadoop_xml,
+};
 
-use crate::{
-    config::writer::to_hadoop_xml,
-    crd::{
-        HdfsPodRef,
-        constants::{
-            DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTP_PORT,
-            DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_RPC_PORT, DFS_DATANODE_DATA_DIR,
-            DFS_HA_NAMENODES, DFS_JOURNALNODE_EDITS_DIR, DFS_JOURNALNODE_RPC_ADDRESS,
-            DFS_NAME_SERVICES, DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_HTTPS_ADDRESS,
-            DFS_NAMENODE_NAME_DIR, DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR,
-            DFS_REPLICATION, FS_DEFAULT_FS, HA_ZOOKEEPER_QUORUM, JOURNALNODE_ROOT_DATA_DIR,
-            NAMENODE_ROOT_DATA_DIR, PROMETHEUS_ENDPOINT_ENABLED, SERVICE_PORT_NAME_HTTP,
-            SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_RPC,
-        },
-        storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType},
+use crate::crd::{
+    HdfsPodRef,
+    constants::{
+        DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_HTTPS_PORT,
+        DEFAULT_NAME_NODE_RPC_PORT, DFS_DATANODE_DATA_DIR, DFS_HA_NAMENODES,
+        DFS_JOURNALNODE_EDITS_DIR, DFS_JOURNALNODE_RPC_ADDRESS, DFS_NAME_SERVICES,
+        DFS_NAMENODE_HTTP_ADDRESS, DFS_NAMENODE_HTTPS_ADDRESS, DFS_NAMENODE_NAME_DIR,
+        DFS_NAMENODE_RPC_ADDRESS, DFS_NAMENODE_SHARED_EDITS_DIR, DFS_REPLICATION, FS_DEFAULT_FS,
+        HA_ZOOKEEPER_QUORUM, JOURNALNODE_ROOT_DATA_DIR, NAMENODE_ROOT_DATA_DIR,
+        PROMETHEUS_ENDPOINT_ENABLED, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
+        SERVICE_PORT_NAME_RPC,
     },
+    storage::{DataNodeStorageConfig, DataNodeStorageConfigInnerType},
 };
 
 pub mod jvm;
-pub mod writer;
 
 #[derive(Clone)]
 pub struct HdfsSiteConfigBuilder {

@@ -1,7 +1,7 @@
 //! Per-file builders for the HDFS config files assembled into the rolegroup
 //! `ConfigMap`. Each `<file>.rs` module produces the rendered content for one
-//! config file; the shared [`crate::config::writer`] module serializes maps to
-//! the Hadoop-XML / Java-properties on-wire format.
+//! config file; the shared [`stackable_operator::v2::config_file_writer`]
+//! module serializes maps to the Hadoop-XML / Java-properties on-wire format.
 
 use std::collections::BTreeMap;
 

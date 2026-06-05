@@ -9,10 +9,10 @@ use stackable_operator::{
     product_logging::framework::VECTOR_CONFIG_FILE,
     role_utils::RoleGroupRef,
     utils::cluster_info::KubernetesClusterInfo,
+    v2::config_file_writer::PropertiesWriterError,
 };
 
 use crate::{
-    config::writer::PropertiesWriterError,
     controller::build::properties::{
         ConfigFileName, core_site, hadoop_policy, hdfs_site, logging, security_properties,
         ssl_client, ssl_server,

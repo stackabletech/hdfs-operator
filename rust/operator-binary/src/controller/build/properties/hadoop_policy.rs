@@ -5,9 +5,11 @@
 
 use std::collections::BTreeMap;
 
-use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
+use stackable_operator::v2::{
+    config_file_writer::to_hadoop_xml, config_overrides::KeyValueConfigOverrides,
+};
 
-use crate::{config::writer::to_hadoop_xml, controller::build::properties::resolved_overrides};
+use crate::controller::build::properties::resolved_overrides;
 
 /// Renders `hadoop-policy.xml` from the user-provided overrides only.
 pub fn build(overrides: KeyValueConfigOverrides) -> String {
