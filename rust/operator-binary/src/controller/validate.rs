@@ -144,8 +144,8 @@ fn collect_role_group_overrides<C>(
             config_overrides.merge(&role.config.config_overrides);
 
             let mut env_overrides = BTreeMap::new();
-            env_overrides.extend(iter: role.config.env_overrides.clone());
-            env_overrides.extend(iter: role_group.config.env_overrides.clone());
+            env_overrides.extend(role.config.env_overrides.clone());
+            env_overrides.extend(role_group.config.env_overrides.clone());
 
             (role_group_name.clone(), config_overrides, env_overrides)
         })
