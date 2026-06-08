@@ -51,7 +51,7 @@ use crate::{
     controller::build::discovery::{self, build_discovery_config_map},
     crd::{
         AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, HdfsPodRef, UpgradeState,
-        UpgradeStateError, constants::*, v1alpha1,
+        UpgradeStateError, constants::*, security::AuthenticationConfig, v1alpha1,
     },
     event::{build_invalid_replica_message, publish_warning_event},
     operations::{
@@ -96,7 +96,7 @@ impl ValidatedCluster {
     /// is already resolved on `self` during validation.
     pub fn pod_refs(&self, role: &HdfsNodeRole) -> Vec<HdfsPodRef> {
         let ports: HashMap<String, u16> =
-            crate::crd::role_data_ports(role, self.cluster_config.https_enabled)
+            crate::crd::role_data_ports(role, self.cluster_config.authentication.is_some())
                 .into_iter()
                 .collect();
 
@@ -124,12 +124,12 @@ impl ValidatedCluster {
 #[derive(Clone, Debug)]
 pub struct ValidatedClusterConfig {
     pub dfs_replication: u8,
-    pub https_enabled: bool,
-    pub kerberos_enabled: bool,
-    pub authentication_enabled: bool,
-    pub authorization_enabled: bool,
-    pub rack_awareness: Option<String>,
+    /// The authentication config, if configured. Its presence enables both Kerberos
+    /// and HTTPS; it also carries the TLS and Kerberos secret class names.
+    pub authentication: Option<AuthenticationConfig>,
+    /// The resolved OPA authorization config, if authorization is configured.
     pub authorization: Option<HdfsOpaConfig>,
+    pub rack_awareness: Option<String>,
 }
 
 impl ValidatedClusterConfig {
@@ -139,12 +139,9 @@ impl ValidatedClusterConfig {
     ) -> ValidatedClusterConfig {
         ValidatedClusterConfig {
             dfs_replication: hdfs.spec.cluster_config.dfs_replication,
-            https_enabled: hdfs.has_https_enabled(),
-            kerberos_enabled: hdfs.has_kerberos_enabled(),
-            authentication_enabled: hdfs.authentication_config().is_some(),
-            authorization_enabled: hdfs.has_authorization_enabled(),
-            rack_awareness: hdfs.rackawareness_config(),
+            authentication: hdfs.authentication_config().cloned(),
             authorization,
+            rack_awareness: hdfs.rackawareness_config(),
         }
     }
 }

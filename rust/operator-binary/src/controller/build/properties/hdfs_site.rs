@@ -51,12 +51,12 @@ pub fn build(
         .dfs_namenode_name_dir_ha(&namenode_podrefs)
         .dfs_namenode_rpc_address_ha(cluster_info, &namenode_podrefs)
         .dfs_namenode_http_address_ha(
-            cluster_config.https_enabled,
+            cluster_config.authentication.is_some(),
             cluster_info,
             &namenode_podrefs,
         )
         .dfs_client_failover_proxy_provider()
-        .security_config(cluster_config.kerberos_enabled)
+        .security_config(cluster_config.authentication.is_some())
         .add("dfs.ha.fencing.methods", "shell(/bin/true)")
         .add("dfs.ha.automatic-failover.enabled", "true")
         .add("dfs.ha.namenode.id", "${env.POD_NAME}")
@@ -101,7 +101,7 @@ pub fn build(
         // But today's Java and IO should be able to handle more, so bump it to 8192 for
         // better performance/concurrency.
         .add("dfs.datanode.max.transfer.threads", "8192");
-    if cluster_config.https_enabled {
+    if cluster_config.authentication.is_some() {
         hdfs_site.add("dfs.datanode.registered.https.port", "${env.HTTPS_PORT}");
     } else {
         hdfs_site.add("dfs.datanode.registered.http.port", "${env.HTTP_PORT}");

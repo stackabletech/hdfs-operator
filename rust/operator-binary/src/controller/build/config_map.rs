@@ -87,11 +87,11 @@ pub fn build_rolegroup_config_map(
     );
     let hadoop_policy_xml = hadoop_policy::build(config_overrides.hadoop_policy_xml.clone());
     let ssl_server_xml = ssl_server::build(
-        cluster_config.https_enabled,
+        cluster_config.authentication.is_some(),
         config_overrides.ssl_server_xml.clone(),
     );
     let ssl_client_xml = ssl_client::build(
-        cluster_config.https_enabled,
+        cluster_config.authentication.is_some(),
         config_overrides.ssl_client_xml.clone(),
     );
 

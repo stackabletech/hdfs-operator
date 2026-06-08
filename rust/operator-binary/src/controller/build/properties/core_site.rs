@@ -23,9 +23,9 @@ pub fn build(
     let kerberos = KerberosConfig {
         cluster_name: cluster.name.as_ref(),
         cluster_namespace: cluster.namespace.as_ref(),
-        authentication_enabled: cluster_config.authentication_enabled,
-        kerberos_enabled: cluster_config.kerberos_enabled,
-        authorization_enabled: cluster_config.authorization_enabled,
+        authentication_enabled: cluster_config.authentication.is_some(),
+        kerberos_enabled: cluster_config.authentication.is_some(),
+        authorization_enabled: cluster_config.authorization.is_some(),
     };
 
     let mut core_site = CoreSiteConfigBuilder::new(cluster.name.as_ref().to_owned());

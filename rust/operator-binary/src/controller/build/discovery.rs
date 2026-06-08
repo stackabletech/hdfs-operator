@@ -91,12 +91,12 @@ fn build_discovery_hdfs_site_xml(
         .dfs_ha_namenodes(namenode_podrefs)
         .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
         .dfs_namenode_http_address_ha(
-            cluster.cluster_config.https_enabled,
+            cluster.cluster_config.authentication.is_some(),
             cluster_info,
             namenode_podrefs,
         )
         .dfs_client_failover_proxy_provider()
-        .security_discovery_config(cluster.cluster_config.kerberos_enabled)
+        .security_discovery_config(cluster.cluster_config.authentication.is_some())
         .build_as_xml()
 }
 
@@ -108,9 +108,9 @@ fn build_discovery_core_site_xml(
     let kerberos = KerberosConfig {
         cluster_name: cluster.name.as_ref(),
         cluster_namespace: cluster.namespace.as_ref(),
-        authentication_enabled: cluster_config.authentication_enabled,
-        kerberos_enabled: cluster_config.kerberos_enabled,
-        authorization_enabled: cluster_config.authorization_enabled,
+        authentication_enabled: cluster_config.authentication.is_some(),
+        kerberos_enabled: cluster_config.authentication.is_some(),
+        authorization_enabled: cluster_config.authorization.is_some(),
     };
     CoreSiteConfigBuilder::new(cluster.name.as_ref().to_owned())
         .fs_default_fs()
