@@ -105,5 +105,5 @@ pub async fn reconcile(
             &patch
         ),
         Err(e) => error!("{}", e),
-    }
+    };
 }
