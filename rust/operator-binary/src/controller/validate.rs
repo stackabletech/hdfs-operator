@@ -78,17 +78,10 @@ pub fn validate_cluster(
         };
 
         let mut group_configs = BTreeMap::new();
-        for (role_group_name, config_overrides, mut env_overrides) in role_group_overrides {
+        for (role_group_name, config_overrides, env_overrides) in role_group_overrides {
             let merged_config = hdfs_role
                 .merged_config(hdfs, &role_group_name)
                 .context(FailedToResolveConfigSnafu)?;
-
-            // Rack awareness topology labels, namenode only.
-            if hdfs_role == HdfsNodeRole::Name {
-                if let Some(rack_awareness) = hdfs.rackawareness_config() {
-                    env_overrides.insert("TOPOLOGY_LABELS".to_string(), rack_awareness);
-                }
-            }
 
             group_configs.insert(
                 role_group_name,

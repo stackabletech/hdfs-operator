@@ -911,6 +911,23 @@ impl ContainerConfig {
                     ..EnvVar::default()
                 },
             );
+
+            // If rack awareness is configured, expose the topology labels to the
+            // topology-provider via an env var. This is only needed on namenodes.
+            // Set as a default here (before the overrides below) so users can still
+            // override it via `envOverrides`.
+            if *role == HdfsNodeRole::Name {
+                if let Some(rack_awareness) = hdfs.rackawareness_config() {
+                    env.insert(
+                        "TOPOLOGY_LABELS".to_string(),
+                        EnvVar {
+                            name: "TOPOLOGY_LABELS".to_string(),
+                            value: Some(rack_awareness),
+                            ..EnvVar::default()
+                        },
+                    );
+                }
+            }
         }
 
         env.insert(
