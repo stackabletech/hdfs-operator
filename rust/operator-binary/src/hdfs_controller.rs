@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use const_format::concatcp;
 use snafu::{ResultExt, Snafu};
@@ -79,12 +82,41 @@ pub struct ValidatedCluster {
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
     pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
-    /// Pod references for all namenodes across all role groups. Needed for all
-    /// ConfigMaps and initialization checks. Resolved once during validation.
-    pub namenode_podrefs: Vec<HdfsPodRef>,
-    /// Pod references for all journalnodes across all role groups. Resolved once
-    /// during validation.
-    pub journalnode_podrefs: Vec<HdfsPodRef>,
+}
+
+impl ValidatedCluster {
+    /// Builds the [`HdfsPodRef`]s expected for every pod of the given `role`, across
+    /// all of its role groups.
+    ///
+    /// These pod refs can only access HDFS from inside the Kubernetes cluster (they
+    /// use the cluster-internal headless service DNS names). For downstream clients,
+    /// the listener-based refs collected during reconciliation are used instead.
+    ///
+    /// This is infallible: all required information (namespace, replicas and ports)
+    /// is already resolved on `self` during validation.
+    pub fn pod_refs(&self, role: &HdfsNodeRole) -> Vec<HdfsPodRef> {
+        let ports: HashMap<String, u16> =
+            crate::crd::role_data_ports(role, self.cluster_config.https_enabled)
+                .into_iter()
+                .collect();
+
+        self.role_groups
+            .get(role)
+            .into_iter()
+            .flatten()
+            .flat_map(|(role_group_name, role_group)| {
+                let object_name = format!("{}-{role}-{role_group_name}", self.name);
+                let ports = ports.clone();
+                (0..role_group.replicas).map(move |i| HdfsPodRef {
+                    namespace: self.namespace.to_string(),
+                    role_group_service_name: object_name.clone(),
+                    pod_name: format!("{object_name}-{i}"),
+                    ports: ports.clone(),
+                    fqdn_override: None,
+                })
+            })
+            .collect()
+    }
 }
 
 /// Cluster-wide settings resolved once during validation, so the build steps no
@@ -127,6 +159,9 @@ pub struct ValidatedRoleConfig {
 /// (role <- role group) `configOverrides` and `envOverrides`.
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleGroupConfig {
+    /// The number of replicas (pods) for this role group, used to derive the
+    /// per-pod [`HdfsPodRef`]s via [`ValidatedCluster::pod_refs`].
+    pub replicas: u16,
     pub merged_config: AnyNodeConfig,
     pub config_overrides: v1alpha1::HdfsConfigOverrides,
     pub env_overrides: BTreeMap<String, String>,
@@ -287,14 +322,14 @@ pub async fn reconcile_hdfs(
         .await
         .context(DereferenceSnafu)?;
 
-    let validated = crate::controller::validate::validate_cluster(
+    let validated_cluster = crate::controller::validate::validate_cluster(
         hdfs,
         &ctx.operator_environment.image_repository,
         dereferenced.hdfs_opa_config,
     )
     .context(ValidateSnafu)?;
 
-    let resolved_product_image = &validated.image;
+    let resolved_product_image = &validated_cluster.image;
 
     let hdfs_obj_ref = hdfs.object_ref(&());
 
@@ -348,7 +383,7 @@ pub async fn reconcile_hdfs(
     );
     'roles: for role in roles {
         let role_name: &str = role.into();
-        let Some(group_config) = validated.role_groups.get(&role) else {
+        let Some(group_config) = validated_cluster.role_groups.get(&role) else {
             tracing::debug!(?role, "role has no configuration, skipping");
             continue;
         };
@@ -365,10 +400,10 @@ pub async fn reconcile_hdfs(
             .context(FailedToCreateClusterEventSnafu)?;
         }
 
-        for (rolegroup_name, validated_rg_config) in group_config.iter() {
-            let merged_config = &validated_rg_config.merged_config;
+        for (rolegroup_name, validated_cluster_rg_config) in group_config.iter() {
+            let merged_config = &validated_cluster_rg_config.merged_config;
 
-            let env_overrides = &validated_rg_config.env_overrides;
+            let env_overrides = &validated_cluster_rg_config.env_overrides;
 
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
@@ -399,7 +434,7 @@ pub async fn reconcile_hdfs(
                 .context(ObjectMetaSnafu)?;
 
             let rg_configmap = crate::controller::build::config_map::build_rolegroup_config_map(
-                &validated,
+                &validated_cluster,
                 &client.kubernetes_cluster_info,
                 metadata,
                 &rolegroup_ref,
@@ -408,6 +443,7 @@ pub async fn reconcile_hdfs(
 
             let rg_statefulset = rolegroup_statefulset(
                 hdfs,
+                &validated_cluster,
                 &client.kubernetes_cluster_info,
                 metadata,
                 &role,
@@ -415,7 +451,6 @@ pub async fn reconcile_hdfs(
                 resolved_product_image,
                 Some(env_overrides),
                 merged_config,
-                &validated.namenode_podrefs,
                 &rbac_sa,
             )?;
 
@@ -469,7 +504,7 @@ pub async fn reconcile_hdfs(
             }
         }
 
-        if let Some(validated_role_config) = validated.role_configs.get(&role) {
+        if let Some(validated_role_config) = validated_cluster.role_configs.get(&role) {
             add_pdbs(
                 &validated_role_config.pdb,
                 hdfs,
@@ -485,7 +520,7 @@ pub async fn reconcile_hdfs(
     // Discovery CM will fail to build until the rest of the cluster has been deployed, so do it last
     // so that failure won't inhibit the rest of the cluster from booting up.
     let discovery_cm = build_discovery_config_map(
-        &validated,
+        &validated_cluster,
         &client.kubernetes_cluster_info,
         &hdfs
             .namenode_listener_refs(client)
@@ -558,6 +593,7 @@ pub async fn reconcile_hdfs(
 #[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
     hdfs: &v1alpha1::HdfsCluster,
+    validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     metadata: &ObjectMetaBuilder,
     role: &HdfsNodeRole,
@@ -565,10 +601,13 @@ fn rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     env_overrides: Option<&BTreeMap<String, String>>,
     merged_config: &AnyNodeConfig,
-    namenode_podrefs: &[HdfsPodRef],
     service_account: &ServiceAccount,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
+
+    // Pod references for all namenodes across all role groups, needed to wire up the
+    // init containers of this role group.
+    let namenode_podrefs = validated.pod_refs(&HdfsNodeRole::Name);
 
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
@@ -604,7 +643,7 @@ fn rolegroup_statefulset(
         merged_config,
         env_overrides,
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
-        namenode_podrefs,
+        &namenode_podrefs,
         &rolegroup_selector_labels,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;

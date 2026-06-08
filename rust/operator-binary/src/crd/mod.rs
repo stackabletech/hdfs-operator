@@ -730,63 +730,7 @@ impl v1alpha1::HdfsCluster {
 
     /// Returns required port name and port number tuples depending on the role.
     fn data_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
-        match role {
-            HdfsNodeRole::Name => vec![
-                (
-                    String::from(SERVICE_PORT_NAME_RPC),
-                    DEFAULT_NAME_NODE_RPC_PORT,
-                ),
-                if self.has_https_enabled() {
-                    (
-                        String::from(SERVICE_PORT_NAME_HTTPS),
-                        DEFAULT_NAME_NODE_HTTPS_PORT,
-                    )
-                } else {
-                    (
-                        String::from(SERVICE_PORT_NAME_HTTP),
-                        DEFAULT_NAME_NODE_HTTP_PORT,
-                    )
-                },
-            ],
-            HdfsNodeRole::Data => vec![
-                (
-                    String::from(SERVICE_PORT_NAME_DATA),
-                    DEFAULT_DATA_NODE_DATA_PORT,
-                ),
-                (
-                    String::from(SERVICE_PORT_NAME_IPC),
-                    DEFAULT_DATA_NODE_IPC_PORT,
-                ),
-                if self.has_https_enabled() {
-                    (
-                        String::from(SERVICE_PORT_NAME_HTTPS),
-                        DEFAULT_DATA_NODE_HTTPS_PORT,
-                    )
-                } else {
-                    (
-                        String::from(SERVICE_PORT_NAME_HTTP),
-                        DEFAULT_DATA_NODE_HTTP_PORT,
-                    )
-                },
-            ],
-            HdfsNodeRole::Journal => vec![
-                (
-                    String::from(SERVICE_PORT_NAME_RPC),
-                    DEFAULT_JOURNAL_NODE_RPC_PORT,
-                ),
-                if self.has_https_enabled() {
-                    (
-                        String::from(SERVICE_PORT_NAME_HTTPS),
-                        DEFAULT_JOURNAL_NODE_HTTPS_PORT,
-                    )
-                } else {
-                    (
-                        String::from(SERVICE_PORT_NAME_HTTP),
-                        DEFAULT_JOURNAL_NODE_HTTP_PORT,
-                    )
-                },
-            ],
-        }
+        role_data_ports(role, self.has_https_enabled())
     }
 
     /// Returns required native metrics port name and metrics port number tuples depending on the role and security settings.
@@ -1155,6 +1099,68 @@ impl HdfsNodeRole {
                 .journalnode_rolegroup(role_group)
                 .and_then(|rg| rg.replicas),
         }
+    }
+}
+
+/// Returns the required port name and port number tuples exposed by pods of the
+/// given `role`, depending on whether HTTPS is enabled.
+pub(crate) fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, u16)> {
+    match role {
+        HdfsNodeRole::Name => vec![
+            (
+                String::from(SERVICE_PORT_NAME_RPC),
+                DEFAULT_NAME_NODE_RPC_PORT,
+            ),
+            if https_enabled {
+                (
+                    String::from(SERVICE_PORT_NAME_HTTPS),
+                    DEFAULT_NAME_NODE_HTTPS_PORT,
+                )
+            } else {
+                (
+                    String::from(SERVICE_PORT_NAME_HTTP),
+                    DEFAULT_NAME_NODE_HTTP_PORT,
+                )
+            },
+        ],
+        HdfsNodeRole::Data => vec![
+            (
+                String::from(SERVICE_PORT_NAME_DATA),
+                DEFAULT_DATA_NODE_DATA_PORT,
+            ),
+            (
+                String::from(SERVICE_PORT_NAME_IPC),
+                DEFAULT_DATA_NODE_IPC_PORT,
+            ),
+            if https_enabled {
+                (
+                    String::from(SERVICE_PORT_NAME_HTTPS),
+                    DEFAULT_DATA_NODE_HTTPS_PORT,
+                )
+            } else {
+                (
+                    String::from(SERVICE_PORT_NAME_HTTP),
+                    DEFAULT_DATA_NODE_HTTP_PORT,
+                )
+            },
+        ],
+        HdfsNodeRole::Journal => vec![
+            (
+                String::from(SERVICE_PORT_NAME_RPC),
+                DEFAULT_JOURNAL_NODE_RPC_PORT,
+            ),
+            if https_enabled {
+                (
+                    String::from(SERVICE_PORT_NAME_HTTPS),
+                    DEFAULT_JOURNAL_NODE_HTTPS_PORT,
+                )
+            } else {
+                (
+                    String::from(SERVICE_PORT_NAME_HTTP),
+                    DEFAULT_JOURNAL_NODE_HTTP_PORT,
+                )
+            },
+        ],
     }
 }
 

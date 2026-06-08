@@ -7,8 +7,10 @@ use stackable_operator::{
 };
 
 use crate::{
-    config::HdfsSiteConfigBuilder, controller::build::properties::resolved_overrides,
-    crd::AnyNodeConfig, hdfs_controller::ValidatedCluster,
+    config::HdfsSiteConfigBuilder,
+    controller::build::properties::resolved_overrides,
+    crd::{AnyNodeConfig, HdfsNodeRole},
+    hdfs_controller::ValidatedCluster,
 };
 
 /// Renders `hdfs-site.xml`: operator defaults, HA wiring derived from the pod
@@ -20,8 +22,8 @@ pub fn build(
     overrides: KeyValueConfigOverrides,
 ) -> String {
     let cluster_config = &cluster.cluster_config;
-    let namenode_podrefs = &cluster.namenode_podrefs;
-    let journalnode_podrefs = &cluster.journalnode_podrefs;
+    let namenode_podrefs = cluster.pod_refs(&HdfsNodeRole::Name);
+    let journalnode_podrefs = cluster.pod_refs(&HdfsNodeRole::Journal);
     // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
     // be formatted by the namenode, or used by the other services.
     // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0
@@ -44,11 +46,15 @@ pub fn build(
         .dfs_journalnode_edits_dir()
         .dfs_replication(cluster_config.dfs_replication)
         .dfs_name_services()
-        .dfs_ha_namenodes(namenode_podrefs)
-        .dfs_namenode_shared_edits_dir(cluster_info, journalnode_podrefs)
-        .dfs_namenode_name_dir_ha(namenode_podrefs)
-        .dfs_namenode_rpc_address_ha(cluster_info, namenode_podrefs)
-        .dfs_namenode_http_address_ha(cluster_config.https_enabled, cluster_info, namenode_podrefs)
+        .dfs_ha_namenodes(&namenode_podrefs)
+        .dfs_namenode_shared_edits_dir(cluster_info, &journalnode_podrefs)
+        .dfs_namenode_name_dir_ha(&namenode_podrefs)
+        .dfs_namenode_rpc_address_ha(cluster_info, &namenode_podrefs)
+        .dfs_namenode_http_address_ha(
+            cluster_config.https_enabled,
+            cluster_info,
+            &namenode_podrefs,
+        )
         .dfs_client_failover_proxy_provider()
         .security_config(cluster_config.kerberos_enabled)
         .add("dfs.ha.fencing.methods", "shell(/bin/true)")

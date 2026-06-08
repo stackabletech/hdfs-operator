@@ -48,9 +48,6 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
-
-    #[snafu(display("failed to create pod references"))]
-    CreatePodReferences { source: crate::crd::Error },
 }
 
 pub fn validate_cluster(
@@ -86,7 +83,7 @@ pub fn validate_cluster(
         };
 
         let mut group_configs = BTreeMap::new();
-        for (role_group_name, config_overrides, env_overrides) in role_group_overrides {
+        for (role_group_name, replicas, config_overrides, env_overrides) in role_group_overrides {
             let merged_config = hdfs_role
                 .merged_config(hdfs, &role_group_name)
                 .context(FailedToResolveConfigSnafu)?;
@@ -94,6 +91,7 @@ pub fn validate_cluster(
             group_configs.insert(
                 role_group_name,
                 ValidatedRoleGroupConfig {
+                    replicas,
                     merged_config,
                     config_overrides,
                     env_overrides,
@@ -103,15 +101,6 @@ pub fn validate_cluster(
 
         role_groups.insert(hdfs_role, group_configs);
     }
-
-    // A list of all name and journal nodes across all role groups is needed for all
-    // ConfigMaps and initialization checks.
-    let namenode_podrefs = hdfs
-        .pod_refs(&HdfsNodeRole::Name)
-        .context(CreatePodReferencesSnafu)?;
-    let journalnode_podrefs = hdfs
-        .pod_refs(&HdfsNodeRole::Journal)
-        .context(CreatePodReferencesSnafu)?;
 
     let namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?;
     let namespace = NamespaceName::from_str(&namespace).context(InvalidNamespaceSnafu)?;
@@ -123,17 +112,17 @@ pub fn validate_cluster(
         cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,
         role_configs,
-        namenode_podrefs,
-        journalnode_podrefs,
     })
 }
 
-/// Merges the role-level and role-group-level `configOverrides` and `envOverrides`
-/// for every role group of a role (the role group wins).
+/// For every role group of a role, collects the replica count and merges the
+/// role-level and role-group-level `configOverrides` and `envOverrides` (the role
+/// group wins).
 fn collect_role_group_overrides<C>(
     role: Option<&Role<C, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
 ) -> Vec<(
     String,
+    u16,
     v1alpha1::HdfsConfigOverrides,
     BTreeMap<String, String>,
 )> {
@@ -151,7 +140,12 @@ fn collect_role_group_overrides<C>(
             env_overrides.extend(role.config.env_overrides.clone());
             env_overrides.extend(role_group.config.env_overrides.clone());
 
-            (role_group_name.clone(), config_overrides, env_overrides)
+            (
+                role_group_name.clone(),
+                role_group.replicas.unwrap_or_default(),
+                config_overrides,
+                env_overrides,
+            )
         })
         .collect()
 }
