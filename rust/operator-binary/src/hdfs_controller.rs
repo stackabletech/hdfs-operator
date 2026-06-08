@@ -88,8 +88,7 @@ pub struct ValidatedCluster {
 }
 
 /// Cluster-wide settings resolved once during validation, so the build steps no
-/// longer need the raw `HdfsCluster` to render config. The flags are computed by
-/// the same `HdfsCluster` predicates used previously, just resolved up-front.
+/// longer need the raw `HdfsCluster` to render config.
 #[derive(Clone, Debug)]
 pub struct ValidatedClusterConfig {
     pub dfs_replication: u8,
