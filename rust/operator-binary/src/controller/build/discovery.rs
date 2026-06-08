@@ -14,7 +14,7 @@ use crate::{
     controller::build::properties::ConfigFileName,
     crd::{HdfsNodeRole, HdfsPodRef, v1alpha1},
     hdfs_controller::{HDFS_CONTROLLER_NAME, ValidatedCluster},
-    security::kerberos::{self, KerberosConfig},
+    security::kerberos::KerberosConfig,
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -37,9 +37,6 @@ pub enum Error {
     ObjectMeta {
         source: stackable_operator::builder::meta::Error,
     },
-
-    #[snafu(display("failed to build security discovery config map"))]
-    BuildSecurityDiscoveryConfigMap { source: kerberos::Error },
 }
 
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
@@ -78,7 +75,7 @@ pub fn build_discovery_config_map(
         )
         .add_data(
             ConfigFileName::CoreSite.to_string(),
-            build_discovery_core_site_xml(cluster, cluster_info)?,
+            build_discovery_core_site_xml(cluster, cluster_info),
         )
         .build()
         .context(BuildConfigMapSnafu)
@@ -106,18 +103,17 @@ fn build_discovery_hdfs_site_xml(
 fn build_discovery_core_site_xml(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-) -> Result<String> {
+) -> String {
     let cluster_config = &cluster.cluster_config;
     let kerberos = KerberosConfig {
         cluster_name: cluster.name.as_ref(),
-        cluster_namespace: cluster.namespace.as_deref(),
+        cluster_namespace: cluster.namespace.as_ref(),
         authentication_enabled: cluster_config.authentication_enabled,
         kerberos_enabled: cluster_config.kerberos_enabled,
         authorization_enabled: cluster_config.authorization_enabled,
     };
-    Ok(CoreSiteConfigBuilder::new(cluster.name.as_ref().to_owned())
+    CoreSiteConfigBuilder::new(cluster.name.as_ref().to_owned())
         .fs_default_fs()
         .security_discovery_config(&kerberos, cluster_info)
-        .context(BuildSecurityDiscoveryConfigMapSnafu)?
-        .build_as_xml())
+        .build_as_xml()
 }

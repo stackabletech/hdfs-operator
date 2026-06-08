@@ -2,24 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo, v2::config_overrides::KeyValueConfigOverrides,
 };
 
 use crate::{
-    config::CoreSiteConfigBuilder,
-    controller::build::properties::resolved_overrides,
-    crd::HdfsNodeRole,
-    hdfs_controller::ValidatedCluster,
-    security::kerberos::{self, KerberosConfig},
+    config::CoreSiteConfigBuilder, controller::build::properties::resolved_overrides,
+    crd::HdfsNodeRole, hdfs_controller::ValidatedCluster, security::kerberos::KerberosConfig,
 };
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("failed to build security config"))]
-    BuildSecurityConfig { source: kerberos::Error },
-}
 
 /// Renders `core-site.xml`: operator defaults + kerberos/OPA security config,
 /// with user `configOverrides` applied last.
@@ -28,11 +18,11 @@ pub fn build(
     role: HdfsNodeRole,
     cluster_info: &KubernetesClusterInfo,
     overrides: KeyValueConfigOverrides,
-) -> Result<String, Error> {
+) -> String {
     let cluster_config = &cluster.cluster_config;
     let kerberos = KerberosConfig {
         cluster_name: cluster.name.as_ref(),
-        cluster_namespace: cluster.namespace.as_deref(),
+        cluster_namespace: cluster.namespace.as_ref(),
         authentication_enabled: cluster_config.authentication_enabled,
         kerberos_enabled: cluster_config.kerberos_enabled,
         authorization_enabled: cluster_config.authorization_enabled,
@@ -43,7 +33,6 @@ pub fn build(
         .fs_default_fs()
         .ha_zookeeper_quorum()
         .security_config(&kerberos, cluster_info)
-        .context(BuildSecurityConfigSnafu)?
         .enable_prometheus_endpoint()
         // The default (4096) hasn't changed since 2009.
         // Increase to 128k to allow for faster transfers.
@@ -60,7 +49,7 @@ pub fn build(
     }
     // the extend with config must come last in order to have overrides working!!!
     let overrides: BTreeMap<String, String> = resolved_overrides(overrides).collect();
-    Ok(core_site.extend(&overrides).build_as_xml())
+    core_site.extend(&overrides).build_as_xml()
 }
 
 #[cfg(test)]
@@ -77,8 +66,7 @@ mod tests {
             HdfsNodeRole::Name,
             &cluster_info(),
             config_overrides(&[]),
-        )
-        .unwrap();
+        );
         assert!(
             xml.contains("<name>fs.defaultFS</name>\n    <value>hdfs://hdfs/</value>"),
             "{xml}"
@@ -102,8 +90,7 @@ mod tests {
             HdfsNodeRole::Name,
             &cluster_info(),
             config_overrides(&[("io.file.buffer.size", "65536")]),
-        )
-        .unwrap();
+        );
         assert!(
             xml.contains("<name>io.file.buffer.size</name>\n    <value>65536</value>"),
             "{xml}"

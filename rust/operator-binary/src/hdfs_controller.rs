@@ -38,7 +38,7 @@ use stackable_operator::{
         rollout::check_statefulset_rollout_complete,
     },
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::operator::ClusterName,
+    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
@@ -74,7 +74,7 @@ pub struct ValidatedCluster {
     /// The logical (and Kubernetes object) name of the cluster.
     pub name: ClusterName,
     /// The cluster namespace, used to build kerberos principals.
-    pub namespace: Option<String>,
+    pub namespace: NamespaceName,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,

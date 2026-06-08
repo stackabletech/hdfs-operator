@@ -32,9 +32,6 @@ pub enum Error {
     #[snafu(display("the validated cluster has no role group {role_group:?} for role {role:?}"))]
     MissingRoleGroup { role: String, role_group: String },
 
-    #[snafu(display("failed to build core-site.xml"))]
-    BuildCoreSiteXml { source: core_site::Error },
-
     #[snafu(display("failed to serialize {} for {rolegroup}", ConfigFileName::Security))]
     JvmSecurityProperties {
         source: PropertiesWriterError,
@@ -87,8 +84,7 @@ pub fn build_rolegroup_config_map(
         role,
         cluster_info,
         config_overrides.core_site_xml.clone(),
-    )
-    .context(BuildCoreSiteXmlSnafu)?;
+    );
     let hadoop_policy_xml = hadoop_policy::build(config_overrides.hadoop_policy_xml.clone());
     let ssl_server_xml = ssl_server::build(
         cluster_config.https_enabled,

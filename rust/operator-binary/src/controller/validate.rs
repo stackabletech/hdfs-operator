@@ -7,13 +7,13 @@
 
 use std::{collections::BTreeMap, str::FromStr};
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
     config::merge::Merge,
     kube::ResourceExt,
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role},
-    v2::types::operator::ClusterName,
+    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
 };
 use strum::IntoEnumIterator;
 
@@ -35,6 +35,14 @@ pub enum Error {
 
     #[snafu(display("invalid cluster name"))]
     InvalidClusterName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
+    #[snafu(display("the HdfsCluster has no namespace"))]
+    ObjectHasNoNamespace,
+
+    #[snafu(display("invalid cluster namespace"))]
+    InvalidNamespace {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
@@ -105,9 +113,12 @@ pub fn validate_cluster(
         .pod_refs(&HdfsNodeRole::Journal)
         .context(CreatePodReferencesSnafu)?;
 
+    let namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?;
+    let namespace = NamespaceName::from_str(&namespace).context(InvalidNamespaceSnafu)?;
+
     Ok(ValidatedCluster {
         name: ClusterName::from_str(&hdfs.name_any()).context(InvalidClusterNameSnafu)?,
-        namespace: hdfs.namespace(),
+        namespace,
         image: resolved_product_image,
         cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,
