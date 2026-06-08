@@ -36,9 +36,15 @@ mod tests {
     fn overrides_are_rendered_as_properties() {
         assert_eq!(
             build(config_overrides(&[("security.client.protocol.acl", "*")])),
-            "<?xml version=\"1.0\"?>\n<configuration>\n  \
-             <property>\n    <name>security.client.protocol.acl</name>\n    \
-             <value>*</value>\n  </property>\n</configuration>"
+            concat!(
+                "<?xml version=\"1.0\"?>\n",
+                "<configuration>\n",
+                "  <property>\n",
+                "    <name>security.client.protocol.acl</name>\n",
+                "    <value>*</value>\n",
+                "  </property>\n",
+                "</configuration>"
+            )
         );
     }
 }
