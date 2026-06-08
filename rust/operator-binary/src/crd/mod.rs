@@ -200,11 +200,27 @@ pub mod versioned {
     #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct HdfsClusterConfig {
+        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
+        pub authentication: Option<AuthenticationConfig>,
+
+        /// Authorization options for HDFS.
+        /// Learn more in the [HDFS authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hdfs/usage-guide/security#authorization).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub authorization: Option<AuthorizationConfig>,
+
         /// `dfsReplication` is the factor of how many times a file will be replicated to different data nodes.
         /// The default is 3.
         /// You need at least the same amount of data nodes so each file can be replicated correctly, otherwise a warning will be printed.
         #[serde(default = "default_dfs_replication_factor")]
         pub dfs_replication: u8,
+
+        // Scheduled for removal in v1alpha2, see https://github.com/stackabletech/issues/issues/504
+        /// Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
+        #[serde(default)]
+        pub listener_class: DeprecatedClusterListenerClass,
+
+        /// Configuration to control HDFS topology (rack) awareness feature
+        pub rack_awareness: Option<Vec<TopologyLabel>>,
 
         /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
@@ -216,22 +232,6 @@ pub mod versioned {
         /// Name of the [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
         /// for a ZooKeeper cluster.
         pub zookeeper_config_map_name: String,
-
-        /// Settings related to user [authentication](DOCS_BASE_URL_PLACEHOLDER/usage-guide/security).
-        pub authentication: Option<AuthenticationConfig>,
-
-        /// Authorization options for HDFS.
-        /// Learn more in the [HDFS authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/hdfs/usage-guide/security#authorization).
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub authorization: Option<AuthorizationConfig>,
-
-        // Scheduled for removal in v1alpha2, see https://github.com/stackabletech/issues/issues/504
-        /// Deprecated, please use `.spec.nameNodes.config.listenerClass` and `.spec.dataNodes.config.listenerClass` instead.
-        #[serde(default)]
-        pub listener_class: DeprecatedClusterListenerClass,
-
-        /// Configuration to control HDFS topology (rack) awareness feature
-        pub rack_awareness: Option<Vec<TopologyLabel>>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
