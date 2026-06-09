@@ -606,7 +606,6 @@ spec:
                     properties:
                       core-site.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -617,7 +616,6 @@ spec:
                         type: object
                       hadoop-policy.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -628,7 +626,6 @@ spec:
                         type: object
                       hdfs-site.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -639,7 +636,6 @@ spec:
                         type: object
                       security.properties:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -650,7 +646,6 @@ spec:
                         type: object
                       ssl-client.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -661,7 +656,6 @@ spec:
                         type: object
                       ssl-server.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -1199,7 +1193,6 @@ spec:
                           properties:
                             core-site.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -1210,7 +1203,6 @@ spec:
                               type: object
                             hadoop-policy.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -1221,7 +1213,6 @@ spec:
                               type: object
                             hdfs-site.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -1232,7 +1223,6 @@ spec:
                               type: object
                             security.properties:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -1243,7 +1233,6 @@ spec:
                               type: object
                             ssl-client.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -1254,7 +1243,6 @@ spec:
                               type: object
                             ssl-server.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -1738,7 +1726,6 @@ spec:
                     properties:
                       core-site.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -1749,7 +1736,6 @@ spec:
                         type: object
                       hadoop-policy.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -1760,7 +1746,6 @@ spec:
                         type: object
                       hdfs-site.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -1771,7 +1756,6 @@ spec:
                         type: object
                       security.properties:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -1782,7 +1766,6 @@ spec:
                         type: object
                       ssl-client.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -1793,7 +1776,6 @@ spec:
                         type: object
                       ssl-server.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -2234,7 +2216,6 @@ spec:
                           properties:
                             core-site.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -2245,7 +2226,6 @@ spec:
                               type: object
                             hadoop-policy.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -2256,7 +2236,6 @@ spec:
                               type: object
                             hdfs-site.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -2267,7 +2246,6 @@ spec:
                               type: object
                             security.properties:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -2278,7 +2256,6 @@ spec:
                               type: object
                             ssl-client.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -2289,7 +2266,6 @@ spec:
                               type: object
                             ssl-server.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -2956,7 +2932,6 @@ spec:
                     properties:
                       core-site.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -2967,7 +2942,6 @@ spec:
                         type: object
                       hadoop-policy.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -2978,7 +2952,6 @@ spec:
                         type: object
                       hdfs-site.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -2989,7 +2962,6 @@ spec:
                         type: object
                       security.properties:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -3000,7 +2972,6 @@ spec:
                         type: object
                       ssl-client.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -3011,7 +2982,6 @@ spec:
                         type: object
                       ssl-server.xml:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
                         description: |-
@@ -3698,7 +3668,6 @@ spec:
                           properties:
                             core-site.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -3709,7 +3678,6 @@ spec:
                               type: object
                             hadoop-policy.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -3720,7 +3688,6 @@ spec:
                               type: object
                             hdfs-site.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -3731,7 +3698,6 @@ spec:
                               type: object
                             security.properties:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -3742,7 +3708,6 @@ spec:
                               type: object
                             ssl-client.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
@@ -3753,7 +3718,6 @@ spec:
                               type: object
                             ssl-server.xml:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
                               description: |-
