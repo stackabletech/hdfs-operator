@@ -7,8 +7,10 @@ use stackable_operator::{
 };
 
 use crate::{
-    config::CoreSiteConfigBuilder, controller::build::properties::resolved_overrides,
-    crd::HdfsNodeRole, hdfs_controller::ValidatedCluster, security::kerberos::KerberosConfig,
+    config::CoreSiteConfigBuilder,
+    controller::{ValidatedCluster, build::properties::resolved_overrides},
+    crd::HdfsNodeRole,
+    security::kerberos::KerberosConfig,
 };
 
 /// Renders `core-site.xml`: operator defaults + kerberos/OPA security config,

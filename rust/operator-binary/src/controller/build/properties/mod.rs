@@ -75,7 +75,8 @@ pub(crate) mod test_support {
     };
 
     use crate::{
-        controller::validate::validate_cluster, crd::v1alpha1, hdfs_controller::ValidatedCluster,
+        controller::{ValidatedCluster, validate::validate_cluster},
+        crd::v1alpha1,
     };
 
     /// Builds a [`KeyValueConfigOverrides`] from `(key, value)` pairs for tests.

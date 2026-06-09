@@ -10,12 +10,14 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::build::properties::{
-        ConfigFileName, core_site, hadoop_policy, hdfs_site, logging, security_properties,
-        ssl_client, ssl_server,
+    controller::{
+        ValidatedCluster,
+        build::properties::{
+            ConfigFileName, core_site, hadoop_policy, hdfs_site, logging, security_properties,
+            ssl_client, ssl_server,
+        },
     },
     crd::{HdfsNodeRole, v1alpha1},
-    hdfs_controller::ValidatedCluster,
 };
 
 #[derive(Snafu, Debug)]
