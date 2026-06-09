@@ -16,25 +16,25 @@ use crate::{
 
 /// Renders `ssl-client.xml` for the given HTTPS state and user overrides.
 pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String {
-    let mut config: BTreeMap<String, Option<String>> = BTreeMap::new();
+    let mut config: BTreeMap<String, String> = BTreeMap::new();
     if https_enabled {
         config.extend([
             (
                 "ssl.client.truststore.location".to_string(),
-                Some(format!("{TLS_STORE_DIR}/truststore.p12")),
+                format!("{TLS_STORE_DIR}/truststore.p12"),
             ),
             (
                 "ssl.client.truststore.type".to_string(),
-                Some("pkcs12".to_string()),
+                "pkcs12".to_string(),
             ),
             (
                 "ssl.client.truststore.password".to_string(),
-                Some(TLS_STORE_PASSWORD.to_string()),
+                TLS_STORE_PASSWORD.to_string(),
             ),
         ]);
     }
     // Overrides applied last so users win.
-    config.extend(resolved_overrides(overrides).map(|(key, value)| (key, Some(value))));
+    config.extend(resolved_overrides(overrides));
     to_hadoop_xml(config.iter())
 }
 

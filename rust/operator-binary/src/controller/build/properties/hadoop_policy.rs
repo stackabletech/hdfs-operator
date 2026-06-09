@@ -13,9 +13,7 @@ use crate::controller::build::properties::resolved_overrides;
 
 /// Renders `hadoop-policy.xml` from the user-provided overrides only.
 pub fn build(overrides: KeyValueConfigOverrides) -> String {
-    let config: BTreeMap<String, Option<String>> = resolved_overrides(overrides)
-        .map(|(key, value)| (key, Some(value)))
-        .collect();
+    let config: BTreeMap<String, String> = resolved_overrides(overrides).collect();
     to_hadoop_xml(config.iter())
 }
 

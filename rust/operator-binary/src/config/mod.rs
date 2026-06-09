@@ -215,9 +215,7 @@ impl HdfsSiteConfigBuilder {
     }
 
     pub fn build_as_xml(&self) -> String {
-        let transformed_config = to_optional_values(&self.config);
-
-        to_hadoop_xml(transformed_config.iter())
+        to_hadoop_xml(self.config.iter())
     }
 }
 
@@ -262,8 +260,7 @@ impl CoreSiteConfigBuilder {
     }
 
     pub fn build_as_xml(&self) -> String {
-        let transformed_config = to_optional_values(&self.config);
-        to_hadoop_xml(transformed_config.iter())
+        to_hadoop_xml(self.config.iter())
     }
 
     pub fn enable_prometheus_endpoint(&mut self) -> &mut Self {
@@ -271,11 +268,4 @@ impl CoreSiteConfigBuilder {
             .insert(PROMETHEUS_ENDPOINT_ENABLED.to_string(), "true".to_string());
         self
     }
-}
-
-fn to_optional_values(config: &BTreeMap<String, String>) -> BTreeMap<String, Option<String>> {
-    config
-        .iter()
-        .map(|(k, v)| (k.clone(), Some(v.clone())))
-        .collect::<BTreeMap<String, Option<String>>>()
 }

@@ -17,18 +17,15 @@ pub fn build(overrides: KeyValueConfigOverrides) -> Result<String, PropertiesWri
     // Recommended JVM DNS cache TTLs. Caching forever (the JVM default for
     // successful lookups) breaks failover when a NameNode's IP changes, so cap
     // both positive and negative caches.
-    let mut config: BTreeMap<String, Option<String>> = BTreeMap::from([
-        (
-            "networkaddress.cache.ttl".to_string(),
-            Some("30".to_string()),
-        ),
+    let mut config: BTreeMap<String, String> = BTreeMap::from([
+        ("networkaddress.cache.ttl".to_string(), "30".to_string()),
         (
             "networkaddress.cache.negative.ttl".to_string(),
-            Some("0".to_string()),
+            "0".to_string(),
         ),
     ]);
     // Overrides applied last so users win.
-    config.extend(resolved_overrides(overrides).map(|(key, value)| (key, Some(value))));
+    config.extend(resolved_overrides(overrides));
     to_java_properties_string(config.iter())
 }
 
