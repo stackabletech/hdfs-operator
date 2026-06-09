@@ -6,8 +6,8 @@ use stackable_operator::{
 
 use crate::{
     config::HdfsSiteConfigBuilder,
+    controller::ValidatedCluster,
     crd::{AnyNodeConfig, HdfsNodeRole},
-    hdfs_controller::ValidatedCluster,
 };
 
 /// Renders `hdfs-site.xml`: operator defaults, HA wiring derived from the pod

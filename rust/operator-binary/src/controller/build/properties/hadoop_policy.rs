@@ -15,17 +15,11 @@ pub fn build(overrides: KeyValueConfigOverrides) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::controller::build::properties::test_support::EMPTY_HADOOP_XML;
 
     #[test]
     fn empty_overrides_render_empty_configuration() {
-        assert_eq!(
-            build(KeyValueConfigOverrides::default()),
-            concat!(
-                "<?xml version=\"1.0\"?>\n",
-                "<configuration>\n",
-                "</configuration>"
-            )
-        );
+        assert_eq!(build(KeyValueConfigOverrides::default()), EMPTY_HADOOP_XML);
     }
 
     #[test]

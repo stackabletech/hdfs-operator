@@ -5,7 +5,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    config::CoreSiteConfigBuilder, crd::HdfsNodeRole, hdfs_controller::ValidatedCluster,
+    config::CoreSiteConfigBuilder, controller::ValidatedCluster, crd::HdfsNodeRole,
     security::kerberos::KerberosConfig,
 };
 

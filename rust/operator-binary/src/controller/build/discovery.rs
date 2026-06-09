@@ -10,9 +10,9 @@ use stackable_operator::{
 use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    controller::build::properties::ConfigFileName,
+    controller::{ValidatedCluster, build::properties::ConfigFileName},
     crd::{HdfsNodeRole, HdfsPodRef},
-    hdfs_controller::{HDFS_CONTROLLER_NAME, ValidatedCluster},
+    hdfs_controller::HDFS_CONTROLLER_NAME,
     security::kerberos::KerberosConfig,
 };
 

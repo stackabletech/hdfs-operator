@@ -131,11 +131,6 @@ pub enum Error {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
 
-    #[snafu(display("missing or invalid labels for the listener volume"))]
-    ListenerVolumeLabels {
-        source: ListenerOperatorVolumeSourceBuilderError,
-    },
-
     #[snafu(display("failed to configure logging"))]
     ConfigureLogging { source: LoggingError },
 

@@ -3,6 +3,8 @@
 //! config file; the shared [`stackable_operator::v2::config_file_writer`]
 //! module serializes maps to the Hadoop-XML / Java-properties on-wire format.
 
+use crate::container::{TLS_STORE_DIR, TLS_STORE_PASSWORD};
+
 pub mod core_site;
 pub mod hadoop_policy;
 pub mod hdfs_site;
@@ -10,6 +12,22 @@ pub mod logging;
 pub mod security_properties;
 pub mod ssl_client;
 pub mod ssl_server;
+
+/// The `<prefix>.truststore.*` entries (location, type, password) injected into
+/// `ssl-client.xml` / `ssl-server.xml` when HTTPS is enabled.
+fn truststore_entries(prefix: &str) -> [(String, String); 3] {
+    [
+        (
+            format!("{prefix}.truststore.location"),
+            format!("{TLS_STORE_DIR}/truststore.p12"),
+        ),
+        (format!("{prefix}.truststore.type"), "pkcs12".to_string()),
+        (
+            format!("{prefix}.truststore.password"),
+            TLS_STORE_PASSWORD.to_string(),
+        ),
+    ]
+}
 
 /// The names of the HDFS config files assembled into the rolegroup `ConfigMap`.
 #[derive(Clone, Copy, Debug, strum::Display)]
@@ -53,8 +71,16 @@ pub(crate) mod test_support {
     };
 
     use crate::{
-        controller::validate::validate_cluster, crd::v1alpha1, hdfs_controller::ValidatedCluster,
+        controller::{ValidatedCluster, validate::validate_cluster},
+        crd::v1alpha1,
     };
+
+    /// The rendered output of an empty Hadoop-XML configuration (no entries).
+    pub const EMPTY_HADOOP_XML: &str = concat!(
+        "<?xml version=\"1.0\"?>\n",
+        "<configuration>\n",
+        "</configuration>"
+    );
 
     /// A minimal three-role HdfsCluster used to drive the per-file builder tests.
     pub const MINIMAL_HDFS_YAML: &str = r#"
