@@ -273,11 +273,6 @@ impl HasStatusCondition for v1alpha1::HdfsCluster {
 }
 
 impl v1alpha1::HdfsCluster {
-    /// Return the namespace of the cluster or an error in case it is not set.
-    pub fn namespace_or_error(&self) -> Result<String, Error> {
-        self.namespace().context(NoNamespaceSnafu)
-    }
-
     /// Kubernetes labels to attach to Pods within a role group.
     ///
     /// The same labels are also used as selectors for Services and StatefulSets.
@@ -646,10 +641,6 @@ impl v1alpha1::HdfsCluster {
             .authentication
             .as_ref()
             .map(|k| k.tls_secret_class.as_str())
-    }
-
-    pub fn has_authorization_enabled(&self) -> bool {
-        self.spec.cluster_config.authorization.is_some()
     }
 
     pub fn num_datanodes(&self) -> u16 {
