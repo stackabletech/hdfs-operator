@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use const_format::concatcp;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::{PodBuilder, security::PodSecurityContextBuilder},
@@ -59,9 +58,6 @@ use crate::{
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 pub const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
-pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
-
-pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -492,7 +488,7 @@ fn rolegroup_statefulset(
     // Adds all containers and volumes to the pod builder
     // We must use the selector labels ("rolegroup_selector_labels") and not the recommended labels
     // for the ephemeral listener volumes created by this function.
-    // This is because the recommended set contains a "managed-by" label. This labels triggers
+    // This is because the recommended set contains a "managed-by" label. This label triggers
     // the cluster resources to "manage" listeners which is wrong and leads to errors.
     // The listeners are managed by the listener-operator.
     ContainerConfig::add_containers_and_volumes(

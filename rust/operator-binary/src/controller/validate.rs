@@ -21,9 +21,10 @@ use crate::{
         ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig, ValidatedRoleGroupConfig,
     },
     crd::{HdfsNodeRole, v1alpha1},
-    hdfs_controller::CONTAINER_IMAGE_BASE_NAME,
     security::opa::HdfsOpaConfig,
 };
+
+const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 
 #[derive(Snafu, Debug)]
 pub enum Error {

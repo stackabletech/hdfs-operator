@@ -9,29 +9,13 @@ use stackable_operator::v2::{
     config_file_writer::to_hadoop_xml, config_overrides::KeyValueConfigOverrides,
 };
 
-use crate::{
-    container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    controller::build::properties::resolved_overrides,
-};
+use crate::controller::build::properties::{resolved_overrides, truststore_entries};
 
 /// Renders `ssl-client.xml` for the given HTTPS state and user overrides.
 pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String {
     let mut config: BTreeMap<String, String> = BTreeMap::new();
     if https_enabled {
-        config.extend([
-            (
-                "ssl.client.truststore.location".to_string(),
-                format!("{TLS_STORE_DIR}/truststore.p12"),
-            ),
-            (
-                "ssl.client.truststore.type".to_string(),
-                "pkcs12".to_string(),
-            ),
-            (
-                "ssl.client.truststore.password".to_string(),
-                TLS_STORE_PASSWORD.to_string(),
-            ),
-        ]);
+        config.extend(truststore_entries("ssl.client"));
     }
     // Overrides applied last so users win.
     config.extend(resolved_overrides(overrides));
@@ -41,18 +25,14 @@ pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::build::properties::test_support::config_overrides;
+    use crate::{
+        container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
+        controller::build::properties::test_support::{EMPTY_HADOOP_XML, config_overrides},
+    };
 
     #[test]
     fn disabled_https_without_overrides_renders_empty_configuration() {
-        assert_eq!(
-            build(false, config_overrides(&[])),
-            concat!(
-                "<?xml version=\"1.0\"?>\n",
-                "<configuration>\n",
-                "</configuration>"
-            )
-        );
+        assert_eq!(build(false, config_overrides(&[])), EMPTY_HADOOP_XML);
     }
 
     #[test]

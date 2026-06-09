@@ -7,6 +7,8 @@ use std::collections::BTreeMap;
 
 use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
 
+use crate::container::{TLS_STORE_DIR, TLS_STORE_PASSWORD};
+
 pub mod core_site;
 pub mod hadoop_policy;
 pub mod hdfs_site;
@@ -30,6 +32,22 @@ fn resolved_overrides(
     overrides: KeyValueConfigOverrides,
 ) -> impl Iterator<Item = (String, String)> {
     defined_entries(overrides.overrides)
+}
+
+/// The `<prefix>.truststore.*` entries (location, type, password) injected into
+/// `ssl-client.xml` / `ssl-server.xml` when HTTPS is enabled.
+fn truststore_entries(prefix: &str) -> [(String, String); 3] {
+    [
+        (
+            format!("{prefix}.truststore.location"),
+            format!("{TLS_STORE_DIR}/truststore.p12"),
+        ),
+        (format!("{prefix}.truststore.type"), "pkcs12".to_string()),
+        (
+            format!("{prefix}.truststore.password"),
+            TLS_STORE_PASSWORD.to_string(),
+        ),
+    ]
 }
 
 /// The names of the HDFS config files assembled into the rolegroup `ConfigMap`.
@@ -78,6 +96,13 @@ pub(crate) mod test_support {
         controller::{ValidatedCluster, validate::validate_cluster},
         crd::v1alpha1,
     };
+
+    /// The rendered output of an empty Hadoop-XML configuration (no entries).
+    pub const EMPTY_HADOOP_XML: &str = concat!(
+        "<?xml version=\"1.0\"?>\n",
+        "<configuration>\n",
+        "</configuration>"
+    );
 
     /// Builds a [`KeyValueConfigOverrides`] from `(key, value)` pairs for tests.
     pub fn config_overrides(pairs: &[(&str, &str)]) -> KeyValueConfigOverrides {

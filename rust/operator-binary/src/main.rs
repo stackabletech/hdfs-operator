@@ -6,8 +6,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use clap::Parser;
+use const_format::concatcp;
 use futures::{FutureExt, StreamExt, TryFutureExt};
-use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
+use hdfs_controller::HDFS_CONTROLLER_NAME;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
@@ -58,6 +59,7 @@ mod built_info {
 }
 
 pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
+pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
 #[derive(clap::Parser)]
 #[clap(about, author)]

@@ -426,7 +426,7 @@ impl v1alpha1::HdfsCluster {
     ///
     /// The `validated_config` is used to extract the ports exposed by the pods.
     ///
-    /// The pod refs returned by `pod_refs` will only be able to able to access HDFS
+    /// The pod refs returned by `pod_refs` will only be able to access HDFS
     /// from inside the Kubernetes cluster. For configuring downstream clients,
     /// consider using [`Self::namenode_listener_refs`] instead.
     pub fn pod_refs(&self, role: &HdfsNodeRole) -> Result<Vec<HdfsPodRef>, Error> {
@@ -678,7 +678,7 @@ impl v1alpha1::HdfsCluster {
         }
     }
 
-    /// Deprecated required JMX metrics port name and metrics port number tuples depending on the role.
+    /// Returns the deprecated JMX metrics port name and port number tuples for the given role.
     pub fn jmx_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
         match role {
             HdfsNodeRole::Name => vec![(
