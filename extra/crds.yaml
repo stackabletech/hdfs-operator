@@ -608,61 +608,37 @@ spec:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       hadoop-policy.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       hdfs-site.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       security.properties:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       ssl-client.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       ssl-server.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -1195,61 +1171,37 @@ spec:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             hadoop-policy.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             hdfs-site.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             security.properties:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             ssl-client.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             ssl-server.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                           type: object
                         envOverrides:
@@ -1728,61 +1680,37 @@ spec:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       hadoop-policy.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       hdfs-site.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       security.properties:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       ssl-client.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       ssl-server.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -2218,61 +2146,37 @@ spec:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             hadoop-policy.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             hdfs-site.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             security.properties:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             ssl-client.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             ssl-server.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                           type: object
                         envOverrides:
@@ -2934,61 +2838,37 @@ spec:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       hadoop-policy.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       hdfs-site.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       security.properties:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       ssl-client.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       ssl-server.xml:
                         additionalProperties:
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -3670,61 +3550,37 @@ spec:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             hadoop-policy.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             hdfs-site.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             security.properties:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             ssl-client.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             ssl-server.xml:
                               additionalProperties:
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                           type: object
                         envOverrides:
