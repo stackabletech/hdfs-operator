@@ -151,6 +151,40 @@ impl ValidatedCluster {
             })
             .collect()
     }
+
+    /// Builds the common [`ObjectMetaBuilder`] shared by a role group's owned resources
+    /// (the ConfigMap and the StatefulSet): name, namespace, owner reference and the
+    /// recommended labels, all derived from this validated cluster.
+    ///
+    /// This is infallible: a [`ValidatedCluster`] always carries a name, namespace and
+    /// uid, and its fail-safe typed values always produce valid label values, so neither
+    /// the owner reference nor the recommended labels can fail to build.
+    pub fn rolegroup_metadata(
+        &self,
+        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    ) -> ObjectMetaBuilder {
+        let mut metadata = ObjectMetaBuilder::new();
+        metadata
+            .name_and_namespace(self)
+            .name(rolegroup_ref.object_name())
+            .ownerreference_from_resource(self, None, Some(true))
+            .expect(
+                "the owner reference is valid because the ValidatedCluster has an \
+                api_version, kind, name and uid",
+            )
+            .with_recommended_labels(&build_recommended_labels(
+                self,
+                RESOURCE_MANAGER_HDFS_CONTROLLER,
+                &self.image.app_version_label_value,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            ))
+            .expect(
+                "the recommended labels are valid because the ValidatedCluster uses \
+                fail-safe typed values",
+            );
+        metadata
+    }
 }
 
 /// Lets [`ValidatedCluster`] be used as the owner [`Resource`] (e.g. in
@@ -271,12 +305,6 @@ pub enum Error {
         name: String,
     },
 
-    #[snafu(display("no metadata for {obj_ref:?}"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
-    },
-
     #[snafu(display("failed to build the role group ConfigMap"))]
     BuildRoleGroupConfigMap {
         source: crate::controller::build::config_map::Error,
@@ -340,11 +368,6 @@ pub enum Error {
 
     #[snafu(display("failed to build role-group volume claim templates from config"))]
     BuildRoleGroupVolumeClaimTemplates { source: container::Error },
-
-    #[snafu(display("failed to build object meta data"))]
-    ObjectMeta {
-        source: stackable_operator::builder::meta::Error,
-    },
 
     #[snafu(display("HdfsCluster object is invalid"))]
     InvalidHdfsCluster {
@@ -478,29 +501,9 @@ pub async fn reconcile_hdfs(
                 rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, resolved_product_image)
                     .context(BuildServiceSnafu)?;
 
-            // We need to split the creation and the usage of the "metadata" variable in two statements.
-            // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
-            let mut metadata = ObjectMetaBuilder::new();
-            let metadata = metadata
-                .name_and_namespace(&validated_cluster)
-                .name(rolegroup_ref.object_name())
-                .ownerreference_from_resource(&validated_cluster, None, Some(true))
-                .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                    obj_ref: ObjectRef::from_obj(hdfs),
-                })?
-                .with_recommended_labels(&build_recommended_labels(
-                    &validated_cluster,
-                    RESOURCE_MANAGER_HDFS_CONTROLLER,
-                    &resolved_product_image.app_version_label_value,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                ))
-                .context(ObjectMetaSnafu)?;
-
             let rg_configmap = crate::controller::build::config_map::build_rolegroup_config_map(
                 &validated_cluster,
                 &client.kubernetes_cluster_info,
-                metadata,
                 &rolegroup_ref,
             )
             .context(BuildRoleGroupConfigMapSnafu)?;
@@ -509,7 +512,6 @@ pub async fn reconcile_hdfs(
                 hdfs,
                 &validated_cluster,
                 &client.kubernetes_cluster_info,
-                metadata,
                 &role,
                 &rolegroup_ref,
                 resolved_product_image,
@@ -658,7 +660,6 @@ fn rolegroup_statefulset(
     hdfs: &v1alpha1::HdfsCluster,
     validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    metadata: &ObjectMetaBuilder,
     role: &HdfsNodeRole,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
     resolved_product_image: &ResolvedProductImage,
@@ -746,6 +747,8 @@ fn rolegroup_statefulset(
     // This is due to problems that might appear when restarting pods during the initial formatting of namenodes.
     // See: https://github.com/stackabletech/hdfs-operator/issues/750 (disable restart-controller)
     //      https://github.com/stackabletech/issues/issues/816 (enable restart-controller)
+    let metadata = validated.rolegroup_metadata(rolegroup_ref);
+
     Ok(StatefulSet {
         metadata: metadata.build(),
         spec: Some(statefulset_spec),

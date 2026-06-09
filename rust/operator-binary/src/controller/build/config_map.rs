@@ -4,12 +4,9 @@ use std::str::FromStr;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
-    k8s_openapi::api::core::v1::ConfigMap,
-    product_logging::framework::VECTOR_CONFIG_FILE,
-    role_utils::RoleGroupRef,
-    utils::cluster_info::KubernetesClusterInfo,
-    v2::config_file_writer::PropertiesWriterError,
+    builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE, role_utils::RoleGroupRef,
+    utils::cluster_info::KubernetesClusterInfo, v2::config_file_writer::PropertiesWriterError,
 };
 
 use crate::{
@@ -51,10 +48,11 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    metadata: &ObjectMetaBuilder,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
 ) -> Result<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
+
+    let metadata = cluster.rolegroup_metadata(rolegroup_ref);
 
     let role = HdfsNodeRole::from_str(&rolegroup_ref.role).with_context(|_| {
         UnidentifiedHdfsRoleSnafu {
