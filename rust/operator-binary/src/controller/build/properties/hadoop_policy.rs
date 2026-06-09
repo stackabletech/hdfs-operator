@@ -26,7 +26,11 @@ mod tests {
     fn empty_overrides_render_empty_configuration() {
         assert_eq!(
             build(config_overrides(&[])),
-            "<?xml version=\"1.0\"?>\n<configuration>\n</configuration>"
+            concat!(
+                "<?xml version=\"1.0\"?>\n",
+                "<configuration>\n",
+                "</configuration>"
+            )
         );
     }
 

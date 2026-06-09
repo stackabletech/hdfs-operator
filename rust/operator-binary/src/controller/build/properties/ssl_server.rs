@@ -56,7 +56,11 @@ mod tests {
     fn disabled_https_without_overrides_renders_empty_configuration() {
         assert_eq!(
             build(false, config_overrides(&[])),
-            "<?xml version=\"1.0\"?>\n<configuration>\n</configuration>"
+            concat!(
+                "<?xml version=\"1.0\"?>\n",
+                "<configuration>\n",
+                "</configuration>"
+            )
         );
     }
 
