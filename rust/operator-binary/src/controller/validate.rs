@@ -12,7 +12,7 @@ use stackable_operator::{
     commons::product_image_selection,
     config::merge::Merge,
     kube::ResourceExt,
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role},
+    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup},
     v2::types::{kubernetes::NamespaceName, operator::ClusterName},
 };
 use strum::IntoEnumIterator;
@@ -76,28 +76,17 @@ pub fn validate_cluster(
             role_configs.insert(hdfs_role, ValidatedRoleConfig { pdb: pdb.clone() });
         }
 
-        let role_group_overrides = match hdfs_role {
-            HdfsNodeRole::Name => collect_role_group_overrides(hdfs.spec.name_nodes.as_ref()),
-            HdfsNodeRole::Data => collect_role_group_overrides(hdfs.spec.data_nodes.as_ref()),
-            HdfsNodeRole::Journal => collect_role_group_overrides(hdfs.spec.journal_nodes.as_ref()),
+        let group_configs = match hdfs_role {
+            HdfsNodeRole::Name => {
+                validate_role_group_configs(hdfs, hdfs_role, hdfs.spec.name_nodes.as_ref())?
+            }
+            HdfsNodeRole::Data => {
+                validate_role_group_configs(hdfs, hdfs_role, hdfs.spec.data_nodes.as_ref())?
+            }
+            HdfsNodeRole::Journal => {
+                validate_role_group_configs(hdfs, hdfs_role, hdfs.spec.journal_nodes.as_ref())?
+            }
         };
-
-        let mut group_configs = BTreeMap::new();
-        for (role_group_name, replicas, config_overrides, env_overrides) in role_group_overrides {
-            let merged_config = hdfs_role
-                .merged_config(hdfs, &role_group_name)
-                .context(FailedToResolveConfigSnafu)?;
-
-            group_configs.insert(
-                role_group_name,
-                ValidatedRoleGroupConfig {
-                    replicas,
-                    merged_config,
-                    config_overrides,
-                    env_overrides,
-                },
-            );
-        }
 
         role_groups.insert(hdfs_role, group_configs);
     }
@@ -115,37 +104,54 @@ pub fn validate_cluster(
     })
 }
 
-/// For every role group of a role, collects the replica count and merges the
-/// role-level and role-group-level `configOverrides` and `envOverrides` (the role
-/// group wins).
-fn collect_role_group_overrides<C>(
+/// Validates every role group of a role into a map keyed by role group name.
+///
+/// Returns an empty map if the role is not configured.
+fn validate_role_group_configs<C>(
+    hdfs: &v1alpha1::HdfsCluster,
+    hdfs_role: HdfsNodeRole,
     role: Option<&Role<C, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
-) -> Vec<(
-    String,
-    u16,
-    v1alpha1::HdfsConfigOverrides,
-    BTreeMap<String, String>,
-)> {
+) -> Result<BTreeMap<String, ValidatedRoleGroupConfig>, Error> {
     let Some(role) = role else {
-        return Vec::new();
+        return Ok(BTreeMap::new());
     };
 
     role.role_groups
         .iter()
         .map(|(role_group_name, role_group)| {
-            let mut config_overrides = role_group.config.config_overrides.clone();
-            config_overrides.merge(&role.config.config_overrides);
-
-            let mut env_overrides = BTreeMap::new();
-            env_overrides.extend(role.config.env_overrides.clone());
-            env_overrides.extend(role_group.config.env_overrides.clone());
-
-            (
-                role_group_name.clone(),
-                role_group.replicas.unwrap_or_default(),
-                config_overrides,
-                env_overrides,
-            )
+            let validated =
+                validate_role_group_config(hdfs, hdfs_role, role, role_group_name, role_group)?;
+            Ok((role_group_name.clone(), validated))
         })
         .collect()
+}
+
+/// Validates a single role group into a [`ValidatedRoleGroupConfig`]: merges and
+/// validates the CRD config via [`HdfsNodeRole::merged_config`] and merges the
+/// role-level and role-group-level `configOverrides` and `envOverrides` (the role
+/// group wins).
+fn validate_role_group_config<C>(
+    hdfs: &v1alpha1::HdfsCluster,
+    hdfs_role: HdfsNodeRole,
+    role: &Role<C, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>,
+    role_group_name: &str,
+    role_group: &RoleGroup<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+) -> Result<ValidatedRoleGroupConfig, Error> {
+    let config = hdfs_role
+        .merged_config(hdfs, role_group_name)
+        .context(FailedToResolveConfigSnafu)?;
+
+    let mut config_overrides = role_group.config.config_overrides.clone();
+    config_overrides.merge(&role.config.config_overrides);
+
+    let mut env_overrides = BTreeMap::new();
+    env_overrides.extend(role.config.env_overrides.clone());
+    env_overrides.extend(role_group.config.env_overrides.clone());
+
+    Ok(ValidatedRoleGroupConfig {
+        replicas: role_group.replicas.unwrap_or_default(),
+        config,
+        config_overrides,
+        env_overrides,
+    })
 }

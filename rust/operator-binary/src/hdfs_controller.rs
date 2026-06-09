@@ -159,7 +159,7 @@ pub struct ValidatedRoleGroupConfig {
     /// The number of replicas (pods) for this role group, used to derive the
     /// per-pod [`HdfsPodRef`]s via [`ValidatedCluster::pod_refs`].
     pub replicas: u16,
-    pub merged_config: AnyNodeConfig,
+    pub config: AnyNodeConfig,
     pub config_overrides: v1alpha1::HdfsConfigOverrides,
     pub env_overrides: BTreeMap<String, String>,
 }
@@ -398,7 +398,7 @@ pub async fn reconcile_hdfs(
         }
 
         for (rolegroup_name, validated_cluster_rg_config) in group_config.iter() {
-            let merged_config = &validated_cluster_rg_config.merged_config;
+            let merged_config = &validated_cluster_rg_config.config;
 
             let env_overrides = &validated_cluster_rg_config.env_overrides;
 
@@ -751,7 +751,7 @@ spec:
             .unwrap();
         let rolegroup_ref = hdfs.rolegroup_ref(role.to_string(), "default");
         let env_overrides = &validated_rg_config.env_overrides;
-        let merged_config = &validated_rg_config.merged_config;
+        let merged_config = &validated_rg_config.config;
         let resolved_product_image = &validated.image;
 
         let mut pb = PodBuilder::new();

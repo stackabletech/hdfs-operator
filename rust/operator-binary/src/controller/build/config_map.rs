@@ -69,7 +69,7 @@ pub fn build_rolegroup_config_map(
             role: rolegroup_ref.role.clone(),
             role_group: rolegroup_ref.role_group.clone(),
         })?;
-    let merged_config = &rolegroup_config.merged_config;
+    let merged_config = &rolegroup_config.config;
     let config_overrides = &rolegroup_config.config_overrides;
     let cluster_config = &cluster.cluster_config;
 
