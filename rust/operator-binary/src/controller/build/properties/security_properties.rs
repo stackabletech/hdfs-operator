@@ -10,8 +10,6 @@ use stackable_operator::v2::{
     config_overrides::KeyValueConfigOverrides,
 };
 
-use crate::controller::build::properties::resolved_overrides;
-
 /// Renders `security.properties`: recommended DNS cache TTLs plus user overrides.
 pub fn build(overrides: KeyValueConfigOverrides) -> Result<String, PropertiesWriterError> {
     // Recommended JVM DNS cache TTLs. Caching forever (the JVM default for
@@ -25,19 +23,18 @@ pub fn build(overrides: KeyValueConfigOverrides) -> Result<String, PropertiesWri
         ),
     ]);
     // Overrides applied last so users win.
-    config.extend(resolved_overrides(overrides));
+    config.extend(overrides);
     to_java_properties_string(config.iter())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::build::properties::test_support::config_overrides;
 
     #[test]
     fn injects_recommended_dns_cache_ttls() {
         assert_eq!(
-            build(config_overrides(&[])).unwrap(),
+            build(KeyValueConfigOverrides::default()).unwrap(),
             "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n"
         );
     }
@@ -45,7 +42,7 @@ mod tests {
     #[test]
     fn user_overrides_win_over_injected_defaults() {
         assert_eq!(
-            build(config_overrides(&[("networkaddress.cache.ttl", "60")])).unwrap(),
+            build([("networkaddress.cache.ttl", "60")].into()).unwrap(),
             "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=60\n"
         );
     }
@@ -53,7 +50,7 @@ mod tests {
     #[test]
     fn extra_overrides_are_appended() {
         assert_eq!(
-            build(config_overrides(&[("foo.bar", "baz")])).unwrap(),
+            build([("foo.bar", "baz")].into()).unwrap(),
             "foo.bar=baz\nnetworkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n"
         );
     }

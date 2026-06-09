@@ -1,14 +1,12 @@
 //! Builds the `core-site.xml` config file.
 
-use std::collections::BTreeMap;
-
 use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo, v2::config_overrides::KeyValueConfigOverrides,
 };
 
 use crate::{
-    config::CoreSiteConfigBuilder, controller::build::properties::resolved_overrides,
-    crd::HdfsNodeRole, hdfs_controller::ValidatedCluster, security::kerberos::KerberosConfig,
+    config::CoreSiteConfigBuilder, crd::HdfsNodeRole, hdfs_controller::ValidatedCluster,
+    security::kerberos::KerberosConfig,
 };
 
 /// Renders `core-site.xml`: operator defaults + kerberos/OPA security config,
@@ -48,16 +46,13 @@ pub fn build(
         opa_config.add_core_site_config(&mut core_site);
     }
     // the extend with config must come last in order to have overrides working!!!
-    let overrides: BTreeMap<String, String> = resolved_overrides(overrides).collect();
-    core_site.extend(&overrides).build_as_xml()
+    core_site.extend(overrides).build_as_xml()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::build::properties::test_support::{
-        cluster_info, config_overrides, validated_cluster,
-    };
+    use crate::controller::build::properties::test_support::{cluster_info, validated_cluster};
 
     #[test]
     fn renders_operator_defaults() {
@@ -65,7 +60,7 @@ mod tests {
             &validated_cluster(),
             HdfsNodeRole::Name,
             &cluster_info(),
-            config_overrides(&[]),
+            KeyValueConfigOverrides::default(),
         );
         assert!(
             xml.contains("<name>fs.defaultFS</name>\n    <value>hdfs://hdfs/</value>"),
@@ -89,7 +84,7 @@ mod tests {
             &validated_cluster(),
             HdfsNodeRole::Name,
             &cluster_info(),
-            config_overrides(&[("io.file.buffer.size", "65536")]),
+            [("io.file.buffer.size", "65536")].into(),
         );
         assert!(
             xml.contains("<name>io.file.buffer.size</name>\n    <value>65536</value>"),

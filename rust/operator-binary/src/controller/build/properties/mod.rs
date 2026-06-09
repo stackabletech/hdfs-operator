@@ -3,10 +3,6 @@
 //! config file; the shared [`stackable_operator::v2::config_file_writer`]
 //! module serializes maps to the Hadoop-XML / Java-properties on-wire format.
 
-use std::collections::BTreeMap;
-
-use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
-
 pub mod core_site;
 pub mod hadoop_policy;
 pub mod hdfs_site;
@@ -14,23 +10,6 @@ pub mod logging;
 pub mod security_properties;
 pub mod ssl_client;
 pub mod ssl_server;
-
-/// Keep only the set (`Some`) entries of a `key -> optional value` map, as `(key, value)` pairs.
-fn defined_entries(
-    entries: BTreeMap<String, Option<String>>,
-) -> impl Iterator<Item = (String, String)> {
-    entries
-        .into_iter()
-        .filter_map(|(key, value)| value.map(|value| (key, value)))
-}
-
-/// Resolve user-provided [`KeyValueConfigOverrides`] into the key/value pairs to merge
-/// into a config file, dropping entries whose value is unset (`None`).
-fn resolved_overrides(
-    overrides: KeyValueConfigOverrides,
-) -> impl Iterator<Item = (String, String)> {
-    defined_entries(overrides.overrides)
-}
 
 /// The names of the HDFS config files assembled into the rolegroup `ConfigMap`.
 #[derive(Clone, Copy, Debug, strum::Display)]
@@ -71,22 +50,11 @@ mod tests {
 pub(crate) mod test_support {
     use stackable_operator::{
         commons::networking::DomainName, utils::cluster_info::KubernetesClusterInfo,
-        v2::config_overrides::KeyValueConfigOverrides,
     };
 
     use crate::{
         controller::validate::validate_cluster, crd::v1alpha1, hdfs_controller::ValidatedCluster,
     };
-
-    /// Builds a [`KeyValueConfigOverrides`] from `(key, value)` pairs for tests.
-    pub fn config_overrides(pairs: &[(&str, &str)]) -> KeyValueConfigOverrides {
-        KeyValueConfigOverrides {
-            overrides: pairs
-                .iter()
-                .map(|(k, v)| (k.to_string(), Some(v.to_string())))
-                .collect(),
-        }
-    }
 
     /// A minimal three-role HdfsCluster used to drive the per-file builder tests.
     pub const MINIMAL_HDFS_YAML: &str = r#"
