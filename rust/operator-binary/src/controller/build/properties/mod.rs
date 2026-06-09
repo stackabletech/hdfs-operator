@@ -96,6 +96,7 @@ kind: HdfsCluster
 metadata:
   name: hdfs
   namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
 spec:
   image:
     productVersion: 3.4.0

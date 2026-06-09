@@ -4,7 +4,6 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::runtime::reflector::ObjectRef,
     utils::cluster_info::KubernetesClusterInfo,
 };
 
@@ -12,7 +11,7 @@ use crate::{
     build_recommended_labels,
     config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
     controller::build::properties::ConfigFileName,
-    crd::{HdfsNodeRole, HdfsPodRef, v1alpha1},
+    crd::{HdfsNodeRole, HdfsPodRef},
     hdfs_controller::{HDFS_CONTROLLER_NAME, ValidatedCluster},
     security::kerberos::KerberosConfig,
 };
@@ -22,10 +21,10 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object {hdfs} is missing metadata to build owner reference"))]
+    #[snafu(display("object {name} is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
-        hdfs: ObjectRef<v1alpha1::HdfsCluster>,
+        name: String,
     },
 
     #[snafu(display("failed to build ConfigMap"))]
@@ -42,23 +41,22 @@ pub enum Error {
 /// Creates a discovery config map containing the `hdfs-site.xml` and `core-site.xml`
 /// for clients.
 ///
-/// The rendered content comes entirely from `cluster` (with the externally-resolved
-/// `cluster_info` and `namenode_podrefs`); `owner_ref` is retained only for the ConfigMap
-/// ObjectMeta / owner reference.
+/// The rendered content as well as the ConfigMap ObjectMeta / owner reference come
+/// entirely from `cluster` (with the externally-resolved `cluster_info` and
+/// `namenode_podrefs`).
 pub fn build_discovery_config_map(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     namenode_podrefs: &[HdfsPodRef],
-    owner_ref: &v1alpha1::HdfsCluster,
 ) -> Result<ConfigMap> {
     let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(owner_ref)
-        .ownerreference_from_resource(owner_ref, None, Some(true))
+        .name_and_namespace(cluster)
+        .ownerreference_from_resource(cluster, None, Some(true))
         .context(ObjectMissingMetadataForOwnerRefSnafu {
-            hdfs: ObjectRef::from_obj(owner_ref),
+            name: cluster.name.to_string(),
         })?
         .with_recommended_labels(&build_recommended_labels(
-            owner_ref,
+            cluster,
             HDFS_CONTROLLER_NAME,
             &cluster.image.app_version_label_value,
             &HdfsNodeRole::Name.to_string(),

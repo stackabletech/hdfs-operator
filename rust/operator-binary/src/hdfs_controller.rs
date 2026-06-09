@@ -41,7 +41,10 @@ use stackable_operator::{
         rollout::check_statefulset_rollout_complete,
     },
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
+    v2::types::{
+        kubernetes::{NamespaceName, Uid},
+        operator::ClusterName,
+    },
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
@@ -74,6 +77,10 @@ pub const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 /// the controller.
 #[derive(Clone, Debug)]
 pub struct ValidatedCluster {
+    /// The cluster's object metadata (name, namespace and uid). Kept private and only
+    /// exposed via the [`Resource`] implementation so this type can act as the owner
+    /// when building owned objects.
+    metadata: ObjectMeta,
     /// The logical (and Kubernetes object) name of the cluster.
     pub name: ClusterName,
     /// The cluster namespace, used to build kerberos principals.
@@ -85,6 +92,33 @@ pub struct ValidatedCluster {
 }
 
 impl ValidatedCluster {
+    pub fn new(
+        name: ClusterName,
+        namespace: NamespaceName,
+        uid: Uid,
+        image: ResolvedProductImage,
+        cluster_config: ValidatedClusterConfig,
+        role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
+        role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+    ) -> Self {
+        Self {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                namespace: Some(namespace.to_string()),
+                // The uid is required so this type can produce valid owner references
+                // (Kubernetes rejects owner references without a uid).
+                uid: Some(uid.to_string()),
+                ..ObjectMeta::default()
+            },
+            name,
+            namespace,
+            image,
+            cluster_config,
+            role_groups,
+            role_configs,
+        }
+    }
+
     /// Builds the [`HdfsPodRef`]s expected for every pod of the given `role`, across
     /// all of its role groups.
     ///
@@ -116,6 +150,39 @@ impl ValidatedCluster {
                 })
             })
             .collect()
+    }
+}
+
+/// Lets [`ValidatedCluster`] be used as the owner [`Resource`] (e.g. in
+/// [`ObjectMetaBuilder::ownerreference_from_resource`]). The kind/group/version/plural
+/// are delegated to [`v1alpha1::HdfsCluster`] so the generated owner references are
+/// identical to the ones built from the raw cluster object.
+impl Resource for ValidatedCluster {
+    type DynamicType = <v1alpha1::HdfsCluster as Resource>::DynamicType;
+    type Scope = <v1alpha1::HdfsCluster as Resource>::Scope;
+
+    fn kind(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HdfsCluster::kind(dt)
+    }
+
+    fn group(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HdfsCluster::group(dt)
+    }
+
+    fn version(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HdfsCluster::version(dt)
+    }
+
+    fn plural(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::HdfsCluster::plural(dt)
+    }
+
+    fn meta(&self) -> &ObjectMeta {
+        &self.metadata
+    }
+
+    fn meta_mut(&mut self) -> &mut ObjectMeta {
+        &mut self.metadata
     }
 }
 
@@ -415,14 +482,14 @@ pub async fn reconcile_hdfs(
             // to avoid the compiler error "E0716 (temporary value dropped while borrowed)".
             let mut metadata = ObjectMetaBuilder::new();
             let metadata = metadata
-                .name_and_namespace(hdfs)
+                .name_and_namespace(&validated_cluster)
                 .name(rolegroup_ref.object_name())
-                .ownerreference_from_resource(hdfs, None, Some(true))
+                .ownerreference_from_resource(&validated_cluster, None, Some(true))
                 .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
                     obj_ref: ObjectRef::from_obj(hdfs),
                 })?
                 .with_recommended_labels(&build_recommended_labels(
-                    hdfs,
+                    &validated_cluster,
                     RESOURCE_MANAGER_HDFS_CONTROLLER,
                     &resolved_product_image.app_version_label_value,
                     &rolegroup_ref.role,
@@ -523,7 +590,6 @@ pub async fn reconcile_hdfs(
             .namenode_listener_refs(client)
             .await
             .context(CollectDiscoveryConfigSnafu)?,
-        hdfs,
     )
     .context(BuildDiscoveryConfigMapSnafu)?;
 
@@ -714,6 +780,7 @@ kind: HdfsCluster
 metadata:
   name: hdfs
   namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
 spec:
   image:
     productVersion: 3.4.0

@@ -5,15 +5,14 @@
 //! [`HdfsNodeRole::merged_config`], and the per-file `configOverrides` / `envOverrides`
 //! are merged here (role group wins).
 
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::BTreeMap;
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
     config::merge::Merge,
-    kube::ResourceExt,
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup},
-    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
+    v2::controller_utils::{get_cluster_name, get_namespace, get_uid},
 };
 use strum::IntoEnumIterator;
 
@@ -33,17 +32,19 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("invalid cluster name"))]
-    InvalidClusterName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to get the cluster name"))]
+    GetClusterName {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("the HdfsCluster has no namespace"))]
-    ObjectHasNoNamespace,
+    #[snafu(display("failed to get the cluster namespace"))]
+    GetClusterNamespace {
+        source: stackable_operator::v2::controller_utils::Error,
+    },
 
-    #[snafu(display("invalid cluster namespace"))]
-    InvalidNamespace {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to get the cluster uid"))]
+    GetClusterUid {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
@@ -91,17 +92,19 @@ pub fn validate_cluster(
         role_groups.insert(hdfs_role, group_configs);
     }
 
-    let namespace = hdfs.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    let namespace = NamespaceName::from_str(&namespace).context(InvalidNamespaceSnafu)?;
+    let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
+    let namespace = get_namespace(hdfs).context(GetClusterNamespaceSnafu)?;
+    let uid = get_uid(hdfs).context(GetClusterUidSnafu)?;
 
-    Ok(ValidatedCluster {
-        name: ClusterName::from_str(&hdfs.name_any()).context(InvalidClusterNameSnafu)?,
+    Ok(ValidatedCluster::new(
+        cluster_name,
         namespace,
-        image: resolved_product_image,
-        cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
+        uid,
+        resolved_product_image,
+        ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,
         role_configs,
-    })
+    ))
 }
 
 /// Validates every role group of a role into a map keyed by role group name.
