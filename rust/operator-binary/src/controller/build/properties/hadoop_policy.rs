@@ -3,34 +3,29 @@
 //! The operator sets no defaults here; the file exists purely so users can
 //! supply `configOverrides`.
 
-use std::collections::BTreeMap;
-
 use stackable_operator::v2::{
     config_file_writer::to_hadoop_xml, config_overrides::KeyValueConfigOverrides,
 };
 
-use crate::controller::build::properties::resolved_overrides;
-
 /// Renders `hadoop-policy.xml` from the user-provided overrides only.
 pub fn build(overrides: KeyValueConfigOverrides) -> String {
-    let config: BTreeMap<String, String> = resolved_overrides(overrides).collect();
-    to_hadoop_xml(config.iter())
+    to_hadoop_xml(overrides.iter())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::build::properties::test_support::{EMPTY_HADOOP_XML, config_overrides};
+    use crate::controller::build::properties::test_support::EMPTY_HADOOP_XML;
 
     #[test]
     fn empty_overrides_render_empty_configuration() {
-        assert_eq!(build(config_overrides(&[])), EMPTY_HADOOP_XML);
+        assert_eq!(build(KeyValueConfigOverrides::default()), EMPTY_HADOOP_XML);
     }
 
     #[test]
     fn overrides_are_rendered_as_properties() {
         assert_eq!(
-            build(config_overrides(&[("security.client.protocol.acl", "*")])),
+            build([("security.client.protocol.acl", "*")].into()),
             concat!(
                 "<?xml version=\"1.0\"?>\n",
                 "<configuration>\n",

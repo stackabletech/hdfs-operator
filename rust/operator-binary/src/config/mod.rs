@@ -40,8 +40,8 @@ impl HdfsSiteConfigBuilder {
         self
     }
 
-    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
-        self.config.extend(properties.clone());
+    pub fn extend(&mut self, properties: impl IntoIterator<Item = (String, String)>) -> &mut Self {
+        self.config.extend(properties);
         self
     }
 
@@ -238,8 +238,8 @@ impl CoreSiteConfigBuilder {
         self
     }
 
-    pub fn extend(&mut self, properties: &BTreeMap<String, String>) -> &mut Self {
-        self.config.extend(properties.clone());
+    pub fn extend(&mut self, properties: impl IntoIterator<Item = (String, String)>) -> &mut Self {
+        self.config.extend(properties);
         self
     }
 

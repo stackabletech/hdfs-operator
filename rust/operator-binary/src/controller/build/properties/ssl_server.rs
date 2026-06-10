@@ -11,7 +11,7 @@ use stackable_operator::v2::{
 
 use crate::{
     container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    controller::build::properties::{resolved_overrides, truststore_entries},
+    controller::build::properties::truststore_entries,
 };
 
 /// Renders `ssl-server.xml` for the given HTTPS state and user overrides.
@@ -32,23 +32,26 @@ pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String 
         ]);
     }
     // Overrides applied last so users win.
-    config.extend(resolved_overrides(overrides));
+    config.extend(overrides);
     to_hadoop_xml(config.iter())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::build::properties::test_support::{EMPTY_HADOOP_XML, config_overrides};
+    use crate::controller::build::properties::test_support::EMPTY_HADOOP_XML;
 
     #[test]
     fn disabled_https_without_overrides_renders_empty_configuration() {
-        assert_eq!(build(false, config_overrides(&[])), EMPTY_HADOOP_XML);
+        assert_eq!(
+            build(false, KeyValueConfigOverrides::default()),
+            EMPTY_HADOOP_XML
+        );
     }
 
     #[test]
     fn enabled_https_injects_keystore_and_truststore() {
-        let xml = build(true, config_overrides(&[]));
+        let xml = build(true, KeyValueConfigOverrides::default());
         assert!(
             xml.contains(&format!(
                 "<name>ssl.server.keystore.location</name>\n    <value>{TLS_STORE_DIR}/keystore.p12</value>"
@@ -65,10 +68,7 @@ mod tests {
 
     #[test]
     fn user_overrides_win_over_injected_defaults() {
-        let xml = build(
-            true,
-            config_overrides(&[("ssl.server.keystore.type", "jks")]),
-        );
+        let xml = build(true, [("ssl.server.keystore.type", "jks")].into());
         assert!(
             xml.contains("<name>ssl.server.keystore.type</name>\n    <value>jks</value>"),
             "{xml}"

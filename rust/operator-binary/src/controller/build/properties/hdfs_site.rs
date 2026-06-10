@@ -1,14 +1,12 @@
 //! Builds the `hdfs-site.xml` config file.
 
-use std::collections::BTreeMap;
-
 use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo, v2::config_overrides::KeyValueConfigOverrides,
 };
 
 use crate::{
     config::HdfsSiteConfigBuilder,
-    controller::{ValidatedCluster, build::properties::resolved_overrides},
+    controller::ValidatedCluster,
     crd::{AnyNodeConfig, HdfsNodeRole},
 };
 
@@ -109,8 +107,7 @@ pub fn build(
         opa_config.add_hdfs_site_config(&mut hdfs_site);
     }
     // the extend with config must come last in order to have overrides working!!!
-    let overrides: BTreeMap<String, String> = resolved_overrides(overrides).collect();
-    hdfs_site.extend(&overrides).build_as_xml()
+    hdfs_site.extend(overrides).build_as_xml()
 }
 
 #[cfg(test)]
@@ -118,7 +115,7 @@ mod tests {
     use super::*;
     use crate::{
         controller::build::properties::test_support::{
-            cluster_info, config_overrides, minimal_hdfs, validated_cluster,
+            cluster_info, minimal_hdfs, validated_cluster,
         },
         crd::{HdfsNodeRole, v1alpha1},
     };
@@ -136,7 +133,7 @@ mod tests {
             &validated_cluster(),
             &cluster_info(),
             &merged,
-            config_overrides(&[]),
+            KeyValueConfigOverrides::default(),
         );
         assert!(
             xml.contains("<name>dfs.replication</name>\n    <value>3</value>"),
@@ -155,7 +152,7 @@ mod tests {
             &validated_cluster(),
             &cluster_info(),
             &merged,
-            config_overrides(&[("dfs.replication", "5")]),
+            [("dfs.replication", "5")].into(),
         );
         assert!(
             xml.contains("<name>dfs.replication</name>\n    <value>5</value>"),
