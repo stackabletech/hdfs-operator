@@ -25,10 +25,7 @@ use stackable_operator::{
     },
     crd::listener,
     deep_merger::ObjectOverrides,
-    k8s_openapi::{
-        api::core::v1::{Pod, PodTemplateSpec},
-        apimachinery::pkg::api::resource::Quantity,
-    },
+    k8s_openapi::{api::core::v1::Pod, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     kvp::{LabelError, Labels},
     product_logging::{
@@ -370,44 +367,6 @@ impl v1alpha1::HdfsCluster {
                 .get_merged_jvm_argument_overrides(role_group, operator_generated),
         }
         .context(MergeJvmArgumentOverridesSnafu)
-    }
-
-    pub fn pod_overrides_for_role(&self, role: &HdfsNodeRole) -> Option<&PodTemplateSpec> {
-        match role {
-            HdfsNodeRole::Name => self
-                .spec
-                .name_nodes
-                .as_ref()
-                .map(|n| &n.config.pod_overrides),
-            HdfsNodeRole::Data => self
-                .spec
-                .data_nodes
-                .as_ref()
-                .map(|n| &n.config.pod_overrides),
-            HdfsNodeRole::Journal => self
-                .spec
-                .journal_nodes
-                .as_ref()
-                .map(|n| &n.config.pod_overrides),
-        }
-    }
-
-    pub fn pod_overrides_for_role_group(
-        &self,
-        role: &HdfsNodeRole,
-        role_group: &str,
-    ) -> Option<&PodTemplateSpec> {
-        match role {
-            HdfsNodeRole::Name => self
-                .namenode_rolegroup(role_group)
-                .map(|r| &r.config.pod_overrides),
-            HdfsNodeRole::Data => self
-                .datanode_rolegroup(role_group)
-                .map(|r| &r.config.pod_overrides),
-            HdfsNodeRole::Journal => self
-                .journalnode_rolegroup(role_group)
-                .map(|r| &r.config.pod_overrides),
-        }
     }
 
     pub fn rolegroup_ref(

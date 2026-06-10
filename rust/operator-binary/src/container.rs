@@ -53,6 +53,7 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
+    v2::builder::pod::container::EnvVarSet,
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
@@ -218,7 +219,7 @@ impl ContainerConfig {
         rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
-        env_overrides: Option<&BTreeMap<String, String>>,
+        env_overrides: Option<&EnvVarSet>,
         zk_config_map_name: &str,
         namenode_podrefs: &[HdfsPodRef],
         labels: &Labels,
@@ -472,7 +473,7 @@ impl ContainerConfig {
         rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
-        env_overrides: Option<&BTreeMap<String, String>>,
+        env_overrides: Option<&EnvVarSet>,
         merged_config: &AnyNodeConfig,
         labels: &Labels,
     ) -> Result<Container, Error> {
@@ -533,7 +534,7 @@ impl ContainerConfig {
         role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
-        env_overrides: Option<&BTreeMap<String, String>>,
+        env_overrides: Option<&EnvVarSet>,
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &AnyNodeConfig,
         labels: &Labels,
@@ -871,7 +872,7 @@ impl ContainerConfig {
         hdfs: &v1alpha1::HdfsCluster,
         role_group: &str,
         zookeeper_config_map_name: &str,
-        env_overrides: Option<&BTreeMap<String, String>>,
+        env_overrides: Option<&EnvVarSet>,
         resources: Option<&ResourceRequirements>,
     ) -> Result<Vec<EnvVar>, Error> {
         // Maps env var name to env var object. This allows env_overrides to work
@@ -963,11 +964,12 @@ impl ContainerConfig {
         );
 
         // Overrides need to come last
-        let mut env_override_vars: BTreeMap<String, EnvVar> =
-            Self::transform_env_overrides_to_env_vars(env_overrides)
-                .into_iter()
-                .map(|env_var| (env_var.name.clone(), env_var))
-                .collect();
+        let mut env_override_vars: BTreeMap<String, EnvVar> = env_overrides
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|env_var| (env_var.name.clone(), env_var))
+            .collect();
 
         env.append(&mut env_override_vars);
 
@@ -1301,22 +1303,6 @@ impl ContainerConfig {
                 vec![]
             }
         }
-    }
-
-    /// Transform the ProductConfig map structure to a Vector of env vars.
-    fn transform_env_overrides_to_env_vars(
-        env_overrides: Option<&BTreeMap<String, String>>,
-    ) -> Vec<EnvVar> {
-        env_overrides
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(k, v)| EnvVar {
-                name: k,
-                value: Some(v),
-                ..EnvVar::default()
-            })
-            .collect()
     }
 
     /// Common shared or required container env variables.

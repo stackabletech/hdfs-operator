@@ -205,13 +205,18 @@ pub struct ValidatedRoleConfig {
 }
 
 /// Per-rolegroup configuration: the merged CRD config plus the merged
-/// (role <- role group) `configOverrides` and `envOverrides`.
-#[derive(Clone, Debug)]
-pub struct ValidatedRoleGroupConfig {
-    /// The number of replicas (pods) for this role group, used to derive the
-    /// per-pod [`HdfsPodRef`]s via [`ValidatedCluster::pod_refs`].
-    pub replicas: u16,
-    pub config: AnyNodeConfig,
-    pub config_overrides: v1alpha1::HdfsConfigOverrides,
-    pub env_overrides: BTreeMap<String, String>,
-}
+/// (role <- role group) `configOverrides`, `envOverrides`, `cliOverrides` and
+/// `podOverrides`.
+///
+/// This is the local-`framework` [`RoleGroupConfig`](crate::framework::role_utils::RoleGroupConfig)
+/// specialised for HDFS: the validated config is the per-role [`AnyNodeConfig`],
+/// the product-specific common config is [`JavaCommonConfig`] (whose JVM-argument
+/// merge is fallible, hence the vendored framework variant), and the config
+/// overrides are [`v1alpha1::HdfsConfigOverrides`]. The `replicas` field is used
+/// to derive the per-pod [`HdfsPodRef`]s via [`ValidatedCluster::pod_refs`] and
+/// `env_overrides` is the typed [`EnvVarSet`](stackable_operator::v2::builder::pod::container::EnvVarSet).
+pub type ValidatedRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
+    AnyNodeConfig,
+    stackable_operator::role_utils::JavaCommonConfig,
+    v1alpha1::HdfsConfigOverrides,
+>;

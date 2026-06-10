@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -6,7 +6,7 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::rbac::build_rbac_resources,
     iter::reverse_if,
     k8s_openapi::{
         DeepMerge,
@@ -41,12 +41,11 @@ use crate::{
     OPERATOR_NAME,
     container::{self, ContainerConfig},
     controller::{
-        ValidatedCluster,
+        ValidatedCluster, ValidatedRoleGroupConfig,
         build::discovery::{self, build_discovery_config_map},
     },
     crd::{
-        AnyNodeConfig, HdfsClusterStatus, HdfsNodeRole, UpgradeState, UpgradeStateError,
-        constants::*, v1alpha1,
+        HdfsClusterStatus, HdfsNodeRole, UpgradeState, UpgradeStateError, constants::*, v1alpha1,
     },
     event::{build_invalid_replica_message, publish_warning_event},
     operations::{
@@ -206,7 +205,7 @@ pub async fn reconcile_hdfs(
     let validated_cluster = crate::controller::validate::validate_cluster(
         hdfs,
         &ctx.operator_environment.image_repository,
-        dereferenced.hdfs_opa_config,
+        dereferenced,
     )
     .context(ValidateSnafu)?;
 
@@ -282,10 +281,6 @@ pub async fn reconcile_hdfs(
         }
 
         for (rolegroup_name, validated_cluster_rg_config) in group_config.iter() {
-            let merged_config = &validated_cluster_rg_config.config;
-
-            let env_overrides = &validated_cluster_rg_config.env_overrides;
-
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
             let rg_service =
@@ -308,9 +303,7 @@ pub async fn reconcile_hdfs(
                 &client.kubernetes_cluster_info,
                 &role,
                 &rolegroup_ref,
-                resolved_product_image,
-                Some(env_overrides),
-                merged_config,
+                validated_cluster_rg_config,
                 &rbac_sa,
             )?;
 
@@ -449,19 +442,20 @@ pub async fn reconcile_hdfs(
     Ok(Action::await_change())
 }
 
-#[allow(clippy::too_many_arguments)]
 fn rolegroup_statefulset(
     hdfs: &v1alpha1::HdfsCluster,
     validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role: &HdfsNodeRole,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    resolved_product_image: &ResolvedProductImage,
-    env_overrides: Option<&BTreeMap<String, String>>,
-    merged_config: &AnyNodeConfig,
+    rolegroup_config: &ValidatedRoleGroupConfig,
     service_account: &ServiceAccount,
 ) -> HdfsOperatorResult<StatefulSet> {
     tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
+
+    let image = &validated.image;
+    let merged_config = &rolegroup_config.config;
+    let env_overrides = Some(&rolegroup_config.env_overrides);
 
     // Pod references for all namenodes across all role groups, needed to wire up the
     // init containers of this role group.
@@ -480,7 +474,7 @@ fn rolegroup_statefulset(
     };
 
     pb.metadata(pb_metadata)
-        .image_pull_secrets_from_product_image(resolved_product_image)
+        .image_pull_secrets_from_product_image(image)
         .affinity(&merged_config.affinity)
         .service_account_name(service_account.name_any())
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
@@ -497,7 +491,7 @@ fn rolegroup_statefulset(
         cluster_info,
         role,
         rolegroup_ref,
-        resolved_product_image,
+        image,
         merged_config,
         env_overrides,
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
@@ -508,14 +502,10 @@ fn rolegroup_statefulset(
 
     add_graceful_shutdown_config(merged_config, &mut pb).context(GracefulShutdownSnafu)?;
 
+    // The `podOverrides` were already merged (role <- role group) during validation
+    // by the local-`framework` `with_validated_config`.
     let mut pod_template = pb.build_template();
-    if let Some(pod_overrides) = hdfs.pod_overrides_for_role(role) {
-        pod_template.merge_from(pod_overrides.clone());
-    }
-    if let Some(pod_overrides) = hdfs.pod_overrides_for_role_group(role, &rolegroup_ref.role_group)
-    {
-        pod_template.merge_from(pod_overrides.clone());
-    }
+    pod_template.merge_from(rolegroup_config.pod_overrides.clone());
 
     // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
     let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels)
@@ -604,7 +594,14 @@ spec:
 ";
         let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
 
-        let validated = validate_cluster(&hdfs, "oci.example.org", None).unwrap();
+        let validated = validate_cluster(
+            &hdfs,
+            "oci.example.org",
+            crate::controller::dereference::DereferencedObjects {
+                hdfs_opa_config: None,
+            },
+        )
+        .unwrap();
 
         let role = HdfsNodeRole::Data;
         let validated_rg_config = validated

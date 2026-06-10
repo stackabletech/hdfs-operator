@@ -121,7 +121,13 @@ spec:
     }
 
     pub fn validated_cluster() -> ValidatedCluster {
-        validate_cluster(&minimal_hdfs(), "oci.example.org", None)
-            .expect("validate should succeed for the minimal fixture")
+        validate_cluster(
+            &minimal_hdfs(),
+            "oci.example.org",
+            crate::controller::dereference::DereferencedObjects {
+                hdfs_opa_config: None,
+            },
+        )
+        .expect("validate should succeed for the minimal fixture")
     }
 }

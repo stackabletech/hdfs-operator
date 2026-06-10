@@ -47,6 +47,7 @@ mod container;
 mod controller;
 mod crd;
 mod event;
+mod framework;
 mod hdfs_clusterrolebinding_nodes_controller;
 mod hdfs_controller;
 mod operations;
