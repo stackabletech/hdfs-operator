@@ -455,7 +455,7 @@ fn rolegroup_statefulset(
 
     let image = &validated.image;
     let merged_config = &rolegroup_config.config;
-    let env_overrides = Some(&rolegroup_config.env_overrides);
+    let env_overrides = &rolegroup_config.env_overrides;
 
     // Pod references for all namenodes across all role groups, needed to wire up the
     // init containers of this role group.
@@ -627,7 +627,7 @@ spec:
             &rolegroup_ref,
             resolved_product_image,
             merged_config,
-            Some(env_overrides),
+            env_overrides,
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
             &[],
             &Labels::new(),

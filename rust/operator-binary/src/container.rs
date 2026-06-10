@@ -219,7 +219,7 @@ impl ContainerConfig {
         rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
         merged_config: &AnyNodeConfig,
-        env_overrides: Option<&EnvVarSet>,
+        env_overrides: &EnvVarSet,
         zk_config_map_name: &str,
         namenode_podrefs: &[HdfsPodRef],
         labels: &Labels,
@@ -473,7 +473,7 @@ impl ContainerConfig {
         rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
-        env_overrides: Option<&EnvVarSet>,
+        env_overrides: &EnvVarSet,
         merged_config: &AnyNodeConfig,
         labels: &Labels,
     ) -> Result<Container, Error> {
@@ -535,7 +535,7 @@ impl ContainerConfig {
         role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
-        env_overrides: Option<&EnvVarSet>,
+        env_overrides: &EnvVarSet,
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &AnyNodeConfig,
         labels: &Labels,
@@ -875,7 +875,7 @@ impl ContainerConfig {
         role: &HdfsNodeRole,
         role_group: &str,
         zookeeper_config_map_name: &str,
-        env_overrides: Option<&EnvVarSet>,
+        env_overrides: &EnvVarSet,
         resources: Option<&ResourceRequirements>,
     ) -> Result<Vec<EnvVar>, Error> {
         // Maps env var name to env var object. This allows env_overrides to work
@@ -971,8 +971,7 @@ impl ContainerConfig {
 
         // Overrides need to come last
         let mut env_override_vars: BTreeMap<String, EnvVar> = env_overrides
-            .cloned()
-            .unwrap_or_default()
+            .clone()
             .into_iter()
             .map(|env_var| (env_var.name.clone(), env_var))
             .collect();

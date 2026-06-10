@@ -22,6 +22,17 @@ pub mod build;
 pub mod dereference;
 pub mod validate;
 
+/// The local-`framework` [`RoleGroupConfig`](crate::framework::role_utils::RoleGroupConfig)
+/// specialised for HDFS: the validated config is the per-role [`AnyNodeConfig`],
+/// the product-specific common config is [`JavaCommonConfig`] (whose JVM-argument
+/// merge is fallible, hence the vendored framework variant), and the config
+/// overrides are [`v1alpha1::HdfsConfigOverrides`].
+pub type ValidatedRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
+    AnyNodeConfig,
+    stackable_operator::role_utils::JavaCommonConfig,
+    v1alpha1::HdfsConfigOverrides,
+>;
+
 /// The validated cluster: proves that config merging and validation succeeded
 /// for every role and role group before any resources are created. Placed in the
 /// controller so that subsequent steps that reference this struct only depend on
@@ -175,12 +186,13 @@ impl Resource for ValidatedCluster {
 /// longer need the raw `HdfsCluster` to render config.
 #[derive(Clone, Debug)]
 pub struct ValidatedClusterConfig {
-    pub dfs_replication: u8,
     /// The authentication config, if configured. Its presence enables both Kerberos
     /// and HTTPS; it also carries the TLS and Kerberos secret class names.
     pub authentication: Option<AuthenticationConfig>,
     /// The resolved OPA authorization config, if authorization is configured.
     pub authorization: Option<HdfsOpaConfig>,
+    /// The replication factor.
+    pub dfs_replication: u8,
     pub rack_awareness: Option<String>,
 }
 
@@ -190,9 +202,9 @@ impl ValidatedClusterConfig {
         authorization: Option<HdfsOpaConfig>,
     ) -> ValidatedClusterConfig {
         ValidatedClusterConfig {
-            dfs_replication: hdfs.spec.cluster_config.dfs_replication,
             authentication: hdfs.authentication_config().cloned(),
             authorization,
+            dfs_replication: hdfs.spec.cluster_config.dfs_replication,
             rack_awareness: hdfs.rackawareness_config(),
         }
     }
@@ -203,20 +215,3 @@ impl ValidatedClusterConfig {
 pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
 }
-
-/// Per-rolegroup configuration: the merged CRD config plus the merged
-/// (role <- role group) `configOverrides`, `envOverrides`, `cliOverrides` and
-/// `podOverrides`.
-///
-/// This is the local-`framework` [`RoleGroupConfig`](crate::framework::role_utils::RoleGroupConfig)
-/// specialised for HDFS: the validated config is the per-role [`AnyNodeConfig`],
-/// the product-specific common config is [`JavaCommonConfig`] (whose JVM-argument
-/// merge is fallible, hence the vendored framework variant), and the config
-/// overrides are [`v1alpha1::HdfsConfigOverrides`]. The `replicas` field is used
-/// to derive the per-pod [`HdfsPodRef`]s via [`ValidatedCluster::pod_refs`] and
-/// `env_overrides` is the typed [`EnvVarSet`](stackable_operator::v2::builder::pod::container::EnvVarSet).
-pub type ValidatedRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
-    AnyNodeConfig,
-    stackable_operator::role_utils::JavaCommonConfig,
-    v1alpha1::HdfsConfigOverrides,
->;
