@@ -489,6 +489,7 @@ impl ContainerConfig {
             .args(self.args(hdfs, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(
                 hdfs,
+                role,
                 &rolegroup_ref.role_group,
                 zookeeper_config_map_name,
                 env_overrides,
@@ -547,6 +548,7 @@ impl ContainerConfig {
             .args(self.args(hdfs, cluster_info, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(
                 hdfs,
+                role,
                 role_group,
                 zookeeper_config_map_name,
                 env_overrides,
@@ -870,6 +872,7 @@ impl ContainerConfig {
     fn env(
         &self,
         hdfs: &v1alpha1::HdfsCluster,
+        role: &HdfsNodeRole,
         role_group: &str,
         zookeeper_config_map_name: &str,
         env_overrides: Option<&EnvVarSet>,
@@ -907,22 +910,25 @@ impl ContainerConfig {
                     ..EnvVar::default()
                 },
             );
+        }
 
-            // If rack awareness is configured, expose the topology labels to the
-            // topology-provider via an env var. This is only needed on namenodes.
-            // Set as a default here (before the overrides below) so users can still
-            // override it via `envOverrides`.
-            if *role == HdfsNodeRole::Name {
-                if let Some(rack_awareness) = hdfs.rackawareness_config() {
-                    env.insert(
-                        "TOPOLOGY_LABELS".to_string(),
-                        EnvVar {
-                            name: "TOPOLOGY_LABELS".to_string(),
-                            value: Some(rack_awareness),
-                            ..EnvVar::default()
-                        },
-                    );
-                }
+        // If rack awareness is configured, expose the topology labels to the
+        // topology-provider via an env var. This is set on every container of the
+        // namenode pods (the main container as well as init/sidecar containers like
+        // format-namenodes), since the format-namenodes init container also
+        // instantiates the StackableTopologyProvider (which reads TOPOLOGY_LABELS).
+        // Set as a default here (before the overrides below) so users can still
+        // override it via `envOverrides`.
+        if *role == HdfsNodeRole::Name {
+            if let Some(rack_awareness) = hdfs.rackawareness_config() {
+                env.insert(
+                    "TOPOLOGY_LABELS".to_string(),
+                    EnvVar {
+                        name: "TOPOLOGY_LABELS".to_string(),
+                        value: Some(rack_awareness),
+                        ..EnvVar::default()
+                    },
+                );
             }
         }
 
