@@ -47,7 +47,6 @@ mod container;
 mod controller;
 mod crd;
 mod event;
-mod framework;
 mod hdfs_clusterrolebinding_nodes_controller;
 mod hdfs_controller;
 mod operations;
@@ -267,3 +266,6 @@ fn references_config_map(
             None => false,
         }
 }
+
+#[cfg(test)]
+pub(crate) mod test_support;
