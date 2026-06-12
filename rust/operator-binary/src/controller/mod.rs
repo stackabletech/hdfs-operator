@@ -3,11 +3,10 @@ use std::collections::{BTreeMap, HashMap};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     commons::product_image_selection::ResolvedProductImage,
-    k8s_openapi::api::core::v1::PodTemplateSpec,
     kube::{Resource, api::ObjectMeta},
     role_utils::RoleGroupRef,
     v2::{
-        builder::pod::container::EnvVarSet,
+        role_utils::RoleGroupConfig,
         types::{
             kubernetes::{NamespaceName, Uid},
             operator::ClusterName,
@@ -36,18 +35,6 @@ pub type ValidatedRoleGroupConfig = RoleGroupConfig<
     stackable_operator::v2::role_utils::JavaCommonConfig,
     v1alpha1::HdfsConfigOverrides,
 >;
-
-/// HDFS-friendly view of a validated, merged `RoleGroup`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct RoleGroupConfig<Config, CommonConfig, ConfigOverrides> {
-    pub replicas: u16,
-    pub config: Config,
-    pub config_overrides: ConfigOverrides,
-    pub env_overrides: EnvVarSet,
-    pub cli_overrides: BTreeMap<String, String>,
-    pub pod_overrides: PodTemplateSpec,
-    pub product_specific_common_config: CommonConfig,
-}
 
 /// The validated cluster: proves that config merging and validation succeeded
 /// for every role and role group before any resources are created. Placed in the
