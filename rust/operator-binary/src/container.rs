@@ -53,7 +53,6 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
-    v2::builder::pod::container::EnvVarSet,
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
@@ -62,12 +61,15 @@ use crate::{
         self,
         jvm::{construct_global_jvm_args, construct_role_specific_jvm_args},
     },
-    controller::build::properties::logging::{
-        FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-        MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
-        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+    controller::{
+        ValidatedRoleGroupConfig,
+        build::properties::logging::{
+            FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+            HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+            MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
+            MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
+            WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+        },
     },
     crd::{
         AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
@@ -218,8 +220,7 @@ impl ContainerConfig {
         role: &HdfsNodeRole,
         rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
-        merged_config: &AnyNodeConfig,
-        env_overrides: &EnvVarSet,
+        rolegroup_config: &ValidatedRoleGroupConfig,
         zk_config_map_name: &str,
         namenode_podrefs: &[HdfsPodRef],
         labels: &Labels,
@@ -227,6 +228,7 @@ impl ContainerConfig {
         // HDFS main container
         let main_container_config = Self::from(*role);
         let object_name = rolegroup_ref.object_name();
+        let merged_config = &rolegroup_config.config;
 
         pb.add_volumes(main_container_config.volumes(merged_config, &object_name, labels)?)
             .context(AddVolumeSnafu)?;
@@ -234,10 +236,9 @@ impl ContainerConfig {
             hdfs,
             cluster_info,
             role,
-            rolegroup_ref,
             resolved_product_image,
             zk_config_map_name,
-            env_overrides,
+            rolegroup_config,
             merged_config,
             labels,
         )?);
@@ -335,10 +336,9 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    rolegroup_ref,
                     resolved_product_image,
                     zk_config_map_name,
-                    env_overrides,
+                    rolegroup_config,
                     merged_config,
                     labels,
                 )?);
@@ -356,10 +356,9 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    &rolegroup_ref.role_group,
                     resolved_product_image,
                     zk_config_map_name,
-                    env_overrides,
+                    rolegroup_config,
                     namenode_podrefs,
                     merged_config,
                     labels,
@@ -378,10 +377,9 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    &rolegroup_ref.role_group,
                     resolved_product_image,
                     zk_config_map_name,
-                    env_overrides,
+                    rolegroup_config,
                     namenode_podrefs,
                     merged_config,
                     labels,
@@ -401,10 +399,9 @@ impl ContainerConfig {
                     hdfs,
                     cluster_info,
                     role,
-                    &rolegroup_ref.role_group,
                     resolved_product_image,
                     zk_config_map_name,
-                    env_overrides,
+                    rolegroup_config,
                     namenode_podrefs,
                     merged_config,
                     labels,
@@ -470,10 +467,9 @@ impl ContainerConfig {
         hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
-        env_overrides: &EnvVarSet,
+        rolegroup_config: &ValidatedRoleGroupConfig,
         merged_config: &AnyNodeConfig,
         labels: &Labels,
     ) -> Result<Container, Error> {
@@ -490,9 +486,8 @@ impl ContainerConfig {
             .add_env_vars(self.env(
                 hdfs,
                 role,
-                &rolegroup_ref.role_group,
                 zookeeper_config_map_name,
-                env_overrides,
+                rolegroup_config,
                 resources.as_ref(),
             )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
@@ -532,10 +527,9 @@ impl ContainerConfig {
         hdfs: &v1alpha1::HdfsCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        role_group: &str,
         resolved_product_image: &ResolvedProductImage,
         zookeeper_config_map_name: &str,
-        env_overrides: &EnvVarSet,
+        rolegroup_config: &ValidatedRoleGroupConfig,
         namenode_podrefs: &[HdfsPodRef],
         merged_config: &AnyNodeConfig,
         labels: &Labels,
@@ -549,9 +543,8 @@ impl ContainerConfig {
             .add_env_vars(self.env(
                 hdfs,
                 role,
-                role_group,
                 zookeeper_config_map_name,
-                env_overrides,
+                rolegroup_config,
                 None,
             )?)
             .add_volume_mounts(self.volume_mounts(hdfs, merged_config, labels)?)
@@ -873,9 +866,8 @@ impl ContainerConfig {
         &self,
         hdfs: &v1alpha1::HdfsCluster,
         role: &HdfsNodeRole,
-        role_group: &str,
         zookeeper_config_map_name: &str,
-        env_overrides: &EnvVarSet,
+        rolegroup_config: &ValidatedRoleGroupConfig,
         resources: Option<&ResourceRequirements>,
     ) -> Result<Vec<EnvVar>, Error> {
         // Maps env var name to env var object. This allows env_overrides to work
@@ -906,7 +898,7 @@ impl ContainerConfig {
                 role_opts_name.clone(),
                 EnvVar {
                     name: role_opts_name,
-                    value: Some(self.build_hadoop_opts(hdfs, role_group, resources)?),
+                    value: Some(self.build_hadoop_opts(hdfs, resources, rolegroup_config)?),
                     ..EnvVar::default()
                 },
             );
@@ -970,7 +962,8 @@ impl ContainerConfig {
         );
 
         // Overrides need to come last
-        let mut env_override_vars: BTreeMap<String, EnvVar> = env_overrides
+        let mut env_override_vars: BTreeMap<String, EnvVar> = rolegroup_config
+            .env_overrides
             .clone()
             .into_iter()
             .map(|env_var| (env_var.name.clone(), env_var))
@@ -1263,8 +1256,8 @@ impl ContainerConfig {
     fn build_hadoop_opts(
         &self,
         hdfs: &v1alpha1::HdfsCluster,
-        role_group: &str,
         resources: Option<&ResourceRequirements>,
+        rolegroup_config: &ValidatedRoleGroupConfig,
     ) -> Result<String, Error> {
         match self {
             ContainerConfig::Hdfs {
@@ -1273,9 +1266,10 @@ impl ContainerConfig {
                 let cvd = ContainerVolumeDirs::from(role);
                 let config_dir = cvd.final_config();
                 construct_role_specific_jvm_args(
-                    hdfs,
                     role,
-                    role_group,
+                    &rolegroup_config
+                        .product_specific_common_config
+                        .jvm_argument_overrides,
                     hdfs.has_kerberos_enabled(),
                     resources,
                     config_dir,

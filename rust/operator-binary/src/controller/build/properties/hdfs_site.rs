@@ -114,25 +114,23 @@ pub fn build(
 mod tests {
     use super::*;
     use crate::{
-        controller::build::properties::test_support::{
-            cluster_info, minimal_hdfs, validated_cluster,
-        },
-        crd::{HdfsNodeRole, v1alpha1},
+        controller::build::properties::test_support::{cluster_info, validated_cluster},
+        crd::HdfsNodeRole,
+        test_support::anynode_config,
     };
 
-    fn namenode_merged_config(hdfs: &v1alpha1::HdfsCluster) -> AnyNodeConfig {
-        HdfsNodeRole::Name
-            .merged_config(hdfs, "default")
-            .expect("merged config for the minimal namenode group")
+    fn namenode_merged_config(validated_cluster: &ValidatedCluster) -> &AnyNodeConfig {
+        anynode_config(validated_cluster, &HdfsNodeRole::Name, "default")
     }
 
     #[test]
     fn renders_operator_defaults() {
-        let merged = namenode_merged_config(&minimal_hdfs());
+        let validated_cluster = validated_cluster();
+        let merged = namenode_merged_config(&validated_cluster);
         let xml = build(
-            &validated_cluster(),
+            &validated_cluster,
             &cluster_info(),
-            &merged,
+            merged,
             KeyValueConfigOverrides::default(),
         );
         assert!(
@@ -147,11 +145,12 @@ mod tests {
 
     #[test]
     fn user_overrides_win_over_defaults() {
-        let merged = namenode_merged_config(&minimal_hdfs());
+        let validated_cluster = validated_cluster();
+        let merged = namenode_merged_config(&validated_cluster);
         let xml = build(
-            &validated_cluster(),
+            &validated_cluster,
             &cluster_info(),
-            &merged,
+            merged,
             [("dfs.replication", "5")].into(),
         );
         assert!(

@@ -5,9 +5,12 @@ use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     kube::{Resource, api::ObjectMeta},
     role_utils::RoleGroupRef,
-    v2::types::{
-        kubernetes::{NamespaceName, Uid},
-        operator::ClusterName,
+    v2::{
+        role_utils::RoleGroupConfig,
+        types::{
+            kubernetes::{NamespaceName, Uid},
+            operator::ClusterName,
+        },
     },
 };
 
@@ -27,9 +30,9 @@ pub mod validate;
 /// the product-specific common config is [`JavaCommonConfig`] (whose JVM-argument
 /// merge is fallible, hence the vendored framework variant), and the config
 /// overrides are [`v1alpha1::HdfsConfigOverrides`].
-pub type ValidatedRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
+pub type ValidatedRoleGroupConfig = RoleGroupConfig<
     AnyNodeConfig,
-    stackable_operator::role_utils::JavaCommonConfig,
+    stackable_operator::v2::role_utils::JavaCommonConfig,
     v1alpha1::HdfsConfigOverrides,
 >;
 

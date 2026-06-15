@@ -2,12 +2,11 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ResourceRequirements,
     memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::JvmArgumentOverrides,
+    v2::jvm_argument_overrides::JvmArgumentOverrides,
 };
 
 use crate::{
-    controller::build::properties::ConfigFileName,
-    crd::{HdfsNodeRole, v1alpha1},
+    controller::build::properties::ConfigFileName, crd::HdfsNodeRole,
     security::kerberos::KERBEROS_CONTAINER_PATH,
 };
 
@@ -20,9 +19,6 @@ pub enum Error {
         source: stackable_operator::memory::Error,
         role: String,
     },
-
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: crate::crd::Error },
 }
 
 // All init or sidecar containers must have access to the following settings.
@@ -51,9 +47,8 @@ pub fn construct_global_jvm_args(kerberos_enabled: bool) -> String {
 }
 
 pub fn construct_role_specific_jvm_args(
-    hdfs: &v1alpha1::HdfsCluster,
     hdfs_role: &HdfsNodeRole,
-    role_group: &str,
+    jvm_argument_overrides: &JvmArgumentOverrides,
     kerberos_enabled: bool,
     resources: Option<&ResourceRequirements>,
     config_dir: &str,
@@ -91,21 +86,20 @@ pub fn construct_role_specific_jvm_args(
         ));
     }
 
-    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
-    let merged_jvm_args = hdfs
-        .get_merged_jvm_argument_overrides(hdfs_role, role_group, &operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)?;
+    let merged_jvm_args = jvm_argument_overrides.apply_to(jvm_args);
 
-    Ok(merged_jvm_args
-        .effective_jvm_config_after_merging()
-        .join(" "))
+    Ok(merged_jvm_args.join(" "))
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::{container::ContainerConfig, crd::constants::DEFAULT_NAME_NODE_METRICS_PORT};
+    use crate::{
+        container::ContainerConfig,
+        crd::constants::DEFAULT_NAME_NODE_METRICS_PORT,
+        test_support::{deserialize_and_validate_cluster, role_group_config},
+    };
 
     #[test]
     fn test_global_jvm_args() {
@@ -123,6 +117,8 @@ mod tests {
         kind: HdfsCluster
         metadata:
           name: hdfs
+          namespace: test
+          uid: 8047b73b-db0f-4281-811f-de59105ae6bf
         spec:
           image:
             productVersion: 3.4.2
@@ -151,6 +147,8 @@ mod tests {
         kind: HdfsCluster
         metadata:
           name: hdfs
+          namespace: test
+          uid: 8047b73b-db0f-4281-811f-de59105ae6bf
         spec:
           image:
             productVersion: 3.4.2
@@ -196,18 +194,18 @@ mod tests {
     }
 
     fn construct_test_role_specific_jvm_args(hdfs_cluster: &str, kerberos_enabled: bool) -> String {
-        let hdfs: v1alpha1::HdfsCluster =
-            serde_yaml::from_str(hdfs_cluster).expect("illegal test input");
-
         let role = HdfsNodeRole::Name;
-        let merged_config = role.merged_config(&hdfs, "default").unwrap();
-        let container_config = ContainerConfig::from(role);
-        let resources = container_config.resources(&merged_config);
+
+        let validated_cluster = deserialize_and_validate_cluster(hdfs_cluster);
+        let role_group_config = role_group_config(&validated_cluster, &role, "default");
+
+        let resources = ContainerConfig::from(role).resources(&role_group_config.config);
 
         construct_role_specific_jvm_args(
-            &hdfs,
             &role,
-            "default",
+            &role_group_config
+                .product_specific_common_config
+                .jvm_argument_overrides,
             kerberos_enabled,
             resources.as_ref(),
             "/stackable/config",

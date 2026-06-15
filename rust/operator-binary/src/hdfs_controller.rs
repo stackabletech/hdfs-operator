@@ -455,7 +455,6 @@ fn rolegroup_statefulset(
 
     let image = &validated.image;
     let merged_config = &rolegroup_config.config;
-    let env_overrides = &rolegroup_config.env_overrides;
 
     // Pod references for all namenodes across all role groups, needed to wire up the
     // init containers of this role group.
@@ -492,8 +491,7 @@ fn rolegroup_statefulset(
         role,
         rolegroup_ref,
         image,
-        merged_config,
-        env_overrides,
+        rolegroup_config,
         &hdfs.spec.cluster_config.zookeeper_config_map_name,
         &namenode_podrefs,
         &rolegroup_selector_labels,
@@ -556,7 +554,7 @@ mod test {
     use stackable_operator::commons::networking::DomainName;
 
     use super::*;
-    use crate::controller::validate::validate_cluster;
+    use crate::test_support::{deserialize_cluster, role_group_config, validate_cluster};
 
     #[test]
     pub fn test_env_overrides() {
@@ -592,28 +590,14 @@ spec:
           GROUP_VAR: group-value # only defined here at group level
         replicas: 1
 ";
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
-
-        let validated = validate_cluster(
-            &hdfs,
-            "oci.example.org",
-            crate::controller::dereference::DereferencedObjects {
-                hdfs_opa_config: None,
-            },
-        )
-        .unwrap();
 
         let role = HdfsNodeRole::Data;
-        let validated_rg_config = validated
-            .role_groups
-            .get(&role)
-            .unwrap()
-            .get("default")
-            .unwrap();
+        let hdfs = deserialize_cluster(cr);
+        let validated_cluster = validate_cluster(&hdfs);
+        let role_group_config = role_group_config(&validated_cluster, &role, "default");
+
         let rolegroup_ref = hdfs.rolegroup_ref(role.to_string(), "default");
-        let env_overrides = &validated_rg_config.env_overrides;
-        let merged_config = &validated_rg_config.config;
-        let resolved_product_image = &validated.image;
+        let resolved_product_image = &validated_cluster.image;
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
@@ -626,8 +610,7 @@ spec:
             &role,
             &rolegroup_ref,
             resolved_product_image,
-            merged_config,
-            env_overrides,
+            role_group_config,
             &hdfs.spec.cluster_config.zookeeper_config_map_name,
             &[],
             &Labels::new(),

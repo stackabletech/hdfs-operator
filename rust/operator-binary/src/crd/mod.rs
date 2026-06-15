@@ -20,27 +20,24 @@ use stackable_operator::{
         },
     },
     config::{
-        fragment::{self, Fragment, ValidationError},
+        fragment::{Fragment, ValidationError},
         merge::Merge,
     },
     crd::listener,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::Pod, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
+    kube::{CustomResource, runtime::reflector::ObjectRef},
     kvp::{LabelError, Labels},
     product_logging::{
         self,
         spec::{ContainerLogConfig, Logging},
     },
-    role_utils::{
-        self, GenericRoleConfig, JavaCommonConfig, JvmArgumentOverrides, Role, RoleGroup,
-        RoleGroupRef,
-    },
+    role_utils::{self, GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::cluster_info::KubernetesClusterInfo,
-    v2::config_overrides::KeyValueConfigOverrides,
+    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
     versioned::versioned,
 };
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
@@ -332,41 +329,6 @@ impl v1alpha1::HdfsCluster {
             HdfsNodeRole::Data => self.spec.data_nodes.as_ref().map(|dn| &dn.role_config),
             HdfsNodeRole::Journal => self.spec.journal_nodes.as_ref().map(|jn| &jn.role_config),
         }
-    }
-
-    pub fn get_merged_jvm_argument_overrides(
-        &self,
-        hdfs_role: &HdfsNodeRole,
-        role_group: &str,
-        operator_generated: &JvmArgumentOverrides,
-    ) -> Result<JvmArgumentOverrides, Error> {
-        match hdfs_role {
-            HdfsNodeRole::Journal => self
-                .spec
-                .journal_nodes
-                .as_ref()
-                .with_context(|| MissingRoleSnafu {
-                    role: HdfsNodeRole::Journal.to_string(),
-                })?
-                .get_merged_jvm_argument_overrides(role_group, operator_generated),
-            HdfsNodeRole::Name => self
-                .spec
-                .name_nodes
-                .as_ref()
-                .with_context(|| MissingRoleSnafu {
-                    role: HdfsNodeRole::Name.to_string(),
-                })?
-                .get_merged_jvm_argument_overrides(role_group, operator_generated),
-            HdfsNodeRole::Data => self
-                .spec
-                .data_nodes
-                .as_ref()
-                .with_context(|| MissingRoleSnafu {
-                    role: HdfsNodeRole::Data.to_string(),
-                })?
-                .get_merged_jvm_argument_overrides(role_group, operator_generated),
-        }
-        .context(MergeJvmArgumentOverridesSnafu)
     }
 
     pub fn rolegroup_ref(
@@ -820,6 +782,7 @@ impl AnyNodeConfig {
         }
     }
 
+    #[allow(unused)]
     pub fn as_journalnode(&self) -> Option<&JournalNodeConfig> {
         if let Self::Journal(node) = self {
             Some(node)
@@ -916,102 +879,6 @@ impl HdfsNodeRole {
             HdfsNodeRole::Name => false,
             HdfsNodeRole::Data => true,
             HdfsNodeRole::Journal => false,
-        }
-    }
-
-    /// Merge the [Name|Data|Journal]NodeConfigFragment defaults, role and role group settings.
-    /// The priority is: default < role config < role_group config
-    pub fn merged_config(
-        &self,
-        hdfs: &v1alpha1::HdfsCluster,
-        role_group: &str,
-    ) -> Result<AnyNodeConfig, Error> {
-        match self {
-            HdfsNodeRole::Name => {
-                let default_config = NameNodeConfigFragment::default_config(&hdfs.name_any(), self);
-                let role = hdfs
-                    .spec
-                    .name_nodes
-                    .as_ref()
-                    .with_context(|| MissingRoleSnafu {
-                        role: HdfsNodeRole::Name.to_string(),
-                    })?;
-
-                let mut role_config = role.config.config.clone();
-                let mut role_group_config = hdfs
-                    .namenode_rolegroup(role_group)
-                    .with_context(|| MissingRoleGroupSnafu {
-                        role: HdfsNodeRole::Name.to_string(),
-                        role_group: role_group.to_string(),
-                    })?
-                    .config
-                    .config
-                    .clone();
-
-                role_config.merge(&default_config);
-                role_group_config.merge(&role_config);
-                Ok(AnyNodeConfig::Name(
-                    fragment::validate::<NameNodeConfig>(role_group_config)
-                        .context(FragmentValidationFailureSnafu)?,
-                ))
-            }
-            HdfsNodeRole::Data => {
-                let default_config = DataNodeConfigFragment::default_config(&hdfs.name_any(), self);
-                let role = hdfs
-                    .spec
-                    .data_nodes
-                    .as_ref()
-                    .with_context(|| MissingRoleSnafu {
-                        role: HdfsNodeRole::Data.to_string(),
-                    })?;
-
-                let mut role_config = role.config.config.clone();
-                let mut role_group_config = hdfs
-                    .datanode_rolegroup(role_group)
-                    .with_context(|| MissingRoleGroupSnafu {
-                        role: HdfsNodeRole::Data.to_string(),
-                        role_group: role_group.to_string(),
-                    })?
-                    .config
-                    .config
-                    .clone();
-
-                role_config.merge(&default_config);
-                role_group_config.merge(&role_config);
-                Ok(AnyNodeConfig::Data(
-                    fragment::validate::<DataNodeConfig>(role_group_config)
-                        .context(FragmentValidationFailureSnafu)?,
-                ))
-            }
-            HdfsNodeRole::Journal => {
-                let default_config =
-                    JournalNodeConfigFragment::default_config(&hdfs.name_any(), self);
-                let role = hdfs
-                    .spec
-                    .journal_nodes
-                    .as_ref()
-                    .with_context(|| MissingRoleSnafu {
-                        role: HdfsNodeRole::Journal.to_string(),
-                    })?;
-
-                let mut role_config = role.config.config.clone();
-                let mut role_group_config = hdfs
-                    .journalnode_rolegroup(role_group)
-                    .with_context(|| MissingRoleGroupSnafu {
-                        role: HdfsNodeRole::Journal.to_string(),
-                        role_group: role_group.to_string(),
-                    })?
-                    .config
-                    .config
-                    .clone();
-
-                role_config.merge(&default_config);
-                role_group_config.merge(&role_config);
-                Ok(AnyNodeConfig::Journal(
-                    fragment::validate::<JournalNodeConfig>(role_group_config)
-                        .context(FragmentValidationFailureSnafu)?,
-                ))
-            }
         }
     }
 
@@ -1441,7 +1308,21 @@ mod test {
     };
 
     use super::*;
-    use crate::crd::storage::HdfsStorageType;
+    use crate::{
+        crd::storage::{DataNodePvc, HdfsStorageType},
+        test_support::{datanode_config, deserialize_and_validate_cluster},
+    };
+
+    fn datanode_pvc<'a>(
+        datanode_config: &'a DataNodeConfig,
+        storage_name: &str,
+    ) -> &'a DataNodePvc {
+        datanode_config
+            .resources
+            .storage
+            .get(storage_name)
+            .expect("storage should be defined")
+    }
 
     #[test]
     pub fn test_pvc_rolegroup_from_yaml() {
@@ -1451,6 +1332,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2
@@ -1467,11 +1350,9 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let role = HdfsNodeRole::Data;
-        let config = &role.merged_config(&hdfs, "default").unwrap();
-        let resources = &config.as_datanode().unwrap().resources;
-        let pvc = resources.storage.get("data").unwrap();
+        let validated_cluster = deserialize_and_validate_cluster(cr);
+        let datanode_config = datanode_config(&validated_cluster, "default");
+        let pvc = datanode_pvc(datanode_config, "data");
 
         assert_eq!(pvc.count, 1);
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
@@ -1486,6 +1367,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2
@@ -1502,11 +1385,9 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let role = HdfsNodeRole::Data;
-        let config = &role.merged_config(&hdfs, "default").unwrap();
-        let resources = &config.as_datanode().unwrap().resources;
-        let pvc = resources.storage.get("data").unwrap();
+        let validated_cluster = deserialize_and_validate_cluster(cr);
+        let datanode_config = datanode_config(&validated_cluster, "default");
+        let pvc = datanode_pvc(datanode_config, "data");
 
         assert_eq!(pvc.count, 1);
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
@@ -1521,6 +1402,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2
@@ -1532,11 +1415,9 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let role = HdfsNodeRole::Data;
-        let config = role.merged_config(&hdfs, "default").unwrap();
-        let resources = &config.as_datanode().unwrap().resources;
-        let pvc = resources.storage.get("data").unwrap();
+        let validated_cluster = deserialize_and_validate_cluster(cr);
+        let datanode_config = datanode_config(&validated_cluster, "default");
+        let pvc = datanode_pvc(datanode_config, "data");
 
         assert_eq!(pvc.count, 1);
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
@@ -1551,6 +1432,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2
@@ -1585,23 +1468,19 @@ spec:
       default:
         replicas: 1";
 
-        let deserializer = serde_yaml::Deserializer::from_str(cr);
-        let hdfs: v1alpha1::HdfsCluster =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
-        let role = HdfsNodeRole::Data;
-        let config = &role.merged_config(&hdfs, "default").unwrap();
-        let resources = &config.as_datanode().unwrap().resources;
+        let validated_cluster = deserialize_and_validate_cluster(cr);
+        let datanode_config = datanode_config(&validated_cluster, "default");
 
-        let pvc = resources.storage.get("data").unwrap();
+        let pvc = datanode_pvc(datanode_config, "data");
         assert_eq!(pvc.count, 0);
 
-        let pvc = resources.storage.get("my-disks").unwrap();
+        let pvc = datanode_pvc(datanode_config, "my-disks");
         assert_eq!(pvc.count, 5);
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Disk);
         assert_eq!(pvc.pvc.capacity, Some(Quantity("100Gi".to_string())));
         assert_eq!(pvc.pvc.storage_class, None);
 
-        let pvc = resources.storage.get("my-ssds").unwrap();
+        let pvc = datanode_pvc(datanode_config, "my-ssds");
         assert_eq!(pvc.count, 3);
         assert_eq!(pvc.hdfs_storage_type, HdfsStorageType::Ssd);
         assert_eq!(pvc.pvc.capacity, Some(Quantity("10Gi".to_string())));
@@ -1616,6 +1495,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2
@@ -1634,16 +1515,9 @@ spec:
         replicas: 1
 ";
 
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let role = HdfsNodeRole::Data;
-        let rr: ResourceRequirements = role
-            .merged_config(&hdfs, "default")
-            .unwrap()
-            .as_datanode()
-            .unwrap()
-            .resources
-            .clone()
-            .into();
+        let validated_cluster = deserialize_and_validate_cluster(cr);
+        let datanode_config = datanode_config(&validated_cluster, "default");
+        let rr = datanode_config.resources.clone().into();
 
         let expected = ResourceRequirements {
             requests: Some(
@@ -1672,6 +1546,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2
@@ -1689,16 +1565,9 @@ spec:
               min: '250m'
 ";
 
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
-        let role = HdfsNodeRole::Data;
-        let rr: ResourceRequirements = role
-            .merged_config(&hdfs, "default")
-            .unwrap()
-            .as_datanode()
-            .unwrap()
-            .resources
-            .clone()
-            .into();
+        let validated_cluster = deserialize_and_validate_cluster(cr);
+        let datanode_config = datanode_config(&validated_cluster, "default");
+        let rr = datanode_config.resources.clone().into();
 
         let expected = ResourceRequirements {
             requests: Some(
@@ -1728,6 +1597,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2
@@ -1755,6 +1626,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.4.2

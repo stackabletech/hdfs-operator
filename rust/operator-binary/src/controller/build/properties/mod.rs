@@ -70,10 +70,7 @@ pub(crate) mod test_support {
         commons::networking::DomainName, utils::cluster_info::KubernetesClusterInfo,
     };
 
-    use crate::{
-        controller::{ValidatedCluster, validate::validate_cluster},
-        crd::v1alpha1,
-    };
+    use crate::{controller::ValidatedCluster, test_support::deserialize_and_validate_cluster};
 
     /// The rendered output of an empty Hadoop-XML configuration (no entries).
     pub const EMPTY_HADOOP_XML: &str = concat!(
@@ -110,10 +107,6 @@ spec:
         replicas: 1
 "#;
 
-    pub fn minimal_hdfs() -> v1alpha1::HdfsCluster {
-        serde_yaml::from_str(MINIMAL_HDFS_YAML).expect("invalid test HdfsCluster YAML")
-    }
-
     pub fn cluster_info() -> KubernetesClusterInfo {
         KubernetesClusterInfo {
             cluster_domain: DomainName::try_from("cluster.local").unwrap(),
@@ -121,13 +114,6 @@ spec:
     }
 
     pub fn validated_cluster() -> ValidatedCluster {
-        validate_cluster(
-            &minimal_hdfs(),
-            "oci.example.org",
-            crate::controller::dereference::DereferencedObjects {
-                hdfs_opa_config: None,
-            },
-        )
-        .expect("validate should succeed for the minimal fixture")
+        deserialize_and_validate_cluster(MINIMAL_HDFS_YAML)
     }
 }
