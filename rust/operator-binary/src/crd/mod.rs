@@ -1721,7 +1721,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1756,7 +1756,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1791,7 +1791,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1821,7 +1821,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
@@ -1886,7 +1886,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1942,7 +1942,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1998,7 +1998,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -2025,7 +2025,7 @@ metadata:
   name: hdfs
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
@@ -2061,7 +2061,7 @@ spec:
         fn roundtrip_test_data() -> Vec<Self> {
             stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
               - image:
-                  productVersion: 3.4.2
+                  productVersion: 3.5.0
                   pullPolicy: IfNotPresent
                 clusterOperation:
                   reconciliationPaused: false
