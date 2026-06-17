@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#778]).
+- Add support for Hadoop `3.5.0` and `3.4.3` ([#793]).
 
 ### Changed
 
@@ -24,6 +25,7 @@ All notable changes to this project will be documented in this file.
 [#778]: https://github.com/stackabletech/hdfs-operator/pull/778
 [#783]: https://github.com/stackabletech/hdfs-operator/pull/783
 [#787]: https://github.com/stackabletech/hdfs-operator/pull/787
+[#793]: https://github.com/stackabletech/hdfs-operator/pull/793
 
 ## [26.3.0] - 2026-03-16
 
