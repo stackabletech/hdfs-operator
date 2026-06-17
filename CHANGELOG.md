@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#778]).
-- Added support for Hadoop `3.5.0` and `3.4.3` ([#793]).
+- Add support for Hadoop `3.5.0` and `3.4.3` ([#793]).
 
 ### Changed
 
