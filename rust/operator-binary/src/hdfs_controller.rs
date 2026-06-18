@@ -39,20 +39,22 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
     OPERATOR_NAME,
-    container::{self, ContainerConfig},
     controller::{
         ValidatedCluster, ValidatedRoleGroupConfig,
-        build::discovery::{self, build_discovery_config_map},
+        build::{
+            container::{self, ContainerConfig},
+            graceful_shutdown::{self, add_graceful_shutdown_config},
+            resource::{
+                discovery::{self, build_discovery_config_map},
+                pdb::add_pdbs,
+                service::{self, rolegroup_headless_service, rolegroup_metrics_service},
+            },
+        },
     },
     crd::{
         HdfsClusterStatus, HdfsNodeRole, UpgradeState, UpgradeStateError, constants::*, v1alpha1,
     },
     event::{build_invalid_replica_message, publish_warning_event},
-    operations::{
-        graceful_shutdown::{self, add_graceful_shutdown_config},
-        pdb::add_pdbs,
-    },
-    service::{self, rolegroup_headless_service, rolegroup_metrics_service},
 };
 
 pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
@@ -100,7 +102,7 @@ pub enum Error {
 
     #[snafu(display("failed to build the role group ConfigMap"))]
     BuildRoleGroupConfigMap {
-        source: crate::controller::build::config_map::Error,
+        source: crate::controller::build::resource::config_map::Error,
     },
 
     #[snafu(display("cannot collect discovery configuration"))]
@@ -133,11 +135,13 @@ pub enum Error {
     FailedToCreateClusterEvent { source: crate::event::Error },
 
     #[snafu(display("failed to create container and volume configuration"))]
-    FailedToCreateContainerAndVolumeConfiguration { source: crate::container::Error },
+    FailedToCreateContainerAndVolumeConfiguration {
+        source: crate::controller::build::container::Error,
+    },
 
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
-        source: crate::operations::pdb::Error,
+        source: crate::controller::build::resource::pdb::Error,
     },
 
     #[snafu(display("failed to update status"))]
@@ -290,12 +294,13 @@ pub async fn reconcile_hdfs(
                 rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, resolved_product_image)
                     .context(BuildServiceSnafu)?;
 
-            let rg_configmap = crate::controller::build::config_map::build_rolegroup_config_map(
-                &validated_cluster,
-                &client.kubernetes_cluster_info,
-                &rolegroup_ref,
-            )
-            .context(BuildRoleGroupConfigMapSnafu)?;
+            let rg_configmap =
+                crate::controller::build::resource::config_map::build_rolegroup_config_map(
+                    &validated_cluster,
+                    &client.kubernetes_cluster_info,
+                    &rolegroup_ref,
+                )
+                .context(BuildRoleGroupConfigMapSnafu)?;
 
             let rg_statefulset = rolegroup_statefulset(
                 hdfs,

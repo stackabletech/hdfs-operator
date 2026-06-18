@@ -25,9 +25,9 @@ pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
+    use crate::controller::build::{
         container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-        controller::build::properties::test_support::EMPTY_HADOOP_XML,
+        properties::test_support::EMPTY_HADOOP_XML,
     };
 
     #[test]

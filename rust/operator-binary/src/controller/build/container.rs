@@ -57,18 +57,18 @@ use stackable_operator::{
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    config::{
-        self,
-        jvm::{construct_global_jvm_args, construct_role_specific_jvm_args},
-    },
     controller::{
         ValidatedRoleGroupConfig,
-        build::properties::logging::{
-            FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-            HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-            MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-            MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
-            WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+        build::{
+            jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
+            kerberos::KERBEROS_CONTAINER_PATH,
+            properties::logging::{
+                FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+                HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
+                MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
+                WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+            },
         },
     },
     crd::{
@@ -87,7 +87,6 @@ use crate::{
         storage::DataNodeStorageConfig,
         v1alpha1,
     },
-    security::kerberos::KERBEROS_CONTAINER_PATH,
 };
 
 pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
@@ -107,10 +106,7 @@ pub enum Error {
     ObjectHasNoNamespace,
 
     #[snafu(display("failed to construct JVM arguments fro role {role:?}"))]
-    ConstructJvmArguments {
-        source: config::jvm::Error,
-        role: String,
-    },
+    ConstructJvmArguments { source: jvm::Error, role: String },
 
     #[snafu(display(
         "could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."

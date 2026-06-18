@@ -9,11 +9,17 @@ use stackable_operator::{
 
 use crate::{
     build_recommended_labels,
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    controller::{ValidatedCluster, build::properties::ConfigFileName},
+    controller::{
+        ValidatedCluster,
+        build::{
+            kerberos::KerberosConfig,
+            properties::{
+                ConfigFileName, core_site::CoreSiteConfigBuilder, hdfs_site::HdfsSiteConfigBuilder,
+            },
+        },
+    },
     crd::{HdfsNodeRole, HdfsPodRef},
     hdfs_controller::HDFS_CONTROLLER_NAME,
-    security::kerberos::KerberosConfig,
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;

@@ -16,9 +16,9 @@ use stackable_operator::{
 
 use crate::{
     build_recommended_labels,
+    controller::build::opa::HdfsOpaConfig,
     crd::{AnyNodeConfig, HdfsNodeRole, HdfsPodRef, security::AuthenticationConfig, v1alpha1},
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
-    security::opa::HdfsOpaConfig,
 };
 
 pub mod build;

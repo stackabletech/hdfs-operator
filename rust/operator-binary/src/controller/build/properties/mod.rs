@@ -3,7 +3,7 @@
 //! config file; the shared [`stackable_operator::v2::config_file_writer`]
 //! module serializes maps to the Hadoop-XML / Java-properties on-wire format.
 
-use crate::container::{TLS_STORE_DIR, TLS_STORE_PASSWORD};
+use crate::controller::build::container::{TLS_STORE_DIR, TLS_STORE_PASSWORD};
 
 pub mod core_site;
 pub mod hadoop_policy;

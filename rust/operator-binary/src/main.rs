@@ -42,16 +42,11 @@ use crate::{
     webhooks::conversion::create_webhook_server,
 };
 
-mod config;
-mod container;
 mod controller;
 mod crd;
 mod event;
 mod hdfs_clusterrolebinding_nodes_controller;
 mod hdfs_controller;
-mod operations;
-mod security;
-mod service;
 mod webhooks;
 
 mod built_info {

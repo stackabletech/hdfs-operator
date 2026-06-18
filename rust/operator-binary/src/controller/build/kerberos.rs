@@ -1,8 +1,7 @@
 use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
 
-use crate::{
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    controller::build::properties::ConfigFileName,
+use crate::controller::build::properties::{
+    ConfigFileName, core_site::CoreSiteConfigBuilder, hdfs_site::HdfsSiteConfigBuilder,
 };
 
 pub const KERBEROS_CONTAINER_PATH: &str = "/stackable/kerberos";

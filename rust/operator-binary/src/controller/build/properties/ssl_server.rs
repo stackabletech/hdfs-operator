@@ -9,9 +9,9 @@ use stackable_operator::v2::{
     config_file_writer::to_hadoop_xml, config_overrides::KeyValueConfigOverrides,
 };
 
-use crate::{
+use crate::controller::build::{
     container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    controller::build::properties::truststore_entries,
+    properties::truststore_entries,
 };
 
 /// Renders `ssl-server.xml` for the given HTTPS state and user overrides.

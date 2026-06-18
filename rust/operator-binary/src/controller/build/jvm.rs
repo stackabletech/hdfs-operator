@@ -6,8 +6,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::build::properties::ConfigFileName, crd::HdfsNodeRole,
-    security::kerberos::KERBEROS_CONTAINER_PATH,
+    controller::build::{kerberos::KERBEROS_CONTAINER_PATH, properties::ConfigFileName},
+    crd::HdfsNodeRole,
 };
 
 const JVM_HEAP_FACTOR: f32 = 0.8;
@@ -96,7 +96,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        container::ContainerConfig,
+        controller::build::container::ContainerConfig,
         crd::constants::DEFAULT_NAME_NODE_METRICS_PORT,
         test_support::{deserialize_and_validate_cluster, role_group_config},
     };
