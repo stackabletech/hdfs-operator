@@ -25,11 +25,8 @@ pub mod build;
 pub mod dereference;
 pub mod validate;
 
-/// The local-`framework` [`RoleGroupConfig`](crate::framework::role_utils::RoleGroupConfig)
-/// specialised for HDFS: the validated config is the per-role [`AnyNodeConfig`],
-/// the product-specific common config is [`JavaCommonConfig`] (whose JVM-argument
-/// merge is fallible, hence the vendored framework variant), and the config
-/// overrides are [`v1alpha1::HdfsConfigOverrides`].
+/// The [`RoleGroupConfig`] specialised for HDFS: the validated config is the
+/// per-role [`AnyNodeConfig`],
 pub type ValidatedRoleGroupConfig = RoleGroupConfig<
     AnyNodeConfig,
     stackable_operator::v2::role_utils::JavaCommonConfig,
@@ -106,7 +103,7 @@ impl ValidatedCluster {
             .flat_map(|(role_group_name, role_group)| {
                 let object_name = format!("{}-{role}-{role_group_name}", self.name);
                 let ports = ports.clone();
-                (0..role_group.replicas).map(move |i| HdfsPodRef {
+                (0..role_group.replicas.unwrap_or(1)).map(move |i| HdfsPodRef {
                     namespace: self.namespace.to_string(),
                     role_group_service_name: object_name.clone(),
                     pod_name: format!("{object_name}-{i}"),

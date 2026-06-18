@@ -1,11 +1,4 @@
 //! The validate step in the HdfsCluster controller.
-//!
-//! Synchronously merges and validates the cluster spec into the typed [`ValidatedCluster`]
-//! consumed by `controller::build::*`. Each role group is merged and validated via the
-//! local-`framework` [`with_validated_config`], which folds the config fragment
-//! (default <- role <- role group) together with the `configOverrides`, `envOverrides`,
-//! `cliOverrides` and `podOverrides` (role group wins) into a single
-//! [`RoleGroupConfig`](crate::framework::role_utils::RoleGroupConfig).
 
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -59,7 +52,7 @@ pub enum Error {
 
     #[snafu(display("invalid environment variable override name"))]
     ParseEnvVarName {
-        source: stackable_operator::v2::builder::pod::container::Error,
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
     #[snafu(display("failed to merge and validate the role group config"))]
@@ -132,11 +125,11 @@ pub fn validate_cluster(
 
 /// Validates every role group of a role into a map keyed by role group name.
 ///
-/// Each role group is merged and validated via the local-`framework`
+/// Each role group is merged and validated via
 /// [`with_validated_config`], which folds the CRD config fragment (default <-
 /// role <- role group) plus the `configOverrides`, `envOverrides`, `cliOverrides`
 /// and `podOverrides` (role group wins) into a single
-/// [`RoleGroupConfig`](crate::framework::role_utils::RoleGroupConfig). The
+/// [`RoleGroupConfig`](stackable_operator::v2::role_utils::RoleGroupConfig). The
 /// concrete per-role validated config is wrapped into [`AnyNodeConfig`] via `wrap`.
 ///
 /// Returns an empty map if the role is not configured.
@@ -176,7 +169,7 @@ where
             // Re-wrap the per-role validated config into the role-agnostic
             // `AnyNodeConfig`; the merged overrides carry over unchanged.
             let validated = ValidatedRoleGroupConfig {
-                replicas: validated.replicas.unwrap_or(1),
+                replicas: validated.replicas,
                 config: wrap(validated.config.config),
                 config_overrides: validated.config.config_overrides,
                 env_overrides,

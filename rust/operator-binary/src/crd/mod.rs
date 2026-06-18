@@ -898,25 +898,6 @@ impl HdfsNodeRole {
             HdfsNodeRole::Journal => "jn",
         }
     }
-
-    /// Return replicas for a certain rolegroup.
-    pub fn role_group_replicas(
-        &self,
-        hdfs: &v1alpha1::HdfsCluster,
-        role_group: &str,
-    ) -> Option<u16> {
-        match self {
-            HdfsNodeRole::Name => hdfs
-                .namenode_rolegroup(role_group)
-                .and_then(|rg| rg.replicas),
-            HdfsNodeRole::Data => hdfs
-                .datanode_rolegroup(role_group)
-                .and_then(|rg| rg.replicas),
-            HdfsNodeRole::Journal => hdfs
-                .journalnode_rolegroup(role_group)
-                .and_then(|rg| rg.replicas),
-        }
-    }
 }
 
 /// Returns the required port name and port number tuples exposed by pods of the

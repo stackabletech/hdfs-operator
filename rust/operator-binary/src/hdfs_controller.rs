@@ -511,9 +511,7 @@ fn rolegroup_statefulset(
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),
-        replicas: role
-            .role_group_replicas(hdfs, &rolegroup_ref.role_group)
-            .map(i32::from),
+        replicas: rolegroup_config.replicas.map(i32::from),
         selector: LabelSelector {
             match_labels: Some(rolegroup_selector_labels.into()),
             ..LabelSelector::default()
