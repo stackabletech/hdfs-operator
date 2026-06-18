@@ -37,7 +37,11 @@ use stackable_operator::{
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::cluster_info::KubernetesClusterInfo,
-    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
+    v2::{
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::JavaCommonConfig,
+        types::{common::Port, kubernetes::ConfigMapName},
+    },
     versioned::versioned,
 };
 use strum::{Display, EnumIter, EnumString, IntoStaticStr};
@@ -221,11 +225,11 @@ pub mod versioned {
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         /// Name of the [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
         /// for a ZooKeeper cluster.
-        pub zookeeper_config_map_name: String,
+        pub zookeeper_config_map_name: ConfigMapName,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, Merge, PartialEq, Serialize)]
@@ -366,7 +370,7 @@ impl v1alpha1::HdfsCluster {
                     ports: self
                         .data_ports(role)
                         .iter()
-                        .map(|(n, p)| (n.clone(), *p))
+                        .map(|(n, p)| (n.clone(), p.clone()))
                         .collect(),
                     fqdn_override: None,
                 })
@@ -392,7 +396,7 @@ impl v1alpha1::HdfsCluster {
     ) -> Result<Vec<HdfsPodRef>, Error> {
         let pod_refs = self.pod_refs(&HdfsNodeRole::Name)?;
         try_join_all(pod_refs.into_iter().map(|pod_ref| async {
-            let listener_name = format!("{LISTENER_VOLUME_NAME}-{}", pod_ref.pod_name);
+            let listener_name = format!("{}-{}", *LISTENER_VOLUME_NAME, pod_ref.pod_name);
             let listener_ref = || {
                 ObjectRef::<listener::v1alpha1::Listener>::new(&listener_name)
                     .within(&pod_ref.namespace)
@@ -419,10 +423,10 @@ impl v1alpha1::HdfsCluster {
                     .ports
                     .into_iter()
                     .map(|(port_name, port)| {
-                        let port = u16::try_from(port).context(PortOutOfBoundsSnafu {
+                        let port = Port(u16::try_from(port).context(PortOutOfBoundsSnafu {
                             port_name: &port_name,
                             port,
-                        })?;
+                        })?);
                         Ok((port_name, port))
                     })
                     .collect::<Result<_, _>>()?,
@@ -561,7 +565,7 @@ impl v1alpha1::HdfsCluster {
             .cluster_config
             .authentication
             .as_ref()
-            .map(|k| k.tls_secret_class.as_str())
+            .map(|k| k.tls_secret_class.as_ref())
     }
 
     pub fn num_datanodes(&self) -> u16 {
@@ -573,7 +577,7 @@ impl v1alpha1::HdfsCluster {
             .sum()
     }
 
-    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> u16 {
+    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> Port {
         match role {
             HdfsNodeRole::Name => {
                 if self.has_https_enabled() {
@@ -600,7 +604,7 @@ impl v1alpha1::HdfsCluster {
     }
 
     /// Returns the deprecated JMX metrics port name and port number tuples for the given role.
-    pub fn jmx_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    pub fn jmx_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         match role {
             HdfsNodeRole::Name => vec![(
                 String::from(SERVICE_PORT_NAME_JMX_METRICS),
@@ -617,7 +621,7 @@ impl v1alpha1::HdfsCluster {
         }
     }
 
-    pub fn metrics_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    pub fn metrics_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         let mut metrics_service_ports = vec![];
         // "native" ports
         metrics_service_ports.extend(self.native_metrics_ports(role));
@@ -626,13 +630,13 @@ impl v1alpha1::HdfsCluster {
         metrics_service_ports
     }
 
-    pub fn headless_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    pub fn headless_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         let mut headless_service_ports = vec![];
         headless_service_ports.extend(self.data_ports(role));
         headless_service_ports
     }
 
-    pub fn hdfs_main_container_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    pub fn hdfs_main_container_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         let mut main_container_ports = vec![];
         main_container_ports.extend(self.data_ports(role));
         // TODO: This will be exposed in the listener if added to container ports?
@@ -641,12 +645,12 @@ impl v1alpha1::HdfsCluster {
     }
 
     /// Returns required port name and port number tuples depending on the role.
-    fn data_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    fn data_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         role_data_ports(role, self.has_https_enabled())
     }
 
     /// Returns required native metrics port name and metrics port number tuples depending on the role and security settings.
-    fn native_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, u16)> {
+    fn native_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         match role {
             HdfsNodeRole::Name => vec![if self.has_https_enabled() {
                 (
@@ -902,7 +906,7 @@ impl HdfsNodeRole {
 
 /// Returns the required port name and port number tuples exposed by pods of the
 /// given `role`, depending on whether HTTPS is enabled.
-pub(crate) fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, u16)> {
+pub(crate) fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, Port)> {
     match role {
         HdfsNodeRole::Name => vec![
             (
@@ -971,7 +975,7 @@ pub struct HdfsPodRef {
     pub role_group_service_name: String,
     pub pod_name: String,
     pub fqdn_override: Option<String>,
-    pub ports: HashMap<String, u16>,
+    pub ports: HashMap<String, Port>,
 }
 
 impl HdfsPodRef {

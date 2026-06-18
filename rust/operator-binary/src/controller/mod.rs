@@ -8,6 +8,7 @@ use stackable_operator::{
     v2::{
         role_utils::RoleGroupConfig,
         types::{
+            common::Port,
             kubernetes::{NamespaceName, Uid},
             operator::ClusterName,
         },
@@ -91,7 +92,7 @@ impl ValidatedCluster {
     /// This is infallible: all required information (namespace, replicas and ports)
     /// is already resolved on `self` during validation.
     pub fn pod_refs(&self, role: &HdfsNodeRole) -> Vec<HdfsPodRef> {
-        let ports: HashMap<String, u16> =
+        let ports: HashMap<String, Port> =
             crate::crd::role_data_ports(role, self.cluster_config.authentication.is_some())
                 .into_iter()
                 .collect();

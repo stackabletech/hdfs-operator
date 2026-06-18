@@ -497,7 +497,7 @@ fn rolegroup_statefulset(
         rolegroup_ref,
         image,
         rolegroup_config,
-        &hdfs.spec.cluster_config.zookeeper_config_map_name,
+        hdfs.spec.cluster_config.zookeeper_config_map_name.as_ref(),
         &namenode_podrefs,
         &rolegroup_selector_labels,
     )
@@ -614,7 +614,7 @@ spec:
             &rolegroup_ref,
             resolved_product_image,
             role_group_config,
-            &hdfs.spec.cluster_config.zookeeper_config_map_name,
+            hdfs.spec.cluster_config.zookeeper_config_map_name.as_ref(),
             &[],
             &Labels::new(),
         )

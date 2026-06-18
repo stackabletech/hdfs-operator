@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 
 use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
-    v2::{config_file_writer::to_hadoop_xml, config_overrides::KeyValueConfigOverrides},
+    v2::{
+        config_file_writer::to_hadoop_xml, config_overrides::KeyValueConfigOverrides,
+        types::common::Port,
+    },
 };
 
 use crate::{
@@ -228,7 +231,7 @@ impl HdfsSiteConfigBuilder {
                         jnid.fqdn(cluster_info),
                         jnid.ports
                             .get(&String::from(DFS_JOURNALNODE_RPC_ADDRESS))
-                            .map_or(DEFAULT_JOURNAL_NODE_RPC_PORT, |p| *p)
+                            .map_or(DEFAULT_JOURNAL_NODE_RPC_PORT, |p| p.clone())
                     ))
                     .collect::<Vec<_>>()
                     .join(";"),
@@ -298,7 +301,7 @@ impl HdfsSiteConfigBuilder {
         namenode_podrefs: &[HdfsPodRef],
         address: &str,
         port_name: &str,
-        default_port: u16,
+        default_port: Port,
     ) -> &mut Self {
         for nn in namenode_podrefs {
             self.config.insert(
@@ -310,7 +313,10 @@ impl HdfsSiteConfigBuilder {
                 format!(
                     "{fqdn}:{port}",
                     fqdn = nn.fqdn(cluster_info),
-                    port = nn.ports.get(port_name).map_or(default_port, |p| *p)
+                    port = nn
+                        .ports
+                        .get(port_name)
+                        .map_or(default_port.clone(), |p| p.clone())
                 ),
             );
         }

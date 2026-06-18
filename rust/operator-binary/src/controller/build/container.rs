@@ -31,6 +31,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         secret_class::SecretClassVolumeProvisionParts,
     },
+    constant,
     k8s_openapi::{
         api::core::v1::{
             ConfigMapKeySelector, ConfigMapVolumeSource, Container, ContainerPort,
@@ -53,6 +54,7 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
+    v2::types::{common::Port, kubernetes::VolumeName},
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
@@ -90,9 +92,9 @@ use crate::{
 };
 
 pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
-pub(crate) const TLS_STORE_VOLUME_NAME: &str = "tls";
+constant!(pub(crate) TLS_STORE_VOLUME_NAME: VolumeName = "tls");
 pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
-pub(crate) const KERBEROS_VOLUME_NAME: &str = "kerberos";
+constant!(pub(crate) KERBEROS_VOLUME_NAME: VolumeName = "kerberos");
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -163,7 +165,7 @@ pub enum ContainerConfig {
         /// Port name of the web UI HTTPS port, used for the liveness probe.
         web_ui_https_port_name: &'static str,
         /// The JMX Exporter metrics port.
-        metrics_port: u16,
+        metrics_port: Port,
     },
     Zkfc {
         /// The provided custom container name.
@@ -255,7 +257,7 @@ impl ContainerConfig {
                                 .with_memory_request("128Mi")
                                 .with_memory_limit("128Mi")
                                 .build(),
-                            vector_aggregator_config_map_name,
+                            vector_aggregator_config_map_name.as_ref(),
                         )
                         .context(ConfigureLoggingSnafu)?,
                     );
@@ -268,7 +270,7 @@ impl ContainerConfig {
 
         if let Some(authentication_config) = hdfs.authentication_config() {
             pb.add_volume(
-                VolumeBuilder::new(TLS_STORE_VOLUME_NAME)
+                VolumeBuilder::new(&*TLS_STORE_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.tls_secret_class,
@@ -289,7 +291,7 @@ impl ContainerConfig {
                         )
                         .build()
                         .context(BuildSecretVolumeSnafu {
-                            volume_name: TLS_STORE_VOLUME_NAME,
+                            volume_name: &*TLS_STORE_VOLUME_NAME,
                         })?,
                     )
                     .build(),
@@ -297,7 +299,7 @@ impl ContainerConfig {
             .context(AddVolumeSnafu)?;
 
             pb.add_volume(
-                VolumeBuilder::new(KERBEROS_VOLUME_NAME)
+                VolumeBuilder::new(&*KERBEROS_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             &authentication_config.kerberos.secret_class,
@@ -309,7 +311,7 @@ impl ContainerConfig {
                         .with_kerberos_service_name("HTTP")
                         .build()
                         .context(BuildSecretVolumeSnafu {
-                            volume_name: KERBEROS_VOLUME_NAME,
+                            volume_name: &*KERBEROS_VOLUME_NAME,
                         })?,
                     )
                     .build(),
@@ -1065,7 +1067,7 @@ impl ContainerConfig {
         if let ContainerConfig::Hdfs { .. } = self {
             if let AnyNodeConfig::Data(node) = merged_config {
                 volumes.push(
-                    VolumeBuilder::new(LISTENER_VOLUME_NAME)
+                    VolumeBuilder::new(&*LISTENER_VOLUME_NAME)
                         .ephemeral(
                             ListenerOperatorVolumeSourceBuilder::new(
                                 &ListenerReference::ListenerClass(node.listener_class.to_string()),
@@ -1154,7 +1156,7 @@ impl ContainerConfig {
         if hdfs.has_https_enabled() {
             // This volume will be propagated by the create-tls-cert-bundle container
             volume_mounts
-                .push(VolumeMountBuilder::new(TLS_STORE_VOLUME_NAME, TLS_STORE_DIR).build());
+                .push(VolumeMountBuilder::new(&*TLS_STORE_VOLUME_NAME, TLS_STORE_DIR).build());
         }
 
         match self {
@@ -1169,7 +1171,8 @@ impl ContainerConfig {
                 // JournalNode doesn't use listeners, since it's only used internally by the namenodes
                 if let HdfsNodeRole::Name | HdfsNodeRole::Data = role {
                     volume_mounts.push(
-                        VolumeMountBuilder::new(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR).build(),
+                        VolumeMountBuilder::new(&*LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+                            .build(),
                     );
                 }
 
@@ -1269,7 +1272,7 @@ impl ContainerConfig {
                     hdfs.has_kerberos_enabled(),
                     resources,
                     config_dir,
-                    *metrics_port,
+                    metrics_port.clone(),
                 )
                 .with_context(|_| ConstructJvmArgumentsSnafu {
                     role: role.to_string(),

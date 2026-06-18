@@ -2,7 +2,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ResourceRequirements,
     memory::{BinaryMultiple, MemoryQuantity},
-    v2::jvm_argument_overrides::JvmArgumentOverrides,
+    v2::{jvm_argument_overrides::JvmArgumentOverrides, types::common::Port},
 };
 
 use crate::{
@@ -52,7 +52,7 @@ pub fn construct_role_specific_jvm_args(
     kerberos_enabled: bool,
     resources: Option<&ResourceRequirements>,
     config_dir: &str,
-    metrics_port: u16,
+    metrics_port: Port,
 ) -> Result<String, Error> {
     let mut jvm_args = Vec::new();
 
