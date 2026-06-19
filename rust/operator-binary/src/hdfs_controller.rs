@@ -328,9 +328,7 @@ pub async fn reconcile_hdfs(
             }
         }
 
-        if let Some(validated_role_config) = validated_cluster.role_configs.get(&role)
-            && let Some(pdb) = build_pdb(&validated_role_config.pdb, &validated_cluster, &role)
-        {
+        if let Some(pdb) = build_pdb(&validated_cluster, &role) {
             cluster_resources
                 .add(client, pdb)
                 .await

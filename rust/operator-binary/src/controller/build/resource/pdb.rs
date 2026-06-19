@@ -4,7 +4,6 @@ use std::{
 };
 
 use stackable_operator::{
-    commons::pdb::PdbConfig,
     k8s_openapi::api::policy::v1::PodDisruptionBudget,
     v2::{builder::pdb::pod_disruption_budget_builder_with_role, types::operator::RoleName},
 };
@@ -14,12 +13,10 @@ use crate::{
     crd::HdfsNodeRole,
 };
 
-/// Builds the [`PodDisruptionBudget`] for the given `role`, or `None` if PDBs are disabled.
-pub fn build_pdb(
-    pdb: &PdbConfig,
-    cluster: &ValidatedCluster,
-    role: &HdfsNodeRole,
-) -> Option<PodDisruptionBudget> {
+/// Builds the [`PodDisruptionBudget`] for the given `role`, or `None` if the role
+/// has no validated config or PDBs are disabled.
+pub fn build_pdb(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Option<PodDisruptionBudget> {
+    let pdb = &cluster.role_configs.get(role)?.pdb;
     if !pdb.enabled {
         return None;
     }

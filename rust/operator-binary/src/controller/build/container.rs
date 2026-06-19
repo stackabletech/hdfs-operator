@@ -18,7 +18,6 @@ use stackable_operator::{
         self,
         pod::{
             PodBuilder,
-            container::ContainerBuilder,
             resources::ResourceRequirementsBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
@@ -27,10 +26,7 @@ use stackable_operator::{
             },
         },
     },
-    commons::{
-        product_image_selection::ResolvedProductImage,
-        secret_class::SecretClassVolumeProvisionParts,
-    },
+    commons::secret_class::SecretClassVolumeProvisionParts,
     constant,
     k8s_openapi::{
         api::core::v1::{
@@ -54,7 +50,13 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
-    v2::types::{common::Port, kubernetes::VolumeName},
+    v2::{
+        builder::pod::container::new_container_builder,
+        types::{
+            common::Port,
+            kubernetes::{ContainerName, VolumeName},
+        },
+    },
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
@@ -115,12 +117,6 @@ pub enum Error {
         "could not determine any ContainerConfig actions for {container_name:?}. Container not recognized."
     ))]
     UnrecognizedContainerName { container_name: String },
-
-    #[snafu(display("invalid container name {name:?}"))]
-    InvalidContainerName {
-        source: stackable_operator::builder::pod::container::Error,
-        name: String,
-    },
 
     #[snafu(display("failed to build secret volume for {volume_name:?}"))]
     BuildSecretVolume {
@@ -220,9 +216,6 @@ impl ContainerConfig {
         rolegroup_config: &ValidatedRoleGroupConfig,
         labels: &Labels,
     ) -> Result<(), Error> {
-        // These are all already resolved on the validated cluster.
-        let resolved_product_image = &cluster.image;
-        let zk_config_map_name = cluster.cluster_config.zookeeper_config_map_name.as_ref();
         let namenode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Name);
 
         // HDFS main container
@@ -236,10 +229,7 @@ impl ContainerConfig {
             cluster,
             cluster_info,
             role,
-            resolved_product_image,
-            zk_config_map_name,
             rolegroup_config,
-            merged_config,
             labels,
         )?);
 
@@ -253,7 +243,7 @@ impl ContainerConfig {
                 Some(vector_aggregator_config_map_name) => {
                     pb.add_container(
                         product_logging::framework::vector_container(
-                            resolved_product_image,
+                            &cluster.image,
                             ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
                             ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
                             Some(&merged_config.vector_logging()),
@@ -340,10 +330,7 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     role,
-                    resolved_product_image,
-                    zk_config_map_name,
                     rolegroup_config,
-                    merged_config,
                     labels,
                 )?);
 
@@ -360,11 +347,8 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     role,
-                    resolved_product_image,
-                    zk_config_map_name,
                     rolegroup_config,
                     &namenode_podrefs,
-                    merged_config,
                     labels,
                 )?);
 
@@ -381,11 +365,8 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     role,
-                    resolved_product_image,
-                    zk_config_map_name,
                     rolegroup_config,
                     &namenode_podrefs,
-                    merged_config,
                     labels,
                 )?);
             }
@@ -403,11 +384,8 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     role,
-                    resolved_product_image,
-                    zk_config_map_name,
                     rolegroup_config,
                     &namenode_podrefs,
-                    merged_config,
                     labels,
                 )?);
             }
@@ -465,35 +443,23 @@ impl ContainerConfig {
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
-    #[allow(clippy::too_many_arguments)]
     fn main_container(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        resolved_product_image: &ResolvedProductImage,
-        zookeeper_config_map_name: &str,
         rolegroup_config: &ValidatedRoleGroupConfig,
-        merged_config: &AnyNodeConfig,
         labels: &Labels,
     ) -> Result<Container, Error> {
-        let mut cb =
-            ContainerBuilder::new(self.name()).with_context(|_| InvalidContainerNameSnafu {
-                name: self.name().to_string(),
-            })?;
+        let merged_config = &rolegroup_config.config;
+        let mut cb = new_container_builder(&self.container_name());
 
         let resources = self.resources(merged_config);
 
-        cb.image_from_product_image(resolved_product_image)
+        cb.image_from_product_image(&cluster.image)
             .command(Self::command())
             .args(self.args(cluster, cluster_info, role, merged_config, &[])?)
-            .add_env_vars(self.env(
-                cluster,
-                role,
-                zookeeper_config_map_name,
-                rolegroup_config,
-                resources.as_ref(),
-            )?)
+            .add_env_vars(self.env(cluster, role, rolegroup_config, resources.as_ref())?)
             .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(cluster));
@@ -525,32 +491,22 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
-    #[allow(clippy::too_many_arguments)]
     fn init_container(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        resolved_product_image: &ResolvedProductImage,
-        zookeeper_config_map_name: &str,
         rolegroup_config: &ValidatedRoleGroupConfig,
         namenode_podrefs: &[HdfsPodRef],
-        merged_config: &AnyNodeConfig,
         labels: &Labels,
     ) -> Result<Container, Error> {
-        let mut cb = ContainerBuilder::new(self.name())
-            .with_context(|_| InvalidContainerNameSnafu { name: self.name() })?;
+        let merged_config = &rolegroup_config.config;
+        let mut cb = new_container_builder(&self.container_name());
 
-        cb.image_from_product_image(resolved_product_image)
+        cb.image_from_product_image(&cluster.image)
             .command(Self::command())
             .args(self.args(cluster, cluster_info, role, merged_config, namenode_podrefs)?)
-            .add_env_vars(self.env(
-                cluster,
-                role,
-                zookeeper_config_map_name,
-                rolegroup_config,
-                None,
-            )?)
+            .add_env_vars(self.env(cluster, role, rolegroup_config, None)?)
             .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels)?)
             .context(AddVolumeMountSnafu)?;
 
@@ -573,6 +529,12 @@ impl ContainerConfig {
             ContainerConfig::FormatZooKeeper { container_name, .. } => container_name.as_str(),
             ContainerConfig::WaitForNameNodes { container_name, .. } => container_name.as_str(),
         }
+    }
+
+    /// Return the type-safe container name.
+    fn container_name(&self) -> ContainerName {
+        ContainerName::from_str(self.name())
+            .expect("a ContainerConfig name is a valid container name")
     }
 
     /// Return volume mount directories depending on the container.
@@ -870,7 +832,6 @@ impl ContainerConfig {
         &self,
         cluster: &ValidatedCluster,
         role: &HdfsNodeRole,
-        zookeeper_config_map_name: &str,
         rolegroup_config: &ValidatedRoleGroupConfig,
         resources: Option<&ResourceRequirements>,
     ) -> Result<Vec<EnvVar>, Error> {
@@ -881,7 +842,7 @@ impl ContainerConfig {
         env.extend(
             Self::shared_env_vars(
                 self.volume_mount_dirs().final_config(),
-                zookeeper_config_map_name,
+                cluster.cluster_config.zookeeper_config_map_name.as_ref(),
             )
             .into_iter()
             .map(|env_var| (env_var.name.clone(), env_var)),
