@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+};
 
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
@@ -13,18 +16,18 @@ use stackable_operator::{
         types::{
             common::Port,
             kubernetes::{NamespaceName, Uid},
-            operator::ClusterName,
+            operator::{ClusterName, ControllerName, OperatorName, ProductName},
         },
     },
 };
 
 use crate::{
-    build_recommended_labels,
+    OPERATOR_NAME, build_recommended_labels,
     controller::build::opa::HdfsOpaConfig,
     crd::{
         AnyNodeConfig, HdfsNodeRole, HdfsPodRef,
         constants::{
-            DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
+            APP_NAME, DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
             DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
             DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
             DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
@@ -218,6 +221,32 @@ impl ValidatedCluster {
     ) -> Result<Labels, crate::crd::Error> {
         crate::crd::rolegroup_selector_labels(self, rolegroup_ref)
     }
+
+    /// The total number of datanode replicas across all datanode role groups.
+    pub fn num_datanodes(&self) -> u16 {
+        self.role_groups
+            .get(&HdfsNodeRole::Data)
+            .into_iter()
+            .flatten()
+            .map(|(_, role_group)| role_group.replicas.unwrap_or(1))
+            .sum()
+    }
+}
+
+/// The product name (`hdfs`) as a type-safe label value.
+pub(crate) fn product_name() -> ProductName {
+    ProductName::from_str(APP_NAME).expect("'hdfs' is a valid product name")
+}
+
+/// The operator name as a type-safe label value.
+pub(crate) fn operator_name() -> OperatorName {
+    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
+}
+
+/// The controller name as a type-safe label value.
+pub(crate) fn controller_name() -> ControllerName {
+    ControllerName::from_str(RESOURCE_MANAGER_HDFS_CONTROLLER)
+        .expect("the controller name is a valid label value")
 }
 
 /// Lets [`ValidatedCluster`] be used as the owner [`Resource`] (e.g. in

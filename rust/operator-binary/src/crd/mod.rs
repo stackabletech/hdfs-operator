@@ -428,15 +428,6 @@ impl v1alpha1::HdfsCluster {
             .map(|k| k.tls_secret_class.as_ref())
     }
 
-    pub fn num_datanodes(&self) -> u16 {
-        self.spec
-            .data_nodes
-            .iter()
-            .flat_map(|dn| dn.role_groups.values())
-            .map(|rg| rg.replicas.unwrap_or(1))
-            .sum()
-    }
-
     pub fn hdfs_main_container_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         let mut main_container_ports = vec![];
         main_container_ports.extend(self.data_ports(role));
@@ -1437,9 +1428,9 @@ spec:
         replicas: 42
 ";
 
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(cr).unwrap();
+        let validated_cluster = deserialize_and_validate_cluster(cr);
 
-        assert_eq!(hdfs.num_datanodes(), 45);
+        assert_eq!(validated_cluster.num_datanodes(), 45);
     }
 
     #[test]

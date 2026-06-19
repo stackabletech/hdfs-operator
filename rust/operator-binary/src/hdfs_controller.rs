@@ -46,7 +46,7 @@ use crate::{
             graceful_shutdown::{self, add_graceful_shutdown_config},
             resource::{
                 discovery::{self, build_discovery_config_map},
-                pdb::add_pdbs,
+                pdb::build_pdb,
                 service::{self, rolegroup_headless_service, rolegroup_metrics_service},
             },
         },
@@ -139,9 +139,9 @@ pub enum Error {
         source: crate::controller::build::container::Error,
     },
 
-    #[snafu(display("failed to create PodDisruptionBudget"))]
-    FailedToCreatePdb {
-        source: crate::controller::build::resource::pdb::Error,
+    #[snafu(display("failed to apply PodDisruptionBudget"))]
+    ApplyPdb {
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to update status"))]
@@ -359,16 +359,13 @@ pub async fn reconcile_hdfs(
             }
         }
 
-        if let Some(validated_role_config) = validated_cluster.role_configs.get(&role) {
-            add_pdbs(
-                &validated_role_config.pdb,
-                hdfs,
-                &role,
-                client,
-                &mut cluster_resources,
-            )
-            .await
-            .context(FailedToCreatePdbSnafu)?;
+        if let Some(validated_role_config) = validated_cluster.role_configs.get(&role)
+            && let Some(pdb) = build_pdb(&validated_role_config.pdb, &validated_cluster, &role)
+        {
+            cluster_resources
+                .add(client, pdb)
+                .await
+                .context(ApplyPdbSnafu)?;
         }
     }
 
