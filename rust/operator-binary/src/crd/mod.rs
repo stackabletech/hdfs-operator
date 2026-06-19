@@ -26,13 +26,13 @@ use stackable_operator::{
     crd::listener,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::Pod, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, runtime::reflector::ObjectRef},
+    kube::{CustomResource, Resource, runtime::reflector::ObjectRef},
     kvp::{LabelError, Labels},
     product_logging::{
         self,
         spec::{ContainerLogConfig, Logging},
     },
-    role_utils::{self, GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{self, GenericRoleConfig, Role, RoleGroupRef},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
@@ -51,18 +51,13 @@ use crate::crd::{
     constants::{
         APP_NAME, DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
         DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_HTTPS_PORT, DEFAULT_DATA_NODE_IPC_PORT,
-        DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
-        DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_DFS_REPLICATION_FACTOR,
-        DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_JOURNAL_NODE_HTTP_PORT,
-        DEFAULT_JOURNAL_NODE_HTTPS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
-        DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
-        DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_RPC_PORT,
-        DEFAULT_LISTENER_CLASS, DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
-        DEFAULT_NAME_NODE_HTTP_PORT, DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
-        DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT, DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT,
-        DEFAULT_NAME_NODE_RPC_PORT, LISTENER_VOLUME_NAME, SERVICE_PORT_NAME_DATA,
-        SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
-        SERVICE_PORT_NAME_JMX_METRICS, SERVICE_PORT_NAME_METRICS, SERVICE_PORT_NAME_RPC,
+        DEFAULT_DFS_REPLICATION_FACTOR, DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
+        DEFAULT_JOURNAL_NODE_HTTP_PORT, DEFAULT_JOURNAL_NODE_HTTPS_PORT,
+        DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_LISTENER_CLASS,
+        DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_NAME_NODE_HTTP_PORT,
+        DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_RPC_PORT, LISTENER_VOLUME_NAME,
+        SERVICE_PORT_NAME_DATA, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
+        SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
     },
     security::{AuthenticationConfig, KerberosConfig},
     storage::{
@@ -278,53 +273,7 @@ impl v1alpha1::HdfsCluster {
         &self,
         rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
     ) -> Result<Labels> {
-        let mut group_labels = Labels::role_group_selector(
-            self,
-            APP_NAME,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        )
-        .context(BuildRoleGroupSelectorLabelSnafu)?;
-        group_labels
-            .parse_insert(("role", rolegroup_ref.role.deref()))
-            .context(BuildRoleGroupSelectorLabelSnafu)?;
-        group_labels
-            .parse_insert(("group", rolegroup_ref.role_group.deref()))
-            .context(BuildRoleGroupSelectorLabelSnafu)?;
-
-        Ok(group_labels)
-    }
-
-    /// Get a reference to the namenode [`RoleGroup`] struct if it exists.
-    pub fn namenode_rolegroup(
-        &self,
-        role_group: &str,
-    ) -> Option<&RoleGroup<NameNodeConfigFragment, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>>
-    {
-        self.spec.name_nodes.as_ref()?.role_groups.get(role_group)
-    }
-
-    /// Get a reference to the datanode [`RoleGroup`] struct if it exists.
-    pub fn datanode_rolegroup(
-        &self,
-        role_group: &str,
-    ) -> Option<&RoleGroup<DataNodeConfigFragment, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>>
-    {
-        self.spec.data_nodes.as_ref()?.role_groups.get(role_group)
-    }
-
-    /// Get a reference to the journalnode [`RoleGroup`] struct if it exists.
-    pub fn journalnode_rolegroup(
-        &self,
-        role_group: &str,
-    ) -> Option<
-        &RoleGroup<JournalNodeConfigFragment, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    > {
-        self.spec
-            .journal_nodes
-            .as_ref()?
-            .role_groups
-            .get(role_group)
+        rolegroup_selector_labels(self, rolegroup_ref)
     }
 
     pub fn role_config(&self, hdfs_role: &HdfsNodeRole) -> Option<&GenericRoleConfig> {
@@ -345,95 +294,6 @@ impl v1alpha1::HdfsCluster {
             role: role_name.into(),
             role_group: group_name.into(),
         }
-    }
-
-    /// List all [`HdfsPodRef`]s expected for the given [`role`](HdfsNodeRole).
-    ///
-    /// The `validated_config` is used to extract the ports exposed by the pods.
-    ///
-    /// The pod refs returned by `pod_refs` will only be able to access HDFS
-    /// from inside the Kubernetes cluster. For configuring downstream clients,
-    /// consider using [`Self::namenode_listener_refs`] instead.
-    pub fn pod_refs(&self, role: &HdfsNodeRole) -> Result<Vec<HdfsPodRef>, Error> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-
-        let rolegroup_ref_and_replicas = self.rolegroup_ref_and_replicas(role);
-
-        Ok(rolegroup_ref_and_replicas
-            .iter()
-            .flat_map(|(rolegroup_ref, replicas)| {
-                let ns = ns.clone();
-                (0..*replicas).map(move |i| HdfsPodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                    ports: self
-                        .data_ports(role)
-                        .iter()
-                        .map(|(n, p)| (n.clone(), p.clone()))
-                        .collect(),
-                    fqdn_override: None,
-                })
-            })
-            .collect())
-    }
-
-    /// List all [`HdfsPodRef`]s for the running namenodes, configured to access the cluster via
-    /// [Listener] rather than direct [Pod] access.
-    ///
-    /// This enables access from outside the Kubernetes cluster (if using a [listener::v1alpha1::ListenerClass] configured for this).
-    ///
-    /// This method assumes that all [Listener]s have been created, and may fail while waiting for the cluster to come online.
-    /// If this is unacceptable (mainly for configuring the cluster itself), consider [`Self::pod_refs`] instead.
-    ///
-    /// This method _only_ supports accessing namenodes, since journalnodes are considered internal, and datanodes are registered
-    /// dynamically with the namenodes.
-    ///
-    /// [Listener]: listener::v1alpha1::Listener
-    pub async fn namenode_listener_refs(
-        &self,
-        client: &stackable_operator::client::Client,
-    ) -> Result<Vec<HdfsPodRef>, Error> {
-        let pod_refs = self.pod_refs(&HdfsNodeRole::Name)?;
-        try_join_all(pod_refs.into_iter().map(|pod_ref| async {
-            let listener_name = format!("{}-{}", *LISTENER_VOLUME_NAME, pod_ref.pod_name);
-            let listener_ref = || {
-                ObjectRef::<listener::v1alpha1::Listener>::new(&listener_name)
-                    .within(&pod_ref.namespace)
-            };
-            let pod_obj_ref =
-                || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(&pod_ref.namespace);
-            let listener = client
-                .get::<listener::v1alpha1::Listener>(&listener_name, &pod_ref.namespace)
-                .await
-                .context(GetPodListenerSnafu {
-                    listener: listener_ref(),
-                    pod: pod_obj_ref(),
-                })?;
-            let listener_address = listener
-                .status
-                .and_then(|s| s.ingress_addresses?.into_iter().next())
-                .context(PodListenerHasNoAddressSnafu {
-                    listener: listener_ref(),
-                    pod: pod_obj_ref(),
-                })?;
-            Ok(HdfsPodRef {
-                fqdn_override: Some(listener_address.address),
-                ports: listener_address
-                    .ports
-                    .into_iter()
-                    .map(|(port_name, port)| {
-                        let port = Port(u16::try_from(port).context(PortOutOfBoundsSnafu {
-                            port_name: &port_name,
-                            port,
-                        })?);
-                        Ok((port_name, port))
-                    })
-                    .collect::<Result<_, _>>()?,
-                ..pod_ref
-            })
-        }))
-        .await
     }
 
     pub fn rolegroup_ref_and_replicas(
@@ -577,115 +437,17 @@ impl v1alpha1::HdfsCluster {
             .sum()
     }
 
-    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> Port {
-        match role {
-            HdfsNodeRole::Name => {
-                if self.has_https_enabled() {
-                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT
-                } else {
-                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT
-                }
-            }
-            HdfsNodeRole::Data => {
-                if self.has_https_enabled() {
-                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT
-                } else {
-                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT
-                }
-            }
-            HdfsNodeRole::Journal => {
-                if self.has_https_enabled() {
-                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT
-                } else {
-                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT
-                }
-            }
-        }
-    }
-
-    /// Returns the deprecated JMX metrics port name and port number tuples for the given role.
-    pub fn jmx_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        match role {
-            HdfsNodeRole::Name => vec![(
-                String::from(SERVICE_PORT_NAME_JMX_METRICS),
-                DEFAULT_NAME_NODE_METRICS_PORT,
-            )],
-            HdfsNodeRole::Data => vec![(
-                String::from(SERVICE_PORT_NAME_JMX_METRICS),
-                DEFAULT_DATA_NODE_METRICS_PORT,
-            )],
-            HdfsNodeRole::Journal => vec![(
-                String::from(SERVICE_PORT_NAME_JMX_METRICS),
-                DEFAULT_JOURNAL_NODE_METRICS_PORT,
-            )],
-        }
-    }
-
-    pub fn metrics_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        let mut metrics_service_ports = vec![];
-        // "native" ports
-        metrics_service_ports.extend(self.native_metrics_ports(role));
-        // deprecated jmx ports
-        metrics_service_ports.extend(self.jmx_metrics_ports(role));
-        metrics_service_ports
-    }
-
-    pub fn headless_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        let mut headless_service_ports = vec![];
-        headless_service_ports.extend(self.data_ports(role));
-        headless_service_ports
-    }
-
     pub fn hdfs_main_container_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         let mut main_container_ports = vec![];
         main_container_ports.extend(self.data_ports(role));
         // TODO: This will be exposed in the listener if added to container ports?
-        // main_container_ports.extend(self.jmx_metrics_ports(role));
+        // main_container_ports.extend(the deprecated JMX metrics ports);
         main_container_ports
     }
 
     /// Returns required port name and port number tuples depending on the role.
     fn data_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
         role_data_ports(role, self.has_https_enabled())
-    }
-
-    /// Returns required native metrics port name and metrics port number tuples depending on the role and security settings.
-    fn native_metrics_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        match role {
-            HdfsNodeRole::Name => vec![if self.has_https_enabled() {
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT,
-                )
-            } else {
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT,
-                )
-            }],
-            HdfsNodeRole::Data => vec![if self.has_https_enabled() {
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT,
-                )
-            } else {
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
-                )
-            }],
-            HdfsNodeRole::Journal => vec![if self.has_https_enabled() {
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT,
-                )
-            } else {
-                (
-                    String::from(SERVICE_PORT_NAME_METRICS),
-                    DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
-                )
-            }],
-        }
     }
 }
 
@@ -906,6 +668,83 @@ impl HdfsNodeRole {
 
 /// Returns the required port name and port number tuples exposed by pods of the
 /// given `role`, depending on whether HTTPS is enabled.
+/// The rolegroup selector labels for `rolegroup_ref`, owned by `owner` (either the
+/// raw `HdfsCluster` or the [`crate::controller::ValidatedCluster`]).
+pub(crate) fn rolegroup_selector_labels<R: Resource<DynamicType = ()>>(
+    owner: &R,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+) -> Result<Labels> {
+    let mut group_labels = Labels::role_group_selector(
+        owner,
+        APP_NAME,
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    )
+    .context(BuildRoleGroupSelectorLabelSnafu)?;
+    group_labels
+        .parse_insert(("role", rolegroup_ref.role.deref()))
+        .context(BuildRoleGroupSelectorLabelSnafu)?;
+    group_labels
+        .parse_insert(("group", rolegroup_ref.role_group.deref()))
+        .context(BuildRoleGroupSelectorLabelSnafu)?;
+
+    Ok(group_labels)
+}
+
+/// Resolve the listener-based [`HdfsPodRef`]s for the given namenode `namenode_podrefs`,
+/// configured to access the cluster via [`Listener`](listener::v1alpha1::Listener) rather
+/// than direct [`Pod`] access.
+///
+/// This enables access from outside the Kubernetes cluster (if using a
+/// [`listener::v1alpha1::ListenerClass`] configured for this). It assumes that all
+/// `Listener`s have been created, and may fail while waiting for the cluster to come online.
+///
+/// This _only_ supports accessing namenodes, since journalnodes are considered internal,
+/// and datanodes are registered dynamically with the namenodes.
+pub(crate) async fn namenode_listener_refs(
+    client: &stackable_operator::client::Client,
+    namenode_podrefs: Vec<HdfsPodRef>,
+) -> Result<Vec<HdfsPodRef>, Error> {
+    try_join_all(namenode_podrefs.into_iter().map(|pod_ref| async {
+        let listener_name = format!("{}-{}", *LISTENER_VOLUME_NAME, pod_ref.pod_name);
+        let listener_ref = || {
+            ObjectRef::<listener::v1alpha1::Listener>::new(&listener_name)
+                .within(&pod_ref.namespace)
+        };
+        let pod_obj_ref = || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(&pod_ref.namespace);
+        let listener = client
+            .get::<listener::v1alpha1::Listener>(&listener_name, &pod_ref.namespace)
+            .await
+            .context(GetPodListenerSnafu {
+                listener: listener_ref(),
+                pod: pod_obj_ref(),
+            })?;
+        let listener_address = listener
+            .status
+            .and_then(|s| s.ingress_addresses?.into_iter().next())
+            .context(PodListenerHasNoAddressSnafu {
+                listener: listener_ref(),
+                pod: pod_obj_ref(),
+            })?;
+        Ok(HdfsPodRef {
+            fqdn_override: Some(listener_address.address),
+            ports: listener_address
+                .ports
+                .into_iter()
+                .map(|(port_name, port)| {
+                    let port = Port(u16::try_from(port).context(PortOutOfBoundsSnafu {
+                        port_name: &port_name,
+                        port,
+                    })?);
+                    Ok((port_name, port))
+                })
+                .collect::<Result<_, _>>()?,
+            ..pod_ref
+        })
+    }))
+    .await
+}
+
 pub(crate) fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, Port)> {
     match role {
         HdfsNodeRole::Name => vec![

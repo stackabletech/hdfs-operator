@@ -1,15 +1,15 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
-    commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
-    kube::runtime::reflector::ObjectRef,
     kvp::{Annotations, Label, LabelError},
     role_utils::RoleGroupRef,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::{
     build_recommended_labels,
+    controller::ValidatedCluster,
     crd::{HdfsNodeRole, v1alpha1},
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
@@ -24,36 +24,26 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
     },
 
-    #[snafu(display("no metadata for {obj_ref:?}"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
-    },
-
     #[snafu(display("failed to build roleGroup selector labels"))]
     RoleGroupSelectorLabels { source: crate::crd::Error },
 }
 
 pub(crate) fn rolegroup_headless_service(
-    hdfs: &v1alpha1::HdfsCluster,
+    cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    resolved_product_image: &ResolvedProductImage,
 ) -> Result<Service, Error> {
     tracing::info!("Setting up Service for {:?}", rolegroup_ref);
 
     let mut metadata_builder = ObjectMetaBuilder::new();
     metadata_builder
-        .name_and_namespace(hdfs)
+        .name_and_namespace(cluster)
         .name(rolegroup_ref.object_name())
-        .ownerreference_from_resource(hdfs, None, Some(true))
-        .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?
+        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
         .with_recommended_labels(&build_recommended_labels(
-            hdfs,
+            cluster,
             RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &resolved_product_image.app_version_label_value,
+            &cluster.image.app_version_label_value,
             &rolegroup_ref.role,
             &rolegroup_ref.role_group,
         ))
@@ -64,7 +54,8 @@ pub(crate) fn rolegroup_headless_service(
         type_: Some("ClusterIP".to_string()),
         cluster_ip: Some("None".to_string()),
         ports: Some(
-            hdfs.headless_service_ports(role)
+            cluster
+                .headless_service_ports(role)
                 .into_iter()
                 .map(|(name, value)| ServicePort {
                     name: Some(name),
@@ -75,7 +66,8 @@ pub(crate) fn rolegroup_headless_service(
                 .collect(),
         ),
         selector: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
+            cluster
+                .rolegroup_selector_labels(rolegroup_ref)
                 .context(RoleGroupSelectorLabelsSnafu)?
                 .into(),
         ),
@@ -91,10 +83,9 @@ pub(crate) fn rolegroup_headless_service(
 }
 
 pub(crate) fn rolegroup_metrics_service(
-    hdfs: &v1alpha1::HdfsCluster,
+    cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
     rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    resolved_product_image: &ResolvedProductImage,
 ) -> Result<Service, Error> {
     tracing::info!("Setting up metrics Service for {:?}", rolegroup_ref);
 
@@ -103,7 +94,8 @@ pub(crate) fn rolegroup_metrics_service(
         type_: Some("ClusterIP".to_string()),
         cluster_ip: Some("None".to_string()),
         ports: Some(
-            hdfs.metrics_service_ports(role)
+            cluster
+                .metrics_service_ports(role)
                 .into_iter()
                 .map(|(name, value)| ServicePort {
                     name: Some(name),
@@ -114,7 +106,8 @@ pub(crate) fn rolegroup_metrics_service(
                 .collect(),
         ),
         selector: Some(
-            hdfs.rolegroup_selector_labels(rolegroup_ref)
+            cluster
+                .rolegroup_selector_labels(rolegroup_ref)
                 .context(RoleGroupSelectorLabelsSnafu)?
                 .into(),
         ),
@@ -124,16 +117,13 @@ pub(crate) fn rolegroup_metrics_service(
 
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(hdfs)
+            .name_and_namespace(cluster)
             .name(rolegroup_ref.rolegroup_metrics_service_name())
-            .ownerreference_from_resource(hdfs, None, Some(true))
-            .with_context(|_| ObjectMissingMetadataForOwnerRefSnafu {
-                obj_ref: ObjectRef::from_obj(hdfs),
-            })?
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
             .with_recommended_labels(&build_recommended_labels(
-                hdfs,
+                cluster,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &resolved_product_image.app_version_label_value,
+                &cluster.image.app_version_label_value,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             ))
@@ -147,11 +137,11 @@ pub(crate) fn rolegroup_metrics_service(
                     ("prometheus.io/path".to_owned(), "/prom".to_owned()),
                     (
                         "prometheus.io/port".to_owned(),
-                        hdfs.native_metrics_port(role).to_string(),
+                        cluster.native_metrics_port(role).to_string(),
                     ),
                     (
                         "prometheus.io/scheme".to_owned(),
-                        if hdfs.has_https_enabled() {
+                        if cluster.has_https_enabled() {
                             "https".to_owned()
                         } else {
                             "http".to_owned()

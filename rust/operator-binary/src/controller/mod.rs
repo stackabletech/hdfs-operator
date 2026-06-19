@@ -4,6 +4,7 @@ use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     commons::product_image_selection::ResolvedProductImage,
     kube::{Resource, api::ObjectMeta},
+    kvp::Labels,
     role_utils::RoleGroupRef,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
@@ -20,7 +21,20 @@ use stackable_operator::{
 use crate::{
     build_recommended_labels,
     controller::build::opa::HdfsOpaConfig,
-    crd::{AnyNodeConfig, HdfsNodeRole, HdfsPodRef, security::AuthenticationConfig, v1alpha1},
+    crd::{
+        AnyNodeConfig, HdfsNodeRole, HdfsPodRef,
+        constants::{
+            DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
+            DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
+            DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
+            DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
+            DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT,
+            DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT, SERVICE_PORT_NAME_JMX_METRICS,
+            SERVICE_PORT_NAME_METRICS,
+        },
+        security::AuthenticationConfig,
+        v1alpha1,
+    },
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
 
@@ -148,6 +162,61 @@ impl ValidatedCluster {
                 fail-safe typed values",
             );
         metadata
+    }
+
+    /// Whether HTTPS (and thus kerberos) is enabled, derived from the validated
+    /// authentication settings.
+    pub fn has_https_enabled(&self) -> bool {
+        self.cluster_config.authentication.is_some()
+    }
+
+    /// The ports exposed by the rolegroup headless service for the given `role`.
+    pub fn headless_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
+        crate::crd::role_data_ports(role, self.has_https_enabled())
+    }
+
+    /// The ports exposed by the rolegroup metrics service for the given `role`
+    /// (native Prometheus endpoint plus the deprecated JMX exporter port).
+    pub fn metrics_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
+        vec![
+            (
+                SERVICE_PORT_NAME_METRICS.to_string(),
+                self.native_metrics_port(role),
+            ),
+            (
+                SERVICE_PORT_NAME_JMX_METRICS.to_string(),
+                self.jmx_metrics_port(role),
+            ),
+        ]
+    }
+
+    /// The native (built-in) Prometheus metrics port for the given `role`.
+    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> Port {
+        match (role, self.has_https_enabled()) {
+            (HdfsNodeRole::Name, false) => DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT,
+            (HdfsNodeRole::Name, true) => DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT,
+            (HdfsNodeRole::Data, false) => DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
+            (HdfsNodeRole::Data, true) => DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT,
+            (HdfsNodeRole::Journal, false) => DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
+            (HdfsNodeRole::Journal, true) => DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT,
+        }
+    }
+
+    /// The deprecated JMX exporter metrics port for the given `role`.
+    fn jmx_metrics_port(&self, role: &HdfsNodeRole) -> Port {
+        match role {
+            HdfsNodeRole::Name => DEFAULT_NAME_NODE_METRICS_PORT,
+            HdfsNodeRole::Data => DEFAULT_DATA_NODE_METRICS_PORT,
+            HdfsNodeRole::Journal => DEFAULT_JOURNAL_NODE_METRICS_PORT,
+        }
+    }
+
+    /// The rolegroup selector labels for the given `rolegroup_ref`.
+    pub fn rolegroup_selector_labels(
+        &self,
+        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    ) -> Result<Labels, crate::crd::Error> {
+        crate::crd::rolegroup_selector_labels(self, rolegroup_ref)
     }
 }
 

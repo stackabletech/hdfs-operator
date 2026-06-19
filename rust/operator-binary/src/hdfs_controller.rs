@@ -213,8 +213,6 @@ pub async fn reconcile_hdfs(
     )
     .context(ValidateSnafu)?;
 
-    let resolved_product_image = &validated_cluster.image;
-
     let hdfs_obj_ref = hdfs.object_ref(&());
 
     let mut cluster_resources = ClusterResources::new(
@@ -287,11 +285,10 @@ pub async fn reconcile_hdfs(
         for (rolegroup_name, validated_cluster_rg_config) in group_config.iter() {
             let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
 
-            let rg_service =
-                rolegroup_headless_service(hdfs, &role, &rolegroup_ref, resolved_product_image)
-                    .context(BuildServiceSnafu)?;
+            let rg_service = rolegroup_headless_service(&validated_cluster, &role, &rolegroup_ref)
+                .context(BuildServiceSnafu)?;
             let rg_metrics_service =
-                rolegroup_metrics_service(hdfs, &role, &rolegroup_ref, resolved_product_image)
+                rolegroup_metrics_service(&validated_cluster, &role, &rolegroup_ref)
                     .context(BuildServiceSnafu)?;
 
             let rg_configmap =
@@ -380,10 +377,12 @@ pub async fn reconcile_hdfs(
     let discovery_cm = build_discovery_config_map(
         &validated_cluster,
         &client.kubernetes_cluster_info,
-        &hdfs
-            .namenode_listener_refs(client)
-            .await
-            .context(CollectDiscoveryConfigSnafu)?,
+        &crate::crd::namenode_listener_refs(
+            client,
+            validated_cluster.pod_refs(&HdfsNodeRole::Name),
+        )
+        .await
+        .context(CollectDiscoveryConfigSnafu)?,
     )
     .context(BuildDiscoveryConfigMapSnafu)?;
 
