@@ -15,8 +15,8 @@ use crate::{
         build::{
             self,
             properties::{
-                ConfigFileName, core_site, hadoop_policy, hdfs_site, logging, security_properties,
-                ssl_client, ssl_server,
+                ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging,
+                security_properties, ssl_client, ssl_server,
             },
         },
     },
@@ -105,13 +105,14 @@ pub fn build_rolegroup_config_map(
             )?,
         );
 
-    for (log_config_file, log4j_config) in logging::build_log4j_configs(merged_config) {
+    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(merged_config) {
         builder.add_data(log_config_file, log4j_config);
     }
-    if let Some(vector_config) =
-        logging::build_vector_config(cluster, role, role_group_name, merged_config)
-    {
-        builder.add_data(VECTOR_CONFIG_FILE, vector_config);
+    if merged_config.vector_logging_enabled() {
+        builder.add_data(
+            VECTOR_CONFIG_FILE,
+            product_logging::vector_config_file_content(),
+        );
     }
 
     builder.build().with_context(|_| AssembleSnafu {

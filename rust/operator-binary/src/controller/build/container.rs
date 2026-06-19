@@ -40,9 +40,7 @@ use stackable_operator::{
     kvp::Labels,
     product_logging::{
         self,
-        framework::{
-            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
-        },
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
         spec::{
             AutomaticContainerLogConfig, ConfigMapLogConfig, ContainerLogConfig,
             ContainerLogConfigChoice, CustomContainerLogConfig,
@@ -50,10 +48,14 @@ use stackable_operator::{
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
     v2::{
-        builder::pod::container::new_container_builder,
+        builder::pod::container::{EnvVarSet, new_container_builder},
+        product_logging::framework::{
+            STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, VectorContainerLogConfig,
+            vector_container,
+        },
         types::{
             common::Port,
-            kubernetes::{ContainerName, VolumeName},
+            kubernetes::{ConfigMapName, ContainerName, VolumeName},
             operator::RoleGroupName,
         },
     },
@@ -67,11 +69,11 @@ use crate::{
             self,
             jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
             kerberos::KERBEROS_CONTAINER_PATH,
-            properties::logging::{
+            properties::product_logging::{
                 FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
                 HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
                 MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-                MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE, STACKABLE_LOG_DIR,
+                MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE,
                 WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
             },
         },
@@ -97,6 +99,12 @@ pub(crate) const TLS_STORE_DIR: &str = "/stackable/tls";
 constant!(pub(crate) TLS_STORE_VOLUME_NAME: VolumeName = "tls");
 pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
 constant!(pub(crate) KERBEROS_VOLUME_NAME: VolumeName = "kerberos");
+
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+// The volume the rolegroup ConfigMap (including the static `vector.yaml`) is mounted into.
+constant!(VECTOR_CONFIG_VOLUME_NAME: VolumeName = "hdfs-config");
+// The volume holding the product logs that Vector tails.
+constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -128,9 +136,6 @@ pub enum Error {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
 
-    #[snafu(display("failed to configure logging"))]
-    ConfigureLogging { source: LoggingError },
-
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
 
@@ -141,6 +146,11 @@ pub enum Error {
 
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
+
+    #[snafu(display("invalid Vector log config ConfigMap name"))]
+    ParseVectorLogConfigMapName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
 }
 
 /// ContainerConfig contains information to create all main, side and init containers for
@@ -233,35 +243,45 @@ impl ContainerConfig {
             labels,
         )?);
 
-        // Vector side container
+        // Vector sidecar container.
         if merged_config.vector_logging_enabled() {
-            match &cluster
+            let vector_aggregator_config_map_name = cluster
                 .cluster_config
                 .logging
                 .vector_aggregator_config_map_name
-            {
-                Some(vector_aggregator_config_map_name) => {
-                    pb.add_container(
-                        product_logging::framework::vector_container(
-                            &cluster.image,
-                            ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME,
-                            ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME,
-                            Some(&merged_config.vector_logging()),
-                            ResourceRequirementsBuilder::new()
-                                .with_cpu_request("250m")
-                                .with_cpu_limit("500m")
-                                .with_memory_request("128Mi")
-                                .with_memory_limit("128Mi")
-                                .build(),
-                            vector_aggregator_config_map_name.as_ref(),
-                        )
-                        .context(ConfigureLoggingSnafu)?,
-                    );
-                }
-                None => {
-                    VectorAggregatorConfigMapMissingSnafu.fail()?;
-                }
-            }
+                .clone()
+                .context(VectorAggregatorConfigMapMissingSnafu)?;
+
+            let log_config = match &*merged_config.vector_logging() {
+                ContainerLogConfig {
+                    choice:
+                        Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                            custom: ConfigMapLogConfig { config_map },
+                        })),
+                } => ValidatedContainerLogConfigChoice::Custom(
+                    ConfigMapName::from_str(config_map)
+                        .context(ParseVectorLogConfigMapNameSnafu)?,
+                ),
+                ContainerLogConfig {
+                    choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+                } => ValidatedContainerLogConfigChoice::Automatic(log_config.clone()),
+                _ => ValidatedContainerLogConfigChoice::Automatic(
+                    AutomaticContainerLogConfig::default(),
+                ),
+            };
+
+            pb.add_container(vector_container(
+                &VECTOR_CONTAINER_NAME,
+                &cluster.image,
+                &VectorContainerLogConfig {
+                    log_config,
+                    vector_aggregator_config_map_name,
+                },
+                &cluster.resource_names(role, role_group_name),
+                &VECTOR_CONFIG_VOLUME_NAME,
+                &VECTOR_LOG_VOLUME_NAME,
+                EnvVarSet::new(),
+            ));
         }
 
         if let Some(authentication_config) = cluster.authentication_config() {

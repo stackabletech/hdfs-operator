@@ -8,7 +8,7 @@ use crate::controller::build::container::{TLS_STORE_DIR, TLS_STORE_PASSWORD};
 pub mod core_site;
 pub mod hadoop_policy;
 pub mod hdfs_site;
-pub mod logging;
+pub mod product_logging;
 pub mod security_properties;
 pub mod ssl_client;
 pub mod ssl_server;
