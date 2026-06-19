@@ -4,7 +4,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
-    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    cluster_resources::ClusterResourceApplyStrategy,
     commons::rbac::build_rbac_resources,
     iter::reverse_if,
     kube::{
@@ -22,19 +22,23 @@ use stackable_operator::{
         },
         rollout::check_statefulset_rollout_complete,
     },
+    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
     OPERATOR_NAME,
-    controller::build::{
-        self,
-        resource::{
-            discovery::{self, build_discovery_config_map},
-            pdb::build_pdb,
-            service::{self, rolegroup_headless_service, rolegroup_metrics_service},
-            statefulset::{self, build_rolegroup_statefulset},
+    controller::{
+        build::{
+            self,
+            resource::{
+                discovery::{self, build_discovery_config_map},
+                pdb::build_pdb,
+                service::{self, rolegroup_headless_service, rolegroup_metrics_service},
+                statefulset::{self, build_rolegroup_statefulset},
+            },
         },
+        controller_name, operator_name, product_name,
     },
     crd::{HdfsClusterStatus, HdfsNodeRole, UpgradeState, constants::*, v1alpha1},
     event::{build_invalid_replica_message, publish_warning_event},
@@ -98,11 +102,6 @@ pub enum Error {
 
     #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to create cluster resources"))]
-    CreateClusterResources {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -182,17 +181,16 @@ pub async fn reconcile_hdfs(
     )
     .context(ValidateSnafu)?;
 
-    let hdfs_obj_ref = hdfs.object_ref(&());
-
-    let mut cluster_resources = ClusterResources::new(
-        APP_NAME,
-        OPERATOR_NAME,
-        RESOURCE_MANAGER_HDFS_CONTROLLER,
-        &hdfs_obj_ref,
+    let mut cluster_resources = cluster_resources_new(
+        &product_name(),
+        &operator_name(),
+        &controller_name(),
+        &validated_cluster.name,
+        &validated_cluster.namespace,
+        &validated_cluster.uid,
         ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
         &hdfs.spec.object_overrides,
-    )
-    .context(CreateClusterResourcesSnafu)?;
+    );
 
     // The service account and rolebinding will be created per cluster
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
@@ -240,7 +238,7 @@ pub async fn reconcile_hdfs(
         if let Some(message) = build_invalid_replica_message(&validated_cluster, &role) {
             publish_warning_event(
                 &ctx,
-                &hdfs_obj_ref,
+                &hdfs.object_ref(&()),
                 "Reconcile".to_owned(),
                 "Invalid replicas".to_owned(),
                 message,
