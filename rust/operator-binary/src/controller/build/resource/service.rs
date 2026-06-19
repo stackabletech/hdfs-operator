@@ -2,8 +2,14 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
-    kvp::{Annotations, Label, LabelError},
-    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
+    kvp::LabelError,
+    v2::{
+        builder::{
+            meta::ownerreference_from_resource,
+            service::{Scheme, Scraping, prometheus_annotations, prometheus_labels},
+        },
+        types::operator::RoleGroupName,
+    },
 };
 
 use crate::{
@@ -15,9 +21,6 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to build prometheus label"))]
-    BuildPrometheusLabel { source: LabelError },
-
     #[snafu(display("failed to build object meta data"))]
     ObjectMeta {
         source: stackable_operator::builder::meta::Error,
@@ -132,29 +135,17 @@ pub(crate) fn rolegroup_metrics_service(
                 role_group_name.as_ref(),
             ))
             .context(ObjectMetaSnafu)?
-            .with_label(
-                Label::try_from(("prometheus.io/scrape", "true"))
-                    .context(BuildPrometheusLabelSnafu)?,
-            )
-            .with_annotations(
-                Annotations::try_from([
-                    ("prometheus.io/path".to_owned(), "/prom".to_owned()),
-                    (
-                        "prometheus.io/port".to_owned(),
-                        build::native_metrics_port(cluster, role).to_string(),
-                    ),
-                    (
-                        "prometheus.io/scheme".to_owned(),
-                        if cluster.has_https_enabled() {
-                            "https".to_owned()
-                        } else {
-                            "http".to_owned()
-                        },
-                    ),
-                    ("prometheus.io/scrape".to_owned(), "true".to_owned()),
-                ])
-                .expect("should be valid annotations"),
-            )
+            .with_labels(prometheus_labels(&Scraping::Enabled))
+            .with_annotations(prometheus_annotations(
+                &Scraping::Enabled,
+                if cluster.has_https_enabled() {
+                    &Scheme::Https
+                } else {
+                    &Scheme::Http
+                },
+                "/prom",
+                &build::native_metrics_port(cluster, role),
+            ))
             .build(),
         spec: Some(service_spec),
         status: None,
