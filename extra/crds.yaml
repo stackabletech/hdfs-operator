@@ -233,7 +233,10 @@ spec:
                         description: |-
                           This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup.
                           DataNodes should have a direct ListenerClass, such as `cluster-internal` or `external-unstable`.
+                        maxLength: 253
+                        minLength: 1
                         nullable: true
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                         type: string
                       logging:
                         default:
@@ -796,7 +799,10 @@ spec:
                               description: |-
                                 This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup.
                                 DataNodes should have a direct ListenerClass, such as `cluster-internal` or `external-unstable`.
+                              maxLength: 253
+                              minLength: 1
                               nullable: true
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                               type: string
                             logging:
                               default:
@@ -2314,7 +2320,10 @@ spec:
                         description: |-
                           This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup.
                           NameNodes should have a stable ListenerClass, such as `cluster-internal` or `external-stable`.
+                        maxLength: 253
+                        minLength: 1
                         nullable: true
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                         type: string
                       logging:
                         default:
@@ -3026,7 +3035,10 @@ spec:
                               description: |-
                                 This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose this rolegroup.
                                 NameNodes should have a stable ListenerClass, such as `cluster-internal` or `external-stable`.
+                              maxLength: 253
+                              minLength: 1
                               nullable: true
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                               type: string
                             logging:
                               default:

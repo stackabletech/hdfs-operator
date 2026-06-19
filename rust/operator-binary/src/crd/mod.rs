@@ -3,6 +3,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     num::TryFromIntError,
     ops::Deref,
+    str::FromStr,
 };
 
 use futures::future::try_join_all;
@@ -39,7 +40,10 @@ use stackable_operator::{
     v2::{
         config_overrides::KeyValueConfigOverrides,
         role_utils::JavaCommonConfig,
-        types::{common::Port, kubernetes::ConfigMapName},
+        types::{
+            common::Port,
+            kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, ServiceName},
+        },
     },
     versioned::versioned,
 };
@@ -557,11 +561,12 @@ pub(crate) async fn namenode_listener_refs(
         let listener_name = format!("{}-{}", *LISTENER_VOLUME_NAME, pod_ref.pod_name);
         let listener_ref = || {
             ObjectRef::<listener::v1alpha1::Listener>::new(&listener_name)
-                .within(&pod_ref.namespace)
+                .within(pod_ref.namespace.as_ref())
         };
-        let pod_obj_ref = || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(&pod_ref.namespace);
+        let pod_obj_ref =
+            || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(pod_ref.namespace.as_ref());
         let listener = client
-            .get::<listener::v1alpha1::Listener>(&listener_name, &pod_ref.namespace)
+            .get::<listener::v1alpha1::Listener>(&listener_name, pod_ref.namespace.as_ref())
             .await
             .context(GetPodListenerSnafu {
                 listener: listener_ref(),
@@ -598,8 +603,8 @@ pub(crate) async fn namenode_listener_refs(
 /// Used for service discovery.
 #[derive(Clone, Debug)]
 pub struct HdfsPodRef {
-    pub namespace: String,
-    pub role_group_service_name: String,
+    pub namespace: NamespaceName,
+    pub role_group_service_name: ServiceName,
     pub pod_name: String,
     pub fqdn_override: Option<String>,
     pub ports: HashMap<String, Port>,
@@ -671,7 +676,13 @@ pub enum NameNodeContainer {
     FormatZooKeeper,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+/// The default [`ListenerClassName`] used to expose a role group.
+pub fn default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str(DEFAULT_LISTENER_CLASS)
+        .expect("the default listener class is a valid ListenerClassName")
+}
+
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -693,7 +704,7 @@ pub struct NameNodeConfig {
     /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose this rolegroup.
     /// NameNodes should have a stable ListenerClass, such as `cluster-internal` or `external-stable`.
     #[fragment_attrs(serde(default))]
-    pub listener_class: String,
+    pub listener_class: ListenerClassName,
     #[fragment_attrs(serde(flatten))]
     pub common: CommonNodeConfig,
 }
@@ -721,7 +732,7 @@ impl NameNodeConfigFragment {
                 },
             },
             logging: product_logging::spec::default_logging(),
-            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
+            listener_class: Some(default_listener_class()),
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
@@ -754,7 +765,7 @@ pub enum DataNodeContainer {
     WaitForNameNodes,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -776,7 +787,7 @@ pub struct DataNodeConfig {
     /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose this rolegroup.
     /// DataNodes should have a direct ListenerClass, such as `cluster-internal` or `external-unstable`.
     #[fragment_attrs(serde(default))]
-    pub listener_class: String,
+    pub listener_class: ListenerClassName,
     #[fragment_attrs(serde(flatten))]
     pub common: CommonNodeConfig,
 }
@@ -809,7 +820,7 @@ impl DataNodeConfigFragment {
                 )]),
             },
             logging: product_logging::spec::default_logging(),
-            listener_class: Some(DEFAULT_LISTENER_CLASS.to_string()),
+            listener_class: Some(default_listener_class()),
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),

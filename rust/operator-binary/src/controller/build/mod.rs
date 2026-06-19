@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     kvp::{LabelError, Labels},
     v2::{
         builder::meta::ownerreference_from_resource,
-        types::{common::Port, operator::RoleGroupName},
+        types::{common::Port, kubernetes::ServiceName, operator::RoleGroupName},
     },
 };
 
@@ -61,14 +61,21 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .into_iter()
         .flatten()
         .flat_map(|(role_group_name, role_group)| {
-            let object_name = cluster
-                .resource_names(role, role_group_name)
-                .qualified_role_group_name()
-                .to_string();
+            // The headless Service that governs the pods is named after the qualified role group
+            // name (see `build::resource::service::rolegroup_headless_service`).
+            let service_name = ServiceName::from_str(
+                cluster
+                    .resource_names(role, role_group_name)
+                    .qualified_role_group_name()
+                    .as_ref(),
+            )
+            .expect("a qualified role group name is a valid Service name");
+            let object_name = service_name.to_string();
+            let namespace = cluster.namespace.clone();
             let ports = ports.clone();
             (0..role_group.replicas.unwrap_or(1)).map(move |i| HdfsPodRef {
-                namespace: cluster.namespace.to_string(),
-                role_group_service_name: object_name.clone(),
+                namespace: namespace.clone(),
+                role_group_service_name: service_name.clone(),
                 pod_name: format!("{object_name}-{i}"),
                 ports: ports.clone(),
                 fqdn_override: None,
