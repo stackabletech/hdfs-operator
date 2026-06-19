@@ -17,12 +17,12 @@ use strum::IntoEnumIterator;
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig, ValidatedRoleGroupConfig,
-        dereference::DereferencedObjects,
+        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRoleConfig,
+        ValidatedRoleGroupConfig, dereference::DereferencedObjects,
     },
     crd::{
         AnyNodeConfig, DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfigFragment,
-        NameNodeConfigFragment, v1alpha1,
+        NameNodeConfigFragment, UpgradeStateError, v1alpha1,
     },
 };
 
@@ -59,6 +59,9 @@ pub enum Error {
     ValidateRoleGroupConfig {
         source: stackable_operator::config::fragment::ValidationError,
     },
+
+    #[snafu(display("invalid upgrade state"))]
+    UpgradeState { source: UpgradeStateError },
 }
 
 pub fn validate_cluster(
@@ -111,6 +114,17 @@ pub fn validate_cluster(
 
     let namespace = get_namespace(hdfs).context(GetClusterNamespaceSnafu)?;
     let uid = get_uid(hdfs).context(GetClusterUidSnafu)?;
+    let status = ValidatedClusterStatus {
+        upgrade_state: hdfs.upgrade_state().context(UpgradeStateSnafu)?,
+        deployed_product_version: hdfs
+            .status
+            .as_ref()
+            .and_then(|status| status.deployed_product_version.clone()),
+        upgrade_target_product_version: hdfs
+            .status
+            .as_ref()
+            .and_then(|status| status.upgrade_target_product_version.clone()),
+    };
 
     Ok(ValidatedCluster::new(
         cluster_name,
@@ -120,6 +134,7 @@ pub fn validate_cluster(
         ValidatedClusterConfig::resolve(hdfs, dereferenced_objects.hdfs_opa_config),
         role_groups,
         role_configs,
+        status,
     ))
 }
 

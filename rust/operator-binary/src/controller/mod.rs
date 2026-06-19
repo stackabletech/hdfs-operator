@@ -15,7 +15,7 @@ use stackable_operator::{
         role_utils::RoleGroupConfig,
         types::{
             common::Port,
-            kubernetes::{NamespaceName, Uid},
+            kubernetes::{ConfigMapName, NamespaceName, Uid},
             operator::{ClusterName, ControllerName, OperatorName, ProductName},
         },
     },
@@ -25,7 +25,7 @@ use crate::{
     OPERATOR_NAME, build_recommended_labels,
     controller::build::opa::HdfsOpaConfig,
     crd::{
-        AnyNodeConfig, HdfsNodeRole, HdfsPodRef,
+        AnyNodeConfig, HdfsNodeRole, HdfsPodRef, UpgradeState,
         constants::{
             APP_NAME, DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
             DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
@@ -73,9 +73,13 @@ pub struct ValidatedCluster {
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
     pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+    /// The validated view of the cluster's current status, resolved once during
+    /// validation.
+    pub status: ValidatedClusterStatus,
 }
 
 impl ValidatedCluster {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: ClusterName,
         namespace: NamespaceName,
@@ -84,6 +88,7 @@ impl ValidatedCluster {
         cluster_config: ValidatedClusterConfig,
         role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
         role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+        status: ValidatedClusterStatus,
     ) -> Self {
         Self {
             metadata: ObjectMeta {
@@ -101,6 +106,7 @@ impl ValidatedCluster {
             cluster_config,
             role_groups,
             role_configs,
+            status,
         }
     }
 
@@ -300,6 +306,20 @@ impl NameIsValidLabelValue for ValidatedCluster {
     }
 }
 
+/// The validated view of the cluster's current status, resolved once during
+/// validation from the (mutable) [`v1alpha1::HdfsCluster::status`] so the controller
+/// reasons about upgrades from a typed snapshot rather than re-reading the status.
+#[derive(Clone, Debug)]
+pub struct ValidatedClusterStatus {
+    /// The current upgrade state (`None` unless the cluster is mid up/downgrade).
+    pub upgrade_state: Option<UpgradeState>,
+    /// The product version currently deployed (during upgrades this is the *old*
+    /// version), or `None` on a fresh install.
+    pub deployed_product_version: Option<String>,
+    /// The product version currently being upgraded to, otherwise `None`.
+    pub upgrade_target_product_version: Option<String>,
+}
+
 /// Cluster-wide settings resolved once during validation, so the build steps no
 /// longer need the raw `HdfsCluster` to render config.
 #[derive(Clone, Debug)]
@@ -312,6 +332,8 @@ pub struct ValidatedClusterConfig {
     /// The replication factor.
     pub dfs_replication: u8,
     pub rack_awareness: Option<String>,
+    /// The name of the ZooKeeper discovery `ConfigMap`.
+    pub zookeeper_config_map_name: ConfigMapName,
 }
 
 impl ValidatedClusterConfig {
@@ -324,6 +346,7 @@ impl ValidatedClusterConfig {
             authorization,
             dfs_replication: hdfs.spec.cluster_config.dfs_replication,
             rack_awareness: hdfs.rackawareness_config(),
+            zookeeper_config_map_name: hdfs.spec.cluster_config.zookeeper_config_map_name.clone(),
         }
     }
 }

@@ -266,16 +266,6 @@ impl HasStatusCondition for v1alpha1::HdfsCluster {
 }
 
 impl v1alpha1::HdfsCluster {
-    /// Kubernetes labels to attach to Pods within a role group.
-    ///
-    /// The same labels are also used as selectors for Services and StatefulSets.
-    pub fn rolegroup_selector_labels(
-        &self,
-        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    ) -> Result<Labels> {
-        rolegroup_selector_labels(self, rolegroup_ref)
-    }
-
     pub fn role_config(&self, hdfs_role: &HdfsNodeRole) -> Option<&GenericRoleConfig> {
         match hdfs_role {
             HdfsNodeRole::Name => self.spec.name_nodes.as_ref().map(|nn| &nn.role_config),

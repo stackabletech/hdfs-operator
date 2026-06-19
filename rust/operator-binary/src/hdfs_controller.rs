@@ -51,9 +51,7 @@ use crate::{
             },
         },
     },
-    crd::{
-        HdfsClusterStatus, HdfsNodeRole, UpgradeState, UpgradeStateError, constants::*, v1alpha1,
-    },
+    crd::{HdfsClusterStatus, HdfsNodeRole, UpgradeState, constants::*, v1alpha1},
     event::{build_invalid_replica_message, publish_warning_event},
 };
 
@@ -72,9 +70,6 @@ pub enum Error {
     Validate {
         source: crate::controller::validate::Error,
     },
-
-    #[snafu(display("invalid upgrade state"))]
-    InvalidUpgradeState { source: UpgradeStateError },
 
     #[snafu(display("cannot create rolegroup service {name:?}"))]
     ApplyRoleGroupService {
@@ -247,7 +242,7 @@ pub async fn reconcile_hdfs(
     let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    let upgrade_state = hdfs.upgrade_state().context(InvalidUpgradeStateSnafu)?;
+    let upgrade_state = validated_cluster.status.upgrade_state;
     let mut deploy_done = true;
 
     // Roles must be deployed in order during rolling upgrades,
@@ -399,17 +394,17 @@ pub async fn reconcile_hdfs(
         conditions: compute_conditions(hdfs, &[&ss_cond_builder, &cluster_operation_cond_builder]),
         // FIXME: We can't currently leave upgrade mode automatically, since we don't know when an upgrade is finalized
         deployed_product_version: Some(
-            hdfs.status
-                .as_ref()
-                // Keep current version if set
-                .and_then(|status| status.deployed_product_version.as_deref())
-                // Otherwise (on initial deploy) fall back to user's specified version
-                .unwrap_or(hdfs.spec.image.product_version())
-                .to_string(),
+            validated_cluster
+                .status
+                .deployed_product_version
+                .clone()
+                // Keep current version if set, otherwise (on initial deploy) fall back
+                // to the user's specified version.
+                .unwrap_or_else(|| validated_cluster.image.product_version.clone()),
         ),
         upgrade_target_product_version: match upgrade_state {
             // User is upgrading, whatever they're upgrading to is (by definition) the target
-            Some(UpgradeState::Upgrading) => Some(hdfs.spec.image.product_version().to_string()),
+            Some(UpgradeState::Upgrading) => Some(validated_cluster.image.product_version.clone()),
             Some(UpgradeState::Downgrading) => {
                 if deploy_done {
                     // Downgrade is done, clear
@@ -417,9 +412,10 @@ pub async fn reconcile_hdfs(
                     None
                 } else {
                     // Downgrade is still in progress, preserve the current value
-                    hdfs.status
-                        .as_ref()
-                        .and_then(|status| status.upgrade_target_product_version.clone())
+                    validated_cluster
+                        .status
+                        .upgrade_target_product_version
+                        .clone()
                 }
             }
             // Upgrade is complete (if any), clear
@@ -464,7 +460,7 @@ fn rolegroup_statefulset(
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
 
-    let rolegroup_selector_labels: Labels = hdfs
+    let rolegroup_selector_labels: Labels = validated
         .rolegroup_selector_labels(rolegroup_ref)
         .context(RoleGroupSelectorLabelsSnafu)?;
 
@@ -493,7 +489,7 @@ fn rolegroup_statefulset(
         rolegroup_ref,
         image,
         rolegroup_config,
-        hdfs.spec.cluster_config.zookeeper_config_map_name.as_ref(),
+        validated.cluster_config.zookeeper_config_map_name.as_ref(),
         &namenode_podrefs,
         &rolegroup_selector_labels,
     )
