@@ -10,7 +10,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{ValidatedCluster, controller_name, operator_name, product_name},
+    controller::{ValidatedCluster, build, controller_name, operator_name, product_name},
     crd::HdfsNodeRole,
 };
 
@@ -26,7 +26,7 @@ pub fn build_pdb(
     let max_unavailable = pdb.max_unavailable.unwrap_or(match role {
         HdfsNodeRole::Name => max_unavailable_name_nodes(),
         HdfsNodeRole::Data => max_unavailable_data_nodes(
-            cluster.num_datanodes(),
+            build::num_datanodes(cluster),
             cluster.cluster_config.dfs_replication as u16,
         ),
         HdfsNodeRole::Journal => max_unavailable_journal_nodes(),

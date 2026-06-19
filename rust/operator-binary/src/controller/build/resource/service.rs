@@ -9,7 +9,7 @@ use stackable_operator::{
 
 use crate::{
     build_recommended_labels,
-    controller::ValidatedCluster,
+    controller::{ValidatedCluster, build},
     crd::{HdfsNodeRole, v1alpha1},
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
@@ -25,7 +25,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build roleGroup selector labels"))]
-    RoleGroupSelectorLabels { source: crate::crd::Error },
+    RoleGroupSelectorLabels { source: LabelError },
 }
 
 pub(crate) fn rolegroup_headless_service(
@@ -54,8 +54,7 @@ pub(crate) fn rolegroup_headless_service(
         type_: Some("ClusterIP".to_string()),
         cluster_ip: Some("None".to_string()),
         ports: Some(
-            cluster
-                .headless_service_ports(role)
+            build::headless_service_ports(cluster, role)
                 .into_iter()
                 .map(|(name, value)| ServicePort {
                     name: Some(name),
@@ -66,8 +65,7 @@ pub(crate) fn rolegroup_headless_service(
                 .collect(),
         ),
         selector: Some(
-            cluster
-                .rolegroup_selector_labels(rolegroup_ref)
+            build::rolegroup_selector_labels(cluster, rolegroup_ref)
                 .context(RoleGroupSelectorLabelsSnafu)?
                 .into(),
         ),
@@ -94,8 +92,7 @@ pub(crate) fn rolegroup_metrics_service(
         type_: Some("ClusterIP".to_string()),
         cluster_ip: Some("None".to_string()),
         ports: Some(
-            cluster
-                .metrics_service_ports(role)
+            build::metrics_service_ports(cluster, role)
                 .into_iter()
                 .map(|(name, value)| ServicePort {
                     name: Some(name),
@@ -106,8 +103,7 @@ pub(crate) fn rolegroup_metrics_service(
                 .collect(),
         ),
         selector: Some(
-            cluster
-                .rolegroup_selector_labels(rolegroup_ref)
+            build::rolegroup_selector_labels(cluster, rolegroup_ref)
                 .context(RoleGroupSelectorLabelsSnafu)?
                 .into(),
         ),
@@ -137,7 +133,7 @@ pub(crate) fn rolegroup_metrics_service(
                     ("prometheus.io/path".to_owned(), "/prom".to_owned()),
                     (
                         "prometheus.io/port".to_owned(),
-                        cluster.native_metrics_port(role).to_string(),
+                        build::native_metrics_port(cluster, role).to_string(),
                     ),
                     (
                         "prometheus.io/scheme".to_owned(),

@@ -11,7 +11,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::ValidatedCluster,
+    controller::{ValidatedCluster, build},
     crd::{
         AnyNodeConfig, HdfsNodeRole, HdfsPodRef,
         constants::{
@@ -36,8 +36,8 @@ pub fn build(
     overrides: KeyValueConfigOverrides,
 ) -> String {
     let cluster_config = &cluster.cluster_config;
-    let namenode_podrefs = cluster.pod_refs(&HdfsNodeRole::Name);
-    let journalnode_podrefs = cluster.pod_refs(&HdfsNodeRole::Journal);
+    let namenode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Name);
+    let journalnode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Journal);
     // IMPORTANT: these folders must be under the volume mount point, otherwise they will not
     // be formatted by the namenode, or used by the other services.
     // See also: https://github.com/apache-spark-on-k8s/kubernetes-HDFS/commit/aef9586ecc8551ca0f0a468c3b917d8c38f494a0

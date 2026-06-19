@@ -12,9 +12,12 @@ use stackable_operator::{
 use crate::{
     controller::{
         ValidatedCluster,
-        build::properties::{
-            ConfigFileName, core_site, hadoop_policy, hdfs_site, logging, security_properties,
-            ssl_client, ssl_server,
+        build::{
+            self,
+            properties::{
+                ConfigFileName, core_site, hadoop_policy, hdfs_site, logging, security_properties,
+                ssl_client, ssl_server,
+            },
         },
     },
     crd::{HdfsNodeRole, v1alpha1},
@@ -54,7 +57,7 @@ pub fn build_rolegroup_config_map(
 ) -> Result<ConfigMap> {
     tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
 
-    let metadata = cluster.rolegroup_metadata(rolegroup_ref);
+    let metadata = build::rolegroup_metadata(cluster, rolegroup_ref);
 
     let role = HdfsNodeRole::from_str(&rolegroup_ref.role).with_context(|_| {
         UnidentifiedHdfsRoleSnafu {

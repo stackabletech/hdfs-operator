@@ -42,6 +42,7 @@ use crate::{
     controller::{
         ValidatedCluster, ValidatedRoleGroupConfig,
         build::{
+            self,
             container::{self, ContainerConfig},
             graceful_shutdown::{self, add_graceful_shutdown_config},
             resource::{
@@ -153,7 +154,7 @@ pub enum Error {
     GracefulShutdown { source: graceful_shutdown::Error },
 
     #[snafu(display("failed to build roleGroup selector labels"))]
-    RoleGroupSelectorLabels { source: crate::crd::Error },
+    RoleGroupSelectorLabels { source: LabelError },
 
     #[snafu(display("failed to build cluster resources label"))]
     BuildClusterResourcesLabel { source: LabelError },
@@ -295,7 +296,6 @@ pub async fn reconcile_hdfs(
                 .context(BuildRoleGroupConfigMapSnafu)?;
 
             let rg_statefulset = rolegroup_statefulset(
-                hdfs,
                 &validated_cluster,
                 &client.kubernetes_cluster_info,
                 &role,
@@ -371,7 +371,7 @@ pub async fn reconcile_hdfs(
         &client.kubernetes_cluster_info,
         &crate::crd::namenode_listener_refs(
             client,
-            validated_cluster.pod_refs(&HdfsNodeRole::Name),
+            build::pod_refs(&validated_cluster, &HdfsNodeRole::Name),
         )
         .await
         .context(CollectDiscoveryConfigSnafu)?,
@@ -440,7 +440,6 @@ pub async fn reconcile_hdfs(
 }
 
 fn rolegroup_statefulset(
-    hdfs: &v1alpha1::HdfsCluster,
     validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role: &HdfsNodeRole,
@@ -453,16 +452,12 @@ fn rolegroup_statefulset(
     let image = &validated.image;
     let merged_config = &rolegroup_config.config;
 
-    // Pod references for all namenodes across all role groups, needed to wire up the
-    // init containers of this role group.
-    let namenode_podrefs = validated.pod_refs(&HdfsNodeRole::Name);
-
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
 
-    let rolegroup_selector_labels: Labels = validated
-        .rolegroup_selector_labels(rolegroup_ref)
-        .context(RoleGroupSelectorLabelsSnafu)?;
+    let rolegroup_selector_labels: Labels =
+        build::rolegroup_selector_labels(validated, rolegroup_ref)
+            .context(RoleGroupSelectorLabelsSnafu)?;
 
     let pb_metadata = ObjectMeta {
         labels: Some(rolegroup_selector_labels.clone().into()),
@@ -483,14 +478,11 @@ fn rolegroup_statefulset(
     // The listeners are managed by the listener-operator.
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
-        hdfs,
+        validated,
         cluster_info,
         role,
         rolegroup_ref,
-        image,
         rolegroup_config,
-        validated.cluster_config.zookeeper_config_map_name.as_ref(),
-        &namenode_podrefs,
         &rolegroup_selector_labels,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
@@ -524,7 +516,7 @@ fn rolegroup_statefulset(
     // This is due to problems that might appear when restarting pods during the initial formatting of namenodes.
     // See: https://github.com/stackabletech/hdfs-operator/issues/750 (disable restart-controller)
     //      https://github.com/stackabletech/issues/issues/816 (enable restart-controller)
-    let metadata = validated.rolegroup_metadata(rolegroup_ref);
+    let metadata = build::rolegroup_metadata(validated, rolegroup_ref);
 
     Ok(StatefulSet {
         metadata: metadata.build(),
@@ -592,22 +584,18 @@ spec:
         let role_group_config = role_group_config(&validated_cluster, &role, "default");
 
         let rolegroup_ref = hdfs.rolegroup_ref(role.to_string(), "default");
-        let resolved_product_image = &validated_cluster.image;
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
         ContainerConfig::add_containers_and_volumes(
             &mut pb,
-            &hdfs,
+            &validated_cluster,
             &KubernetesClusterInfo {
                 cluster_domain: DomainName::try_from("cluster.local").unwrap(),
             },
             &role,
             &rolegroup_ref,
-            resolved_product_image,
             role_group_config,
-            hdfs.spec.cluster_config.zookeeper_config_map_name.as_ref(),
-            &[],
             &Labels::new(),
         )
         .unwrap();

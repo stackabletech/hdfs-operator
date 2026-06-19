@@ -26,8 +26,7 @@ use stackable_operator::{
     crd::listener,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::Pod, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, Resource, runtime::reflector::ObjectRef},
-    kvp::{LabelError, Labels},
+    kube::{CustomResource, runtime::reflector::ObjectRef},
     product_logging::{
         self,
         spec::{ContainerLogConfig, Logging},
@@ -49,17 +48,11 @@ use strum::{Display, EnumIter, EnumString, IntoStaticStr};
 use crate::crd::{
     affinity::get_affinity,
     constants::{
-        APP_NAME, DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
-        DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_HTTPS_PORT, DEFAULT_DATA_NODE_IPC_PORT,
-        DEFAULT_DFS_REPLICATION_FACTOR, DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT,
-        DEFAULT_JOURNAL_NODE_HTTP_PORT, DEFAULT_JOURNAL_NODE_HTTPS_PORT,
-        DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_LISTENER_CLASS,
-        DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_NAME_NODE_HTTP_PORT,
-        DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_RPC_PORT, LISTENER_VOLUME_NAME,
-        SERVICE_PORT_NAME_DATA, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
-        SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_RPC,
+        DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_DFS_REPLICATION_FACTOR,
+        DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, DEFAULT_LISTENER_CLASS,
+        DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT, LISTENER_VOLUME_NAME,
     },
-    security::{AuthenticationConfig, KerberosConfig},
+    security::AuthenticationConfig,
     storage::{
         DataNodePvcFragment, DataNodeStorageConfigInnerType, HdfsStorageConfig,
         HdfsStorageConfigFragment, HdfsStorageType,
@@ -127,9 +120,6 @@ pub enum Error {
         port_name: String,
         port: i32,
     },
-
-    #[snafu(display("failed to build role-group selector label"))]
-    BuildRoleGroupSelectorLabel { source: LabelError },
 
     #[snafu(display("failed to merge jvm argument overrides"))]
     MergeJvmArgumentOverrides { source: role_utils::Error },
@@ -380,22 +370,6 @@ impl v1alpha1::HdfsCluster {
         self.spec.cluster_config.authentication.as_ref()
     }
 
-    pub fn has_kerberos_enabled(&self) -> bool {
-        self.kerberos_config().is_some()
-    }
-
-    pub fn kerberos_config(&self) -> Option<&KerberosConfig> {
-        self.spec
-            .cluster_config
-            .authentication
-            .as_ref()
-            .map(|s| &s.kerberos)
-    }
-
-    pub fn has_https_enabled(&self) -> bool {
-        self.https_secret_class().is_some()
-    }
-
     pub fn rackawareness_config(&self) -> Option<String> {
         self.spec
             .cluster_config
@@ -408,27 +382,6 @@ impl v1alpha1::HdfsCluster {
                     .collect::<Vec<_>>()
                     .join(";")
             })
-    }
-
-    pub fn https_secret_class(&self) -> Option<&str> {
-        self.spec
-            .cluster_config
-            .authentication
-            .as_ref()
-            .map(|k| k.tls_secret_class.as_ref())
-    }
-
-    pub fn hdfs_main_container_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        let mut main_container_ports = vec![];
-        main_container_ports.extend(self.data_ports(role));
-        // TODO: This will be exposed in the listener if added to container ports?
-        // main_container_ports.extend(the deprecated JMX metrics ports);
-        main_container_ports
-    }
-
-    /// Returns required port name and port number tuples depending on the role.
-    fn data_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        role_data_ports(role, self.has_https_enabled())
     }
 }
 
@@ -651,27 +604,6 @@ impl HdfsNodeRole {
 /// given `role`, depending on whether HTTPS is enabled.
 /// The rolegroup selector labels for `rolegroup_ref`, owned by `owner` (either the
 /// raw `HdfsCluster` or the [`crate::controller::ValidatedCluster`]).
-pub(crate) fn rolegroup_selector_labels<R: Resource<DynamicType = ()>>(
-    owner: &R,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-) -> Result<Labels> {
-    let mut group_labels = Labels::role_group_selector(
-        owner,
-        APP_NAME,
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    )
-    .context(BuildRoleGroupSelectorLabelSnafu)?;
-    group_labels
-        .parse_insert(("role", rolegroup_ref.role.deref()))
-        .context(BuildRoleGroupSelectorLabelSnafu)?;
-    group_labels
-        .parse_insert(("group", rolegroup_ref.role_group.deref()))
-        .context(BuildRoleGroupSelectorLabelSnafu)?;
-
-    Ok(group_labels)
-}
-
 /// Resolve the listener-based [`HdfsPodRef`]s for the given namenode `namenode_podrefs`,
 /// configured to access the cluster via [`Listener`](listener::v1alpha1::Listener) rather
 /// than direct [`Pod`] access.
@@ -724,66 +656,6 @@ pub(crate) async fn namenode_listener_refs(
         })
     }))
     .await
-}
-
-pub(crate) fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, Port)> {
-    match role {
-        HdfsNodeRole::Name => vec![
-            (
-                String::from(SERVICE_PORT_NAME_RPC),
-                DEFAULT_NAME_NODE_RPC_PORT,
-            ),
-            if https_enabled {
-                (
-                    String::from(SERVICE_PORT_NAME_HTTPS),
-                    DEFAULT_NAME_NODE_HTTPS_PORT,
-                )
-            } else {
-                (
-                    String::from(SERVICE_PORT_NAME_HTTP),
-                    DEFAULT_NAME_NODE_HTTP_PORT,
-                )
-            },
-        ],
-        HdfsNodeRole::Data => vec![
-            (
-                String::from(SERVICE_PORT_NAME_DATA),
-                DEFAULT_DATA_NODE_DATA_PORT,
-            ),
-            (
-                String::from(SERVICE_PORT_NAME_IPC),
-                DEFAULT_DATA_NODE_IPC_PORT,
-            ),
-            if https_enabled {
-                (
-                    String::from(SERVICE_PORT_NAME_HTTPS),
-                    DEFAULT_DATA_NODE_HTTPS_PORT,
-                )
-            } else {
-                (
-                    String::from(SERVICE_PORT_NAME_HTTP),
-                    DEFAULT_DATA_NODE_HTTP_PORT,
-                )
-            },
-        ],
-        HdfsNodeRole::Journal => vec![
-            (
-                String::from(SERVICE_PORT_NAME_RPC),
-                DEFAULT_JOURNAL_NODE_RPC_PORT,
-            ),
-            if https_enabled {
-                (
-                    String::from(SERVICE_PORT_NAME_HTTPS),
-                    DEFAULT_JOURNAL_NODE_HTTPS_PORT,
-                )
-            } else {
-                (
-                    String::from(SERVICE_PORT_NAME_HTTP),
-                    DEFAULT_JOURNAL_NODE_HTTP_PORT,
-                )
-            },
-        ],
-    }
 }
 
 /// Reference to a single `Pod` that is a component of a [`HdfsCluster`]
@@ -1114,6 +986,7 @@ mod test {
 
     use super::*;
     use crate::{
+        controller::build,
         crd::storage::{DataNodePvc, HdfsStorageType},
         test_support::{datanode_config, deserialize_and_validate_cluster},
     };
@@ -1420,7 +1293,7 @@ spec:
 
         let validated_cluster = deserialize_and_validate_cluster(cr);
 
-        assert_eq!(validated_cluster.num_datanodes(), 45);
+        assert_eq!(build::num_datanodes(&validated_cluster), 45);
     }
 
     #[test]

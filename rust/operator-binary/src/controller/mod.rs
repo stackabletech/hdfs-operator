@@ -1,20 +1,12 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-};
+use std::{collections::BTreeMap, str::FromStr};
 
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     commons::product_image_selection::ResolvedProductImage,
     kube::{Resource, api::ObjectMeta},
-    kvp::Labels,
-    role_utils::RoleGroupRef,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::meta::ownerreference_from_resource,
         role_utils::RoleGroupConfig,
         types::{
-            common::Port,
             kubernetes::{ConfigMapName, NamespaceName, Uid},
             operator::{ClusterName, ControllerName, OperatorName, ProductName},
         },
@@ -22,21 +14,11 @@ use stackable_operator::{
 };
 
 use crate::{
-    OPERATOR_NAME, build_recommended_labels,
+    OPERATOR_NAME,
     controller::build::opa::HdfsOpaConfig,
     crd::{
-        AnyNodeConfig, HdfsNodeRole, HdfsPodRef, UpgradeState,
-        constants::{
-            APP_NAME, DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
-            DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
-            DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
-            DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_NAME_NODE_METRICS_PORT,
-            DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT,
-            DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT, SERVICE_PORT_NAME_JMX_METRICS,
-            SERVICE_PORT_NAME_METRICS,
-        },
-        security::AuthenticationConfig,
-        v1alpha1,
+        AnyNodeConfig, HdfsNodeRole, UpgradeState, constants::APP_NAME,
+        security::AuthenticationConfig, v1alpha1,
     },
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
@@ -110,132 +92,24 @@ impl ValidatedCluster {
         }
     }
 
-    /// Builds the [`HdfsPodRef`]s expected for every pod of the given `role`, across
-    /// all of its role groups.
-    ///
-    /// These pod refs can only access HDFS from inside the Kubernetes cluster (they
-    /// use the cluster-internal headless service DNS names). For downstream clients,
-    /// the listener-based refs collected during reconciliation are used instead.
-    ///
-    /// This is infallible: all required information (namespace, replicas and ports)
-    /// is already resolved on `self` during validation.
-    pub fn pod_refs(&self, role: &HdfsNodeRole) -> Vec<HdfsPodRef> {
-        let ports: HashMap<String, Port> =
-            crate::crd::role_data_ports(role, self.cluster_config.authentication.is_some())
-                .into_iter()
-                .collect();
-
-        self.role_groups
-            .get(role)
-            .into_iter()
-            .flatten()
-            .flat_map(|(role_group_name, role_group)| {
-                let object_name = format!("{}-{role}-{role_group_name}", self.name);
-                let ports = ports.clone();
-                (0..role_group.replicas.unwrap_or(1)).map(move |i| HdfsPodRef {
-                    namespace: self.namespace.to_string(),
-                    role_group_service_name: object_name.clone(),
-                    pod_name: format!("{object_name}-{i}"),
-                    ports: ports.clone(),
-                    fqdn_override: None,
-                })
-            })
-            .collect()
-    }
-
-    /// Builds the common [`ObjectMetaBuilder`] shared by a role group's owned resources
-    /// (the ConfigMap and the StatefulSet): name, namespace, owner reference and the
-    /// recommended labels, all derived from this validated cluster.
-    ///
-    /// This is infallible: a [`ValidatedCluster`] always carries a name, namespace and
-    /// uid, and its fail-safe typed values always produce valid label values, so neither
-    /// the owner reference nor the recommended labels can fail to build.
-    pub fn rolegroup_metadata(
-        &self,
-        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    ) -> ObjectMetaBuilder {
-        let mut metadata = ObjectMetaBuilder::new();
-        metadata
-            .name_and_namespace(self)
-            .name(rolegroup_ref.object_name())
-            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
-            .with_recommended_labels(&build_recommended_labels(
-                self,
-                RESOURCE_MANAGER_HDFS_CONTROLLER,
-                &self.image.app_version_label_value,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-            .expect(
-                "the recommended labels are valid because the ValidatedCluster uses \
-                fail-safe typed values",
-            );
-        metadata
-    }
-
-    /// Whether HTTPS (and thus kerberos) is enabled, derived from the validated
-    /// authentication settings.
+    /// Whether HTTPS is enabled, derived from the validated authentication settings.
     pub fn has_https_enabled(&self) -> bool {
         self.cluster_config.authentication.is_some()
     }
 
-    /// The ports exposed by the rolegroup headless service for the given `role`.
-    pub fn headless_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        crate::crd::role_data_ports(role, self.has_https_enabled())
+    /// Whether Kerberos is enabled, derived from the validated authentication settings.
+    pub fn has_kerberos_enabled(&self) -> bool {
+        self.cluster_config.authentication.is_some()
     }
 
-    /// The ports exposed by the rolegroup metrics service for the given `role`
-    /// (native Prometheus endpoint plus the deprecated JMX exporter port).
-    pub fn metrics_service_ports(&self, role: &HdfsNodeRole) -> Vec<(String, Port)> {
-        vec![
-            (
-                SERVICE_PORT_NAME_METRICS.to_string(),
-                self.native_metrics_port(role),
-            ),
-            (
-                SERVICE_PORT_NAME_JMX_METRICS.to_string(),
-                self.jmx_metrics_port(role),
-            ),
-        ]
+    /// The validated authentication config, if authentication is enabled.
+    pub fn authentication_config(&self) -> Option<&AuthenticationConfig> {
+        self.cluster_config.authentication.as_ref()
     }
 
-    /// The native (built-in) Prometheus metrics port for the given `role`.
-    pub fn native_metrics_port(&self, role: &HdfsNodeRole) -> Port {
-        match (role, self.has_https_enabled()) {
-            (HdfsNodeRole::Name, false) => DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT,
-            (HdfsNodeRole::Name, true) => DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT,
-            (HdfsNodeRole::Data, false) => DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
-            (HdfsNodeRole::Data, true) => DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT,
-            (HdfsNodeRole::Journal, false) => DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
-            (HdfsNodeRole::Journal, true) => DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT,
-        }
-    }
-
-    /// The deprecated JMX exporter metrics port for the given `role`.
-    fn jmx_metrics_port(&self, role: &HdfsNodeRole) -> Port {
-        match role {
-            HdfsNodeRole::Name => DEFAULT_NAME_NODE_METRICS_PORT,
-            HdfsNodeRole::Data => DEFAULT_DATA_NODE_METRICS_PORT,
-            HdfsNodeRole::Journal => DEFAULT_JOURNAL_NODE_METRICS_PORT,
-        }
-    }
-
-    /// The rolegroup selector labels for the given `rolegroup_ref`.
-    pub fn rolegroup_selector_labels(
-        &self,
-        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    ) -> Result<Labels, crate::crd::Error> {
-        crate::crd::rolegroup_selector_labels(self, rolegroup_ref)
-    }
-
-    /// The total number of datanode replicas across all datanode role groups.
-    pub fn num_datanodes(&self) -> u16 {
-        self.role_groups
-            .get(&HdfsNodeRole::Data)
-            .into_iter()
-            .flatten()
-            .map(|(_, role_group)| role_group.replicas.unwrap_or(1))
-            .sum()
+    /// The resolved rack awareness label list, if rack awareness is configured.
+    pub fn rackawareness_config(&self) -> Option<String> {
+        self.cluster_config.rack_awareness.clone()
     }
 }
 
@@ -320,6 +194,14 @@ pub struct ValidatedClusterStatus {
     pub upgrade_target_product_version: Option<String>,
 }
 
+/// The validated logging configuration for the cluster.
+#[derive(Clone, Debug)]
+pub struct ValidatedLogging {
+    /// The name of the Vector aggregator discovery `ConfigMap`, if log aggregation
+    /// is configured.
+    pub vector_aggregator_config_map_name: Option<ConfigMapName>,
+}
+
 /// Cluster-wide settings resolved once during validation, so the build steps no
 /// longer need the raw `HdfsCluster` to render config.
 #[derive(Clone, Debug)]
@@ -332,6 +214,8 @@ pub struct ValidatedClusterConfig {
     /// The replication factor.
     pub dfs_replication: u8,
     pub rack_awareness: Option<String>,
+    /// The validated logging configuration.
+    pub logging: ValidatedLogging,
     /// The name of the ZooKeeper discovery `ConfigMap`.
     pub zookeeper_config_map_name: ConfigMapName,
 }
@@ -347,6 +231,13 @@ impl ValidatedClusterConfig {
             dfs_replication: hdfs.spec.cluster_config.dfs_replication,
             rack_awareness: hdfs.rackawareness_config(),
             zookeeper_config_map_name: hdfs.spec.cluster_config.zookeeper_config_map_name.clone(),
+            logging: ValidatedLogging {
+                vector_aggregator_config_map_name: hdfs
+                    .spec
+                    .cluster_config
+                    .vector_aggregator_config_map_name
+                    .clone(),
+            },
         }
     }
 }
