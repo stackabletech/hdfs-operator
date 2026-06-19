@@ -1,3 +1,7 @@
+use std::str::FromStr;
+
+use stackable_operator::v2::types::operator::RoleGroupName;
+
 use crate::{
     controller::{ValidatedCluster, ValidatedRoleGroupConfig, validate},
     crd::{AnyNodeConfig, DataNodeConfig, HdfsNodeRole, v1alpha1},
@@ -23,10 +27,15 @@ pub fn deserialize_and_validate_cluster(spec: &str) -> ValidatedCluster {
     validate_cluster(&deserialize_cluster(spec))
 }
 
+/// Parses a role group name for use in tests, panicking if it is invalid.
+pub fn role_group_name(name: &str) -> RoleGroupName {
+    RoleGroupName::from_str(name).expect("role group name should be valid")
+}
+
 pub fn role_group_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role: &HdfsNodeRole,
-    role_group_name: &str,
+    role_group_name: &RoleGroupName,
 ) -> &'a ValidatedRoleGroupConfig {
     validated_cluster
         .role_groups
@@ -39,14 +48,14 @@ pub fn role_group_config<'a>(
 pub fn anynode_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role: &HdfsNodeRole,
-    role_group_name: &str,
+    role_group_name: &RoleGroupName,
 ) -> &'a AnyNodeConfig {
     &role_group_config(validated_cluster, role, role_group_name).config
 }
 
 pub fn datanode_config<'a>(
     validated_cluster: &'a ValidatedCluster,
-    role_group_name: &str,
+    role_group_name: &RoleGroupName,
 ) -> &'a DataNodeConfig {
     anynode_config(validated_cluster, &HdfsNodeRole::Data, role_group_name)
         .as_datanode()

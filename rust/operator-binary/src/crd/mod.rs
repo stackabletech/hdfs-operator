@@ -988,7 +988,7 @@ mod test {
     use crate::{
         controller::build,
         crd::storage::{DataNodePvc, HdfsStorageType},
-        test_support::{datanode_config, deserialize_and_validate_cluster},
+        test_support::{datanode_config, deserialize_and_validate_cluster, role_group_name},
     };
 
     fn datanode_pvc<'a>(
@@ -1029,7 +1029,7 @@ spec:
 ";
 
         let validated_cluster = deserialize_and_validate_cluster(cr);
-        let datanode_config = datanode_config(&validated_cluster, "default");
+        let datanode_config = datanode_config(&validated_cluster, &role_group_name("default"));
         let pvc = datanode_pvc(datanode_config, "data");
 
         assert_eq!(pvc.count, 1);
@@ -1064,7 +1064,7 @@ spec:
 ";
 
         let validated_cluster = deserialize_and_validate_cluster(cr);
-        let datanode_config = datanode_config(&validated_cluster, "default");
+        let datanode_config = datanode_config(&validated_cluster, &role_group_name("default"));
         let pvc = datanode_pvc(datanode_config, "data");
 
         assert_eq!(pvc.count, 1);
@@ -1094,7 +1094,7 @@ spec:
 ";
 
         let validated_cluster = deserialize_and_validate_cluster(cr);
-        let datanode_config = datanode_config(&validated_cluster, "default");
+        let datanode_config = datanode_config(&validated_cluster, &role_group_name("default"));
         let pvc = datanode_pvc(datanode_config, "data");
 
         assert_eq!(pvc.count, 1);
@@ -1147,7 +1147,7 @@ spec:
         replicas: 1";
 
         let validated_cluster = deserialize_and_validate_cluster(cr);
-        let datanode_config = datanode_config(&validated_cluster, "default");
+        let datanode_config = datanode_config(&validated_cluster, &role_group_name("default"));
 
         let pvc = datanode_pvc(datanode_config, "data");
         assert_eq!(pvc.count, 0);
@@ -1194,7 +1194,7 @@ spec:
 ";
 
         let validated_cluster = deserialize_and_validate_cluster(cr);
-        let datanode_config = datanode_config(&validated_cluster, "default");
+        let datanode_config = datanode_config(&validated_cluster, &role_group_name("default"));
         let rr = datanode_config.resources.clone().into();
 
         let expected = ResourceRequirements {
@@ -1244,7 +1244,7 @@ spec:
 ";
 
         let validated_cluster = deserialize_and_validate_cluster(cr);
-        let datanode_config = datanode_config(&validated_cluster, "default");
+        let datanode_config = datanode_config(&validated_cluster, &role_group_name("default"));
         let rr = datanode_config.resources.clone().into();
 
         let expected = ResourceRequirements {

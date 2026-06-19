@@ -334,11 +334,15 @@ mod tests {
     use crate::{
         controller::build::properties::test_support::{cluster_info, validated_cluster},
         crd::HdfsNodeRole,
-        test_support::anynode_config,
+        test_support::{anynode_config, role_group_name},
     };
 
     fn namenode_merged_config(validated_cluster: &ValidatedCluster) -> &AnyNodeConfig {
-        anynode_config(validated_cluster, &HdfsNodeRole::Name, "default")
+        anynode_config(
+            validated_cluster,
+            &HdfsNodeRole::Name,
+            &role_group_name("default"),
+        )
     }
 
     #[test]

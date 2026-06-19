@@ -5,10 +5,13 @@ use stackable_operator::{
     kube::{Resource, api::ObjectMeta},
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
+        role_group_utils::ResourceNames,
         role_utils::RoleGroupConfig,
         types::{
             kubernetes::{ConfigMapName, NamespaceName, Uid},
-            operator::{ClusterName, ControllerName, OperatorName, ProductName},
+            operator::{
+                ClusterName, ControllerName, OperatorName, ProductName, RoleGroupName, RoleName,
+            },
         },
     },
 };
@@ -53,7 +56,7 @@ pub struct ValidatedCluster {
     pub uid: Uid,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
-    pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
+    pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
     pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
     /// The validated view of the cluster's current status, resolved once during
     /// validation.
@@ -68,7 +71,7 @@ impl ValidatedCluster {
         uid: Uid,
         image: ResolvedProductImage,
         cluster_config: ValidatedClusterConfig,
-        role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
+        role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
         role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
         status: ValidatedClusterStatus,
     ) -> Self {
@@ -110,6 +113,24 @@ impl ValidatedCluster {
     /// The resolved rack awareness label list, if rack awareness is configured.
     pub fn rackawareness_config(&self) -> Option<String> {
         self.cluster_config.rack_awareness.clone()
+    }
+
+    /// The type-safe role name for an HDFS role (`namenode`/`datanode`/`journalnode`).
+    pub(crate) fn role_name(role: &HdfsNodeRole) -> RoleName {
+        RoleName::from_str(&role.to_string()).expect("a HdfsNodeRole is a valid role name")
+    }
+
+    /// Type-safe names for the resources of the given role group.
+    pub(crate) fn resource_names(
+        &self,
+        role: &HdfsNodeRole,
+        role_group_name: &RoleGroupName,
+    ) -> ResourceNames {
+        ResourceNames {
+            cluster_name: self.name.clone(),
+            role_name: Self::role_name(role),
+            role_group_name: role_group_name.clone(),
+        }
     }
 }
 

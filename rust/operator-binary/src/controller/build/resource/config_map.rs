@@ -1,12 +1,12 @@
 //! Build the per-rolegroup `ConfigMap` for the HdfsCluster.
 
-use std::str::FromStr;
-
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
-    product_logging::framework::VECTOR_CONFIG_FILE, role_utils::RoleGroupRef,
-    utils::cluster_info::KubernetesClusterInfo, v2::config_file_writer::PropertiesWriterError,
+    builder::configmap::ConfigMapBuilder,
+    k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE,
+    utils::cluster_info::KubernetesClusterInfo,
+    v2::{config_file_writer::PropertiesWriterError, types::operator::RoleGroupName},
 };
 
 use crate::{
@@ -20,17 +20,11 @@ use crate::{
             },
         },
     },
-    crd::{HdfsNodeRole, v1alpha1},
+    crd::HdfsNodeRole,
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("could not parse HDFS role [{role}]"))]
-    UnidentifiedHdfsRole {
-        source: strum::ParseError,
-        role: String,
-    },
-
     #[snafu(display("the validated cluster has no role group {role_group:?} for role {role:?}"))]
     MissingRoleGroup { role: String, role_group: String },
 
@@ -53,24 +47,20 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    role: &HdfsNodeRole,
+    role_group_name: &RoleGroupName,
 ) -> Result<ConfigMap> {
-    tracing::info!("Setting up ConfigMap for {:?}", rolegroup_ref);
+    tracing::info!("Setting up ConfigMap for role {role} role group {role_group_name}");
 
-    let metadata = build::rolegroup_metadata(cluster, rolegroup_ref);
+    let metadata = build::rolegroup_metadata(cluster, role, role_group_name);
 
-    let role = HdfsNodeRole::from_str(&rolegroup_ref.role).with_context(|_| {
-        UnidentifiedHdfsRoleSnafu {
-            role: rolegroup_ref.role.clone(),
-        }
-    })?;
     let rolegroup_config = cluster
         .role_groups
-        .get(&role)
-        .and_then(|role_groups| role_groups.get(&rolegroup_ref.role_group))
+        .get(role)
+        .and_then(|role_groups| role_groups.get(role_group_name))
         .with_context(|| MissingRoleGroupSnafu {
-            role: rolegroup_ref.role.clone(),
-            role_group: rolegroup_ref.role_group.clone(),
+            role: role.to_string(),
+            role_group: role_group_name.to_string(),
         })?;
     let merged_config = &rolegroup_config.config;
     let config_overrides = &rolegroup_config.config_overrides;
@@ -84,7 +74,7 @@ pub fn build_rolegroup_config_map(
     );
     let core_site_xml = core_site::build(
         cluster,
-        role,
+        *role,
         cluster_info,
         config_overrides.core_site_xml.clone(),
     );
@@ -110,7 +100,7 @@ pub fn build_rolegroup_config_map(
             ConfigFileName::Security.to_string(),
             security_properties::build(config_overrides.security_properties.clone()).with_context(
                 |_| JvmSecurityPropertiesSnafu {
-                    rolegroup: rolegroup_ref.role_group.clone(),
+                    rolegroup: role_group_name.to_string(),
                 },
             )?,
         );
@@ -118,12 +108,14 @@ pub fn build_rolegroup_config_map(
     for (log_config_file, log4j_config) in logging::build_log4j_configs(merged_config) {
         builder.add_data(log_config_file, log4j_config);
     }
-    if let Some(vector_config) = logging::build_vector_config(rolegroup_ref, merged_config) {
+    if let Some(vector_config) =
+        logging::build_vector_config(cluster, role, role_group_name, merged_config)
+    {
         builder.add_data(VECTOR_CONFIG_FILE, vector_config);
     }
 
     builder.build().with_context(|_| AssembleSnafu {
-        role: rolegroup_ref.role.clone(),
-        role_group: rolegroup_ref.role_group.clone(),
+        role: role.to_string(),
+        role_group: role_group_name.to_string(),
     })
 }

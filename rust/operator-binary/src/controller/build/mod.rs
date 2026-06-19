@@ -1,10 +1,12 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     kvp::{LabelError, Labels},
-    role_utils::RoleGroupRef,
-    v2::{builder::meta::ownerreference_from_resource, types::common::Port},
+    v2::{
+        builder::meta::ownerreference_from_resource,
+        types::{common::Port, operator::RoleGroupName},
+    },
 };
 
 use crate::{
@@ -27,7 +29,6 @@ use crate::{
             SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_JMX_METRICS, SERVICE_PORT_NAME_METRICS,
             SERVICE_PORT_NAME_RPC,
         },
-        v1alpha1,
     },
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
@@ -60,7 +61,10 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .into_iter()
         .flatten()
         .flat_map(|(role_group_name, role_group)| {
-            let object_name = format!("{}-{role}-{role_group_name}", cluster.name);
+            let object_name = cluster
+                .resource_names(role, role_group_name)
+                .qualified_role_group_name()
+                .to_string();
             let ports = ports.clone();
             (0..role_group.replicas.unwrap_or(1)).map(move |i| HdfsPodRef {
                 namespace: cluster.namespace.to_string(),
@@ -82,19 +86,25 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
 /// the owner reference nor the recommended labels can fail to build.
 pub(crate) fn rolegroup_metadata(
     cluster: &ValidatedCluster,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    role: &HdfsNodeRole,
+    role_group_name: &RoleGroupName,
 ) -> ObjectMetaBuilder {
+    let role_name = role.to_string();
     let mut metadata = ObjectMetaBuilder::new();
     metadata
         .name_and_namespace(cluster)
-        .name(rolegroup_ref.object_name())
+        .name(
+            cluster
+                .resource_names(role, role_group_name)
+                .qualified_role_group_name(),
+        )
         .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
         .with_recommended_labels(&build_recommended_labels(
             cluster,
             RESOURCE_MANAGER_HDFS_CONTROLLER,
             &cluster.image.app_version_label_value,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
+            &role_name,
+            role_group_name.as_ref(),
         ))
         .expect(
             "the recommended labels are valid because the ValidatedCluster uses \
@@ -104,19 +114,17 @@ pub(crate) fn rolegroup_metadata(
 }
 
 /// The rolegroup selector labels (also used as `Service`/`StatefulSet` selectors) for
-/// the given `rolegroup_ref`.
+/// the given role group.
 pub(crate) fn rolegroup_selector_labels(
     cluster: &ValidatedCluster,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    role: &HdfsNodeRole,
+    role_group_name: &RoleGroupName,
 ) -> Result<Labels, LabelError> {
-    let mut group_labels = Labels::role_group_selector(
-        cluster,
-        APP_NAME,
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    )?;
-    group_labels.parse_insert(("role", rolegroup_ref.role.deref()))?;
-    group_labels.parse_insert(("group", rolegroup_ref.role_group.deref()))?;
+    let role_name = role.to_string();
+    let mut group_labels =
+        Labels::role_group_selector(cluster, APP_NAME, &role_name, role_group_name.as_ref())?;
+    group_labels.parse_insert(("role", &role_name))?;
+    group_labels.parse_insert(("group", role_group_name.as_ref()))?;
 
     Ok(group_labels)
 }

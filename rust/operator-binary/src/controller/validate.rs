@@ -11,6 +11,7 @@ use stackable_operator::{
         builder::pod::container::{EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         role_utils::{JavaCommonConfig, with_validated_config},
+        types::operator::RoleGroupName,
     },
 };
 use strum::IntoEnumIterator;
@@ -53,6 +54,12 @@ pub enum Error {
     #[snafu(display("invalid environment variable override name"))]
     ParseEnvVarName {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
+    #[snafu(display("invalid role group name {role_group:?}"))]
+    ParseRoleGroupName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+        role_group: String,
     },
 
     #[snafu(display("failed to merge and validate the role group config"))]
@@ -152,7 +159,7 @@ fn validate_role_group_configs<Config, ValidatedConfig>(
     role: Option<&Role<Config, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
     default_config: Config,
     wrap: fn(ValidatedConfig) -> AnyNodeConfig,
-) -> Result<BTreeMap<String, ValidatedRoleGroupConfig>, Error>
+) -> Result<BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>, Error>
 where
     Config: Clone + Merge,
     ValidatedConfig: FromFragment<Fragment = Config>,
@@ -192,7 +199,12 @@ where
                 pod_overrides: validated.config.pod_overrides,
                 product_specific_common_config: validated.config.product_specific_common_config,
             };
-            Ok((role_group_name.clone(), validated))
+            let role_group_name = RoleGroupName::from_str(role_group_name).with_context(|_| {
+                ParseRoleGroupNameSnafu {
+                    role_group: role_group_name.clone(),
+                }
+            })?;
+            Ok((role_group_name, validated))
         })
         .collect()
 }

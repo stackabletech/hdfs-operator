@@ -3,15 +3,20 @@
 use std::{borrow::Cow, fmt::Display};
 
 use stackable_operator::{
+    kube::runtime::reflector::ObjectRef,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         spec::{ContainerLogConfig, ContainerLogConfigChoice},
     },
     role_utils::RoleGroupRef,
+    v2::types::operator::RoleGroupName,
 };
 
-use crate::crd::{AnyNodeConfig, DataNodeContainer, NameNodeContainer, v1alpha1};
+use crate::{
+    controller::ValidatedCluster,
+    crd::{AnyNodeConfig, DataNodeContainer, HdfsNodeRole, NameNodeContainer},
+};
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
@@ -150,7 +155,9 @@ fn add_log4j_config_if_automatic(
 ///
 /// Returns `None` when the Vector agent is disabled for this role group.
 pub fn build_vector_config(
-    rolegroup: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    cluster: &ValidatedCluster,
+    role: &HdfsNodeRole,
+    role_group_name: &RoleGroupName,
     merged_config: &AnyNodeConfig,
 ) -> Option<String> {
     if !merged_config.vector_logging_enabled() {
@@ -167,8 +174,19 @@ pub fn build_vector_config(
         None
     };
 
+    // TODO: The framework's `create_vector_config` still requires a `RoleGroupRef`. We build one
+    // over the `ValidatedCluster` (not the raw cluster) purely to satisfy this API; it only reads
+    // the cluster name/namespace and the role/role-group strings, so the output is unchanged.
+    // Hive ships a static `vector.yaml` instead and avoids `RoleGroupRef` entirely - we should
+    // follow once a static config is available for HDFS, which would drop this last usage.
+    let rolegroup = RoleGroupRef {
+        cluster: ObjectRef::<ValidatedCluster>::from_obj(cluster),
+        role: role.to_string(),
+        role_group: role_group_name.to_string(),
+    };
+
     Some(product_logging::framework::create_vector_config(
-        rolegroup,
+        &rolegroup,
         vector_log_config,
     ))
 }

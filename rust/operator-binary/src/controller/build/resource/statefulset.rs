@@ -13,8 +13,8 @@ use stackable_operator::{
     },
     kube::{ResourceExt, api::ObjectMeta},
     kvp::{LabelError, Labels},
-    role_utils::RoleGroupRef,
     utils::cluster_info::KubernetesClusterInfo,
+    v2::types::operator::RoleGroupName,
 };
 
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
             graceful_shutdown::{self, add_graceful_shutdown_config},
         },
     },
-    crd::{HdfsNodeRole, v1alpha1},
+    crd::HdfsNodeRole,
 };
 
 #[derive(Snafu, Debug)]
@@ -48,11 +48,11 @@ pub(crate) fn build_rolegroup_statefulset(
     validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    role_group_name: &RoleGroupName,
     rolegroup_config: &ValidatedRoleGroupConfig,
     service_account: &ServiceAccount,
 ) -> Result<StatefulSet, Error> {
-    tracing::info!("Setting up StatefulSet for {:?}", rolegroup_ref);
+    tracing::info!("Setting up StatefulSet for role {role} role group {role_group_name}");
 
     let image = &validated.image;
     let merged_config = &rolegroup_config.config;
@@ -61,7 +61,7 @@ pub(crate) fn build_rolegroup_statefulset(
     let mut pb = PodBuilder::new();
 
     let rolegroup_selector_labels: Labels =
-        build::rolegroup_selector_labels(validated, rolegroup_ref)
+        build::rolegroup_selector_labels(validated, role, role_group_name)
             .context(RoleGroupSelectorLabelsSnafu)?;
 
     let pb_metadata = ObjectMeta {
@@ -86,7 +86,7 @@ pub(crate) fn build_rolegroup_statefulset(
         validated,
         cluster_info,
         role,
-        rolegroup_ref,
+        role_group_name,
         rolegroup_config,
         &rolegroup_selector_labels,
     )
@@ -110,7 +110,15 @@ pub(crate) fn build_rolegroup_statefulset(
             match_labels: Some(rolegroup_selector_labels.into()),
             ..LabelSelector::default()
         },
-        service_name: Some(rolegroup_ref.object_name()),
+        // Must match the headless Service name so the StatefulSet's pods get stable DNS names.
+        // See the TODO in `build::resource::service::rolegroup_headless_service` about the
+        // un-suffixed name.
+        service_name: Some(
+            validated
+                .resource_names(role, role_group_name)
+                .qualified_role_group_name()
+                .to_string(),
+        ),
         template: pod_template,
 
         volume_claim_templates: Some(pvcs),
@@ -121,7 +129,7 @@ pub(crate) fn build_rolegroup_statefulset(
     // This is due to problems that might appear when restarting pods during the initial formatting of namenodes.
     // See: https://github.com/stackabletech/hdfs-operator/issues/750 (disable restart-controller)
     //      https://github.com/stackabletech/issues/issues/816 (enable restart-controller)
-    let metadata = build::rolegroup_metadata(validated, rolegroup_ref);
+    let metadata = build::rolegroup_metadata(validated, role, role_group_name);
 
     Ok(StatefulSet {
         metadata: metadata.build(),

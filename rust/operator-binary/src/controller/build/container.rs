@@ -48,13 +48,13 @@ use stackable_operator::{
             ContainerLogConfigChoice, CustomContainerLogConfig,
         },
     },
-    role_utils::RoleGroupRef,
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
     v2::{
         builder::pod::container::new_container_builder,
         types::{
             common::Port,
             kubernetes::{ContainerName, VolumeName},
+            operator::RoleGroupName,
         },
     },
 };
@@ -90,7 +90,6 @@ use crate::{
             SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
-        v1alpha1,
     },
 };
 
@@ -212,7 +211,7 @@ impl ContainerConfig {
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+        role_group_name: &RoleGroupName,
         rolegroup_config: &ValidatedRoleGroupConfig,
         labels: &Labels,
     ) -> Result<(), Error> {
@@ -220,7 +219,8 @@ impl ContainerConfig {
 
         // HDFS main container
         let main_container_config = Self::from(*role);
-        let object_name = rolegroup_ref.object_name();
+        let resource_names = cluster.resource_names(role, role_group_name);
+        let object_name = resource_names.qualified_role_group_name().to_string();
         let merged_config = &rolegroup_config.config;
 
         pb.add_volumes(main_container_config.volumes(merged_config, &object_name, labels)?)
@@ -277,7 +277,7 @@ impl ContainerConfig {
                         .with_pod_scope()
                         .with_node_scope()
                         // To scrape metrics behind TLS endpoint (without FQDN)
-                        .with_service_scope(rolegroup_ref.rolegroup_metrics_service_name())
+                        .with_service_scope(resource_names.metrics_service_name().to_string())
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
                         .with_auto_tls_cert_lifetime(

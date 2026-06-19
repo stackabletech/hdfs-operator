@@ -233,7 +233,6 @@ pub async fn reconcile_hdfs(
         HdfsNodeRole::iter(),
     );
     'roles: for role in roles {
-        let role_name: &str = role.into();
         let Some(group_config) = validated_cluster.role_groups.get(&role) else {
             tracing::debug!(?role, "role has no configuration, skipping");
             continue;
@@ -252,19 +251,18 @@ pub async fn reconcile_hdfs(
         }
 
         for (rolegroup_name, validated_cluster_rg_config) in group_config.iter() {
-            let rolegroup_ref = hdfs.rolegroup_ref(role_name, rolegroup_name);
-
-            let rg_service = rolegroup_headless_service(&validated_cluster, &role, &rolegroup_ref)
+            let rg_service = rolegroup_headless_service(&validated_cluster, &role, rolegroup_name)
                 .context(BuildServiceSnafu)?;
             let rg_metrics_service =
-                rolegroup_metrics_service(&validated_cluster, &role, &rolegroup_ref)
+                rolegroup_metrics_service(&validated_cluster, &role, rolegroup_name)
                     .context(BuildServiceSnafu)?;
 
             let rg_configmap =
                 crate::controller::build::resource::config_map::build_rolegroup_config_map(
                     &validated_cluster,
                     &client.kubernetes_cluster_info,
-                    &rolegroup_ref,
+                    &role,
+                    rolegroup_name,
                 )
                 .context(BuildRoleGroupConfigMapSnafu)?;
 
@@ -272,7 +270,7 @@ pub async fn reconcile_hdfs(
                 &validated_cluster,
                 &client.kubernetes_cluster_info,
                 &role,
-                &rolegroup_ref,
+                rolegroup_name,
                 validated_cluster_rg_config,
                 &rbac_sa,
             )
@@ -424,9 +422,12 @@ pub fn error_policy(
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use stackable_operator::{
         builder::pod::PodBuilder, commons::networking::DomainName, kube::api::ObjectMeta,
         kvp::Labels, utils::cluster_info::KubernetesClusterInfo,
+        v2::types::operator::RoleGroupName,
     };
 
     use super::*;
@@ -473,9 +474,8 @@ spec:
         let role = HdfsNodeRole::Data;
         let hdfs = deserialize_cluster(cr);
         let validated_cluster = validate_cluster(&hdfs);
-        let role_group_config = role_group_config(&validated_cluster, &role, "default");
-
-        let rolegroup_ref = hdfs.rolegroup_ref(role.to_string(), "default");
+        let role_group_name = RoleGroupName::from_str("default").unwrap();
+        let role_group_config = role_group_config(&validated_cluster, &role, &role_group_name);
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
@@ -486,7 +486,7 @@ spec:
                 cluster_domain: DomainName::try_from("cluster.local").unwrap(),
             },
             &role,
-            &rolegroup_ref,
+            &role_group_name,
             role_group_config,
             &Labels::new(),
         )

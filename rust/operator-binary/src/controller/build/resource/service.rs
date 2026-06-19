@@ -3,14 +3,13 @@ use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kvp::{Annotations, Label, LabelError},
-    role_utils::RoleGroupRef,
-    v2::builder::meta::ownerreference_from_resource,
+    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
 };
 
 use crate::{
     build_recommended_labels,
     controller::{ValidatedCluster, build},
-    crd::{HdfsNodeRole, v1alpha1},
+    crd::HdfsNodeRole,
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
 
@@ -31,21 +30,27 @@ pub enum Error {
 pub(crate) fn rolegroup_headless_service(
     cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    role_group_name: &RoleGroupName,
 ) -> Result<Service, Error> {
-    tracing::info!("Setting up Service for {:?}", rolegroup_ref);
+    tracing::info!("Setting up headless Service for role {role} role group {role_group_name}");
 
+    let resource_names = cluster.resource_names(role, role_group_name);
+    let role_name = role.to_string();
+    // TODO: The v2 `ResourceNames::headless_service_name()` would add a `-headless` suffix, but
+    // we deliberately keep the un-suffixed name here so the StatefulSet's (immutable) `serviceName`
+    // and the pod DNS names stay unchanged for existing clusters. A decision is needed on whether
+    // to adopt the suffixed name (requires StatefulSet recreation on upgrade).
     let mut metadata_builder = ObjectMetaBuilder::new();
     metadata_builder
         .name_and_namespace(cluster)
-        .name(rolegroup_ref.object_name())
+        .name(resource_names.qualified_role_group_name())
         .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
         .with_recommended_labels(&build_recommended_labels(
             cluster,
             RESOURCE_MANAGER_HDFS_CONTROLLER,
             &cluster.image.app_version_label_value,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
+            &role_name,
+            role_group_name.as_ref(),
         ))
         .context(ObjectMetaSnafu)?;
 
@@ -65,7 +70,7 @@ pub(crate) fn rolegroup_headless_service(
                 .collect(),
         ),
         selector: Some(
-            build::rolegroup_selector_labels(cluster, rolegroup_ref)
+            build::rolegroup_selector_labels(cluster, role, role_group_name)
                 .context(RoleGroupSelectorLabelsSnafu)?
                 .into(),
         ),
@@ -83,9 +88,12 @@ pub(crate) fn rolegroup_headless_service(
 pub(crate) fn rolegroup_metrics_service(
     cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::HdfsCluster>,
+    role_group_name: &RoleGroupName,
 ) -> Result<Service, Error> {
-    tracing::info!("Setting up metrics Service for {:?}", rolegroup_ref);
+    tracing::info!("Setting up metrics Service for role {role} role group {role_group_name}");
+
+    let resource_names = cluster.resource_names(role, role_group_name);
+    let role_name = role.to_string();
 
     let service_spec = ServiceSpec {
         // Internal communication does not need to be exposed
@@ -103,7 +111,7 @@ pub(crate) fn rolegroup_metrics_service(
                 .collect(),
         ),
         selector: Some(
-            build::rolegroup_selector_labels(cluster, rolegroup_ref)
+            build::rolegroup_selector_labels(cluster, role, role_group_name)
                 .context(RoleGroupSelectorLabelsSnafu)?
                 .into(),
         ),
@@ -114,14 +122,14 @@ pub(crate) fn rolegroup_metrics_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(rolegroup_ref.rolegroup_metrics_service_name())
+            .name(resource_names.metrics_service_name())
             .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
             .with_recommended_labels(&build_recommended_labels(
                 cluster,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
                 &cluster.image.app_version_label_value,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
+                &role_name,
+                role_group_name.as_ref(),
             ))
             .context(ObjectMetaSnafu)?
             .with_label(
