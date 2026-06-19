@@ -6,6 +6,10 @@ use crate::controller::build::properties::{
 
 pub const KERBEROS_CONTAINER_PATH: &str = "/stackable/kerberos";
 
+/// Hadoop wire-encryption protection level requiring authentication, integrity and
+/// confidentiality. Used for both `dfs.data.transfer.protection` and `hadoop.rpc.protection`.
+const WIRE_ENCRYPTION_PRIVACY: &str = "privacy";
+
 /// The cluster-wide security settings the `security_config` builders need,
 /// resolved from the `HdfsCluster` so the builders don't depend on the raw CRD.
 pub struct KerberosConfig<'a> {
@@ -48,7 +52,7 @@ impl HdfsSiteConfigBuilder {
     }
 
     fn add_wire_encryption_settings(&mut self) -> &mut Self {
-        self.add("dfs.data.transfer.protection", "privacy");
+        self.add("dfs.data.transfer.protection", WIRE_ENCRYPTION_PRIVACY);
         self.add("dfs.encrypt.data.transfer", "true");
         self.add(
             "dfs.encrypt.data.transfer.cipher.suite",
@@ -163,7 +167,7 @@ impl CoreSiteConfigBuilder {
     }
 
     fn add_wire_encryption_settings(&mut self) -> &mut Self {
-        self.add("hadoop.rpc.protection", "privacy");
+        self.add("hadoop.rpc.protection", WIRE_ENCRYPTION_PRIVACY);
         self
     }
 }

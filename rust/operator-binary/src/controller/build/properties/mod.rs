@@ -13,6 +13,9 @@ pub mod security_properties;
 pub mod ssl_client;
 pub mod ssl_server;
 
+/// The keystore/truststore type used for the TLS stores provisioned by secret-operator.
+pub(crate) const KEYSTORE_TYPE_PKCS12: &str = "pkcs12";
+
 /// The `<prefix>.truststore.*` entries (location, type, password) injected into
 /// `ssl-client.xml` / `ssl-server.xml` when HTTPS is enabled.
 fn truststore_entries(prefix: &str) -> [(String, String); 3] {
@@ -21,7 +24,10 @@ fn truststore_entries(prefix: &str) -> [(String, String); 3] {
             format!("{prefix}.truststore.location"),
             format!("{TLS_STORE_DIR}/truststore.p12"),
         ),
-        (format!("{prefix}.truststore.type"), "pkcs12".to_string()),
+        (
+            format!("{prefix}.truststore.type"),
+            KEYSTORE_TYPE_PKCS12.to_string(),
+        ),
         (
             format!("{prefix}.truststore.password"),
             TLS_STORE_PASSWORD.to_string(),

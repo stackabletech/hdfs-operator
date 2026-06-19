@@ -1,3 +1,6 @@
+//! Builds the per-rolegroup `Service`s for the HdfsCluster: a headless `Service`
+//! backing the `StatefulSet` pod DNS, and a metrics `Service` carrying the
+//! Prometheus scrape labels/annotations.
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
@@ -30,11 +33,13 @@ pub enum Error {
     RoleGroupSelectorLabels { source: LabelError },
 }
 
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 pub(crate) fn rolegroup_headless_service(
     cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
-) -> Result<Service, Error> {
+) -> Result<Service> {
     tracing::info!("Setting up headless Service for role {role} role group {role_group_name}");
 
     let resource_names = cluster.resource_names(role, role_group_name);
@@ -92,7 +97,7 @@ pub(crate) fn rolegroup_metrics_service(
     cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
-) -> Result<Service, Error> {
+) -> Result<Service> {
     tracing::info!("Setting up metrics Service for role {role} role group {role_group_name}");
 
     let resource_names = cluster.resource_names(role, role_group_name);

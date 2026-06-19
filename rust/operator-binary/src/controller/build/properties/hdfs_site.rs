@@ -231,7 +231,8 @@ impl HdfsSiteConfigBuilder {
                         jnid.fqdn(cluster_info),
                         jnid.ports
                             .get(&String::from(DFS_JOURNALNODE_RPC_ADDRESS))
-                            .map_or(DEFAULT_JOURNAL_NODE_RPC_PORT, |p| p.clone())
+                            .cloned()
+                            .unwrap_or(DEFAULT_JOURNAL_NODE_RPC_PORT)
                     ))
                     .collect::<Vec<_>>()
                     .join(";"),
@@ -316,7 +317,8 @@ impl HdfsSiteConfigBuilder {
                     port = nn
                         .ports
                         .get(port_name)
-                        .map_or(default_port.clone(), |p| p.clone())
+                        .cloned()
+                        .unwrap_or_else(|| default_port.clone())
                 ),
             );
         }

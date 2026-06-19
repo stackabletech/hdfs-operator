@@ -11,7 +11,7 @@ use stackable_operator::v2::{
 
 use crate::controller::build::{
     container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
-    properties::truststore_entries,
+    properties::{KEYSTORE_TYPE_PKCS12, truststore_entries},
 };
 
 /// Renders `ssl-server.xml` for the given HTTPS state and user overrides.
@@ -24,7 +24,10 @@ pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String 
                 "ssl.server.keystore.location".to_string(),
                 format!("{TLS_STORE_DIR}/keystore.p12"),
             ),
-            ("ssl.server.keystore.type".to_string(), "pkcs12".to_string()),
+            (
+                "ssl.server.keystore.type".to_string(),
+                KEYSTORE_TYPE_PKCS12.to_string(),
+            ),
             (
                 "ssl.server.keystore.password".to_string(),
                 TLS_STORE_PASSWORD.to_string(),

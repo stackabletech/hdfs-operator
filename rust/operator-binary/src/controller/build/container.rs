@@ -106,6 +106,14 @@ constant!(VECTOR_CONFIG_VOLUME_NAME: VolumeName = "hdfs-config");
 // The volume holding the product logs that Vector tails.
 constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
+// Names of the environment variables set on the HDFS containers. Each is used both as the
+// map key and the `EnvVar.name`, so keep them in one place to avoid the two drifting apart.
+const ENV_TOPOLOGY_LABELS: &str = "TOPOLOGY_LABELS";
+const ENV_HADOOP_OPTS: &str = "HADOOP_OPTS";
+const ENV_KRB5_CONFIG: &str = "KRB5_CONFIG";
+const ENV_KRB5_CLIENT_KTNAME: &str = "KRB5_CLIENT_KTNAME";
+const ENV_CONTAINERDEBUG_LOG_DIRECTORY: &str = "CONTAINERDEBUG_LOG_DIRECTORY";
+
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -900,9 +908,9 @@ impl ContainerConfig {
             && let Some(rack_awareness) = cluster.rackawareness_config()
         {
             env.insert(
-                "TOPOLOGY_LABELS".to_string(),
+                ENV_TOPOLOGY_LABELS.to_string(),
                 EnvVar {
-                    name: "TOPOLOGY_LABELS".to_string(),
+                    name: ENV_TOPOLOGY_LABELS.to_string(),
                     value: Some(rack_awareness),
                     ..EnvVar::default()
                 },
@@ -910,26 +918,26 @@ impl ContainerConfig {
         }
 
         env.insert(
-            "HADOOP_OPTS".to_string(),
+            ENV_HADOOP_OPTS.to_string(),
             EnvVar {
-                name: "HADOOP_OPTS".to_string(),
+                name: ENV_HADOOP_OPTS.to_string(),
                 value: Some(construct_global_jvm_args(cluster.has_kerberos_enabled())),
                 ..EnvVar::default()
             },
         );
         if cluster.has_kerberos_enabled() {
             env.insert(
-                "KRB5_CONFIG".to_string(),
+                ENV_KRB5_CONFIG.to_string(),
                 EnvVar {
-                    name: "KRB5_CONFIG".to_string(),
+                    name: ENV_KRB5_CONFIG.to_string(),
                     value: Some(format!("{KERBEROS_CONTAINER_PATH}/krb5.conf")),
                     ..EnvVar::default()
                 },
             );
             env.insert(
-                "KRB5_CLIENT_KTNAME".to_string(),
+                ENV_KRB5_CLIENT_KTNAME.to_string(),
                 EnvVar {
-                    name: "KRB5_CLIENT_KTNAME".to_string(),
+                    name: ENV_KRB5_CLIENT_KTNAME.to_string(),
                     value: Some(format!("{KERBEROS_CONTAINER_PATH}/keytab")),
                     ..EnvVar::default()
                 },
@@ -938,9 +946,9 @@ impl ContainerConfig {
 
         // Needed for the `containerdebug` process to log it's tracing information to.
         env.insert(
-            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            ENV_CONTAINERDEBUG_LOG_DIRECTORY.to_string(),
             EnvVar {
-                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                name: ENV_CONTAINERDEBUG_LOG_DIRECTORY.to_string(),
                 value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
                 value_from: None,
             },

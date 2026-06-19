@@ -139,7 +139,7 @@ pub enum Error {
         source: error_boundary::InvalidObject,
     },
 
-    #[snafu(display("failed to builds service"))]
+    #[snafu(display("failed to build service"))]
     BuildService { source: service::Error },
 }
 
