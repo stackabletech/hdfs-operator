@@ -31,7 +31,7 @@ use stackable_operator::{
         self,
         spec::{ContainerLogConfig, Logging},
     },
-    role_utils::{self, GenericRoleConfig, Role, RoleGroupRef},
+    role_utils::{self, GenericRoleConfig, Role},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
@@ -261,71 +261,6 @@ impl v1alpha1::HdfsCluster {
             HdfsNodeRole::Name => self.spec.name_nodes.as_ref().map(|nn| &nn.role_config),
             HdfsNodeRole::Data => self.spec.data_nodes.as_ref().map(|dn| &dn.role_config),
             HdfsNodeRole::Journal => self.spec.journal_nodes.as_ref().map(|jn| &jn.role_config),
-        }
-    }
-
-    pub fn rolegroup_ref(
-        &self,
-        role_name: impl Into<String>,
-        group_name: impl Into<String>,
-    ) -> RoleGroupRef<v1alpha1::HdfsCluster> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: role_name.into(),
-            role_group: group_name.into(),
-        }
-    }
-
-    pub fn rolegroup_ref_and_replicas(
-        &self,
-        role: &HdfsNodeRole,
-    ) -> Vec<(RoleGroupRef<v1alpha1::HdfsCluster>, u16)> {
-        match role {
-            HdfsNodeRole::Name => self
-                .spec
-                .name_nodes
-                .iter()
-                .flat_map(|role| &role.role_groups)
-                // Order rolegroups consistently, to avoid spurious downstream rewrites
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .map(|(rolegroup_name, role_group)| {
-                    (
-                        self.rolegroup_ref(HdfsNodeRole::Name.to_string(), rolegroup_name),
-                        role_group.replicas.unwrap_or_default(),
-                    )
-                })
-                .collect(),
-            HdfsNodeRole::Data => self
-                .spec
-                .data_nodes
-                .iter()
-                .flat_map(|role| &role.role_groups)
-                // Order rolegroups consistently, to avoid spurious downstream rewrites
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .map(|(rolegroup_name, role_group)| {
-                    (
-                        self.rolegroup_ref(HdfsNodeRole::Data.to_string(), rolegroup_name),
-                        role_group.replicas.unwrap_or_default(),
-                    )
-                })
-                .collect(),
-            HdfsNodeRole::Journal => self
-                .spec
-                .journal_nodes
-                .iter()
-                .flat_map(|role| &role.role_groups)
-                // Order rolegroups consistently, to avoid spurious downstream rewrites
-                .collect::<BTreeMap<_, _>>()
-                .into_iter()
-                .map(|(rolegroup_name, role_group)| {
-                    (
-                        self.rolegroup_ref(HdfsNodeRole::Journal.to_string(), rolegroup_name),
-                        role_group.replicas.unwrap_or_default(),
-                    )
-                })
-                .collect(),
         }
     }
 

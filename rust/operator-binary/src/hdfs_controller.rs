@@ -213,7 +213,6 @@ pub async fn reconcile_hdfs(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let dfs_replication = hdfs.spec.cluster_config.dfs_replication;
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     let upgrade_state = validated_cluster.status.upgrade_state;
@@ -238,7 +237,7 @@ pub async fn reconcile_hdfs(
             continue;
         };
 
-        if let Some(message) = build_invalid_replica_message(hdfs, &role, dfs_replication) {
+        if let Some(message) = build_invalid_replica_message(&validated_cluster, &role) {
             publish_warning_event(
                 &ctx,
                 &hdfs_obj_ref,
