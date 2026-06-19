@@ -6,6 +6,8 @@ use stackable_operator::{
     kube::{Resource, api::ObjectMeta},
     role_utils::RoleGroupRef,
     v2::{
+        HasName, HasUid, NameIsValidLabelValue,
+        builder::meta::ownerreference_from_resource,
         role_utils::RoleGroupConfig,
         types::{
             common::Port,
@@ -48,6 +50,8 @@ pub struct ValidatedCluster {
     pub name: ClusterName,
     /// The cluster namespace, used to build kerberos principals.
     pub namespace: NamespaceName,
+    /// The cluster's Kubernetes UID, used to build owner references.
+    pub uid: Uid,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<String, ValidatedRoleGroupConfig>>,
@@ -75,6 +79,7 @@ impl ValidatedCluster {
             },
             name,
             namespace,
+            uid,
             image,
             cluster_config,
             role_groups,
@@ -130,11 +135,7 @@ impl ValidatedCluster {
         metadata
             .name_and_namespace(self)
             .name(rolegroup_ref.object_name())
-            .ownerreference_from_resource(self, None, Some(true))
-            .expect(
-                "the owner reference is valid because the ValidatedCluster has an \
-                api_version, kind, name and uid",
-            )
+            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
             .with_recommended_labels(&build_recommended_labels(
                 self,
                 RESOURCE_MANAGER_HDFS_CONTROLLER,
@@ -180,6 +181,24 @@ impl Resource for ValidatedCluster {
 
     fn meta_mut(&mut self) -> &mut ObjectMeta {
         &mut self.metadata
+    }
+}
+
+impl HasName for ValidatedCluster {
+    fn to_name(&self) -> String {
+        self.name.to_string()
+    }
+}
+
+impl HasUid for ValidatedCluster {
+    fn to_uid(&self) -> Uid {
+        self.uid.clone()
+    }
+}
+
+impl NameIsValidLabelValue for ValidatedCluster {
+    fn to_label_value(&self) -> String {
+        self.name.to_label_value()
     }
 }
 

@@ -5,6 +5,7 @@ use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
     utils::cluster_info::KubernetesClusterInfo,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::{
@@ -27,12 +28,6 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object {name} is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-        name: String,
-    },
-
     #[snafu(display("failed to build ConfigMap"))]
     BuildConfigMap {
         source: stackable_operator::builder::configmap::Error,
@@ -57,10 +52,7 @@ pub fn build_discovery_config_map(
 ) -> Result<ConfigMap> {
     let metadata = ObjectMetaBuilder::new()
         .name_and_namespace(cluster)
-        .ownerreference_from_resource(cluster, None, Some(true))
-        .context(ObjectMissingMetadataForOwnerRefSnafu {
-            name: cluster.name.to_string(),
-        })?
+        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
         .with_recommended_labels(&build_recommended_labels(
             cluster,
             HDFS_CONTROLLER_NAME,
