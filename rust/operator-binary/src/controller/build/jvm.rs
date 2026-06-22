@@ -121,7 +121,7 @@ mod tests {
           uid: 8047b73b-db0f-4281-811f-de59105ae6bf
         spec:
           image:
-            productVersion: 3.4.2
+            productVersion: 3.5.0
           clusterConfig:
             zookeeperConfigMapName: hdfs-zk
           nameNodes:
@@ -151,7 +151,7 @@ mod tests {
           uid: 8047b73b-db0f-4281-811f-de59105ae6bf
         spec:
           image:
-            productVersion: 3.4.2
+            productVersion: 3.5.0
           clusterConfig:
             zookeeperConfigMapName: hdfs-zk
           nameNodes:

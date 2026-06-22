@@ -960,7 +960,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -995,7 +995,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1030,7 +1030,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1060,7 +1060,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
@@ -1123,7 +1123,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1174,7 +1174,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1225,7 +1225,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
   dataNodes:
@@ -1254,7 +1254,7 @@ metadata:
   uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
-    productVersion: 3.4.2
+    productVersion: 3.5.0
   clusterConfig:
     zookeeperConfigMapName: hdfs-zk
     rackAwareness:
@@ -1290,7 +1290,7 @@ spec:
         fn roundtrip_test_data() -> Vec<Self> {
             stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
               - image:
-                  productVersion: 3.4.2
+                  productVersion: 3.5.0
                   pullPolicy: IfNotPresent
                 clusterOperation:
                   reconciliationPaused: false
