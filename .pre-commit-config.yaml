@@ -1,8 +1,5 @@
 ---
-# The files tests/templates/kuttl/smoke/31_configmap_.* define the expected ConfigMap contents.
-# New lines at the end of these files are intentional and must not be removed by the pre-commit hook
-# "end-of-file-fixer".
-exclude: ^(Cargo\.nix|crate-hashes\.json|nix/.*|tests/templates/kuttl/smoke/31_configmap_.*)$
+exclude: ^(Cargo\.nix|crate-hashes\.json|nix/.*)$
 
 default_language_version:
   node: system
