@@ -72,6 +72,7 @@ mod tests {
 
 #[cfg(test)]
 pub(crate) mod test_support {
+    use indoc::indoc;
     use stackable_operator::{
         commons::networking::DomainName, utils::cluster_info::KubernetesClusterInfo,
     };
@@ -79,11 +80,10 @@ pub(crate) mod test_support {
     use crate::{controller::ValidatedCluster, test_support::deserialize_and_validate_cluster};
 
     /// The rendered output of an empty Hadoop-XML configuration (no entries).
-    pub const EMPTY_HADOOP_XML: &str = concat!(
-        "<?xml version=\"1.0\"?>\n",
-        "<configuration>\n",
-        "</configuration>"
-    );
+    pub const EMPTY_HADOOP_XML: &str = indoc! {r#"
+        <?xml version="1.0"?>
+        <configuration>
+        </configuration>"#};
 
     /// A minimal three-role HdfsCluster used to drive the per-file builder tests.
     pub const MINIMAL_HDFS_YAML: &str = r#"

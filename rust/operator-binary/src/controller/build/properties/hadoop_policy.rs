@@ -14,6 +14,8 @@ pub fn build(overrides: KeyValueConfigOverrides) -> String {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+
     use super::*;
     use crate::controller::build::properties::test_support::EMPTY_HADOOP_XML;
 
@@ -26,15 +28,14 @@ mod tests {
     fn overrides_are_rendered_as_properties() {
         assert_eq!(
             build([("security.client.protocol.acl", "*")].into()),
-            concat!(
-                "<?xml version=\"1.0\"?>\n",
-                "<configuration>\n",
-                "  <property>\n",
-                "    <name>security.client.protocol.acl</name>\n",
-                "    <value>*</value>\n",
-                "  </property>\n",
-                "</configuration>"
-            )
+            indoc! {r#"
+                <?xml version="1.0"?>
+                <configuration>
+                  <property>
+                    <name>security.client.protocol.acl</name>
+                    <value>*</value>
+                  </property>
+                </configuration>"#}
         );
     }
 }

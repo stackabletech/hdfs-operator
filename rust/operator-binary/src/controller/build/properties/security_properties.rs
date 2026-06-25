@@ -29,13 +29,18 @@ pub fn build(overrides: KeyValueConfigOverrides) -> Result<String, PropertiesWri
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+
     use super::*;
 
     #[test]
     fn injects_recommended_dns_cache_ttls() {
         assert_eq!(
             build(KeyValueConfigOverrides::default()).unwrap(),
-            "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n"
+            indoc! {"
+                networkaddress.cache.negative.ttl=0
+                networkaddress.cache.ttl=30
+            "}
         );
     }
 
@@ -43,7 +48,10 @@ mod tests {
     fn user_overrides_win_over_injected_defaults() {
         assert_eq!(
             build([("networkaddress.cache.ttl", "60")].into()).unwrap(),
-            "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=60\n"
+            indoc! {"
+                networkaddress.cache.negative.ttl=0
+                networkaddress.cache.ttl=60
+            "}
         );
     }
 
@@ -51,7 +59,11 @@ mod tests {
     fn extra_overrides_are_appended() {
         assert_eq!(
             build([("foo.bar", "baz")].into()).unwrap(),
-            "foo.bar=baz\nnetworkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n"
+            indoc! {"
+                foo.bar=baz
+                networkaddress.cache.negative.ttl=0
+                networkaddress.cache.ttl=30
+            "}
         );
     }
 }
