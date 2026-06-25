@@ -332,6 +332,8 @@ impl HdfsSiteConfigBuilder {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+
     use super::*;
     use crate::{
         controller::build::properties::test_support::{cluster_info, validated_cluster},
@@ -358,11 +360,15 @@ mod tests {
             KeyValueConfigOverrides::default(),
         );
         assert!(
-            xml.contains("<name>dfs.replication</name>\n    <value>3</value>"),
+            xml.contains(indoc! {"
+                <name>dfs.replication</name>
+                    <value>3</value>"}),
             "{xml}"
         );
         assert!(
-            xml.contains("<name>dfs.datanode.max.transfer.threads</name>\n    <value>8192</value>"),
+            xml.contains(indoc! {"
+                <name>dfs.datanode.max.transfer.threads</name>
+                    <value>8192</value>"}),
             "{xml}"
         );
     }
@@ -378,7 +384,9 @@ mod tests {
             [("dfs.replication", "5")].into(),
         );
         assert!(
-            xml.contains("<name>dfs.replication</name>\n    <value>5</value>"),
+            xml.contains(indoc! {"
+                <name>dfs.replication</name>
+                    <value>5</value>"}),
             "{xml}"
         );
     }

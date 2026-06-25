@@ -108,6 +108,8 @@ impl CoreSiteConfigBuilder {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+
     use super::*;
     use crate::controller::build::properties::test_support::{cluster_info, validated_cluster};
 
@@ -120,17 +122,21 @@ mod tests {
             KeyValueConfigOverrides::default(),
         );
         assert!(
-            xml.contains("<name>fs.defaultFS</name>\n    <value>hdfs://hdfs/</value>"),
+            xml.contains(indoc! {"
+                <name>fs.defaultFS</name>
+                    <value>hdfs://hdfs/</value>"}),
             "{xml}"
         );
         assert!(
-            xml.contains(
-                "<name>hadoop.prometheus.endpoint.enabled</name>\n    <value>true</value>"
-            ),
+            xml.contains(indoc! {"
+                <name>hadoop.prometheus.endpoint.enabled</name>
+                    <value>true</value>"}),
             "{xml}"
         );
         assert!(
-            xml.contains("<name>io.file.buffer.size</name>\n    <value>131072</value>"),
+            xml.contains(indoc! {"
+                <name>io.file.buffer.size</name>
+                    <value>131072</value>"}),
             "{xml}"
         );
     }
@@ -144,7 +150,9 @@ mod tests {
             [("io.file.buffer.size", "65536")].into(),
         );
         assert!(
-            xml.contains("<name>io.file.buffer.size</name>\n    <value>65536</value>"),
+            xml.contains(indoc! {"
+                <name>io.file.buffer.size</name>
+                    <value>65536</value>"}),
             "{xml}"
         );
     }

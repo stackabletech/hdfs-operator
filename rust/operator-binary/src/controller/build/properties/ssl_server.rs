@@ -41,6 +41,8 @@ pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String 
 
 #[cfg(test)]
 mod tests {
+    use indoc::{formatdoc, indoc};
+
     use super::*;
     use crate::controller::build::properties::test_support::EMPTY_HADOOP_XML;
 
@@ -56,15 +58,15 @@ mod tests {
     fn enabled_https_injects_keystore_and_truststore() {
         let xml = build(true, KeyValueConfigOverrides::default());
         assert!(
-            xml.contains(&format!(
-                "<name>ssl.server.keystore.location</name>\n    <value>{TLS_STORE_DIR}/keystore.p12</value>"
-            )),
+            xml.contains(&formatdoc! {"
+                <name>ssl.server.keystore.location</name>
+                    <value>{TLS_STORE_DIR}/keystore.p12</value>"}),
             "{xml}"
         );
         assert!(
-            xml.contains(&format!(
-                "<name>ssl.server.truststore.password</name>\n    <value>{TLS_STORE_PASSWORD}</value>"
-            )),
+            xml.contains(&formatdoc! {"
+                <name>ssl.server.truststore.password</name>
+                    <value>{TLS_STORE_PASSWORD}</value>"}),
             "{xml}"
         );
     }
@@ -73,7 +75,9 @@ mod tests {
     fn user_overrides_win_over_injected_defaults() {
         let xml = build(true, [("ssl.server.keystore.type", "jks")].into());
         assert!(
-            xml.contains("<name>ssl.server.keystore.type</name>\n    <value>jks</value>"),
+            xml.contains(indoc! {"
+                <name>ssl.server.keystore.type</name>
+                    <value>jks</value>"}),
             "{xml}"
         );
     }

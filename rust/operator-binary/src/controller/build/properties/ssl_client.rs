@@ -24,6 +24,8 @@ pub fn build(https_enabled: bool, overrides: KeyValueConfigOverrides) -> String 
 
 #[cfg(test)]
 mod tests {
+    use indoc::{formatdoc, indoc};
+
     use super::*;
     use crate::controller::build::{
         container::{TLS_STORE_DIR, TLS_STORE_PASSWORD},
@@ -42,15 +44,15 @@ mod tests {
     fn enabled_https_injects_truststore() {
         let xml = build(true, KeyValueConfigOverrides::default());
         assert!(
-            xml.contains(&format!(
-                "<name>ssl.client.truststore.location</name>\n    <value>{TLS_STORE_DIR}/truststore.p12</value>"
-            )),
+            xml.contains(&formatdoc! {"
+                <name>ssl.client.truststore.location</name>
+                    <value>{TLS_STORE_DIR}/truststore.p12</value>"}),
             "{xml}"
         );
         assert!(
-            xml.contains(&format!(
-                "<name>ssl.client.truststore.password</name>\n    <value>{TLS_STORE_PASSWORD}</value>"
-            )),
+            xml.contains(&formatdoc! {"
+                <name>ssl.client.truststore.password</name>
+                    <value>{TLS_STORE_PASSWORD}</value>"}),
             "{xml}"
         );
     }
@@ -59,7 +61,9 @@ mod tests {
     fn user_overrides_win_over_injected_defaults() {
         let xml = build(true, [("ssl.client.truststore.type", "jks")].into());
         assert!(
-            xml.contains("<name>ssl.client.truststore.type</name>\n    <value>jks</value>"),
+            xml.contains(indoc! {"
+                <name>ssl.client.truststore.type</name>
+                    <value>jks</value>"}),
             "{xml}"
         );
     }
