@@ -1,46 +1,48 @@
-use snafu::{ResultExt, Snafu};
-use stackable_operator::{
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
-    utils::cluster_info::KubernetesClusterInfo,
-};
+use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
 
-use crate::{
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
-    crd::{
-        constants::{SSL_CLIENT_XML, SSL_SERVER_XML},
-        v1alpha1,
-    },
+use crate::controller::build::properties::{
+    ConfigFileName, core_site::CoreSiteConfigBuilder, hdfs_site::HdfsSiteConfigBuilder,
 };
 
 pub const KERBEROS_CONTAINER_PATH: &str = "/stackable/kerberos";
 
-type Result<T, E = Error> = std::result::Result<T, E>;
+/// Hadoop wire-encryption protection level requiring authentication, integrity and
+/// confidentiality. Used for both `dfs.data.transfer.protection` and `hadoop.rpc.protection`.
+const WIRE_ENCRYPTION_PRIVACY: &str = "privacy";
 
-#[derive(Snafu, Debug)]
-#[allow(clippy::enum_variant_names)]
-pub enum Error {
-    #[snafu(display("object has no namespace"))]
-    ObjectHasNoNamespace {
-        source: crate::crd::Error,
-        obj_ref: ObjectRef<v1alpha1::HdfsCluster>,
-    },
+/// The cluster-wide security settings the `security_config` builders need,
+/// resolved from the `HdfsCluster` so the builders don't depend on the raw CRD.
+pub struct KerberosConfig<'a> {
+    pub cluster_name: &'a str,
+    pub cluster_namespace: &'a str,
+    /// Whether an `authentication` config is set (gates the core-site security config).
+    pub authentication_enabled: bool,
+    /// Whether kerberos is enabled (gates the discovery security config).
+    pub kerberos_enabled: bool,
+    pub authorization_enabled: bool,
 }
 
 impl HdfsSiteConfigBuilder {
-    pub fn security_config(&mut self, hdfs: &v1alpha1::HdfsCluster) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
+    pub fn security_config(&mut self, kerberos_enabled: bool) -> &mut Self {
+        if kerberos_enabled {
             self.add("dfs.block.access.token.enable", "true")
                 .add("dfs.http.policy", "HTTPS_ONLY")
                 .add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true")
-                .add("dfs.https.server.keystore.resource", SSL_SERVER_XML)
-                .add("dfs.https.client.keystore.resource", SSL_CLIENT_XML);
+                .add(
+                    "dfs.https.server.keystore.resource",
+                    ConfigFileName::SslServer.to_string(),
+                )
+                .add(
+                    "dfs.https.client.keystore.resource",
+                    ConfigFileName::SslClient.to_string(),
+                );
             self.add_wire_encryption_settings();
         }
         self
     }
 
-    pub fn security_discovery_config(&mut self, hdfs: &v1alpha1::HdfsCluster) -> &mut Self {
-        if hdfs.has_kerberos_enabled() {
+    pub fn security_discovery_config(&mut self, kerberos_enabled: bool) -> &mut Self {
+        if kerberos_enabled {
             // We want e.g. hbase to automatically renew the Kerberos tickets.
             // This shouldn't harm any other consumers.
             self.add("hadoop.kerberos.keytab.login.autorenewal.enabled", "true");
@@ -50,7 +52,7 @@ impl HdfsSiteConfigBuilder {
     }
 
     fn add_wire_encryption_settings(&mut self) -> &mut Self {
-        self.add("dfs.data.transfer.protection", "privacy");
+        self.add("dfs.data.transfer.protection", WIRE_ENCRYPTION_PRIVACY);
         self.add("dfs.encrypt.data.transfer", "true");
         self.add(
             "dfs.encrypt.data.transfer.cipher.suite",
@@ -63,11 +65,15 @@ impl HdfsSiteConfigBuilder {
 impl CoreSiteConfigBuilder {
     pub fn security_config(
         &mut self,
-        hdfs: &v1alpha1::HdfsCluster,
+        kerberos: &KerberosConfig,
         cluster_info: &KubernetesClusterInfo,
-    ) -> Result<&mut Self> {
-        if hdfs.authentication_config().is_some() {
-            let principal_host_part = principal_host_part(hdfs, cluster_info)?;
+    ) -> &mut Self {
+        if kerberos.authentication_enabled {
+            let principal_host_part = principal_host_part(
+                kerberos.cluster_name,
+                kerberos.cluster_namespace,
+                cluster_info,
+            );
 
             self.add("hadoop.security.authentication", "kerberos")
                 // Not adding hadoop.registry.kerberos.realm, as it seems to not be used by our customers
@@ -114,7 +120,7 @@ impl CoreSiteConfigBuilder {
                     format!("nn/{principal_host_part}"),
                 );
 
-            if !hdfs.has_authorization_enabled() {
+            if !kerberos.authorization_enabled {
                 // In case *no* OPA authorizer is used, we got the following error message:
                 // java.io.IOException: No groups found for user nn
                 // In case the OPA authorizer is used everything seems to be fine.
@@ -127,16 +133,20 @@ impl CoreSiteConfigBuilder {
 
             self.add_wire_encryption_settings();
         }
-        Ok(self)
+        self
     }
 
     pub fn security_discovery_config(
         &mut self,
-        hdfs: &v1alpha1::HdfsCluster,
+        kerberos: &KerberosConfig,
         cluster_info: &KubernetesClusterInfo,
-    ) -> Result<&mut Self> {
-        if hdfs.has_kerberos_enabled() {
-            let principal_host_part = principal_host_part(hdfs, cluster_info)?;
+    ) -> &mut Self {
+        if kerberos.kerberos_enabled {
+            let principal_host_part = principal_host_part(
+                kerberos.cluster_name,
+                kerberos.cluster_namespace,
+                cluster_info,
+            );
 
             self.add("hadoop.security.authentication", "kerberos")
                 .add(
@@ -153,11 +163,11 @@ impl CoreSiteConfigBuilder {
                 );
             self.add_wire_encryption_settings();
         }
-        Ok(self)
+        self
     }
 
     fn add_wire_encryption_settings(&mut self) -> &mut Self {
-        self.add("hadoop.rpc.protection", "privacy");
+        self.add("hadoop.rpc.protection", WIRE_ENCRYPTION_PRIVACY);
         self
     }
 }
@@ -176,17 +186,10 @@ impl CoreSiteConfigBuilder {
 ///
 /// After we have switched to using the following principals everything worked without problems
 fn principal_host_part(
-    hdfs: &v1alpha1::HdfsCluster,
+    cluster_name: &str,
+    cluster_namespace: &str,
     cluster_info: &KubernetesClusterInfo,
-) -> Result<String> {
-    let hdfs_name = hdfs.name_any();
-    let hdfs_namespace = hdfs
-        .namespace_or_error()
-        .with_context(|_| ObjectHasNoNamespaceSnafu {
-            obj_ref: ObjectRef::from_obj(hdfs),
-        })?;
+) -> String {
     let cluster_domain = &cluster_info.cluster_domain;
-    Ok(format!(
-        "{hdfs_name}.{hdfs_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}",
-    ))
+    format!("{cluster_name}.{cluster_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}")
 }

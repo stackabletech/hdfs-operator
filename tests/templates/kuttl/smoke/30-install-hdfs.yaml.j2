@@ -32,12 +32,24 @@ spec:
       listenerClass: {{ test_scenario['values']['listener-class'] }}
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    jvmArgumentOverrides:
+      remove:
+        - -Xms819m
+      removeRegex:
+        - -Xmx.*
+        # The regex only matches the entire string and therefore `-javaagent:...` should not be
+        # removed.
+        - -javaagent
     roleGroups:
       default:
         replicas: 2
         envOverrides:
           COMMON_VAR: group-value # overrides role value
           GROUP_VAR: group-value # only defined here at group level
+        jvmArgumentOverrides:
+          add:
+            - -Xms820m
+            - -Xmx820m
   dataNodes:
     envOverrides:
       COMMON_VAR: role-value # overridden by role group below

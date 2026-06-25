@@ -6,8 +6,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use clap::Parser;
+use const_format::concatcp;
 use futures::{FutureExt, StreamExt, TryFutureExt};
-use hdfs_controller::HDFS_FULL_CONTROLLER_NAME;
+use hdfs_controller::HDFS_CONTROLLER_NAME;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
@@ -41,18 +42,11 @@ use crate::{
     webhooks::conversion::create_webhook_server,
 };
 
-mod config;
-mod container;
 mod controller;
 mod crd;
-mod discovery;
 mod event;
 mod hdfs_clusterrolebinding_nodes_controller;
 mod hdfs_controller;
-mod operations;
-mod product_logging;
-mod security;
-mod service;
 mod webhooks;
 
 mod built_info {
@@ -60,6 +54,7 @@ mod built_info {
 }
 
 pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
+pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
 #[derive(clap::Parser)]
 #[clap(about, author)]
@@ -77,7 +72,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
-            product_config,
+            // product-config has been removed; the CLI argument is kept for
+            // backwards compatibility but ignored.
+            product_config: _,
             maintenance,
             common,
         }) => {
@@ -121,11 +118,6 @@ async fn main() -> anyhow::Result<()> {
             let webhook_server = webhook_server
                 .run(sigterm_watcher.handle())
                 .map_err(|err| anyhow!(err).context("failed to run webhook server"));
-
-            let product_config = product_config.load(&[
-                "deploy/config-spec/properties.yaml",
-                "/etc/stackable/hdfs-operator/config-spec/properties.yaml",
-            ])?;
 
             let (store, store_w) = reflector::store();
 
@@ -194,7 +186,6 @@ async fn main() -> anyhow::Result<()> {
                         event_recorder: hdfs_event_recorder.clone(),
                         client: client.clone(),
                         operator_environment,
-                        product_config,
                     }),
                 )
                 // We can let the reporting happen in the background
@@ -262,7 +253,7 @@ fn references_config_map(
         return false;
     };
 
-    hdfs.spec.cluster_config.zookeeper_config_map_name == config_map.name_any()
+    hdfs.spec.cluster_config.zookeeper_config_map_name.as_ref() == config_map.name_any().as_str()
         || match &hdfs.spec.cluster_config.authorization {
             Some(hdfs_authorization) => {
                 hdfs_authorization.opa.config_map_name == config_map.name_any()
@@ -270,3 +261,6 @@ fn references_config_map(
             None => false,
         }
 }
+
+#[cfg(test)]
+pub(crate) mod test_support;

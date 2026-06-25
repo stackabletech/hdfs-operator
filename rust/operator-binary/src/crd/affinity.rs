@@ -41,7 +41,10 @@ mod test {
         },
     };
 
-    use crate::crd::{HdfsNodeRole, v1alpha1};
+    use crate::{
+        crd::HdfsNodeRole,
+        test_support::{anynode_config, deserialize_and_validate_cluster, role_group_name},
+    };
 
     #[rstest]
     #[case(HdfsNodeRole::Journal)]
@@ -53,6 +56,8 @@ apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
 metadata:
   name: simple-hdfs
+  namespace: test
+  uid: 8047b73b-db0f-4281-811f-de59105ae6bf
 spec:
   image:
     productVersion: 3.5.0
@@ -71,8 +76,9 @@ spec:
       default:
         replicas: 1
         "#;
-        let hdfs: v1alpha1::HdfsCluster = serde_yaml::from_str(input).unwrap();
-        let merged_config = role.merged_config(&hdfs, "default").unwrap();
+
+        let validated_cluster = deserialize_and_validate_cluster(input);
+        let merged_config = anynode_config(&validated_cluster, &role, &role_group_name("default"));
 
         assert_eq!(
             merged_config.affinity,

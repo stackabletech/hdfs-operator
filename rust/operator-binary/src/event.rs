@@ -5,10 +5,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{
-    crd::{HdfsNodeRole, v1alpha1},
-    hdfs_controller::Ctx,
-};
+use crate::{controller::ValidatedCluster, crd::HdfsNodeRole, hdfs_controller::Ctx};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -43,16 +40,18 @@ pub async fn publish_warning_event(
 }
 
 pub fn build_invalid_replica_message(
-    hdfs: &v1alpha1::HdfsCluster,
+    validated_cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
-    dfs_replication: u8,
 ) -> Option<String> {
-    let replicas: u16 = hdfs
-        .rolegroup_ref_and_replicas(role)
-        .iter()
-        .map(|tuple| tuple.1)
+    let replicas: u16 = validated_cluster
+        .role_groups
+        .get(role)
+        .into_iter()
+        .flatten()
+        .map(|(_, role_group)| role_group.replicas.unwrap_or_default())
         .sum();
 
+    let dfs_replication = validated_cluster.cluster_config.dfs_replication;
     let role_name = role.to_string();
     let min_replicas = role.min_replicas();
 

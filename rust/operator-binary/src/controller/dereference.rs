@@ -1,11 +1,13 @@
 use snafu::{ResultExt, Snafu};
 
-use crate::{crd::v1alpha1, security::opa::HdfsOpaConfig};
+use crate::{controller::build::opa::HdfsOpaConfig, crd::v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("invalid OPA configuration"))]
-    InvalidOpaConfig { source: crate::security::opa::Error },
+    InvalidOpaConfig {
+        source: crate::controller::build::opa::Error,
+    },
 }
 
 /// External references resolved during the dereference step.
