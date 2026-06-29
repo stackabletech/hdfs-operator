@@ -2,7 +2,9 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{client::Client, commons::opa::OpaApiVersion};
 
 use crate::{
-    config::{CoreSiteConfigBuilder, HdfsSiteConfigBuilder},
+    controller::build::properties::{
+        core_site::CoreSiteConfigBuilder, hdfs_site::HdfsSiteConfigBuilder,
+    },
     crd::{security::AuthorizationConfig, v1alpha1},
 };
 

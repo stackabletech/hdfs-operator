@@ -1,4 +1,10 @@
-use stackable_operator::shared::time::Duration;
+use std::str::FromStr;
+
+use stackable_operator::{
+    constant,
+    shared::time::Duration,
+    v2::types::{common::Port, kubernetes::VolumeName},
+};
 
 pub const DEFAULT_DFS_REPLICATION_FACTOR: u8 = 3;
 
@@ -7,13 +13,7 @@ pub const FIELD_MANAGER_SCOPE: &str = "hdfscluster";
 pub const APP_NAME: &str = "hdfs";
 pub const FIELD_MANAGER: &str = "hdfs-operator";
 
-pub const HDFS_SITE_XML: &str = "hdfs-site.xml";
-pub const CORE_SITE_XML: &str = "core-site.xml";
-pub const HADOOP_POLICY_XML: &str = "hadoop-policy.xml";
-pub const SSL_SERVER_XML: &str = "ssl-server.xml";
-pub const SSL_CLIENT_XML: &str = "ssl-client.xml";
 pub const LOG4J_PROPERTIES: &str = "log4j.properties";
-pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
 pub const SERVICE_PORT_NAME_RPC: &str = "rpc";
 pub const SERVICE_PORT_NAME_IPC: &str = "ipc";
@@ -25,27 +25,27 @@ pub const SERVICE_PORT_NAME_JMX_METRICS: &str = "jmx-metrics";
 
 pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
-pub const DEFAULT_NAME_NODE_METRICS_PORT: u16 = 8183;
-pub const DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT: u16 = 9870;
-pub const DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT: u16 = 9871;
-pub const DEFAULT_NAME_NODE_HTTP_PORT: u16 = 9870;
-pub const DEFAULT_NAME_NODE_HTTPS_PORT: u16 = 9871;
-pub const DEFAULT_NAME_NODE_RPC_PORT: u16 = 8020;
+pub const DEFAULT_NAME_NODE_METRICS_PORT: Port = Port(8183);
+pub const DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT: Port = Port(9870);
+pub const DEFAULT_NAME_NODE_NATIVE_METRICS_HTTPS_PORT: Port = Port(9871);
+pub const DEFAULT_NAME_NODE_HTTP_PORT: Port = Port(9870);
+pub const DEFAULT_NAME_NODE_HTTPS_PORT: Port = Port(9871);
+pub const DEFAULT_NAME_NODE_RPC_PORT: Port = Port(8020);
 
-pub const DEFAULT_DATA_NODE_METRICS_PORT: u16 = 8082;
-pub const DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT: u16 = 9864;
-pub const DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT: u16 = 9865;
-pub const DEFAULT_DATA_NODE_HTTP_PORT: u16 = 9864;
-pub const DEFAULT_DATA_NODE_HTTPS_PORT: u16 = 9865;
-pub const DEFAULT_DATA_NODE_DATA_PORT: u16 = 9866;
-pub const DEFAULT_DATA_NODE_IPC_PORT: u16 = 9867;
+pub const DEFAULT_DATA_NODE_METRICS_PORT: Port = Port(8082);
+pub const DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT: Port = Port(9864);
+pub const DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT: Port = Port(9865);
+pub const DEFAULT_DATA_NODE_HTTP_PORT: Port = Port(9864);
+pub const DEFAULT_DATA_NODE_HTTPS_PORT: Port = Port(9865);
+pub const DEFAULT_DATA_NODE_DATA_PORT: Port = Port(9866);
+pub const DEFAULT_DATA_NODE_IPC_PORT: Port = Port(9867);
 
-pub const DEFAULT_JOURNAL_NODE_METRICS_PORT: u16 = 8081;
-pub const DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT: u16 = 8480;
-pub const DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT: u16 = 8481;
-pub const DEFAULT_JOURNAL_NODE_HTTP_PORT: u16 = 8480;
-pub const DEFAULT_JOURNAL_NODE_HTTPS_PORT: u16 = 8481;
-pub const DEFAULT_JOURNAL_NODE_RPC_PORT: u16 = 8485;
+pub const DEFAULT_JOURNAL_NODE_METRICS_PORT: Port = Port(8081);
+pub const DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT: Port = Port(8480);
+pub const DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTPS_PORT: Port = Port(8481);
+pub const DEFAULT_JOURNAL_NODE_HTTP_PORT: Port = Port(8480);
+pub const DEFAULT_JOURNAL_NODE_HTTPS_PORT: Port = Port(8481);
+pub const DEFAULT_JOURNAL_NODE_RPC_PORT: Port = Port(8485);
 
 pub const DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
     Duration::from_minutes_unchecked(15);
@@ -89,5 +89,5 @@ pub const JOURNALNODE_ROOT_DATA_DIR: &str = "/stackable/data/journalnode";
 pub const DATANODE_ROOT_DATA_DIR_PREFIX: &str = "/stackable/data/";
 pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/datanode";
 
-pub const LISTENER_VOLUME_NAME: &str = "listener";
+constant!(pub LISTENER_VOLUME_NAME: VolumeName = "listener");
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";

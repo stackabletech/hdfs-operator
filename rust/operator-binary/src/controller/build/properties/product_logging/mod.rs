@@ -1,39 +1,19 @@
+//! Builders for the logging-related files in the rolegroup `ConfigMap`: the per-container
+//! `*.log4j.properties` configs and the (static) Vector agent config (`vector.yaml`).
+
 use std::{borrow::Cow, fmt::Display};
 
-use snafu::Snafu;
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         spec::{ContainerLogConfig, ContainerLogConfigChoice},
     },
-    role_utils::RoleGroupRef,
+    v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::crd::{AnyNodeConfig, DataNodeContainer, NameNodeContainer, v1alpha1};
+use crate::crd::{AnyNodeConfig, DataNodeContainer, NameNodeContainer};
 
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("object has no namespace"))]
-    ObjectHasNoNamespace,
-
-    #[snafu(display("failed to retrieve the ConfigMap {cm_name:?}"))]
-    ConfigMapNotFound {
-        source: stackable_operator::client::Error,
-        cm_name: String,
-    },
-
-    #[snafu(display("failed to retrieve the entry {entry:?} for ConfigMap {cm_name:?}"))]
-    MissingConfigMapEntry {
-        entry: &'static str,
-        cm_name: String,
-    },
-}
-
-type Result<T, E = Error> = std::result::Result<T, E>;
-
-pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
 // require less.
 // - name node main container
@@ -75,41 +55,29 @@ const FORMAT_NAMENODES_LOG_FILE: &str = "format-namenodes.log4j.xml";
 const FORMAT_ZOOKEEPER_LOG_FILE: &str = "format-zookeeper.log4j.xml";
 const WAIT_FOR_NAMENODES_LOG_FILE: &str = "wait-for-namenodes.log4j.xml";
 
-/// Extend the role group ConfigMap with logging and Vector configurations
-pub fn extend_role_group_config_map(
-    rolegroup: &RoleGroupRef<v1alpha1::HdfsCluster>,
-    merged_config: &AnyNodeConfig,
-    cm_builder: &mut ConfigMapBuilder,
-) -> Result<()> {
-    fn add_log4j_config_if_automatic(
-        cm_builder: &mut ConfigMapBuilder,
-        log_config: Option<Cow<ContainerLogConfig>>,
-        log_config_file: &str,
-        container_name: impl Display,
-        log_file: &str,
-        max_log_file_size: MemoryQuantity,
-    ) {
-        if let Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) = log_config.as_deref()
-        {
-            cm_builder.add_data(
-                log_config_file,
-                product_logging::framework::create_log4j_config(
-                    &format!("{STACKABLE_LOG_DIR}/{container_name}"),
-                    log_file,
-                    max_log_file_size
-                        .scale_to(BinaryMultiple::Mebi)
-                        .floor()
-                        .value as u32,
-                    CONSOLE_CONVERSION_PATTERN,
-                    log_config,
-                ),
-            );
-        }
-    }
+/// The vendored Vector agent configuration (`vector.yaml`).
+///
+/// It is static: per-rolegroup values (namespace, cluster, role, role group, log/data dirs and the
+/// aggregator address) are interpolated at runtime by Vector from injected environment variables.
+/// The accompanying `vector-test.yaml` exercises the VRL in this file; run it with
+/// `./test-vector.sh` (requires the `vector` binary).
+const VECTOR_CONFIG: &str = include_str!("vector.yaml");
+
+/// Returns the content of the static Vector agent config (`vector.yaml`).
+pub fn vector_config_file_content() -> String {
+    VECTOR_CONFIG.to_owned()
+}
+
+/// Renders the `*.log4j.properties` files for every container of this role group that uses the
+/// operator's automatic logging configuration.
+///
+/// Returns `(filename, rendered content)` pairs; containers using a custom log ConfigMap are
+/// skipped, so the result is empty when none use automatic logging.
+pub fn build_log4j_configs(merged_config: &AnyNodeConfig) -> Vec<(&'static str, String)> {
+    let mut configs = Vec::new();
+
     add_log4j_config_if_automatic(
-        cm_builder,
+        &mut configs,
         Some(merged_config.hdfs_logging()),
         HDFS_LOG4J_CONFIG_FILE,
         "hdfs",
@@ -117,7 +85,7 @@ pub fn extend_role_group_config_map(
         MAX_HDFS_LOG_FILE_SIZE,
     );
     add_log4j_config_if_automatic(
-        cm_builder,
+        &mut configs,
         merged_config
             .as_namenode()
             .map(|nn| nn.logging.for_container(&NameNodeContainer::Zkfc)),
@@ -127,7 +95,7 @@ pub fn extend_role_group_config_map(
         MAX_ZKFC_LOG_FILE_SIZE,
     );
     add_log4j_config_if_automatic(
-        cm_builder,
+        &mut configs,
         merged_config.as_namenode().map(|nn| {
             nn.logging
                 .for_container(&NameNodeContainer::FormatNameNodes)
@@ -138,7 +106,7 @@ pub fn extend_role_group_config_map(
         MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
     );
     add_log4j_config_if_automatic(
-        cm_builder,
+        &mut configs,
         merged_config.as_namenode().map(|nn| {
             nn.logging
                 .for_container(&NameNodeContainer::FormatZooKeeper)
@@ -149,7 +117,7 @@ pub fn extend_role_group_config_map(
         MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
     );
     add_log4j_config_if_automatic(
-        cm_builder,
+        &mut configs,
         merged_config.as_datanode().map(|dn| {
             dn.logging
                 .for_container(&DataNodeContainer::WaitForNameNodes)
@@ -160,22 +128,46 @@ pub fn extend_role_group_config_map(
         MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
     );
 
-    let vector_log_config = merged_config.vector_logging();
-    let vector_log_config = if let ContainerLogConfig {
+    configs
+}
+
+fn add_log4j_config_if_automatic(
+    configs: &mut Vec<(&'static str, String)>,
+    log_config: Option<Cow<ContainerLogConfig>>,
+    log_config_file: &'static str,
+    container_name: impl Display,
+    log_file: &str,
+    max_log_file_size: MemoryQuantity,
+) {
+    if let Some(ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    } = &*vector_log_config
+    }) = log_config.as_deref()
     {
-        Some(log_config)
-    } else {
-        None
-    };
-
-    if merged_config.vector_logging_enabled() {
-        cm_builder.add_data(
-            product_logging::framework::VECTOR_CONFIG_FILE,
-            product_logging::framework::create_vector_config(rolegroup, vector_log_config),
-        );
+        configs.push((
+            log_config_file,
+            product_logging::framework::create_log4j_config(
+                &format!("{STACKABLE_LOG_DIR}/{container_name}"),
+                log_file,
+                max_log_file_size
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
+                CONSOLE_CONVERSION_PATTERN,
+                log_config,
+            ),
+        ));
     }
+}
 
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vector_config_file_content() {
+        let content = vector_config_file_content();
+        assert!(!content.is_empty());
+        // HDFS containers log via log4j to `*.log4j.xml`, so the `files_log4j` source matches them.
+        assert!(content.contains("files_log4j"));
+    }
 }

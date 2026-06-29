@@ -348,8 +348,9 @@ spec:
           value: /stackable/hadoop
         - name: HADOOP_OPTS
         - name: HDFS_NAMENODE_OPTS
-          value: -Xms819m -Xmx819m -Djava.security.properties=/stackable/config/namenode/security.properties
+          value: -Djava.security.properties=/stackable/config/namenode/security.properties
             -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=8183:/stackable/jmx/namenode.yaml
+            -Xms820m -Xmx820m
         - name: POD_NAME
           valueFrom:
             fieldRef:
@@ -407,12 +408,14 @@ spec:
           name: data
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       - args:
-        - |
+        - |-
           mkdir --parents /stackable/log/_vector-state
           # Vector will ignore SIGTERM (as PID != 1) and must be shut down by writing a shutdown trigger file
-          vector --config /stackable/config/vector.yaml & vector_pid=$!
+          vector & vector_pid=$!
           if [ ! -f "/stackable/log/_vector/shutdown" ]; then
-            mkdir -p /stackable/log/_vector && inotifywait -qq --event create /stackable/log/_vector; fi
+          mkdir -p /stackable/log/_vector
+          inotifywait -qq --event create /stackable/log/_vector;
+          fi
           sleep 1
           kill $vector_pid
         command:
@@ -422,13 +425,31 @@ spec:
         - pipefail
         - -c
         env:
-        - name: VECTOR_LOG
-          value: info
+        - name: CLUSTER_NAME
+          value: hdfs
+        - name: DATA_DIR
+          value: /stackable/log/_vector-state
+        - name: LOG_DIR
+          value: /stackable/log
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ROLE_GROUP_NAME
+          value: default
+        - name: ROLE_NAME
+          value: namenode
         - name: VECTOR_AGGREGATOR_ADDRESS
           valueFrom:
             configMapKeyRef:
               key: ADDRESS
               name: vector-aggregator-discovery
+        - name: VECTOR_CONFIG_YAML
+          value: /stackable/config/vector.yaml
+        - name: VECTOR_FILE_LOG_LEVEL
+          value: info
+        - name: VECTOR_LOG
+          value: info
         imagePullPolicy: IfNotPresent
         name: vector
         resources:
@@ -439,8 +460,10 @@ spec:
             cpu: 250m
             memory: 128Mi
         volumeMounts:
-        - mountPath: /stackable/config
+        - mountPath: /stackable/config/vector.yaml
           name: hdfs-config
+          readOnly: true
+          subPath: vector.yaml
         - mountPath: /stackable/log
           name: log
 {% endif %}
