@@ -6,6 +6,11 @@
 # envsubst expands only the listed shell variables ($NAMESPACE etc.),
 # leaving Hadoop ${env.FOO} references untouched.
 #
+# The static vector.yaml is parameterised with Vector env-var refs like ${NAMESPACE}
+# that must stay literal in the ConfigMap. Since envsubst '$NAMESPACE' would expand
+# both `$NAMESPACE` (the core-site DNS, which we DO want substituted) and the literal
+# `${NAMESPACE}` in vector.yaml, we temporarily mask the braces form around envsubst.
+#
 # kuttl runs script commands with sh, not bash, so process substitution
 # is unavailable. Temp files namespaced under $NAMESPACE are used for
 # diff output to avoid collisions when tests run concurrently.
@@ -17,7 +22,7 @@ commands:
   # ConfigMap data snapshot: hdfs-namenode-default
   #
   - script: |
-      envsubst '$NAMESPACE' < 31_configmap_hdfs-namenode-default.yaml > /tmp/$NAMESPACE-expected.yaml
+      sed 's/${NAMESPACE}/__VECTOR_NS__/g' 31_configmap_hdfs-namenode-default.yaml | envsubst '$NAMESPACE' | sed 's/__VECTOR_NS__/${NAMESPACE}/g' > /tmp/$NAMESPACE-expected.yaml
       kubectl -n $NAMESPACE get cm hdfs-namenode-default -o yaml | yq '.data' > /tmp/$NAMESPACE-actual.yaml
       if ! diff /tmp/$NAMESPACE-expected.yaml /tmp/$NAMESPACE-actual.yaml; then
         echo "ERROR: ConfigMap hdfs-namenode-default data drifted from snapshot."
@@ -32,7 +37,7 @@ commands:
 {% else %}
       export DATANODE_DATA_DIR='[DISK]/stackable/data/data/datanode'
 {% endif %}
-      envsubst '$NAMESPACE $DATANODE_DATA_DIR' < 31_configmap_hdfs-datanode-default.yaml > /tmp/$NAMESPACE-expected.yaml
+      sed 's/${NAMESPACE}/__VECTOR_NS__/g' 31_configmap_hdfs-datanode-default.yaml | envsubst '$NAMESPACE $DATANODE_DATA_DIR' | sed 's/__VECTOR_NS__/${NAMESPACE}/g' > /tmp/$NAMESPACE-expected.yaml
       kubectl -n $NAMESPACE get cm hdfs-datanode-default -o yaml | yq '.data' > /tmp/$NAMESPACE-actual.yaml
       if ! diff /tmp/$NAMESPACE-expected.yaml /tmp/$NAMESPACE-actual.yaml; then
         echo "ERROR: ConfigMap hdfs-datanode-default data drifted from snapshot."
@@ -42,7 +47,7 @@ commands:
   # ConfigMap data snapshot: hdfs-journalnode-default
   #
   - script: |
-      envsubst '$NAMESPACE' < 31_configmap_hdfs-journalnode-default.yaml > /tmp/$NAMESPACE-expected.yaml
+      sed 's/${NAMESPACE}/__VECTOR_NS__/g' 31_configmap_hdfs-journalnode-default.yaml | envsubst '$NAMESPACE' | sed 's/__VECTOR_NS__/${NAMESPACE}/g' > /tmp/$NAMESPACE-expected.yaml
       kubectl -n $NAMESPACE get cm hdfs-journalnode-default -o yaml | yq '.data' > /tmp/$NAMESPACE-actual.yaml
       if ! diff /tmp/$NAMESPACE-expected.yaml /tmp/$NAMESPACE-actual.yaml; then
         echo "ERROR: ConfigMap hdfs-journalnode-default data drifted from snapshot."

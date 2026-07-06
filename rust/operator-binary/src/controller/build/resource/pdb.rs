@@ -1,69 +1,46 @@
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    str::FromStr,
+};
 
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
-    commons::pdb::PdbConfig, kube::ResourceExt,
+    k8s_openapi::api::policy::v1::PodDisruptionBudget,
+    v2::{builder::pdb::pod_disruption_budget_builder_with_role, types::operator::RoleName},
 };
 
 use crate::{
-    OPERATOR_NAME,
-    crd::{HdfsNodeRole, constants::APP_NAME, v1alpha1},
-    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
+    controller::{ValidatedCluster, build, controller_name, operator_name, product_name},
+    crd::HdfsNodeRole,
 };
 
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("cannot create PodDisruptionBudget for role {role:?}"))]
-    CreatePdb {
-        source: stackable_operator::builder::pdb::Error,
-        role: String,
-    },
-
-    #[snafu(display("cannot apply role group PodDisruptionBudget {name:?}"))]
-    ApplyPdb {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
-    },
-}
-
-pub async fn add_pdbs(
-    pdb: &PdbConfig,
-    hdfs: &v1alpha1::HdfsCluster,
-    role: &HdfsNodeRole,
-    client: &Client,
-    cluster_resources: &mut ClusterResources<'_>,
-) -> Result<(), Error> {
+/// Builds the [`PodDisruptionBudget`] for the given `role`, or `None` if the role
+/// has no validated config or PDBs are disabled.
+pub fn build_pdb(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Option<PodDisruptionBudget> {
+    let pdb = &cluster.role_configs.get(role)?.pdb;
     if !pdb.enabled {
-        return Ok(());
+        return None;
     }
     let max_unavailable = pdb.max_unavailable.unwrap_or(match role {
         HdfsNodeRole::Name => max_unavailable_name_nodes(),
         HdfsNodeRole::Data => max_unavailable_data_nodes(
-            hdfs.num_datanodes(),
-            hdfs.spec.cluster_config.dfs_replication as u16,
+            build::num_datanodes(cluster),
+            cluster.cluster_config.dfs_replication as u16,
         ),
         HdfsNodeRole::Journal => max_unavailable_journal_nodes(),
     });
-    let pdb = PodDisruptionBudgetBuilder::new_with_role(
-        hdfs,
-        APP_NAME,
-        &role.to_string(),
-        OPERATOR_NAME,
-        RESOURCE_MANAGER_HDFS_CONTROLLER,
+    let role_name =
+        RoleName::from_str(&role.to_string()).expect("a HdfsNodeRole is a valid role name");
+    let pdb = pod_disruption_budget_builder_with_role(
+        cluster,
+        &product_name(),
+        &role_name,
+        &operator_name(),
+        &controller_name(),
     )
-    .with_context(|_| CreatePdbSnafu {
-        role: role.to_string(),
-    })?
     .with_max_unavailable(max_unavailable)
     .build();
-    let pdb_name = pdb.name_any();
-    cluster_resources
-        .add(client, pdb)
-        .await
-        .with_context(|_| ApplyPdbSnafu { name: pdb_name })?;
 
-    Ok(())
+    Some(pdb)
 }
 
 fn max_unavailable_name_nodes() -> u16 {

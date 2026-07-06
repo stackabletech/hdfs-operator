@@ -1,20 +1,33 @@
+//! The validate step in the HdfsCluster controller.
+
 use std::{collections::BTreeMap, str::FromStr};
 
-use product_config::ProductConfigManager;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
-    product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
-    role_utils::GenericRoleConfig,
+    config::{fragment::FromFragment, merge::Merge},
+    role_utils::{GenericRoleConfig, Role},
+    v2::{
+        builder::pod::container::{EnvVarName, EnvVarSet},
+        controller_utils::{get_cluster_name, get_namespace, get_uid},
+        role_utils::{JavaCommonConfig, with_validated_config},
+        types::operator::RoleGroupName,
+    },
 };
+use strum::IntoEnumIterator;
 
 use crate::{
-    crd::{HdfsNodeRole, v1alpha1},
-    hdfs_controller::{
-        CONTAINER_IMAGE_BASE_NAME, ValidatedCluster, ValidatedRoleConfig, ValidatedRoleGroupConfig,
+    controller::{
+        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRoleConfig,
+        ValidatedRoleGroupConfig, dereference::DereferencedObjects,
     },
-    security::opa::HdfsOpaConfig,
+    crd::{
+        AnyNodeConfig, DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfigFragment,
+        NameNodeConfigFragment, UpgradeStateError, v1alpha1,
+    },
 };
+
+const CONTAINER_IMAGE_BASE_NAME: &str = "hadoop";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -23,36 +36,47 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("invalid role properties"))]
-    RoleProperties { source: crate::crd::Error },
-
-    #[snafu(display("failed to generate product config"))]
-    GenerateProductConfig {
-        source: stackable_operator::product_config_utils::Error,
+    #[snafu(display("failed to get the cluster name"))]
+    GetClusterName {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("invalid product configuration"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
+    #[snafu(display("failed to get the cluster namespace"))]
+    GetClusterNamespace {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("could not parse HDFS role [{role}]"))]
-    UnidentifiedHdfsRole {
-        source: strum::ParseError,
-        role: String,
+    #[snafu(display("failed to get the cluster uid"))]
+    GetClusterUid {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("failed to resolve and merge config for role and role group"))]
-    FailedToResolveConfig { source: crate::crd::Error },
+    #[snafu(display("invalid environment variable override name"))]
+    ParseEnvVarName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
+    #[snafu(display("invalid role group name {role_group:?}"))]
+    ParseRoleGroupName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+        role_group: String,
+    },
+
+    #[snafu(display("failed to merge and validate the role group config"))]
+    ValidateRoleGroupConfig {
+        source: stackable_operator::config::fragment::ValidationError,
+    },
+
+    #[snafu(display("invalid upgrade state"))]
+    UpgradeState { source: UpgradeStateError },
 }
 
 pub fn validate_cluster(
     hdfs: &v1alpha1::HdfsCluster,
     image_repository: &str,
-    product_config_manager: &ProductConfigManager,
-    hdfs_opa_config: Option<HdfsOpaConfig>,
+    dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
-    let resolved_product_image = hdfs
+    let image: product_image_selection::ResolvedProductImage = hdfs
         .spec
         .image
         .resolve(
@@ -62,25 +86,11 @@ pub fn validate_cluster(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let roles = hdfs.build_role_properties().context(RolePropertiesSnafu)?;
-
-    let validated_config = validate_all_roles_and_groups_config(
-        &resolved_product_image.product_version,
-        &transform_all_roles_to_config(hdfs, &roles).context(GenerateProductConfigSnafu)?,
-        product_config_manager,
-        false,
-        false,
-    )
-    .context(InvalidProductConfigSnafu)?;
-
     let mut role_groups = BTreeMap::new();
     let mut role_configs = BTreeMap::new();
+    let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
 
-    for (role_name, group_config) in validated_config.iter() {
-        let hdfs_role = HdfsNodeRole::from_str(role_name).context(UnidentifiedHdfsRoleSnafu {
-            role: role_name.to_string(),
-        })?;
-
+    for hdfs_role in HdfsNodeRole::iter() {
         if let Some(GenericRoleConfig {
             pod_disruption_budget: pdb,
         }) = hdfs.role_config(&hdfs_role)
@@ -88,28 +98,113 @@ pub fn validate_cluster(
             role_configs.insert(hdfs_role, ValidatedRoleConfig { pdb: pdb.clone() });
         }
 
-        let mut group_configs = BTreeMap::new();
-        for (rolegroup_name, rolegroup_config) in group_config.iter() {
-            let merged_config = hdfs_role
-                .merged_config(hdfs, rolegroup_name)
-                .context(FailedToResolveConfigSnafu)?;
-
-            group_configs.insert(
-                rolegroup_name.clone(),
-                ValidatedRoleGroupConfig {
-                    merged_config,
-                    product_config_properties: rolegroup_config.clone(),
-                },
-            );
-        }
+        let group_configs = match hdfs_role {
+            HdfsNodeRole::Name => validate_role_group_configs(
+                hdfs.spec.name_nodes.as_ref(),
+                NameNodeConfigFragment::default_config(cluster_name.as_ref(), &hdfs_role),
+                AnyNodeConfig::Name,
+            )?,
+            HdfsNodeRole::Data => validate_role_group_configs(
+                hdfs.spec.data_nodes.as_ref(),
+                DataNodeConfigFragment::default_config(cluster_name.as_ref(), &hdfs_role),
+                AnyNodeConfig::Data,
+            )?,
+            HdfsNodeRole::Journal => validate_role_group_configs(
+                hdfs.spec.journal_nodes.as_ref(),
+                JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &hdfs_role),
+                AnyNodeConfig::Journal,
+            )?,
+        };
 
         role_groups.insert(hdfs_role, group_configs);
     }
 
-    Ok(ValidatedCluster {
-        image: resolved_product_image,
+    let namespace = get_namespace(hdfs).context(GetClusterNamespaceSnafu)?;
+    let uid = get_uid(hdfs).context(GetClusterUidSnafu)?;
+    let status = ValidatedClusterStatus {
+        upgrade_state: hdfs.upgrade_state().context(UpgradeStateSnafu)?,
+        deployed_product_version: hdfs
+            .status
+            .as_ref()
+            .and_then(|status| status.deployed_product_version.clone()),
+        upgrade_target_product_version: hdfs
+            .status
+            .as_ref()
+            .and_then(|status| status.upgrade_target_product_version.clone()),
+    };
+
+    Ok(ValidatedCluster::new(
+        cluster_name,
+        namespace,
+        uid,
+        image,
+        ValidatedClusterConfig::resolve(hdfs, dereferenced_objects.hdfs_opa_config),
         role_groups,
         role_configs,
-        hdfs_opa_config,
-    })
+        status,
+    ))
+}
+
+/// Validates every role group of a role into a map keyed by role group name.
+///
+/// Each role group is merged and validated via
+/// [`with_validated_config`], which folds the CRD config fragment (default <-
+/// role <- role group) plus the `configOverrides`, `envOverrides`, `cliOverrides`
+/// and `podOverrides` (role group wins) into a single
+/// [`RoleGroupConfig`](stackable_operator::v2::role_utils::RoleGroupConfig). The
+/// concrete per-role validated config is wrapped into [`AnyNodeConfig`] via `wrap`.
+///
+/// Returns an empty map if the role is not configured.
+fn validate_role_group_configs<Config, ValidatedConfig>(
+    role: Option<&Role<Config, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
+    default_config: Config,
+    wrap: fn(ValidatedConfig) -> AnyNodeConfig,
+) -> Result<BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>, Error>
+where
+    Config: Clone + Merge,
+    ValidatedConfig: FromFragment<Fragment = Config>,
+{
+    let Some(role) = role else {
+        return Ok(BTreeMap::new());
+    };
+
+    role.role_groups
+        .iter()
+        .map(|(role_group_name, role_group)| {
+            let validated = with_validated_config::<
+                ValidatedConfig,
+                JavaCommonConfig,
+                Config,
+                GenericRoleConfig,
+                v1alpha1::HdfsConfigOverrides,
+            >(role_group, role, &default_config)
+            .context(ValidateRoleGroupConfigSnafu)?;
+
+            let mut env_overrides = EnvVarSet::new();
+            for (env_var_name, env_var_value) in validated.config.env_overrides {
+                env_overrides = env_overrides.with_value(
+                    &EnvVarName::from_str(&env_var_name).context(ParseEnvVarNameSnafu)?,
+                    env_var_value,
+                );
+            }
+
+            // Re-wrap the per-role validated config into the role-agnostic
+            // `AnyNodeConfig`; the merged overrides carry over unchanged.
+            let validated = ValidatedRoleGroupConfig {
+                replicas: validated.replicas,
+                config: wrap(validated.config.config),
+                config_overrides: validated.config.config_overrides,
+                env_overrides,
+                cli_overrides: validated.config.cli_overrides,
+                pod_overrides: validated.config.pod_overrides,
+                product_specific_common_config: validated.config.product_specific_common_config,
+            };
+            let role_group_name = RoleGroupName::from_str(role_group_name).with_context(|_| {
+                ParseRoleGroupNameSnafu {
+                    role_group: role_group_name.clone(),
+                }
+            })?;
+            Ok((role_group_name, validated))
+        })
+        .collect()
 }
