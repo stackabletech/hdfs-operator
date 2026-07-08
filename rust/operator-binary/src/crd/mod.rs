@@ -146,6 +146,7 @@ pub mod versioned {
     ///
     /// The CRD contains three roles: `nameNodes`, `dataNodes` and `journalNodes`.
     #[versioned(crd(
+        doc = "An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.",
         group = "hdfs.stackable.tech",
         kind = "HdfsCluster",
         plural = "hdfsclusters",
