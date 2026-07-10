@@ -269,7 +269,7 @@ pub async fn reconcile_hdfs(
                 &role,
                 rolegroup_name,
                 validated_cluster_rg_config,
-                &rbac_sa,
+                &rbac_sa.name_any(),
             )
             .context(BuildRoleGroupStatefulSetSnafu)?;
 
