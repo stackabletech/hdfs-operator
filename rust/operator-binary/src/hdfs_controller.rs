@@ -31,12 +31,7 @@ use crate::{
     controller::{
         build::{
             self,
-            resource::{
-                discovery::{self, build_discovery_config_map},
-                pdb::build_pdb,
-                service::{self, rolegroup_headless_service, rolegroup_metrics_service},
-                statefulset::{self, build_rolegroup_statefulset},
-            },
+            resource::discovery::{self, build_discovery_config_map},
         },
         controller_name, operator_name, product_name,
     },
@@ -84,9 +79,9 @@ pub enum Error {
         name: String,
     },
 
-    #[snafu(display("failed to build the role group ConfigMap"))]
-    BuildRoleGroupConfigMap {
-        source: crate::controller::build::resource::config_map::Error,
+    #[snafu(display("failed to build Kubernetes resources"))]
+    BuildResources {
+        source: crate::controller::build::Error,
     },
 
     #[snafu(display("cannot collect discovery configuration"))]
@@ -131,16 +126,10 @@ pub enum Error {
     #[snafu(display("failed to build cluster resources label"))]
     BuildClusterResourcesLabel { source: LabelError },
 
-    #[snafu(display("failed to build the role group StatefulSet"))]
-    BuildRoleGroupStatefulSet { source: statefulset::Error },
-
     #[snafu(display("HdfsCluster object is invalid"))]
     InvalidHdfsCluster {
         source: error_boundary::InvalidObject,
     },
-
-    #[snafu(display("failed to build service"))]
-    BuildService { source: service::Error },
 }
 
 impl ReconcilerError for Error {
@@ -211,30 +200,48 @@ pub async fn reconcile_hdfs(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
+    // Build every (non-discovery) Kubernetes resource up front. This step needs no client: all
+    // external references are already dereferenced and validated. The ServiceAccount name is
+    // deterministic on the built RBAC object, so the build does not depend on the applied one.
+    let resources = build::build(
+        &validated_cluster,
+        &client.kubernetes_cluster_info,
+        &rbac_sa.name_any(),
+    )
+    .context(BuildResourcesSnafu)?;
+
+    // Apply Services, ConfigMaps and PodDisruptionBudgets first. The StatefulSets are applied
+    // afterwards so that every ConfigMap a Pod mounts already exists, which prevents unnecessary
+    // Pod restarts. See https://github.com/stackabletech/commons-operator/issues/111 for details.
+    for service in resources.services {
+        let name = service.name_any();
+        cluster_resources
+            .add(client, service)
+            .await
+            .with_context(|_| ApplyRoleGroupServiceSnafu { name })?;
+    }
+    for config_map in resources.config_maps {
+        let name = config_map.name_any();
+        cluster_resources
+            .add(client, config_map)
+            .await
+            .with_context(|_| ApplyRoleGroupConfigMapSnafu { name })?;
+    }
+    for pdb in resources.pod_disruption_budgets {
+        cluster_resources
+            .add(client, pdb)
+            .await
+            .context(ApplyPdbSnafu)?;
+    }
 
     let upgrade_state = validated_cluster.status.upgrade_state;
-    let mut deploy_done = true;
 
-    // Roles must be deployed in order during rolling upgrades,
-    // namenode version must be >= datanode version (and so on).
-    let roles = reverse_if(
-        match upgrade_state {
-            // Downgrades have the opposite version relationship, so they need to be rolled out in reverse order.
-            Some(UpgradeState::Downgrading) => {
-                tracing::info!("HdfsCluster is being downgraded, deploying in reverse order");
-                true
-            }
-            _ => false,
-        },
-        HdfsNodeRole::iter(),
-    );
-    'roles: for role in roles {
-        let Some(group_config) = validated_cluster.role_groups.get(&role) else {
-            tracing::debug!(?role, "role has no configuration, skipping");
+    // Warn about invalid replica counts. This is validation feedback and independent of the
+    // resource application below.
+    for role in HdfsNodeRole::iter() {
+        if !validated_cluster.role_groups.contains_key(&role) {
             continue;
-        };
-
+        }
         if let Some(message) = build_invalid_replica_message(&validated_cluster, &role) {
             publish_warning_event(
                 &ctx,
@@ -246,88 +253,39 @@ pub async fn reconcile_hdfs(
             .await
             .context(FailedToCreateClusterEventSnafu)?;
         }
+    }
 
-        for (rolegroup_name, validated_cluster_rg_config) in group_config.iter() {
-            let rg_service = rolegroup_headless_service(&validated_cluster, &role, rolegroup_name)
-                .context(BuildServiceSnafu)?;
-            let rg_metrics_service =
-                rolegroup_metrics_service(&validated_cluster, &role, rolegroup_name)
-                    .context(BuildServiceSnafu)?;
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
+    let mut deploy_done = true;
 
-            let rg_configmap =
-                crate::controller::build::resource::config_map::build_rolegroup_config_map(
-                    &validated_cluster,
-                    &client.kubernetes_cluster_info,
-                    &role,
-                    rolegroup_name,
-                )
-                .context(BuildRoleGroupConfigMapSnafu)?;
+    // StatefulSets must be rolled out in role order during upgrades (a namenode's version must be
+    // >= the datanodes', and so on), with each role finishing its rollout before the next starts.
+    // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
+    // The build output is already ordered by role, so it is applied as-is; downgrades have the
+    // opposite version relationship and are therefore rolled out in reverse.
+    let downgrading = matches!(upgrade_state, Some(UpgradeState::Downgrading));
+    if downgrading {
+        tracing::info!("HdfsCluster is being downgraded, deploying in reverse order");
+    }
+    for statefulset in reverse_if(downgrading, resources.stateful_sets.iter()) {
+        let name = statefulset.name_any();
+        let deployed_statefulset = cluster_resources
+            .add(client, statefulset.clone())
+            .await
+            .with_context(|_| ApplyRoleGroupStatefulSetSnafu { name })?;
+        ss_cond_builder.add(deployed_statefulset.clone());
 
-            let rg_statefulset = build_rolegroup_statefulset(
-                &validated_cluster,
-                &client.kubernetes_cluster_info,
-                &role,
-                rolegroup_name,
-                validated_cluster_rg_config,
-                &rbac_sa.name_any(),
-            )
-            .context(BuildRoleGroupStatefulSetSnafu)?;
-
-            let rg_service_name = rg_service.name_any();
-            let rg_metrics_service_name = rg_metrics_service.name_any();
-
-            cluster_resources
-                .add(client, rg_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_service_name,
-                })?;
-            cluster_resources
-                .add(client, rg_metrics_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    name: rg_metrics_service_name,
-                })?;
-            let rg_configmap_name = rg_configmap.name_any();
-            cluster_resources
-                .add(client, rg_configmap.clone())
-                .await
-                .with_context(|_| ApplyRoleGroupConfigMapSnafu {
-                    name: rg_configmap_name,
-                })?;
-
-            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
-            // to prevent unnecessary Pod restarts.
-            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
-            let rg_statefulset_name = rg_statefulset.name_any();
-            let deployed_rg_statefulset = cluster_resources
-                .add(client, rg_statefulset.clone())
-                .await
-                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                    name: rg_statefulset_name,
-                })?;
-            ss_cond_builder.add(deployed_rg_statefulset.clone());
-
-            if upgrade_state.is_some() {
-                // When upgrading, ensure that each role is upgraded before moving on to the next as recommended by
-                // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
-                if let Err(reason) = check_statefulset_rollout_complete(&deployed_rg_statefulset) {
-                    tracing::info!(
-                        rolegroup.statefulset = %ObjectRef::from_obj(&deployed_rg_statefulset),
-                        reason = &reason as &dyn std::error::Error,
-                        "rolegroup is still upgrading, waiting..."
-                    );
-                    deploy_done = false;
-                    break 'roles;
-                }
+        if upgrade_state.is_some() {
+            // Ensure each role is fully upgraded before moving on to the next.
+            if let Err(reason) = check_statefulset_rollout_complete(&deployed_statefulset) {
+                tracing::info!(
+                    rolegroup.statefulset = %ObjectRef::from_obj(&deployed_statefulset),
+                    reason = &reason as &dyn std::error::Error,
+                    "rolegroup is still upgrading, waiting..."
+                );
+                deploy_done = false;
+                break;
             }
-        }
-
-        if let Some(pdb) = build_pdb(&validated_cluster, &role) {
-            cluster_resources
-                .add(client, pdb)
-                .await
-                .context(ApplyPdbSnafu)?;
         }
     }
 

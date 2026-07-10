@@ -2,6 +2,11 @@ use std::{collections::BTreeMap, str::FromStr};
 
 use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
+    k8s_openapi::api::{
+        apps::v1::StatefulSet,
+        core::v1::{ConfigMap, Service},
+        policy::v1::PodDisruptionBudget,
+    },
     kube::{Resource, api::ObjectMeta},
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
@@ -29,6 +34,20 @@ use crate::{
 pub mod build;
 pub mod dereference;
 pub mod validate;
+
+/// Every Kubernetes resource produced by the build step.
+///
+/// The resources are flat, unordered collections. The reconcile step re-groups the
+/// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during
+/// upgrades. The discovery `ConfigMap` is not part of this set: it depends on a live
+/// Kubernetes client (to resolve listener addresses) and is therefore built and applied
+/// separately in the reconcile step.
+pub struct KubernetesResources {
+    pub services: Vec<Service>,
+    pub config_maps: Vec<ConfigMap>,
+    pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
+    pub stateful_sets: Vec<StatefulSet>,
+}
 
 /// The [`RoleGroupConfig`] specialised for HDFS: the validated config is the
 /// per-role [`AnyNodeConfig`],
