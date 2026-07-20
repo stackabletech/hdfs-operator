@@ -5,7 +5,6 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
     cluster_resources::ClusterResourceApplyStrategy,
-    commons::rbac::build_rbac_resources,
     iter::reverse_if,
     kube::{
         Resource, ResourceExt,
@@ -45,6 +44,11 @@ pub const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
+    #[snafu(display("failed to apply Kubernetes resource"))]
+    ApplyResource {
+        source: stackable_operator::cluster_resources::Error,
+    },
+
     #[snafu(display("failed to dereference cluster resources"))]
     Dereference {
         source: crate::controller::dereference::Error,
@@ -53,18 +57,6 @@ pub enum Error {
     #[snafu(display("failed to validate cluster configuration"))]
     Validate {
         source: crate::controller::validate::Error,
-    },
-
-    #[snafu(display("cannot create rolegroup service {name:?}"))]
-    ApplyRoleGroupService {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
-    },
-
-    #[snafu(display("cannot create role group config map {name:?}"))]
-    ApplyRoleGroupConfigMap {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
     },
 
     #[snafu(display("cannot create role group stateful set {name:?}"))]
@@ -90,16 +82,6 @@ pub enum Error {
     #[snafu(display("cannot build config discovery config map"))]
     BuildDiscoveryConfigMap { source: discovery::Error },
 
-    #[snafu(display("failed to patch service account"))]
-    ApplyServiceAccount {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to patch role binding"))]
-    ApplyRoleBinding {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
@@ -116,11 +98,6 @@ pub enum Error {
     #[snafu(display("failed to update status"))]
     ApplyStatus {
         source: stackable_operator::client::Error,
-    },
-
-    #[snafu(display("failed to build RBAC resources"))]
-    BuildRbacResources {
-        source: stackable_operator::commons::rbac::Error,
     },
 
     #[snafu(display("failed to build cluster resources label"))]
@@ -181,57 +158,44 @@ pub async fn reconcile_hdfs(
         &hdfs.spec.object_overrides,
     );
 
-    // The service account and rolebinding will be created per cluster
-    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        hdfs,
-        APP_NAME,
-        cluster_resources
-            .get_required_labels()
-            .context(BuildClusterResourcesLabelSnafu)?,
-    )
-    .context(BuildRbacResourcesSnafu)?;
-
-    cluster_resources
-        .add(client, rbac_sa.clone())
-        .await
-        .context(ApplyServiceAccountSnafu)?;
-    cluster_resources
-        .add(client, rbac_rolebinding)
-        .await
-        .context(ApplyRoleBindingSnafu)?;
-
     // Build every (non-discovery) Kubernetes resource up front. This step needs no client: all
     // external references are already dereferenced and validated. The ServiceAccount name is
     // deterministic on the built RBAC object, so the build does not depend on the applied one.
-    let resources = build::build(
-        &validated_cluster,
-        &client.kubernetes_cluster_info,
-        &rbac_sa.name_any(),
-    )
-    .context(BuildResourcesSnafu)?;
+    let resources = build::build(&validated_cluster, &client.kubernetes_cluster_info)
+        .context(BuildResourcesSnafu)?;
 
     // Apply Services, ConfigMaps and PodDisruptionBudgets first. The StatefulSets are applied
     // afterwards so that every ConfigMap a Pod mounts already exists, which prevents unnecessary
     // Pod restarts. See https://github.com/stackabletech/commons-operator/issues/111 for details.
+    for service_account in resources.service_accounts {
+        cluster_resources
+            .add(client, service_account)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+    for role_binding in resources.role_bindings {
+        cluster_resources
+            .add(client, role_binding)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
     for service in resources.services {
-        let name = service.name_any();
         cluster_resources
             .add(client, service)
             .await
-            .with_context(|_| ApplyRoleGroupServiceSnafu { name })?;
+            .context(ApplyResourceSnafu)?;
     }
     for config_map in resources.config_maps {
-        let name = config_map.name_any();
         cluster_resources
             .add(client, config_map)
             .await
-            .with_context(|_| ApplyRoleGroupConfigMapSnafu { name })?;
+            .context(ApplyResourceSnafu)?;
     }
     for pdb in resources.pod_disruption_budgets {
         cluster_resources
             .add(client, pdb)
             .await
-            .context(ApplyPdbSnafu)?;
+            .context(ApplyResourceSnafu)?;
     }
 
     let upgrade_state = validated_cluster.status.upgrade_state;

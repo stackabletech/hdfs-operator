@@ -1,15 +1,19 @@
 //! Build the discovery `ConfigMap` for the HdfsCluster.
 
+use std::str::FromStr;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
+    builder::configmap::ConfigMapBuilder,
     k8s_openapi::api::core::v1::ConfigMap,
     utils::cluster_info::KubernetesClusterInfo,
-    v2::builder::meta::ownerreference_from_resource,
+    v2::{
+        kvp::label::recommended_labels,
+        types::operator::{ControllerName, RoleGroupName},
+    },
 };
 
 use crate::{
-    build_recommended_labels,
     controller::{
         ValidatedCluster,
         build::{
@@ -18,6 +22,7 @@ use crate::{
                 ConfigFileName, core_site::CoreSiteConfigBuilder, hdfs_site::HdfsSiteConfigBuilder,
             },
         },
+        operator_name, product_name,
     },
     crd::{HdfsNodeRole, HdfsPodRef},
     hdfs_controller::HDFS_CONTROLLER_NAME,
@@ -25,17 +30,14 @@ use crate::{
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+stackable_operator::constant!(DISCOVERY_ROLE_GROUP: RoleGroupName = "discovery");
+
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("failed to build ConfigMap"))]
     BuildConfigMap {
         source: stackable_operator::builder::configmap::Error,
-    },
-
-    #[snafu(display("failed to build object meta data"))]
-    ObjectMeta {
-        source: stackable_operator::builder::meta::Error,
     },
 }
 
@@ -50,18 +52,22 @@ pub fn build_discovery_config_map(
     cluster_info: &KubernetesClusterInfo,
     namenode_podrefs: &[HdfsPodRef],
 ) -> Result<ConfigMap> {
-    let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(cluster)
-        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-        .with_recommended_labels(&build_recommended_labels(
-            cluster,
-            HDFS_CONTROLLER_NAME,
-            &cluster.image.app_version_label_value,
-            &HdfsNodeRole::Name.to_string(),
-            "discovery",
-        ))
-        .context(ObjectMetaSnafu)?
-        .build();
+    // The discovery ConfigMap deliberately deviates from the standard resource identity: it is
+    // labelled with the `hdfs-controller` controller name (NOT `controller_name()`, i.e.
+    // `hdfs-operator-hdfs-controller` like the role-group resources), which keeps it outside their
+    // `ClusterResources` orphan-matching, and with the namenode role plus a `discovery` role-group.
+    let labels = recommended_labels(
+        cluster,
+        &product_name(),
+        &cluster.product_version,
+        &operator_name(),
+        &ControllerName::from_str(HDFS_CONTROLLER_NAME)
+            .expect("the hdfs controller name is a valid label value"),
+        &ValidatedCluster::role_name(&HdfsNodeRole::Name),
+        &DISCOVERY_ROLE_GROUP,
+    );
+
+    let metadata = cluster.object_meta(cluster.name.clone(), labels).build();
 
     ConfigMapBuilder::new()
         .metadata(metadata)
