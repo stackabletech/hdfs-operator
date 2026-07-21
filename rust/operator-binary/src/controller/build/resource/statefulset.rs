@@ -5,13 +5,10 @@ use stackable_operator::{
     builder::pod::{PodBuilder, security::PodSecurityContextBuilder},
     k8s_openapi::{
         DeepMerge,
-        api::{
-            apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::ServiceAccount,
-        },
+        api::apps::v1::{StatefulSet, StatefulSetSpec},
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
-    kube::{ResourceExt, api::ObjectMeta},
+    kube::api::ObjectMeta,
     kvp::{LabelError, Labels},
     utils::cluster_info::KubernetesClusterInfo,
     v2::types::operator::RoleGroupName,
@@ -50,7 +47,7 @@ pub(crate) fn build_rolegroup_statefulset(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
     rolegroup_config: &ValidatedRoleGroupConfig,
-    service_account: &ServiceAccount,
+    service_account_name: &str,
 ) -> Result<StatefulSet, Error> {
     tracing::info!("Setting up StatefulSet for role {role} role group {role_group_name}");
 
@@ -72,7 +69,7 @@ pub(crate) fn build_rolegroup_statefulset(
     pb.metadata(pb_metadata)
         .image_pull_secrets_from_product_image(image)
         .affinity(&merged_config.affinity)
-        .service_account_name(service_account.name_any())
+        .service_account_name(service_account_name)
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     // Adds all containers and volumes to the pod builder

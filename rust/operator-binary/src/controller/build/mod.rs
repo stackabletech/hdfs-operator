@@ -1,8 +1,10 @@
 use std::{collections::HashMap, str::FromStr};
 
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     kvp::{LabelError, Labels},
+    utils::cluster_info::KubernetesClusterInfo,
     v2::{
         builder::meta::ownerreference_from_resource,
         types::{common::Port, kubernetes::ServiceName, operator::RoleGroupName},
@@ -11,7 +13,7 @@ use stackable_operator::{
 
 use crate::{
     build_recommended_labels,
-    controller::ValidatedCluster,
+    controller::{KubernetesResources, ValidatedCluster},
     crd::{
         HdfsNodeRole, HdfsPodRef,
         constants::{
@@ -40,6 +42,111 @@ pub mod kerberos;
 pub mod opa;
 pub mod properties;
 pub mod resource;
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to build Service for role {role} role group {role_group}"))]
+    Service {
+        source: resource::service::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build ConfigMap for role {role} role group {role_group}"))]
+    ConfigMap {
+        source: resource::config_map::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build StatefulSet for role {role} role group {role_group}"))]
+    StatefulSet {
+        source: resource::statefulset::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+}
+
+/// Builds every Kubernetes resource for the given validated cluster.
+///
+/// Does not need a Kubernetes client: every external reference is already dereferenced and
+/// validated by this point, so the errors returned here are resource-assembly failures only.
+/// `cluster_info` carries static cluster information resolved at operator startup (e.g. the
+/// cluster domain used to build Kerberos principals), not a live client.
+///
+/// `service_account_name` is the name of the RBAC `ServiceAccount` the role-group Pods run under.
+/// The RBAC resources are built and applied separately in the reconcile step.
+///
+/// The resources are returned as flat, unordered collections. The reconcile step re-groups the
+/// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during upgrades. The
+/// discovery `ConfigMap` is deliberately not built here: it needs a live client to resolve
+/// listener addresses and is therefore handled in the reconcile step.
+pub fn build(
+    cluster: &ValidatedCluster,
+    cluster_info: &KubernetesClusterInfo,
+    service_account_name: &str,
+) -> Result<KubernetesResources, Error> {
+    let mut services = vec![];
+    let mut config_maps = vec![];
+    let mut stateful_sets = vec![];
+    let mut pod_disruption_budgets = vec![];
+
+    for (role, role_group_configs) in &cluster.role_groups {
+        for (role_group_name, rg_config) in role_group_configs {
+            services.push(
+                resource::service::rolegroup_headless_service(cluster, role, role_group_name)
+                    .context(ServiceSnafu {
+                        role: *role,
+                        role_group: role_group_name.clone(),
+                    })?,
+            );
+            services.push(
+                resource::service::rolegroup_metrics_service(cluster, role, role_group_name)
+                    .context(ServiceSnafu {
+                        role: *role,
+                        role_group: role_group_name.clone(),
+                    })?,
+            );
+            config_maps.push(
+                resource::config_map::build_rolegroup_config_map(
+                    cluster,
+                    cluster_info,
+                    role,
+                    role_group_name,
+                )
+                .context(ConfigMapSnafu {
+                    role: *role,
+                    role_group: role_group_name.clone(),
+                })?,
+            );
+            stateful_sets.push(
+                resource::statefulset::build_rolegroup_statefulset(
+                    cluster,
+                    cluster_info,
+                    role,
+                    role_group_name,
+                    rg_config,
+                    service_account_name,
+                )
+                .context(StatefulSetSnafu {
+                    role: *role,
+                    role_group: role_group_name.clone(),
+                })?,
+            );
+        }
+
+        if let Some(pdb) = resource::pdb::build_pdb(cluster, role) {
+            pod_disruption_budgets.push(pdb);
+        }
+    }
+
+    Ok(KubernetesResources {
+        services,
+        config_maps,
+        pod_disruption_budgets,
+        stateful_sets,
+    })
+}
 
 /// Builds the [`HdfsPodRef`]s expected for every pod of the given `role`, across all
 /// of its role groups.
@@ -261,5 +368,57 @@ fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, Por
                 )
             },
         ],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::kube::Resource;
+
+    use super::build;
+    use crate::controller::build::properties::test_support::{cluster_info, validated_cluster};
+
+    /// The sorted `metadata.name`s of a resource collection.
+    fn sorted_names(resources: &[impl Resource]) -> Vec<String> {
+        let mut names: Vec<String> = resources
+            .iter()
+            .filter_map(|resource| resource.meta().name.clone())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// The aggregator emits, for the minimal three-role cluster (one `default` role group each):
+    /// one StatefulSet and one ConfigMap per role group, one headless plus one metrics Service per
+    /// role group, and one default PDB per role.
+    #[test]
+    fn build_produces_expected_resource_names() {
+        let cluster = validated_cluster();
+        let resources =
+            build(&cluster, &cluster_info(), "hdfs-serviceaccount").expect("build succeeds");
+
+        assert_eq!(
+            sorted_names(&resources.stateful_sets),
+            [
+                "hdfs-datanode-default",
+                "hdfs-journalnode-default",
+                "hdfs-namenode-default",
+            ]
+        );
+        // One headless and one metrics Service per role group.
+        assert_eq!(resources.services.len(), 6);
+        assert_eq!(
+            sorted_names(&resources.config_maps),
+            [
+                "hdfs-datanode-default",
+                "hdfs-journalnode-default",
+                "hdfs-namenode-default",
+            ]
+        );
+        // A default PDB per role.
+        assert_eq!(
+            sorted_names(&resources.pod_disruption_budgets),
+            ["hdfs-datanode", "hdfs-journalnode", "hdfs-namenode"]
+        );
     }
 }
