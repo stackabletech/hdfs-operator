@@ -5105,12 +5105,7 @@ rec {
         crateName = "k8s-version";
         version = "0.1.3";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/k8s-version; };
         libName = "k8s_version";
         authors = [
           "Stackable GmbH <info@stackable.de>"
@@ -9889,12 +9884,7 @@ rec {
         crateName = "stackable-certs";
         version = "0.4.1";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-certs; };
         libName = "stackable_certs";
         authors = [
           "Stackable GmbH <info@stackable.de>"
@@ -10084,14 +10074,9 @@ rec {
       };
       "stackable-operator" = rec {
         crateName = "stackable-operator";
-        version = "0.113.3";
+        version = "0.113.4";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-operator; };
         libName = "stackable_operator";
         authors = [
           "Stackable GmbH <info@stackable.de>"
@@ -10285,12 +10270,7 @@ rec {
         crateName = "stackable-operator-derive";
         version = "0.3.1";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-operator-derive; };
         procMacro = true;
         libName = "stackable_operator_derive";
         authors = [
@@ -10320,12 +10300,7 @@ rec {
         crateName = "stackable-shared";
         version = "0.1.2";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-shared; };
         libName = "stackable_shared";
         authors = [
           "Stackable GmbH <info@stackable.de>"
@@ -10401,12 +10376,7 @@ rec {
         crateName = "stackable-telemetry";
         version = "0.6.5";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-telemetry; };
         libName = "stackable_telemetry";
         authors = [
           "Stackable GmbH <info@stackable.de>"
@@ -10511,12 +10481,7 @@ rec {
         crateName = "stackable-versioned";
         version = "0.11.1";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-versioned; };
         libName = "stackable_versioned";
         authors = [
           "Stackable GmbH <info@stackable.de>"
@@ -10561,12 +10526,7 @@ rec {
         crateName = "stackable-versioned-macros";
         version = "0.11.1";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-versioned-macros; };
         procMacro = true;
         libName = "stackable_versioned_macros";
         authors = [
@@ -10629,12 +10589,7 @@ rec {
         crateName = "stackable-webhook";
         version = "0.9.2";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "013bbf43f7006a4ddfc08a147f68441ed88b462b";
-          sha256 = "054p2mcinq3x4iykmc72nhga7kapc8ihkx9mnzqq3qdm2bk2qcps";
-        };
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ../operator-rs/crates/stackable-webhook; };
         libName = "stackable_webhook";
         authors = [
           "Stackable GmbH <info@stackable.de>"
