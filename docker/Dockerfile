@@ -191,8 +191,6 @@ COPY LICENSE /licenses/LICENSE
 
 COPY --from=builder --chown=${STACKABLE_USER_UID}:0 /app/* /usr/local/bin/
 
-COPY deploy/config-spec/properties.yaml /etc/stackable/hdfs-operator/config-spec/properties.yaml
-
 USER ${STACKABLE_USER_UID}
 
 ENTRYPOINT ["stackable-hdfs-operator"]
