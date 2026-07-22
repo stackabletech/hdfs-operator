@@ -155,7 +155,7 @@ impl ValidatedCluster {
 
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
     /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
-    pub fn rbac_resource_names(&self) -> role_utils::ResourceNames {
+    pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
             product_name: product_name(),
@@ -163,7 +163,7 @@ impl ValidatedCluster {
     }
 
     /// Type-safe names for the resources of the given role group.
-    pub(crate) fn resource_names(
+    pub(crate) fn role_group_resource_names(
         &self,
         role: &HdfsNodeRole,
         role_group_name: &RoleGroupName,
@@ -238,7 +238,7 @@ impl ValidatedCluster {
         role_group_name: &RoleGroupName,
     ) -> ServiceName {
         ServiceName::from_str(
-            self.resource_names(role, role_group_name)
+            self.role_group_resource_names(role, role_group_name)
                 .qualified_role_group_name()
                 .as_ref(),
         )
@@ -378,4 +378,21 @@ impl ValidatedClusterConfig {
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
+}
+
+#[cfg(test)]
+mod tests {
+    use strum::IntoEnumIterator;
+
+    use super::ValidatedCluster;
+    use crate::crd::HdfsNodeRole;
+
+    /// Locks the invariant behind the `expect` in [`ValidatedCluster::role_name`]: every
+    /// `HdfsNodeRole` variant (present and future) must serialise to a valid `RoleName`.
+    #[test]
+    fn every_hdfs_node_role_serialises_to_a_valid_role_name() {
+        for role in HdfsNodeRole::iter() {
+            ValidatedCluster::role_name(&role);
+        }
+    }
 }

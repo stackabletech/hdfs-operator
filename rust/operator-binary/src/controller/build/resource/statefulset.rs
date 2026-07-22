@@ -70,7 +70,7 @@ pub(crate) fn build_rolegroup_statefulset(
         .affinity(&merged_config.affinity)
         .service_account_name(
             validated
-                .rbac_resource_names()
+                .cluster_resource_names()
                 .service_account_name()
                 .to_string(),
         )

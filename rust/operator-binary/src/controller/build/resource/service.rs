@@ -106,7 +106,7 @@ pub(crate) fn rolegroup_metrics_service(
         metadata: cluster
             .object_meta(
                 cluster
-                    .resource_names(role, role_group_name)
+                    .role_group_resource_names(role, role_group_name)
                     .metrics_service_name()
                     .to_string(),
                 cluster.recommended_labels(role, role_group_name),

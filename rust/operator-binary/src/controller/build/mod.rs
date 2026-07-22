@@ -192,7 +192,7 @@ pub(crate) fn rolegroup_metadata(
 ) -> ObjectMetaBuilder {
     cluster.object_meta(
         cluster
-            .resource_names(role, role_group_name)
+            .role_group_resource_names(role, role_group_name)
             .qualified_role_group_name()
             .to_string(),
         cluster.recommended_labels(role, role_group_name),
