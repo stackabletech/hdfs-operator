@@ -8,8 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Internal operator refactoring: introduce a build() step in the reconciler that
   assembles all relevant Kubernetes resources before anything is applied ([#801]).
+- Bump stackable-operator to 0.114.0 ([#810]).
 
 [#801]: https://github.com/stackabletech/hdfs-operator/pull/801
+[#810]: https://github.com/stackabletech/hdfs-operator/pull/810
 
 ## [26.7.0] - 2026-07-21
 
