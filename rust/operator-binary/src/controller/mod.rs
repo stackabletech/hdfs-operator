@@ -149,10 +149,6 @@ impl ValidatedCluster {
     }
 
     /// The type-safe role name for an HDFS role (`namenode`/`datanode`/`journalnode`).
-    pub(crate) fn role_name(role: &HdfsNodeRole) -> RoleName {
-        RoleName::from_str(&role.to_string()).expect("a HdfsNodeRole is a valid role name")
-    }
-
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
     /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
@@ -170,7 +166,7 @@ impl ValidatedCluster {
     ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: Self::role_name(role),
+            role_name: role.into(),
             role_group_name: role_group_name.clone(),
         }
     }
@@ -207,7 +203,7 @@ impl ValidatedCluster {
         role: &HdfsNodeRole,
         role_group_name: &RoleGroupName,
     ) -> Labels {
-        self.recommended_labels_for(&Self::role_name(role), role_group_name)
+        self.recommended_labels_for(&role.into(), role_group_name)
     }
 
     /// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, the resource `name`, an owner
@@ -382,17 +378,18 @@ pub struct ValidatedRoleConfig {
 
 #[cfg(test)]
 mod tests {
+    use stackable_operator::v2::types::operator::RoleName;
     use strum::IntoEnumIterator;
 
-    use super::ValidatedCluster;
     use crate::crd::HdfsNodeRole;
 
-    /// Locks the invariant behind the `expect` in [`ValidatedCluster::role_name`]: every
-    /// `HdfsNodeRole` variant (present and future) must serialise to a valid `RoleName`.
+    /// Locks the invariant behind the `expect` in the `From<HdfsNodeRole> for RoleName` impls:
+    /// every `HdfsNodeRole` variant (present and future) must serialise to a valid `RoleName`.
     #[test]
     fn every_hdfs_node_role_serialises_to_a_valid_role_name() {
         for role in HdfsNodeRole::iter() {
-            ValidatedCluster::role_name(&role);
+            let _: RoleName = (&role).into();
+            let _: RoleName = role.into();
         }
     }
 }

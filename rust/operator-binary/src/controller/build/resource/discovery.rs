@@ -63,7 +63,7 @@ pub fn build_discovery_config_map(
         &operator_name(),
         &ControllerName::from_str(HDFS_CONTROLLER_NAME)
             .expect("the hdfs controller name is a valid label value"),
-        &ValidatedCluster::role_name(&HdfsNodeRole::Name),
+        &HdfsNodeRole::Name.into(),
         &DISCOVERY_ROLE_GROUP,
     );
 

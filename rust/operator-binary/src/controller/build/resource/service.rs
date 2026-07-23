@@ -5,7 +5,10 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kvp::LabelError,
-    v2::types::operator::RoleGroupName,
+    v2::{
+        builder::service::{Scheme, Scraping, prometheus_annotations, prometheus_labels},
+        types::operator::RoleGroupName,
+    },
 };
 
 use crate::{
@@ -111,6 +114,17 @@ pub(crate) fn rolegroup_metrics_service(
                     .to_string(),
                 cluster.recommended_labels(role, role_group_name),
             )
+            .with_labels(prometheus_labels(&Scraping::Enabled))
+            .with_annotations(prometheus_annotations(
+                &Scraping::Enabled,
+                if cluster.has_https_enabled() {
+                    &Scheme::Https
+                } else {
+                    &Scheme::Http
+                },
+                "/prom",
+                &build::native_metrics_port(cluster, role),
+            ))
             .build(),
         spec: Some(service_spec),
         status: None,

@@ -365,6 +365,61 @@ mod tests {
         names
     }
 
+    /// Every metrics Service must carry the Prometheus scrape label and the
+    /// `prometheus.io/path|port|scheme|scrape` annotations, or Prometheus stops discovering the
+    /// endpoints (caught by the HDFS smoke test 2026-07-23 after the labels migration dropped
+    /// them).
+    #[test]
+    fn metrics_services_carry_prometheus_label_and_annotations() {
+        let cluster = validated_cluster();
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
+
+        let metrics_services: Vec<_> = resources
+            .services
+            .iter()
+            .filter(|service| {
+                service
+                    .metadata
+                    .name
+                    .as_deref()
+                    .is_some_and(|name| name.ends_with("-metrics"))
+            })
+            .collect();
+        assert!(!metrics_services.is_empty(), "no metrics Services built");
+
+        for service in metrics_services {
+            let name = service.metadata.name.as_deref().unwrap_or_default();
+            let labels = service.metadata.labels.as_ref().expect("labels are set");
+            assert_eq!(
+                labels.get("prometheus.io/scrape").map(String::as_str),
+                Some("true"),
+                "{name} lacks the scrape label"
+            );
+
+            // The native metrics port of the role, as asserted by the smoke test.
+            let expected_port = match name {
+                n if n.contains("-namenode-") => "9870",
+                n if n.contains("-datanode-") => "9864",
+                n if n.contains("-journalnode-") => "8480",
+                other => panic!("unexpected metrics Service {other}"),
+            };
+            let expected_annotations = BTreeMap::from(
+                [
+                    ("prometheus.io/path", "/prom"),
+                    ("prometheus.io/port", expected_port),
+                    ("prometheus.io/scheme", "http"),
+                    ("prometheus.io/scrape", "true"),
+                ]
+                .map(|(key, value)| (key.to_string(), value.to_string())),
+            );
+            assert_eq!(
+                service.metadata.annotations.as_ref(),
+                Some(&expected_annotations),
+                "{name} annotations mismatch"
+            );
+        }
+    }
+
     /// The aggregator emits, for the minimal three-role cluster (one `default` role group each):
     /// one StatefulSet and one ConfigMap per role group, one headless plus one metrics Service per
     /// role group, and one default PDB per role.
