@@ -43,6 +43,7 @@ use stackable_operator::{
         types::{
             common::Port,
             kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, ServiceName},
+            operator::RoleName,
         },
     },
     versioned::versioned,
@@ -495,6 +496,18 @@ pub enum HdfsNodeRole {
     #[serde(rename = "datanode")]
     #[strum(serialize = "datanode")]
     Data,
+}
+
+impl From<HdfsNodeRole> for RoleName {
+    fn from(value: HdfsNodeRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a HdfsNodeRole is a valid role name")
+    }
+}
+
+impl From<&HdfsNodeRole> for RoleName {
+    fn from(value: &HdfsNodeRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a HdfsNodeRole is a valid role name")
+    }
 }
 
 impl HdfsNodeRole {

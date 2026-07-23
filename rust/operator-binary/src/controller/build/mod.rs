@@ -1,19 +1,18 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     kvp::{LabelError, Labels},
     utils::cluster_info::KubernetesClusterInfo,
-    v2::{
-        builder::meta::ownerreference_from_resource,
-        types::{common::Port, kubernetes::ServiceName, operator::RoleGroupName},
-    },
+    v2::types::{common::Port, operator::RoleGroupName},
 };
 
 use crate::{
-    build_recommended_labels,
-    controller::{KubernetesResources, ValidatedCluster},
+    controller::{
+        KubernetesResources, ValidatedCluster,
+        build::resource::rbac::{build_role_binding, build_service_account},
+    },
     crd::{
         HdfsNodeRole, HdfsPodRef,
         constants::{
@@ -32,7 +31,6 @@ use crate::{
             SERVICE_PORT_NAME_RPC,
         },
     },
-    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
 
 pub mod container;
@@ -74,9 +72,6 @@ pub enum Error {
 /// `cluster_info` carries static cluster information resolved at operator startup (e.g. the
 /// cluster domain used to build Kerberos principals), not a live client.
 ///
-/// `service_account_name` is the name of the RBAC `ServiceAccount` the role-group Pods run under.
-/// The RBAC resources are built and applied separately in the reconcile step.
-///
 /// The resources are returned as flat, unordered collections. The reconcile step re-groups the
 /// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during upgrades. The
 /// discovery `ConfigMap` is deliberately not built here: it needs a live client to resolve
@@ -84,7 +79,6 @@ pub enum Error {
 pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    service_account_name: &str,
 ) -> Result<KubernetesResources, Error> {
     let mut services = vec![];
     let mut config_maps = vec![];
@@ -126,7 +120,6 @@ pub fn build(
                     role,
                     role_group_name,
                     rg_config,
-                    service_account_name,
                 )
                 .context(StatefulSetSnafu {
                     role: *role,
@@ -145,6 +138,8 @@ pub fn build(
         config_maps,
         pod_disruption_budgets,
         stateful_sets,
+        service_accounts: vec![build_service_account(cluster)],
+        role_bindings: vec![build_role_binding(cluster)],
     })
 }
 
@@ -168,15 +163,7 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .into_iter()
         .flatten()
         .flat_map(|(role_group_name, role_group)| {
-            // The headless Service that governs the pods is named after the qualified role group
-            // name (see `build::resource::service::rolegroup_headless_service`).
-            let service_name = ServiceName::from_str(
-                cluster
-                    .resource_names(role, role_group_name)
-                    .qualified_role_group_name()
-                    .as_ref(),
-            )
-            .expect("a qualified role group name is a valid Service name");
+            let service_name = cluster.governing_service_name(role, role_group_name);
             let object_name = service_name.to_string();
             let namespace = cluster.namespace.clone();
             let ports = ports.clone();
@@ -203,28 +190,13 @@ pub(crate) fn rolegroup_metadata(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
 ) -> ObjectMetaBuilder {
-    let role_name = role.to_string();
-    let mut metadata = ObjectMetaBuilder::new();
-    metadata
-        .name_and_namespace(cluster)
-        .name(
-            cluster
-                .resource_names(role, role_group_name)
-                .qualified_role_group_name(),
-        )
-        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-        .with_recommended_labels(&build_recommended_labels(
-            cluster,
-            RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &cluster.image.app_version_label_value,
-            &role_name,
-            role_group_name.as_ref(),
-        ))
-        .expect(
-            "the recommended labels are valid because the ValidatedCluster uses \
-            fail-safe typed values",
-        );
-    metadata
+    cluster.object_meta(
+        cluster
+            .role_group_resource_names(role, role_group_name)
+            .qualified_role_group_name()
+            .to_string(),
+        cluster.recommended_labels(role, role_group_name),
+    )
 }
 
 /// The rolegroup selector labels (also used as `Service`/`StatefulSet` selectors) for
@@ -373,10 +345,15 @@ fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, Por
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use stackable_operator::kube::Resource;
 
     use super::build;
-    use crate::controller::build::properties::test_support::{cluster_info, validated_cluster};
+    use crate::{
+        controller::build::properties::test_support::{self, cluster_info, validated_cluster},
+        test_support::deserialize_and_validate_cluster,
+    };
 
     /// The sorted `metadata.name`s of a resource collection.
     fn sorted_names(resources: &[impl Resource]) -> Vec<String> {
@@ -388,14 +365,68 @@ mod tests {
         names
     }
 
+    /// Every metrics Service must carry the Prometheus scrape label and the
+    /// `prometheus.io/path|port|scheme|scrape` annotations, or Prometheus stops discovering the
+    /// endpoints (caught by the HDFS smoke test 2026-07-23 after the labels migration dropped
+    /// them).
+    #[test]
+    fn metrics_services_carry_prometheus_label_and_annotations() {
+        let cluster = validated_cluster();
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
+
+        let metrics_services: Vec<_> = resources
+            .services
+            .iter()
+            .filter(|service| {
+                service
+                    .metadata
+                    .name
+                    .as_deref()
+                    .is_some_and(|name| name.ends_with("-metrics"))
+            })
+            .collect();
+        assert!(!metrics_services.is_empty(), "no metrics Services built");
+
+        for service in metrics_services {
+            let name = service.metadata.name.as_deref().unwrap_or_default();
+            let labels = service.metadata.labels.as_ref().expect("labels are set");
+            assert_eq!(
+                labels.get("prometheus.io/scrape").map(String::as_str),
+                Some("true"),
+                "{name} lacks the scrape label"
+            );
+
+            // The native metrics port of the role, as asserted by the smoke test.
+            let expected_port = match name {
+                n if n.contains("-namenode-") => "9870",
+                n if n.contains("-datanode-") => "9864",
+                n if n.contains("-journalnode-") => "8480",
+                other => panic!("unexpected metrics Service {other}"),
+            };
+            let expected_annotations = BTreeMap::from(
+                [
+                    ("prometheus.io/path", "/prom"),
+                    ("prometheus.io/port", expected_port),
+                    ("prometheus.io/scheme", "http"),
+                    ("prometheus.io/scrape", "true"),
+                ]
+                .map(|(key, value)| (key.to_string(), value.to_string())),
+            );
+            assert_eq!(
+                service.metadata.annotations.as_ref(),
+                Some(&expected_annotations),
+                "{name} annotations mismatch"
+            );
+        }
+    }
+
     /// The aggregator emits, for the minimal three-role cluster (one `default` role group each):
     /// one StatefulSet and one ConfigMap per role group, one headless plus one metrics Service per
     /// role group, and one default PDB per role.
     #[test]
     fn build_produces_expected_resource_names() {
         let cluster = validated_cluster();
-        let resources =
-            build(&cluster, &cluster_info(), "hdfs-serviceaccount").expect("build succeeds");
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
 
         assert_eq!(
             sorted_names(&resources.stateful_sets),
@@ -405,8 +436,19 @@ mod tests {
                 "hdfs-namenode-default",
             ]
         );
-        // One headless and one metrics Service per role group.
-        assert_eq!(resources.services.len(), 6);
+        // One headless (un-suffixed, see `ValidatedCluster::governing_service_name`) and one
+        // metrics Service per role group.
+        assert_eq!(
+            sorted_names(&resources.services),
+            [
+                "hdfs-datanode-default",
+                "hdfs-datanode-default-metrics",
+                "hdfs-journalnode-default",
+                "hdfs-journalnode-default-metrics",
+                "hdfs-namenode-default",
+                "hdfs-namenode-default-metrics",
+            ]
+        );
         assert_eq!(
             sorted_names(&resources.config_maps),
             [
@@ -420,5 +462,80 @@ mod tests {
             sorted_names(&resources.pod_disruption_budgets),
             ["hdfs-datanode", "hdfs-journalnode", "hdfs-namenode"]
         );
+    }
+
+    /// Every StatefulSet's (immutable) `serviceName` must reference a headless Service that the
+    /// build step actually produces — the pods' DNS names depend on the pair agreeing. Guards the
+    /// coupling that `ValidatedCluster::governing_service_name` centralises.
+    #[test]
+    fn statefulset_service_name_references_built_service() {
+        let cluster = validated_cluster();
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
+
+        let service_names = sorted_names(&resources.services);
+        for stateful_set in &resources.stateful_sets {
+            let service_name = stateful_set
+                .spec
+                .as_ref()
+                .and_then(|spec| spec.service_name.as_deref())
+                .expect("every StatefulSet sets serviceName");
+            assert!(
+                service_names.iter().any(|name| name == service_name),
+                "StatefulSet references headless Service {service_name:?}, which is not built \
+                (built Services: {service_names:?})"
+            );
+        }
+    }
+
+    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
+    /// accidental drift. The cluster name deliberately differs from the product name so that
+    /// swapped `name`/`instance` label values cannot pass unnoticed (the shared fixture is named
+    /// `hdfs`, which would mask exactly that swap).
+    #[test]
+    fn build_produces_rbac() {
+        let cluster = deserialize_and_validate_cluster(
+            &test_support::MINIMAL_HDFS_YAML.replace("name: hdfs", "name: my-hdfs"),
+        );
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
+
+        assert_eq!(
+            sorted_names(&resources.service_accounts),
+            ["my-hdfs-serviceaccount"]
+        );
+        assert_eq!(
+            sorted_names(&resources.role_bindings),
+            ["my-hdfs-rolebinding"]
+        );
+
+        let expected_labels = BTreeMap::from(
+            [
+                ("app.kubernetes.io/component", "none"),
+                ("app.kubernetes.io/instance", "my-hdfs"),
+                (
+                    "app.kubernetes.io/managed-by",
+                    "hdfs.stackable.tech_hdfs-operator-hdfs-controller",
+                ),
+                ("app.kubernetes.io/name", "hdfs"),
+                ("app.kubernetes.io/role-group", "none"),
+                ("app.kubernetes.io/version", "3.4.0-stackable0.0.0-dev"),
+                ("stackable.tech/vendor", "Stackable"),
+            ]
+            .map(|(key, value)| (key.to_string(), value.to_string())),
+        );
+        let service_account = resources
+            .service_accounts
+            .first()
+            .expect("a ServiceAccount is built");
+        assert_eq!(
+            service_account.metadata.labels,
+            Some(expected_labels.clone())
+        );
+
+        let role_binding = resources
+            .role_bindings
+            .first()
+            .expect("a RoleBinding is built");
+        assert_eq!(role_binding.metadata.labels, Some(expected_labels));
+        assert_eq!(role_binding.role_ref.name, "hdfs-clusterrole");
     }
 }

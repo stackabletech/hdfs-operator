@@ -1,21 +1,27 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use stackable_operator::{
+    builder::meta::ObjectMetaBuilder,
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Service},
+        core::v1::{ConfigMap, Service, ServiceAccount},
         policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
     },
     kube::{Resource, api::ObjectMeta},
+    kvp::Labels,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
+        builder::meta::ownerreference_from_resource,
+        kvp::label::recommended_labels,
         role_group_utils::ResourceNames,
-        role_utils::RoleGroupConfig,
+        role_utils::{self, RoleGroupConfig},
         types::{
-            kubernetes::{ConfigMapName, NamespaceName, Uid},
+            kubernetes::{ConfigMapName, NamespaceName, ServiceName, Uid},
             operator::{
-                ClusterName, ControllerName, OperatorName, ProductName, RoleGroupName, RoleName,
+                ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
+                RoleGroupName, RoleName,
             },
         },
     },
@@ -47,6 +53,8 @@ pub struct KubernetesResources {
     pub config_maps: Vec<ConfigMap>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
     pub stateful_sets: Vec<StatefulSet>,
+    pub service_accounts: Vec<ServiceAccount>,
+    pub role_bindings: Vec<RoleBinding>,
 }
 
 /// The [`RoleGroupConfig`] specialised for HDFS: the validated config is the
@@ -73,6 +81,7 @@ pub struct ValidatedCluster {
     pub namespace: NamespaceName,
     /// The cluster's Kubernetes UID, used to build owner references.
     pub uid: Uid,
+    pub product_version: ProductVersion,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
@@ -94,6 +103,10 @@ impl ValidatedCluster {
         role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
         status: ValidatedClusterStatus,
     ) -> Self {
+        // `app_version_label_value` is constructed to be a valid label value, so it is also a valid
+        // `ProductVersion`.
+        let product_version = ProductVersion::from_str(&image.app_version_label_value)
+            .expect("the app version label value is a valid product version");
         Self {
             metadata: ObjectMeta {
                 name: Some(name.to_string()),
@@ -107,6 +120,7 @@ impl ValidatedCluster {
             namespace,
             uid,
             image,
+            product_version,
             cluster_config,
             role_groups,
             role_configs,
@@ -135,21 +149,96 @@ impl ValidatedCluster {
     }
 
     /// The type-safe role name for an HDFS role (`namenode`/`datanode`/`journalnode`).
-    pub(crate) fn role_name(role: &HdfsNodeRole) -> RoleName {
-        RoleName::from_str(&role.to_string()).expect("a HdfsNodeRole is a valid role name")
+    /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
+    /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
+    pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
+        role_utils::ResourceNames {
+            cluster_name: self.name.clone(),
+            product_name: product_name(),
+        }
     }
 
     /// Type-safe names for the resources of the given role group.
-    pub(crate) fn resource_names(
+    pub(crate) fn role_group_resource_names(
         &self,
         role: &HdfsNodeRole,
         role_group_name: &RoleGroupName,
     ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: Self::role_name(role),
+            role_name: role.into(),
             role_group_name: role_group_name.clone(),
         }
+    }
+
+    /// Recommended labels for a resource that is not tied to a concrete [`HdfsNodeRole`], using a free-form role/role-group label value.
+    pub fn recommended_labels_for(
+        &self,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    fn recommended_labels_with(
+        &self,
+        product_version: &ProductVersion,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        recommended_labels(
+            self,
+            &product_name(),
+            product_version,
+            &operator_name(),
+            &controller_name(),
+            role_name,
+            role_group_name,
+        )
+    }
+
+    /// Recommended labels for a role-group resource.
+    pub fn recommended_labels(
+        &self,
+        role: &HdfsNodeRole,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        self.recommended_labels_for(&role.into(), role_group_name)
+    }
+
+    /// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, the resource `name`, an owner
+    /// reference back to this cluster, and the given recommended `labels`.
+    pub(crate) fn object_meta(&self, name: impl Into<String>, labels: Labels) -> ObjectMetaBuilder {
+        let mut builder = ObjectMetaBuilder::new();
+        builder
+            .name_and_namespace(self)
+            .name(name)
+            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
+            .with_labels(labels);
+        builder
+    }
+
+    /// The name of a role group's governing headless Service.
+    ///
+    /// Used as the headless Service's own name, as the StatefulSet's (immutable) `serviceName`,
+    /// and for the pod DNS references derived from them; the three reference each other, so they
+    /// must be derived here and nowhere else.
+    //
+    // TODO: The v2 `ResourceNames::headless_service_name()` would add a `-headless` suffix, but we
+    // deliberately keep the un-suffixed name so the StatefulSet's (immutable) `serviceName` and the
+    // pod DNS names stay unchanged for existing clusters. A decision is needed on whether to adopt
+    // the suffixed name (requires StatefulSet recreation on upgrade).
+    pub(crate) fn governing_service_name(
+        &self,
+        role: &HdfsNodeRole,
+        role_group_name: &RoleGroupName,
+    ) -> ServiceName {
+        ServiceName::from_str(
+            self.role_group_resource_names(role, role_group_name)
+                .qualified_role_group_name()
+                .as_ref(),
+        )
+        .expect("a qualified role group name is a valid Service name")
     }
 }
 
@@ -169,8 +258,7 @@ pub(crate) fn controller_name() -> ControllerName {
         .expect("the controller name is a valid label value")
 }
 
-/// Lets [`ValidatedCluster`] be used as the owner [`Resource`] (e.g. in
-/// [`ObjectMetaBuilder::ownerreference_from_resource`]). The kind/group/version/plural
+/// Lets [`ValidatedCluster`] be used as the owner [`Resource`]. The kind/group/version/plural
 /// are delegated to [`v1alpha1::HdfsCluster`] so the generated owner references are
 /// identical to the ones built from the raw cluster object.
 impl Resource for ValidatedCluster {
@@ -286,4 +374,22 @@ impl ValidatedClusterConfig {
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::v2::types::operator::RoleName;
+    use strum::IntoEnumIterator;
+
+    use crate::crd::HdfsNodeRole;
+
+    /// Locks the invariant behind the `expect` in the `From<HdfsNodeRole> for RoleName` impls:
+    /// every `HdfsNodeRole` variant (present and future) must serialise to a valid `RoleName`.
+    #[test]
+    fn every_hdfs_node_role_serialises_to_a_valid_role_name() {
+        for role in HdfsNodeRole::iter() {
+            let _: RoleName = (&role).into();
+            let _: RoleName = role.into();
+        }
+    }
 }
