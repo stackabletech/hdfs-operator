@@ -71,9 +71,6 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
-            // product-config has been removed; the CLI argument is kept for
-            // backwards compatibility but ignored.
-            product_config: _,
             maintenance,
             common,
         }) => {

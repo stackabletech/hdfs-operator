@@ -11,8 +11,11 @@ All notable changes to this project will be documented in this file.
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#806]).
 
+- Bump stackable-operator to 0.114.0 ([#810]).
+
 [#801]: https://github.com/stackabletech/hdfs-operator/pull/801
 [#806]: https://github.com/stackabletech/hdfs-operator/pull/806
+[#810]: https://github.com/stackabletech/hdfs-operator/pull/810
 
 ## [26.7.0] - 2026-07-21
 
