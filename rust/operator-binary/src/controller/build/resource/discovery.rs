@@ -18,6 +18,7 @@ use crate::{
         ValidatedCluster,
         build::{
             kerberos::KerberosConfig,
+            object_meta,
             properties::{
                 ConfigFileName, core_site::CoreSiteConfigBuilder, hdfs_site::HdfsSiteConfigBuilder,
             },
@@ -67,7 +68,7 @@ pub fn build_discovery_config_map(
         &DISCOVERY_ROLE_GROUP,
     );
 
-    let metadata = cluster.object_meta(cluster.name.clone(), labels).build();
+    let metadata = object_meta(cluster, cluster.name.clone(), labels).build();
 
     ConfigMapBuilder::new()
         .metadata(metadata)

@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -13,7 +12,6 @@ use stackable_operator::{
     kvp::Labels,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::meta::ownerreference_from_resource,
         kvp::label::recommended_labels,
         role_group_utils::ResourceNames,
         role_utils::{self, RoleGroupConfig},
@@ -204,18 +202,6 @@ impl ValidatedCluster {
         role_group_name: &RoleGroupName,
     ) -> Labels {
         self.recommended_labels_for(&role.into(), role_group_name)
-    }
-
-    /// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, the resource `name`, an owner
-    /// reference back to this cluster, and the given recommended `labels`.
-    pub(crate) fn object_meta(&self, name: impl Into<String>, labels: Labels) -> ObjectMetaBuilder {
-        let mut builder = ObjectMetaBuilder::new();
-        builder
-            .name_and_namespace(self)
-            .name(name)
-            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
-            .with_labels(labels);
-        builder
     }
 
     /// The name of a role group's governing headless Service.

@@ -5,7 +5,10 @@ use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     kvp::{LabelError, Labels},
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::{common::Port, operator::RoleGroupName},
+    v2::{
+        builder::meta::ownerreference_from_resource,
+        types::{common::Port, operator::RoleGroupName},
+    },
 };
 
 use crate::{
@@ -178,6 +181,22 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .collect()
 }
 
+/// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, the resource `name`, an owner
+/// reference back to the cluster, and the given recommended `labels`.
+pub(crate) fn object_meta(
+    cluster: &ValidatedCluster,
+    name: impl Into<String>,
+    labels: Labels,
+) -> ObjectMetaBuilder {
+    let mut builder = ObjectMetaBuilder::new();
+    builder
+        .name_and_namespace(cluster)
+        .name(name)
+        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+        .with_labels(labels);
+    builder
+}
+
 /// Builds the common [`ObjectMetaBuilder`] shared by a role group's owned resources
 /// (the ConfigMap and the StatefulSet): name, namespace, owner reference and the
 /// recommended labels, all derived from the validated cluster.
@@ -190,7 +209,8 @@ pub(crate) fn rolegroup_metadata(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
 ) -> ObjectMetaBuilder {
-    cluster.object_meta(
+    object_meta(
+        cluster,
         cluster
             .role_group_resource_names(role, role_group_name)
             .qualified_role_group_name()

@@ -61,14 +61,14 @@ pub(crate) fn rolegroup_headless_service(
     };
 
     Ok(Service {
-        metadata: cluster
-            .object_meta(
-                cluster
-                    .governing_service_name(role, role_group_name)
-                    .to_string(),
-                cluster.recommended_labels(role, role_group_name),
-            )
-            .build(),
+        metadata: build::object_meta(
+            cluster,
+            cluster
+                .governing_service_name(role, role_group_name)
+                .to_string(),
+            cluster.recommended_labels(role, role_group_name),
+        )
+        .build(),
         spec: Some(service_spec),
         status: None,
     })
@@ -106,26 +106,26 @@ pub(crate) fn rolegroup_metrics_service(
     };
 
     Ok(Service {
-        metadata: cluster
-            .object_meta(
-                cluster
-                    .role_group_resource_names(role, role_group_name)
-                    .metrics_service_name()
-                    .to_string(),
-                cluster.recommended_labels(role, role_group_name),
-            )
-            .with_labels(prometheus_labels(&Scraping::Enabled))
-            .with_annotations(prometheus_annotations(
-                &Scraping::Enabled,
-                if cluster.has_https_enabled() {
-                    &Scheme::Https
-                } else {
-                    &Scheme::Http
-                },
-                "/prom",
-                &build::native_metrics_port(cluster, role),
-            ))
-            .build(),
+        metadata: build::object_meta(
+            cluster,
+            cluster
+                .role_group_resource_names(role, role_group_name)
+                .metrics_service_name()
+                .to_string(),
+            cluster.recommended_labels(role, role_group_name),
+        )
+        .with_labels(prometheus_labels(&Scraping::Enabled))
+        .with_annotations(prometheus_annotations(
+            &Scraping::Enabled,
+            if cluster.has_https_enabled() {
+                &Scheme::Https
+            } else {
+                &Scheme::Http
+            },
+            "/prom",
+            &build::native_metrics_port(cluster, role),
+        ))
+        .build(),
         spec: Some(service_spec),
         status: None,
     })
