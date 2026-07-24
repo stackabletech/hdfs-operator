@@ -1,7 +1,4 @@
-use std::{
-    cmp::{max, min},
-    str::FromStr,
-};
+use std::cmp::{max, min};
 
 use stackable_operator::{
     k8s_openapi::api::policy::v1::PodDisruptionBudget,
@@ -28,8 +25,7 @@ pub fn build_pdb(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Option<PodD
         ),
         HdfsNodeRole::Journal => max_unavailable_journal_nodes(),
     });
-    let role_name =
-        RoleName::from_str(&role.to_string()).expect("a HdfsNodeRole is a valid role name");
+    let role_name: RoleName = role.into();
     let pdb = pod_disruption_budget_builder_with_role(
         cluster,
         &product_name(),
