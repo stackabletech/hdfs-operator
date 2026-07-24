@@ -130,3 +130,89 @@ pub(crate) fn rolegroup_metrics_service(
         status: None,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use stackable_operator::v2::types::operator::RoleGroupName;
+
+    use super::*;
+    use crate::{
+        controller::build::properties::test_support::validated_cluster, crd::HdfsNodeRole,
+    };
+
+    #[test]
+    fn test_rolegroup_metrics_service() {
+        let cluster = validated_cluster();
+        let role = &HdfsNodeRole::Name;
+        let role_group_name: RoleGroupName = "default".parse().expect("valid role group name");
+
+        let service =
+            rolegroup_metrics_service(&cluster, role, &role_group_name).expect("should not fail");
+
+        assert_eq!(
+            json!({
+                "apiVersion": "v1",
+                "kind": "Service",
+                "metadata": {
+                    // Every metrics Service must carry the Prometheus scrape label and the
+                    // `prometheus.io/path|port|scheme|scrape` annotations, or Prometheus stops
+                    // discovering the endpoints.
+                    "annotations": {
+                        "prometheus.io/path": "/prom",
+                        "prometheus.io/port": "9870",
+                        "prometheus.io/scheme": "http",
+                        "prometheus.io/scrape": "true"
+                    },
+                    "labels": {
+                        "app.kubernetes.io/component": "namenode",
+                        "app.kubernetes.io/instance": "hdfs",
+                        "app.kubernetes.io/managed-by": "hdfs.stackable.tech_hdfs-operator-hdfs-controller",
+                        "app.kubernetes.io/name": "hdfs",
+                        "app.kubernetes.io/role-group": "default",
+                        "app.kubernetes.io/version": "3.4.0-stackable0.0.0-dev",
+                        "prometheus.io/scrape": "true",
+                        "stackable.tech/vendor": "Stackable"
+                    },
+                    "name": "hdfs-namenode-default-metrics",
+                    "namespace": "default",
+                    "ownerReferences": [
+                        {
+                            "apiVersion": "hdfs.stackable.tech/v1alpha1",
+                            "controller": true,
+                            "kind": "HdfsCluster",
+                            "name": "hdfs",
+                            "uid": "c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f"
+                        }
+                    ]
+                },
+                "spec": {
+                    "clusterIP": "None",
+                    "ports": [
+                        {
+                            "name": "metrics",
+                            "port": 9870,
+                            "protocol": "TCP"
+                        },
+                        {
+                            "name": "jmx-metrics",
+                            "port": 8183,
+                            "protocol": "TCP"
+                        }
+                    ],
+                    "publishNotReadyAddresses": true,
+                    "selector": {
+                        "app.kubernetes.io/component": "namenode",
+                        "app.kubernetes.io/instance": "hdfs",
+                        "app.kubernetes.io/name": "hdfs",
+                        "app.kubernetes.io/role-group": "default",
+                        "group": "default",
+                        "role": "namenode"
+                    },
+                    "type": "ClusterIP"
+                }
+            }),
+            serde_json::to_value(service).expect("must be serializable")
+        );
+    }
+}

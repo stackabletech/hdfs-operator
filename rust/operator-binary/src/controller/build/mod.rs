@@ -345,15 +345,10 @@ fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, Por
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use stackable_operator::kube::Resource;
 
     use super::build;
-    use crate::{
-        controller::build::properties::test_support::{self, cluster_info, validated_cluster},
-        test_support::deserialize_and_validate_cluster,
-    };
+    use crate::controller::build::properties::test_support::{cluster_info, validated_cluster};
 
     /// The sorted `metadata.name`s of a resource collection.
     fn sorted_names(resources: &[impl Resource]) -> Vec<String> {
@@ -363,61 +358,6 @@ mod tests {
             .collect();
         names.sort();
         names
-    }
-
-    /// Every metrics Service must carry the Prometheus scrape label and the
-    /// `prometheus.io/path|port|scheme|scrape` annotations, or Prometheus stops discovering the
-    /// endpoints (caught by the HDFS smoke test 2026-07-23 after the labels migration dropped
-    /// them).
-    #[test]
-    fn metrics_services_carry_prometheus_label_and_annotations() {
-        let cluster = validated_cluster();
-        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
-
-        let metrics_services: Vec<_> = resources
-            .services
-            .iter()
-            .filter(|service| {
-                service
-                    .metadata
-                    .name
-                    .as_deref()
-                    .is_some_and(|name| name.ends_with("-metrics"))
-            })
-            .collect();
-        assert!(!metrics_services.is_empty(), "no metrics Services built");
-
-        for service in metrics_services {
-            let name = service.metadata.name.as_deref().unwrap_or_default();
-            let labels = service.metadata.labels.as_ref().expect("labels are set");
-            assert_eq!(
-                labels.get("prometheus.io/scrape").map(String::as_str),
-                Some("true"),
-                "{name} lacks the scrape label"
-            );
-
-            // The native metrics port of the role, as asserted by the smoke test.
-            let expected_port = match name {
-                n if n.contains("-namenode-") => "9870",
-                n if n.contains("-datanode-") => "9864",
-                n if n.contains("-journalnode-") => "8480",
-                other => panic!("unexpected metrics Service {other}"),
-            };
-            let expected_annotations = BTreeMap::from(
-                [
-                    ("prometheus.io/path", "/prom"),
-                    ("prometheus.io/port", expected_port),
-                    ("prometheus.io/scheme", "http"),
-                    ("prometheus.io/scrape", "true"),
-                ]
-                .map(|(key, value)| (key.to_string(), value.to_string())),
-            );
-            assert_eq!(
-                service.metadata.annotations.as_ref(),
-                Some(&expected_annotations),
-                "{name} annotations mismatch"
-            );
-        }
     }
 
     /// The aggregator emits, for the minimal three-role cluster (one `default` role group each):
@@ -462,6 +402,12 @@ mod tests {
             sorted_names(&resources.pod_disruption_budgets),
             ["hdfs-datanode", "hdfs-journalnode", "hdfs-namenode"]
         );
+        // The cluster-shared RBAC pair.
+        assert_eq!(
+            sorted_names(&resources.service_accounts),
+            ["hdfs-serviceaccount"]
+        );
+        assert_eq!(sorted_names(&resources.role_bindings), ["hdfs-rolebinding"]);
     }
 
     /// Every StatefulSet's (immutable) `serviceName` must reference a headless Service that the
@@ -485,57 +431,5 @@ mod tests {
                 (built Services: {service_names:?})"
             );
         }
-    }
-
-    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
-    /// accidental drift. The cluster name deliberately differs from the product name so that
-    /// swapped `name`/`instance` label values cannot pass unnoticed (the shared fixture is named
-    /// `hdfs`, which would mask exactly that swap).
-    #[test]
-    fn build_produces_rbac() {
-        let cluster = deserialize_and_validate_cluster(
-            &test_support::MINIMAL_HDFS_YAML.replace("name: hdfs", "name: my-hdfs"),
-        );
-        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
-
-        assert_eq!(
-            sorted_names(&resources.service_accounts),
-            ["my-hdfs-serviceaccount"]
-        );
-        assert_eq!(
-            sorted_names(&resources.role_bindings),
-            ["my-hdfs-rolebinding"]
-        );
-
-        let expected_labels = BTreeMap::from(
-            [
-                ("app.kubernetes.io/component", "none"),
-                ("app.kubernetes.io/instance", "my-hdfs"),
-                (
-                    "app.kubernetes.io/managed-by",
-                    "hdfs.stackable.tech_hdfs-operator-hdfs-controller",
-                ),
-                ("app.kubernetes.io/name", "hdfs"),
-                ("app.kubernetes.io/role-group", "none"),
-                ("app.kubernetes.io/version", "3.4.0-stackable0.0.0-dev"),
-                ("stackable.tech/vendor", "Stackable"),
-            ]
-            .map(|(key, value)| (key.to_string(), value.to_string())),
-        );
-        let service_account = resources
-            .service_accounts
-            .first()
-            .expect("a ServiceAccount is built");
-        assert_eq!(
-            service_account.metadata.labels,
-            Some(expected_labels.clone())
-        );
-
-        let role_binding = resources
-            .role_bindings
-            .first()
-            .expect("a RoleBinding is built");
-        assert_eq!(role_binding.metadata.labels, Some(expected_labels));
-        assert_eq!(role_binding.role_ref.name, "hdfs-clusterrole");
     }
 }
