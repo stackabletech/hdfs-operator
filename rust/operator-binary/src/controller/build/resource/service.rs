@@ -139,6 +139,7 @@ mod tests {
     use super::*;
     use crate::{
         controller::build::properties::test_support::validated_cluster, crd::HdfsNodeRole,
+        test_support::app_version_label,
     };
 
     #[test]
@@ -170,7 +171,7 @@ mod tests {
                         "app.kubernetes.io/managed-by": "hdfs.stackable.tech_hdfs-operator-hdfs-controller",
                         "app.kubernetes.io/name": "hdfs",
                         "app.kubernetes.io/role-group": "default",
-                        "app.kubernetes.io/version": "3.4.0-stackable0.0.0-dev",
+                        "app.kubernetes.io/version": app_version_label("3.4.0"),
                         "prometheus.io/scrape": "true",
                         "stackable.tech/vendor": "Stackable"
                     },

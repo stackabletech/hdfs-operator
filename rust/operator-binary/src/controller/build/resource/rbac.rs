@@ -48,7 +48,7 @@ mod tests {
     use super::*;
     use crate::{
         controller::build::properties::test_support::MINIMAL_HDFS_YAML,
-        test_support::deserialize_and_validate_cluster,
+        test_support::{app_version_label, deserialize_and_validate_cluster},
     };
 
     /// The cluster name is deliberately different from the product name (`hdfs`) so that
@@ -73,7 +73,7 @@ mod tests {
                         "app.kubernetes.io/managed-by": "hdfs.stackable.tech_hdfs-operator-hdfs-controller",
                         "app.kubernetes.io/name": "hdfs",
                         "app.kubernetes.io/role-group": "none",
-                        "app.kubernetes.io/version": "3.4.0-stackable0.0.0-dev",
+                        "app.kubernetes.io/version": app_version_label("3.4.0"),
                         "stackable.tech/vendor": "Stackable"
                     },
                     "name": "my-hdfs-serviceaccount",
@@ -108,7 +108,7 @@ mod tests {
                         "app.kubernetes.io/managed-by": "hdfs.stackable.tech_hdfs-operator-hdfs-controller",
                         "app.kubernetes.io/name": "hdfs",
                         "app.kubernetes.io/role-group": "none",
-                        "app.kubernetes.io/version": "3.4.0-stackable0.0.0-dev",
+                        "app.kubernetes.io/version": app_version_label("3.4.0"),
                         "stackable.tech/vendor": "Stackable"
                     },
                     "name": "my-hdfs-rolebinding",
