@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -7,13 +7,15 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
         builder::meta::ownerreference_from_resource,
-        types::{common::Port, kubernetes::ServiceName, operator::RoleGroupName},
+        types::{common::Port, operator::RoleGroupName},
     },
 };
 
 use crate::{
-    build_recommended_labels,
-    controller::{KubernetesResources, ValidatedCluster},
+    controller::{
+        KubernetesResources, ValidatedCluster,
+        build::resource::rbac::{build_role_binding, build_service_account},
+    },
     crd::{
         HdfsNodeRole, HdfsPodRef,
         constants::{
@@ -32,7 +34,6 @@ use crate::{
             SERVICE_PORT_NAME_RPC,
         },
     },
-    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
 
 pub mod container;
@@ -74,9 +75,6 @@ pub enum Error {
 /// `cluster_info` carries static cluster information resolved at operator startup (e.g. the
 /// cluster domain used to build Kerberos principals), not a live client.
 ///
-/// `service_account_name` is the name of the RBAC `ServiceAccount` the role-group Pods run under.
-/// The RBAC resources are built and applied separately in the reconcile step.
-///
 /// The resources are returned as flat, unordered collections. The reconcile step re-groups the
 /// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during upgrades. The
 /// discovery `ConfigMap` is deliberately not built here: it needs a live client to resolve
@@ -84,7 +82,6 @@ pub enum Error {
 pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    service_account_name: &str,
 ) -> Result<KubernetesResources, Error> {
     let mut services = vec![];
     let mut config_maps = vec![];
@@ -126,7 +123,6 @@ pub fn build(
                     role,
                     role_group_name,
                     rg_config,
-                    service_account_name,
                 )
                 .context(StatefulSetSnafu {
                     role: *role,
@@ -145,6 +141,8 @@ pub fn build(
         config_maps,
         pod_disruption_budgets,
         stateful_sets,
+        service_accounts: vec![build_service_account(cluster)],
+        role_bindings: vec![build_role_binding(cluster)],
     })
 }
 
@@ -168,15 +166,7 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .into_iter()
         .flatten()
         .flat_map(|(role_group_name, role_group)| {
-            // The headless Service that governs the pods is named after the qualified role group
-            // name (see `build::resource::service::rolegroup_headless_service`).
-            let service_name = ServiceName::from_str(
-                cluster
-                    .resource_names(role, role_group_name)
-                    .qualified_role_group_name()
-                    .as_ref(),
-            )
-            .expect("a qualified role group name is a valid Service name");
+            let service_name = cluster.governing_service_name(role, role_group_name);
             let object_name = service_name.to_string();
             let namespace = cluster.namespace.clone();
             let ports = ports.clone();
@@ -191,6 +181,22 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .collect()
 }
 
+/// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, the resource `name`, an owner
+/// reference back to the cluster, and the given recommended `labels`.
+pub(crate) fn object_meta(
+    cluster: &ValidatedCluster,
+    name: impl Into<String>,
+    labels: Labels,
+) -> ObjectMetaBuilder {
+    let mut builder = ObjectMetaBuilder::new();
+    builder
+        .name_and_namespace(cluster)
+        .name(name)
+        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+        .with_labels(labels);
+    builder
+}
+
 /// Builds the common [`ObjectMetaBuilder`] shared by a role group's owned resources
 /// (the ConfigMap and the StatefulSet): name, namespace, owner reference and the
 /// recommended labels, all derived from the validated cluster.
@@ -203,28 +209,14 @@ pub(crate) fn rolegroup_metadata(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
 ) -> ObjectMetaBuilder {
-    let role_name = role.to_string();
-    let mut metadata = ObjectMetaBuilder::new();
-    metadata
-        .name_and_namespace(cluster)
-        .name(
-            cluster
-                .resource_names(role, role_group_name)
-                .qualified_role_group_name(),
-        )
-        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-        .with_recommended_labels(&build_recommended_labels(
-            cluster,
-            RESOURCE_MANAGER_HDFS_CONTROLLER,
-            &cluster.image.app_version_label_value,
-            &role_name,
-            role_group_name.as_ref(),
-        ))
-        .expect(
-            "the recommended labels are valid because the ValidatedCluster uses \
-            fail-safe typed values",
-        );
-    metadata
+    object_meta(
+        cluster,
+        cluster
+            .role_group_resource_names(role, role_group_name)
+            .qualified_role_group_name()
+            .to_string(),
+        cluster.recommended_labels(role, role_group_name),
+    )
 }
 
 /// The rolegroup selector labels (also used as `Service`/`StatefulSet` selectors) for
@@ -394,8 +386,7 @@ mod tests {
     #[test]
     fn build_produces_expected_resource_names() {
         let cluster = validated_cluster();
-        let resources =
-            build(&cluster, &cluster_info(), "hdfs-serviceaccount").expect("build succeeds");
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
 
         assert_eq!(
             sorted_names(&resources.stateful_sets),
@@ -405,8 +396,19 @@ mod tests {
                 "hdfs-namenode-default",
             ]
         );
-        // One headless and one metrics Service per role group.
-        assert_eq!(resources.services.len(), 6);
+        // One headless (un-suffixed, see `ValidatedCluster::governing_service_name`) and one
+        // metrics Service per role group.
+        assert_eq!(
+            sorted_names(&resources.services),
+            [
+                "hdfs-datanode-default",
+                "hdfs-datanode-default-metrics",
+                "hdfs-journalnode-default",
+                "hdfs-journalnode-default-metrics",
+                "hdfs-namenode-default",
+                "hdfs-namenode-default-metrics",
+            ]
+        );
         assert_eq!(
             sorted_names(&resources.config_maps),
             [
@@ -420,5 +422,34 @@ mod tests {
             sorted_names(&resources.pod_disruption_budgets),
             ["hdfs-datanode", "hdfs-journalnode", "hdfs-namenode"]
         );
+        // The cluster-shared RBAC pair.
+        assert_eq!(
+            sorted_names(&resources.service_accounts),
+            ["hdfs-serviceaccount"]
+        );
+        assert_eq!(sorted_names(&resources.role_bindings), ["hdfs-rolebinding"]);
+    }
+
+    /// Every StatefulSet's (immutable) `serviceName` must reference a headless Service that the
+    /// build step actually produces — the pods' DNS names depend on the pair agreeing. Guards the
+    /// coupling that `ValidatedCluster::governing_service_name` centralises.
+    #[test]
+    fn statefulset_service_name_references_built_service() {
+        let cluster = validated_cluster();
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
+
+        let service_names = sorted_names(&resources.services);
+        for stateful_set in &resources.stateful_sets {
+            let service_name = stateful_set
+                .spec
+                .as_ref()
+                .and_then(|spec| spec.service_name.as_deref())
+                .expect("every StatefulSet sets serviceName");
+            assert!(
+                service_names.iter().any(|name| name == service_name),
+                "StatefulSet references headless Service {service_name:?}, which is not built \
+                (built Services: {service_names:?})"
+            );
+        }
     }
 }

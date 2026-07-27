@@ -47,7 +47,6 @@ pub(crate) fn build_rolegroup_statefulset(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
     rolegroup_config: &ValidatedRoleGroupConfig,
-    service_account_name: &str,
 ) -> Result<StatefulSet, Error> {
     tracing::info!("Setting up StatefulSet for role {role} role group {role_group_name}");
 
@@ -69,7 +68,12 @@ pub(crate) fn build_rolegroup_statefulset(
     pb.metadata(pb_metadata)
         .image_pull_secrets_from_product_image(image)
         .affinity(&merged_config.affinity)
-        .service_account_name(service_account_name)
+        .service_account_name(
+            validated
+                .cluster_resource_names()
+                .service_account_name()
+                .to_string(),
+        )
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     // Adds all containers and volumes to the pod builder
@@ -107,13 +111,9 @@ pub(crate) fn build_rolegroup_statefulset(
             match_labels: Some(rolegroup_selector_labels.into()),
             ..LabelSelector::default()
         },
-        // Must match the headless Service name so the StatefulSet's pods get stable DNS names.
-        // See the TODO in `build::resource::service::rolegroup_headless_service` about the
-        // un-suffixed name.
         service_name: Some(
             validated
-                .resource_names(role, role_group_name)
-                .qualified_role_group_name()
+                .governing_service_name(role, role_group_name)
                 .to_string(),
         ),
         template: pod_template,

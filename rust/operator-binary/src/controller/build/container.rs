@@ -237,7 +237,7 @@ impl ContainerConfig {
 
         // HDFS main container
         let main_container_config = Self::from(*role);
-        let resource_names = cluster.resource_names(role, role_group_name);
+        let resource_names = cluster.role_group_resource_names(role, role_group_name);
         let object_name = resource_names.qualified_role_group_name().to_string();
         let merged_config = &rolegroup_config.config;
 
@@ -285,7 +285,7 @@ impl ContainerConfig {
                     log_config,
                     vector_aggregator_config_map_name,
                 },
-                &cluster.resource_names(role, role_group_name),
+                &cluster.role_group_resource_names(role, role_group_name),
                 &VECTOR_CONFIG_VOLUME_NAME,
                 &VECTOR_LOG_VOLUME_NAME,
                 EnvVarSet::new(),
