@@ -5,36 +5,27 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
     cluster_resources::ClusterResourceApplyStrategy,
-    iter::reverse_if,
     kube::{
-        Resource, ResourceExt,
+        Resource,
         core::{DeserializeGuard, error_boundary},
-        runtime::{controller::Action, events::Recorder, reflector::ObjectRef},
+        runtime::{controller::Action, events::Recorder},
     },
     kvp::LabelError,
     logging::controller::ReconcilerError,
     shared::time::Duration,
-    status::{
-        condition::{
-            compute_conditions, operations::ClusterOperationsConditionBuilder,
-            statefulset::StatefulSetConditionBuilder,
-        },
-        rollout::check_statefulset_rollout_complete,
-    },
-    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
-    OPERATOR_NAME,
     controller::{
+        apply::{self, Applier, apply_discovery_config_map},
         build::{
             self,
             resource::discovery::{self, build_discovery_config_map},
         },
-        controller_name, operator_name, product_name,
+        update_status::{self, update_status},
     },
-    crd::{HdfsClusterStatus, HdfsNodeRole, UpgradeState, constants::*, v1alpha1},
+    crd::{HdfsNodeRole, v1alpha1},
     event::{build_invalid_replica_message, publish_warning_event},
 };
 
@@ -44,10 +35,11 @@ pub const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 pub enum Error {
-    #[snafu(display("failed to apply Kubernetes resource"))]
-    ApplyResource {
-        source: stackable_operator::cluster_resources::Error,
-    },
+    #[snafu(display("failed to apply the Kubernetes resources"))]
+    ApplyResources { source: apply::Error },
+
+    #[snafu(display("failed to update the cluster status"))]
+    UpdateStatus { source: update_status::Error },
 
     #[snafu(display("failed to dereference cluster resources"))]
     Dereference {
@@ -59,17 +51,8 @@ pub enum Error {
         source: crate::controller::validate::Error,
     },
 
-    #[snafu(display("cannot create role group stateful set {name:?}"))]
-    ApplyRoleGroupStatefulSet {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
-    },
-
-    #[snafu(display("cannot create discovery config map {name:?}"))]
-    ApplyDiscoveryConfigMap {
-        source: stackable_operator::client::Error,
-        name: String,
-    },
+    #[snafu(display("failed to apply the discovery ConfigMap"))]
+    ApplyDiscoveryConfigMap { source: apply::Error },
 
     #[snafu(display("failed to build Kubernetes resources"))]
     BuildResources {
@@ -82,23 +65,8 @@ pub enum Error {
     #[snafu(display("cannot build config discovery config map"))]
     BuildDiscoveryConfigMap { source: discovery::Error },
 
-    #[snafu(display("failed to delete orphaned resources"))]
-    DeleteOrphanedResources {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
-
-    #[snafu(display("failed to apply PodDisruptionBudget"))]
-    ApplyPdb {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to update status"))]
-    ApplyStatus {
-        source: stackable_operator::client::Error,
-    },
 
     #[snafu(display("failed to build cluster resources label"))]
     BuildClusterResourcesLabel { source: LabelError },
@@ -147,58 +115,11 @@ pub async fn reconcile_hdfs(
     )
     .context(ValidateSnafu)?;
 
-    let mut cluster_resources = cluster_resources_new(
-        &product_name(),
-        &operator_name(),
-        &controller_name(),
-        &validated_cluster.name,
-        &validated_cluster.namespace,
-        &validated_cluster.uid,
-        ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
-        &hdfs.spec.object_overrides,
-    );
-
     // Build every (non-discovery) Kubernetes resource up front. This step needs no client: all
     // external references are already dereferenced and validated. The ServiceAccount name is
     // deterministic on the built RBAC object, so the build does not depend on the applied one.
     let resources = build::build(&validated_cluster, &client.kubernetes_cluster_info)
         .context(BuildResourcesSnafu)?;
-
-    // Apply Services, ConfigMaps and PodDisruptionBudgets first. The StatefulSets are applied
-    // afterwards so that every ConfigMap a Pod mounts already exists, which prevents unnecessary
-    // Pod restarts. See https://github.com/stackabletech/commons-operator/issues/111 for details.
-    for service_account in resources.service_accounts {
-        cluster_resources
-            .add(client, service_account)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for role_binding in resources.role_bindings {
-        cluster_resources
-            .add(client, role_binding)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for service in resources.services {
-        cluster_resources
-            .add(client, service)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for config_map in resources.config_maps {
-        cluster_resources
-            .add(client, config_map)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for pdb in resources.pod_disruption_budgets {
-        cluster_resources
-            .add(client, pdb)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-
-    let upgrade_state = validated_cluster.status.upgrade_state;
 
     // Warn about invalid replica counts. This is validation feedback and independent of the
     // resource application below.
@@ -219,42 +140,19 @@ pub async fn reconcile_hdfs(
         }
     }
 
-    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-    let mut deploy_done = true;
+    let applied = Applier::new(
+        client,
+        &validated_cluster,
+        ClusterResourceApplyStrategy::from(&hdfs.spec.cluster_operation),
+        &hdfs.spec.object_overrides,
+    )
+    .apply(resources, validated_cluster.status.upgrade_state)
+    .await
+    .context(ApplyResourcesSnafu)?;
 
-    // StatefulSets must be rolled out in role order during upgrades (a namenode's version must be
-    // >= the datanodes', and so on), with each role finishing its rollout before the next starts.
-    // https://hadoop.apache.org/docs/r3.4.0/hadoop-project-dist/hadoop-hdfs/HdfsRollingUpgrade.html#Upgrading_Non-Federated_Clusters
-    // The build output is already ordered by role, so it is applied as-is; downgrades have the
-    // opposite version relationship and are therefore rolled out in reverse.
-    let downgrading = matches!(upgrade_state, Some(UpgradeState::Downgrading));
-    if downgrading {
-        tracing::info!("HdfsCluster is being downgraded, deploying in reverse order");
-    }
-    for statefulset in reverse_if(downgrading, resources.stateful_sets.iter()) {
-        let name = statefulset.name_any();
-        let deployed_statefulset = cluster_resources
-            .add(client, statefulset.clone())
-            .await
-            .with_context(|_| ApplyRoleGroupStatefulSetSnafu { name })?;
-        ss_cond_builder.add(deployed_statefulset.clone());
-
-        if upgrade_state.is_some() {
-            // Ensure each role is fully upgraded before moving on to the next.
-            if let Err(reason) = check_statefulset_rollout_complete(&deployed_statefulset) {
-                tracing::info!(
-                    rolegroup.statefulset = %ObjectRef::from_obj(&deployed_statefulset),
-                    reason = &reason as &dyn std::error::Error,
-                    "rolegroup is still upgrading, waiting..."
-                );
-                deploy_done = false;
-                break;
-            }
-        }
-    }
-
-    // Discovery CM will fail to build until the rest of the cluster has been deployed, so do it last
-    // so that failure won't inhibit the rest of the cluster from booting up.
+    // Discovery CM will fail to build until the rest of the cluster has been
+    // deployed, so do it last so that failure won't inhibit the rest of the
+    // cluster from booting up.
     let discovery_cm = build_discovery_config_map(
         &validated_cluster,
         &client.kubernetes_cluster_info,
@@ -267,63 +165,13 @@ pub async fn reconcile_hdfs(
     )
     .context(BuildDiscoveryConfigMapSnafu)?;
 
-    // The discovery CM is linked to the cluster lifecycle via ownerreference.
-    // Therefore, must not be added to the "orphaned" cluster resources
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &discovery_cm, &discovery_cm)
+    apply_discovery_config_map(client, &discovery_cm)
         .await
-        .with_context(|_| ApplyDiscoveryConfigMapSnafu {
-            name: discovery_cm.metadata.name.clone().unwrap_or_default(),
-        })?;
+        .context(ApplyDiscoveryConfigMapSnafu)?;
 
-    let cluster_operation_cond_builder =
-        ClusterOperationsConditionBuilder::new(&hdfs.spec.cluster_operation);
-
-    let status = HdfsClusterStatus {
-        conditions: compute_conditions(hdfs, &[&ss_cond_builder, &cluster_operation_cond_builder]),
-        // FIXME: We can't currently leave upgrade mode automatically, since we don't know when an upgrade is finalized
-        deployed_product_version: Some(
-            validated_cluster
-                .status
-                .deployed_product_version
-                .clone()
-                // Keep current version if set, otherwise (on initial deploy) fall back
-                // to the user's specified version.
-                .unwrap_or_else(|| validated_cluster.image.product_version.clone()),
-        ),
-        upgrade_target_product_version: match upgrade_state {
-            // User is upgrading, whatever they're upgrading to is (by definition) the target
-            Some(UpgradeState::Upgrading) => Some(validated_cluster.image.product_version.clone()),
-            Some(UpgradeState::Downgrading) => {
-                if deploy_done {
-                    // Downgrade is done, clear
-                    tracing::info!("downgrade deployed, clearing upgrade state");
-                    None
-                } else {
-                    // Downgrade is still in progress, preserve the current value
-                    validated_cluster
-                        .status
-                        .upgrade_target_product_version
-                        .clone()
-                }
-            }
-            // Upgrade is complete (if any), clear
-            None => None,
-        },
-    };
-
-    // During upgrades we do partial deployments, we don't want to garbage collect after those
-    // since we *will* redeploy (or properly orphan) the remaining resources later.
-    if deploy_done {
-        cluster_resources
-            .delete_orphaned_resources(client)
-            .await
-            .context(DeleteOrphanedResourcesSnafu)?;
-    }
-    client
-        .apply_patch_status(OPERATOR_NAME, hdfs, &status)
+    update_status(client, hdfs, &validated_cluster, &applied)
         .await
-        .context(ApplyStatusSnafu)?;
+        .context(UpdateStatusSnafu)?;
 
     Ok(Action::await_change())
 }

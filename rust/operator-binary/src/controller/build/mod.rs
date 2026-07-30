@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, marker::PhantomData};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -13,7 +13,7 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        KubernetesResources, ValidatedCluster,
+        KubernetesResources, Prepared, ValidatedCluster,
         build::resource::rbac::{build_role_binding, build_service_account},
     },
     crd::{
@@ -82,7 +82,7 @@ pub enum Error {
 pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-) -> Result<KubernetesResources, Error> {
+) -> Result<KubernetesResources<Prepared>, Error> {
     let mut services = vec![];
     let mut config_maps = vec![];
     let mut stateful_sets = vec![];
@@ -143,6 +143,7 @@ pub fn build(
         stateful_sets,
         service_accounts: vec![build_service_account(cluster)],
         role_bindings: vec![build_role_binding(cluster)],
+        status: PhantomData,
     })
 }
 

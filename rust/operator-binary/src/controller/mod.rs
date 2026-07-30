@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::{collections::BTreeMap, marker::PhantomData, str::FromStr};
 
 use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
@@ -35,9 +35,17 @@ use crate::{
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
 
+pub mod apply;
 pub mod build;
 pub mod dereference;
+pub mod update_status;
 pub mod validate;
+
+/// Marker for prepared Kubernetes resources which are not applied yet.
+pub struct Prepared;
+
+/// Marker for applied Kubernetes resources.
+pub struct Applied;
 
 /// Every Kubernetes resource produced by the build step.
 ///
@@ -46,13 +54,18 @@ pub mod validate;
 /// upgrades. The discovery `ConfigMap` is not part of this set: it depends on a live
 /// Kubernetes client (to resolve listener addresses) and is therefore built and applied
 /// separately in the reconcile step.
-pub struct KubernetesResources {
+///
+/// `T` is a marker that indicates if these resources are only [`Prepared`] or already [`Applied`].
+/// The marker is useful e.g. to ensure that the cluster status is updated based on the applied
+/// resources.
+pub struct KubernetesResources<T> {
     pub services: Vec<Service>,
     pub config_maps: Vec<ConfigMap>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
     pub stateful_sets: Vec<StatefulSet>,
     pub service_accounts: Vec<ServiceAccount>,
     pub role_bindings: Vec<RoleBinding>,
+    pub status: PhantomData<T>,
 }
 
 /// The [`RoleGroupConfig`] specialised for HDFS: the validated config is the
