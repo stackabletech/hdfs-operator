@@ -3,8 +3,21 @@ apiVersion: v2
 name: hdfs-operator
 version: "0.0.0-dev"
 appVersion: "0.0.0-dev"
-description: The Stackable Operator for Apache HDFS
+description: "Kubernetes operator for Apache Hadoop HDFS. Deploy and run HDFS NameNodes, DataNodes and JournalNodes with the Stackable Data Platform (SDP)."
 home: https://github.com/stackabletech/hdfs-operator
+sources:
+  - https://github.com/stackabletech/hdfs-operator
+keywords: ["apache-hadoop", "hadoop", "hdfs", "storage", "kubernetes", "operator", "big-data"]
 maintainers:
   - name: Stackable
     url: https://www.stackable.tech
+# Consumed by Artifact Hub, see https://artifacthub.io/docs/topics/annotations/helm/
+annotations:
+  # The chart package ships no LICENSE file, so Artifact Hub cannot detect this itself.
+  artifacthub.io/license: OSL-3.0
+  # A link named "support" is rendered highlighted by Artifact Hub. Keep it lowercase.
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://docs.stackable.tech/home/stable/hdfs/
+    - name: support
+      url: https://github.com/stackabletech/hdfs-operator/issues
