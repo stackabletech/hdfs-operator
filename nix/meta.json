@@ -1,1 +1,1 @@
-{"operator": {"name": "hdfs-operator", "pretty_string": "Apache HDFS", "product_string": "hdfs", "url": "stackabletech/hdfs-operator.git"}}
+{"operator": {"name": "hdfs-operator", "pretty_string": "Apache HDFS", "product_string": "hdfs", "url": "stackabletech/hdfs-operator.git", "chart_description": "Kubernetes operator for Apache Hadoop HDFS. Deploy and run HDFS NameNodes, DataNodes and JournalNodes with the Stackable Data Platform (SDP).", "keywords": ["apache-hadoop", "hadoop", "hdfs", "storage", "kubernetes", "operator", "big-data"]}}
