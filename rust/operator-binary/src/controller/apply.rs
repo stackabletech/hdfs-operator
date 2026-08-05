@@ -107,6 +107,11 @@ impl<'a> Applier<'a> {
     ) -> Result<AppliedResources> {
         // Destructured without `..`, so adding a field to [`KubernetesResources`] fails to
         // compile here instead of silently never being applied.
+        //
+        // The namenode Listeners are deliberately not part of these resources: this operator
+        // never creates them. The listener-operator creates one Listener per namenode pod for
+        // the listener volumes declared in the StatefulSets, and this operator only reads them
+        // back to build the discovery ConfigMap.
         let KubernetesResources {
             services,
             config_maps,

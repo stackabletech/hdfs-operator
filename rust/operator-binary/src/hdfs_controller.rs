@@ -150,24 +150,35 @@ pub async fn reconcile_hdfs(
     .await
     .context(ApplyResourcesSnafu)?;
 
-    // Discovery CM will fail to build until the rest of the cluster has been
-    // deployed, so do it last so that failure won't inhibit the rest of the
-    // cluster from booting up.
-    let discovery_cm = build_discovery_config_map(
-        &validated_cluster,
-        &client.kubernetes_cluster_info,
-        &crate::crd::namenode_listener_refs(
-            client,
-            build::pod_refs(&validated_cluster, &HdfsNodeRole::Name),
-        )
-        .await
-        .context(CollectDiscoveryConfigSnafu)?,
+    // The discovery ConfigMap is built from the namenode Listeners' ingress addresses, which
+    // only the listener-operator writes. Around the first reconcile runs the Listeners are
+    // missing or still address-less; the ConfigMap is skipped then instead of failing the
+    // whole run -- the Listener watch triggers a new run once the addresses are set. An
+    // already existing discovery ConfigMap is left untouched in that window (it is applied
+    // outside the ClusterResources orphan tracking).
+    match crate::crd::namenode_listener_refs(
+        build::pod_refs(&validated_cluster, &HdfsNodeRole::Name),
+        &validated_cluster.namenode_listeners,
     )
-    .context(BuildDiscoveryConfigMapSnafu)?;
+    .context(CollectDiscoveryConfigSnafu)?
+    {
+        Some(namenode_listener_refs) => {
+            let discovery_cm = build_discovery_config_map(
+                &validated_cluster,
+                &client.kubernetes_cluster_info,
+                &namenode_listener_refs,
+            )
+            .context(BuildDiscoveryConfigMapSnafu)?;
 
-    apply_discovery_config_map(client, &discovery_cm)
-        .await
-        .context(ApplyDiscoveryConfigMapSnafu)?;
+            apply_discovery_config_map(client, &discovery_cm)
+                .await
+                .context(ApplyDiscoveryConfigMapSnafu)?;
+        }
+        None => tracing::info!(
+            "not all namenode Listeners have an ingress address yet, skipping the discovery \
+             ConfigMap"
+        ),
+    }
 
     update_status(client, hdfs, &validated_cluster, &applied)
         .await

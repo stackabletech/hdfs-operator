@@ -6,10 +6,9 @@ use std::{
     str::FromStr,
 };
 
-use futures::future::try_join_all;
 use security::AuthorizationConfig;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -26,8 +25,8 @@ use stackable_operator::{
     },
     crd::listener,
     deep_merger::ObjectOverrides,
-    k8s_openapi::{api::core::v1::Pod, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, runtime::reflector::ObjectRef},
+    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
+    kube::CustomResource,
     product_logging::{
         self,
         spec::{ContainerLogConfig, Logging},
@@ -105,19 +104,6 @@ pub enum Error {
 
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
-
-    #[snafu(display("unable to get {listener} (for {pod})"))]
-    GetPodListener {
-        source: stackable_operator::client::Error,
-        listener: ObjectRef<listener::v1alpha1::Listener>,
-        pod: ObjectRef<Pod>,
-    },
-
-    #[snafu(display("{listener} (for {pod}) has no address"))]
-    PodListenerHasNoAddress {
-        listener: ObjectRef<listener::v1alpha1::Listener>,
-        pod: ObjectRef<Pod>,
-    },
 
     #[snafu(display("port {port} ({port_name:?}) is out of bounds, must be within {range:?}", range = 0..=u16::MAX))]
     PortOutOfBounds {
@@ -553,63 +539,80 @@ impl HdfsNodeRole {
     }
 }
 
-/// Returns the required port name and port number tuples exposed by pods of the
-/// given `role`, depending on whether HTTPS is enabled.
-/// The rolegroup selector labels for `rolegroup_ref`, owned by `owner` (either the
-/// raw `HdfsCluster` or the [`crate::controller::ValidatedCluster`]).
+/// The name of the [`Listener`](listener::v1alpha1::Listener) that the listener-operator
+/// creates for the listener volume of the pod named `pod_name`.
+fn pod_listener_name(pod_name: &str) -> String {
+    format!("{}-{}", *LISTENER_VOLUME_NAME, pod_name)
+}
+
+/// Whether `listener_name` names a namenode pod
+/// [`Listener`](listener::v1alpha1::Listener) of the cluster named `cluster_name`.
+///
+/// This mirrors [`pod_listener_name`] applied to the namenode pod names built by
+/// [`crate::controller::build::pod_refs`]:
+/// `<listener volume>-<cluster>-namenode-<role group>-<replica>`.
+pub(crate) fn is_namenode_listener(listener_name: &str, cluster_name: &str) -> bool {
+    listener_name.starts_with(&format!(
+        "{listener_volume}-{cluster_name}-{role}-",
+        listener_volume = *LISTENER_VOLUME_NAME,
+        role = HdfsNodeRole::Name,
+    ))
+}
+
 /// Resolve the listener-based [`HdfsPodRef`]s for the given namenode `namenode_podrefs`,
 /// configured to access the cluster via [`Listener`](listener::v1alpha1::Listener) rather
-/// than direct [`Pod`] access.
+/// than direct pod access.
 ///
 /// This enables access from outside the Kubernetes cluster (if using a
-/// [`listener::v1alpha1::ListenerClass`] configured for this). It assumes that all
-/// `Listener`s have been created, and may fail while waiting for the cluster to come online.
+/// [`listener::v1alpha1::ListenerClass`] configured for this).
+///
+/// Returns `None` if any namenode pod has no `Listener` in `listeners`, or its `Listener`
+/// has no ingress address yet: the `Listener`s are created for the StatefulSet listener
+/// volumes and their addresses are only written by the listener-operator afterwards, so
+/// both lag behind the first reconcile runs.
 ///
 /// This _only_ supports accessing namenodes, since journalnodes are considered internal,
 /// and datanodes are registered dynamically with the namenodes.
-pub(crate) async fn namenode_listener_refs(
-    client: &stackable_operator::client::Client,
+pub(crate) fn namenode_listener_refs(
     namenode_podrefs: Vec<HdfsPodRef>,
-) -> Result<Vec<HdfsPodRef>, Error> {
-    try_join_all(namenode_podrefs.into_iter().map(|pod_ref| async {
-        let listener_name = format!("{}-{}", *LISTENER_VOLUME_NAME, pod_ref.pod_name);
-        let listener_ref = || {
-            ObjectRef::<listener::v1alpha1::Listener>::new(&listener_name)
-                .within(pod_ref.namespace.as_ref())
-        };
-        let pod_obj_ref =
-            || ObjectRef::<Pod>::new(&pod_ref.pod_name).within(pod_ref.namespace.as_ref());
-        let listener = client
-            .get::<listener::v1alpha1::Listener>(&listener_name, pod_ref.namespace.as_ref())
-            .await
-            .context(GetPodListenerSnafu {
-                listener: listener_ref(),
-                pod: pod_obj_ref(),
-            })?;
-        let listener_address = listener
-            .status
-            .and_then(|s| s.ingress_addresses?.into_iter().next())
-            .context(PodListenerHasNoAddressSnafu {
-                listener: listener_ref(),
-                pod: pod_obj_ref(),
-            })?;
-        Ok(HdfsPodRef {
-            fqdn_override: Some(listener_address.address),
-            ports: listener_address
-                .ports
-                .into_iter()
-                .map(|(port_name, port)| {
-                    let port = Port(u16::try_from(port).context(PortOutOfBoundsSnafu {
-                        port_name: &port_name,
-                        port,
-                    })?);
-                    Ok((port_name, port))
+    listeners: &[listener::v1alpha1::Listener],
+) -> Result<Option<Vec<HdfsPodRef>>, Error> {
+    namenode_podrefs
+        .into_iter()
+        .map(|pod_ref| {
+            let listener_name = pod_listener_name(&pod_ref.pod_name);
+            let Some(listener_address) = listeners
+                .iter()
+                .find(|listener| listener.metadata.name.as_deref() == Some(&*listener_name))
+                .and_then(|listener| {
+                    listener
+                        .status
+                        .as_ref()?
+                        .ingress_addresses
+                        .as_ref()?
+                        .first()
                 })
-                .collect::<Result<_, _>>()?,
-            ..pod_ref
+            else {
+                return Ok(None);
+            };
+
+            Ok(Some(HdfsPodRef {
+                fqdn_override: Some(listener_address.address.clone()),
+                ports: listener_address
+                    .ports
+                    .iter()
+                    .map(|(port_name, port)| {
+                        let port = Port(u16::try_from(*port).context(PortOutOfBoundsSnafu {
+                            port_name,
+                            port: *port,
+                        })?);
+                        Ok((port_name.clone(), port))
+                    })
+                    .collect::<Result<_, Error>>()?,
+                ..pod_ref
+            }))
         })
-    }))
-    .await
+        .collect()
 }
 
 /// Reference to a single `Pod` that is a component of a [`HdfsCluster`]
@@ -1298,6 +1301,130 @@ spec:
             Some("Node:kubernetes.io/zone;Pod:app.kubernetes.io/role-group".to_string()),
             rack_awareness
         );
+    }
+
+    fn namenode_pod_ref(pod_name: &str) -> HdfsPodRef {
+        HdfsPodRef {
+            namespace: NamespaceName::from_str("test").expect("valid namespace name"),
+            role_group_service_name: ServiceName::from_str("hdfs-namenode-default")
+                .expect("valid service name"),
+            pod_name: pod_name.to_owned(),
+            fqdn_override: None,
+            ports: HashMap::from([("rpc".to_string(), Port(8020))]),
+        }
+    }
+
+    fn namenode_listener(name: &str, ingress: Option<(&str, i32)>) -> listener::v1alpha1::Listener {
+        let mut listener =
+            listener::v1alpha1::Listener::new(name, listener::v1alpha1::ListenerSpec::default());
+        listener.status = Some(listener::v1alpha1::ListenerStatus {
+            service_name: None,
+            ingress_addresses: ingress.map(|(address, port)| {
+                vec![listener::v1alpha1::ListenerIngress {
+                    address: address.to_owned(),
+                    address_type: listener::v1alpha1::AddressType::Hostname,
+                    ports: BTreeMap::from([("rpc".to_string(), port)]),
+                }]
+            }),
+            node_ports: None,
+        });
+        listener
+    }
+
+    #[test]
+    fn namenode_listener_refs_with_ready_listeners() {
+        let pod_refs = vec![
+            namenode_pod_ref("hdfs-namenode-default-0"),
+            namenode_pod_ref("hdfs-namenode-default-1"),
+        ];
+        let listeners = vec![
+            namenode_listener(
+                "listener-hdfs-namenode-default-0",
+                Some(("namenode-0.example.org", 31000)),
+            ),
+            namenode_listener(
+                "listener-hdfs-namenode-default-1",
+                Some(("namenode-1.example.org", 31001)),
+            ),
+        ];
+
+        let listener_refs = namenode_listener_refs(pod_refs, &listeners)
+            .expect("the listener ports should be valid")
+            .expect("all listeners should have an address");
+
+        assert_eq!(listener_refs.len(), 2);
+        assert_eq!(
+            listener_refs[0].fqdn_override.as_deref(),
+            Some("namenode-0.example.org")
+        );
+        assert_eq!(listener_refs[0].ports.get("rpc"), Some(&Port(31000)));
+        assert_eq!(
+            listener_refs[1].fqdn_override.as_deref(),
+            Some("namenode-1.example.org")
+        );
+        assert_eq!(listener_refs[1].ports.get("rpc"), Some(&Port(31001)));
+    }
+
+    #[test]
+    fn namenode_listener_refs_with_missing_listener() {
+        let pod_refs = vec![
+            namenode_pod_ref("hdfs-namenode-default-0"),
+            namenode_pod_ref("hdfs-namenode-default-1"),
+        ];
+        let listeners = vec![namenode_listener(
+            "listener-hdfs-namenode-default-0",
+            Some(("namenode-0.example.org", 31000)),
+        )];
+
+        let listener_refs = namenode_listener_refs(pod_refs, &listeners)
+            .expect("the listener ports should be valid");
+
+        assert!(listener_refs.is_none());
+    }
+
+    #[test]
+    fn namenode_listener_refs_with_addressless_listener() {
+        let pod_refs = vec![namenode_pod_ref("hdfs-namenode-default-0")];
+        let listeners = vec![namenode_listener("listener-hdfs-namenode-default-0", None)];
+
+        let listener_refs = namenode_listener_refs(pod_refs, &listeners)
+            .expect("the listener ports should be valid");
+
+        assert!(listener_refs.is_none());
+    }
+
+    #[test]
+    fn namenode_listener_refs_with_out_of_bounds_port() {
+        let pod_refs = vec![namenode_pod_ref("hdfs-namenode-default-0")];
+        let listeners = vec![namenode_listener(
+            "listener-hdfs-namenode-default-0",
+            Some(("namenode-0.example.org", 100_000)),
+        )];
+
+        let result = namenode_listener_refs(pod_refs, &listeners);
+
+        assert!(matches!(result, Err(Error::PortOutOfBounds { .. })));
+    }
+
+    #[test]
+    fn namenode_listener_name_matching() {
+        assert!(is_namenode_listener(
+            "listener-hdfs-namenode-default-0",
+            "hdfs"
+        ));
+        assert!(!is_namenode_listener(
+            "listener-hdfs-datanode-default-0",
+            "hdfs"
+        ));
+        assert!(!is_namenode_listener(
+            "listener-other-namenode-default-0",
+            "hdfs"
+        ));
+        assert!(!is_namenode_listener(
+            "listener-hdfs2-namenode-default-0",
+            "hdfs"
+        ));
+        assert!(!is_namenode_listener("unrelated", "hdfs"));
     }
 
     impl RoundtripTestData for v1alpha1::HdfsClusterSpec {

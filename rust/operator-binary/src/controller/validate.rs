@@ -76,6 +76,13 @@ pub fn validate_cluster(
     image_repository: &str,
     dereferenced_objects: DereferencedObjects,
 ) -> Result<ValidatedCluster, Error> {
+    // Destructured without `..`, so adding a field to [`DereferencedObjects`] fails to
+    // compile here instead of silently never being validated.
+    let DereferencedObjects {
+        hdfs_opa_config,
+        namenode_listeners,
+    } = dereferenced_objects;
+
     let image: product_image_selection::ResolvedProductImage = hdfs
         .spec
         .image
@@ -138,9 +145,10 @@ pub fn validate_cluster(
         namespace,
         uid,
         image,
-        ValidatedClusterConfig::resolve(hdfs, dereferenced_objects.hdfs_opa_config),
+        ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,
         role_configs,
+        namenode_listeners,
         status,
     ))
 }

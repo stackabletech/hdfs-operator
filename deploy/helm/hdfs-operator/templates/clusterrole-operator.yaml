@@ -97,14 +97,16 @@ rules:
     verbs:
       - create
       - patch
-  # Read listener addresses to build the discovery ConfigMap for downstream clients.
-  # Listeners are managed by the listener-operator; this operator only reads them.
+  # The namenode Listeners are created by the listener-operator for the namenode listener
+  # volumes. List: their addresses go into the discovery ConfigMap for downstream clients.
+  # Watch: a reconciliation must re-trigger once the listener-operator writes the addresses.
   - apiGroups:
       - listeners.stackable.tech
     resources:
       - listeners
     verbs:
-      - get
+      - list
+      - watch
   # Watch HdfsClusters for reconciliation
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech

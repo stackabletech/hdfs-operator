@@ -30,6 +30,7 @@ pub fn validate_cluster(hdfs: &v1alpha1::HdfsCluster) -> ValidatedCluster {
         "oci.example.org",
         crate::controller::dereference::DereferencedObjects {
             hdfs_opa_config: None,
+            namenode_listeners: vec![],
         },
     )
     .expect("cluster spec should be valid")
