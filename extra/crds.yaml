@@ -6,7 +6,6 @@ metadata:
 spec:
   group: hdfs.stackable.tech
   names:
-    categories: []
     kind: HdfsCluster
     plural: hdfsclusters
     shortNames:
@@ -14,8 +13,7 @@ spec:
     singular: hdfscluster
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: An HDFS cluster stacklet. This resource is managed by the Stackable operator for Apache Hadoop HDFS.

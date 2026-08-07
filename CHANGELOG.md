@@ -10,12 +10,18 @@ All notable changes to this project will be documented in this file.
   assembles all relevant Kubernetes resources before anything is applied ([#801]).
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#806]).
+- All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#814]).
 
-- Bump stackable-operator to 0.114.0 ([#810]).
+### Fixed
+
+- Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
+  which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
+  See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#814]).
 
 [#801]: https://github.com/stackabletech/hdfs-operator/pull/801
 [#806]: https://github.com/stackabletech/hdfs-operator/pull/806
 [#810]: https://github.com/stackabletech/hdfs-operator/pull/810
+[#814]: https://github.com/stackabletech/hdfs-operator/pull/814
 
 ## [26.7.0] - 2026-07-21
 
