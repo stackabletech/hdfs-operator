@@ -54,8 +54,8 @@ pub struct Applied;
 /// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during
 /// upgrades. The discovery `ConfigMap` is not part of this set: it can only be built once
 /// every namenode `Listener` has an ingress address, so the reconcile step builds and
-/// applies it separately (via [`apply::apply_discovery_config_map`], outside the
-/// `ClusterResources` tracking).
+/// applies it separately, outside the `ClusterResources` orphan tracking (see
+/// [`apply::apply_discovery_config_map`] for why it must stay untracked).
 ///
 /// `T` is a marker that indicates if these resources are only [`Prepared`] or already [`Applied`].
 /// The marker is useful e.g. to ensure that the cluster status is updated based on the applied

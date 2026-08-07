@@ -211,9 +211,17 @@ impl<'a> Applier<'a> {
 
 /// Applies the discovery `ConfigMap` directly, outside the [`ClusterResources`] tracking.
 ///
-/// The discovery CM is linked to the cluster lifecycle via ownerreference. Therefore, it must
-/// not be added to the "orphaned" cluster resources: it is applied after
-/// [`Applier::apply`], whose orphan deletion must never see it.
+/// The CM must stay untracked because it is not emitted on every reconcile run: the namenode
+/// `Listener`s are per-pod, so whenever a namenode is scaled up (or a `Listener` briefly has
+/// no ingress address), [`crate::crd::namenode_listener_refs`] returns `None` and the CM is
+/// skipped for that run. A *tracked* CM would be deleted as an orphan by
+/// [`ClusterResources::delete_orphaned_resources`] in every such window and re-created once
+/// the addresses are back -- churn for every client watching the discovery CM. Untracked, the
+/// existing CM simply stays in place until it can be rebuilt.
+///
+/// This deliberately differs from Hive and Druid, which do track their discovery CMs: their
+/// skip window only opens when a role `Listener` is deleted and re-created, whereas HDFS
+/// would hit it on every namenode scale-up.
 pub async fn apply_discovery_config_map(client: &Client, discovery_cm: &ConfigMap) -> Result<()> {
     client
         .apply_patch(FIELD_MANAGER_SCOPE, discovery_cm, discovery_cm)
