@@ -74,7 +74,11 @@ pub(crate) fn build_rolegroup_statefulset(
                 .service_account_name()
                 .to_string(),
         )
-        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
+        .security_context(
+            PodSecurityContextBuilder::with_stackable_defaults()
+                .fs_group(1000)
+                .build(),
+        );
 
     // Adds all containers and volumes to the pod builder
     // We must use the selector labels ("rolegroup_selector_labels") and not the recommended labels
