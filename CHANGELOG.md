@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
   assembles all relevant Kubernetes resources before anything is applied ([#801]).
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#806]).
+- Bump stackable-operator to 0.114.0 ([#810]).
+- The reconciler now applies resources and derives the cluster status in discrete
+  apply and update_status steps ([#811]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#814]).
 
 ### Fixed
@@ -20,6 +23,8 @@ All notable changes to this project will be documented in this file.
 
 [#801]: https://github.com/stackabletech/hdfs-operator/pull/801
 [#806]: https://github.com/stackabletech/hdfs-operator/pull/806
+[#810]: https://github.com/stackabletech/hdfs-operator/pull/810
+[#811]: https://github.com/stackabletech/hdfs-operator/pull/811
 [#814]: https://github.com/stackabletech/hdfs-operator/pull/814
 
 ## [26.7.0] - 2026-07-21

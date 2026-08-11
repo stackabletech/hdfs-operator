@@ -1,7 +1,8 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::{collections::BTreeMap, marker::PhantomData, str::FromStr};
 
 use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
+    crd::listener,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service, ServiceAccount},
@@ -35,24 +36,37 @@ use crate::{
     hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
 };
 
+pub mod apply;
 pub mod build;
 pub mod dereference;
+pub mod update_status;
 pub mod validate;
+
+/// Marker for prepared Kubernetes resources which are not applied yet.
+pub struct Prepared;
+
+/// Marker for applied Kubernetes resources.
+pub struct Applied;
 
 /// Every Kubernetes resource produced by the build step.
 ///
 /// The resources are flat, unordered collections. The reconcile step re-groups the
 /// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during
-/// upgrades. The discovery `ConfigMap` is not part of this set: it depends on a live
-/// Kubernetes client (to resolve listener addresses) and is therefore built and applied
-/// separately in the reconcile step.
-pub struct KubernetesResources {
+/// upgrades. The discovery `ConfigMap` is part of `config_maps` whenever it can be built or
+/// re-emitted; it is only absent before its first successful build (see
+/// [`build::resource::discovery::build_discovery_config_map`]).
+///
+/// `T` is a marker that indicates if these resources are only [`Prepared`] or already [`Applied`].
+/// The marker is useful e.g. to ensure that the cluster status is updated based on the applied
+/// resources.
+pub struct KubernetesResources<T> {
     pub services: Vec<Service>,
     pub config_maps: Vec<ConfigMap>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
     pub stateful_sets: Vec<StatefulSet>,
     pub service_accounts: Vec<ServiceAccount>,
     pub role_bindings: Vec<RoleBinding>,
+    pub status: PhantomData<T>,
 }
 
 /// The [`RoleGroupConfig`] specialised for HDFS: the validated config is the
@@ -84,6 +98,12 @@ pub struct ValidatedCluster {
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
     pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+    /// The namenode pod `Listener`s as currently stored in the cluster (see
+    /// [`crate::controller::dereference::DereferencedObjects::namenode_listeners`]).
+    pub namenode_listeners: Vec<listener::v1alpha1::Listener>,
+    /// The discovery `ConfigMap` as currently stored in the cluster (see
+    /// [`crate::controller::dereference::DereferencedObjects::discovery_config_map`]).
+    pub discovery_config_map: Option<ConfigMap>,
     /// The validated view of the cluster's current status, resolved once during
     /// validation.
     pub status: ValidatedClusterStatus,
@@ -99,6 +119,8 @@ impl ValidatedCluster {
         cluster_config: ValidatedClusterConfig,
         role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
         role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+        namenode_listeners: Vec<listener::v1alpha1::Listener>,
+        discovery_config_map: Option<ConfigMap>,
         status: ValidatedClusterStatus,
     ) -> Self {
         // `app_version_label_value` is constructed to be a valid label value, so it is also a valid
@@ -122,6 +144,8 @@ impl ValidatedCluster {
             cluster_config,
             role_groups,
             role_configs,
+            namenode_listeners,
+            discovery_config_map,
             status,
         }
     }

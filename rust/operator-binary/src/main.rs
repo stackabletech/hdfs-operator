@@ -13,6 +13,7 @@ use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
     client,
+    crd::listener::v1alpha1::Listener,
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -37,7 +38,7 @@ use tracing::info_span;
 use tracing_futures::Instrument;
 
 use crate::{
-    crd::{HdfsCluster, HdfsClusterVersion, v1alpha1},
+    crd::{HdfsCluster, HdfsClusterVersion, is_namenode_listener, v1alpha1},
     webhooks::conversion::create_webhook_server,
 };
 
@@ -149,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::HdfsCluster>>(&client),
                 watcher::Config::default(),
             );
-            let config_map_store = hdfs_controller.store();
+            let hdfs_cluster_store = hdfs_controller.store();
             let hdfs_controller = hdfs_controller
                 .owns(
                     watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
@@ -166,11 +167,25 @@ async fn main() -> anyhow::Result<()> {
                 .watches(
                     watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                     watcher::Config::default(),
-                    move |config_map| {
-                        config_map_store
+                    {
+                        let hdfs_cluster_store = hdfs_cluster_store.clone();
+                        move |config_map| {
+                            hdfs_cluster_store
+                                .state()
+                                .into_iter()
+                                .filter(move |hdfs| references_config_map(hdfs, &config_map))
+                                .map(|hdfs| reflector::ObjectRef::from_obj(&*hdfs))
+                        }
+                    },
+                )
+                .watches(
+                    watch_namespace.get_api::<DeserializeGuard<Listener>>(&client),
+                    watcher::Config::default(),
+                    move |listener| {
+                        hdfs_cluster_store
                             .state()
                             .into_iter()
-                            .filter(move |hdfs| references_config_map(hdfs, &config_map))
+                            .filter(move |hdfs| references_listener(hdfs, &listener))
                             .map(|hdfs| reflector::ObjectRef::from_obj(&*hdfs))
                     },
                 )
@@ -237,6 +252,20 @@ fn references_config_map(
             }
             None => false,
         }
+}
+
+/// Whether `listener` belongs to a namenode pod of `hdfs`. Only those `Listener`s feed the
+/// discovery ConfigMap, so only they need to re-trigger a reconciliation.
+fn references_listener(
+    hdfs: &DeserializeGuard<v1alpha1::HdfsCluster>,
+    listener: &DeserializeGuard<Listener>,
+) -> bool {
+    let Ok(hdfs) = &hdfs.0 else {
+        return false;
+    };
+
+    hdfs.metadata.namespace == listener.namespace()
+        && is_namenode_listener(&listener.name_any(), &hdfs.name_any())
 }
 
 #[cfg(test)]
