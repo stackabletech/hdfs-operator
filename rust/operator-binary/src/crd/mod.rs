@@ -551,6 +551,15 @@ fn pod_listener_name(pod_name: &str) -> String {
 /// This mirrors [`pod_listener_name`] applied to the namenode pod names built by
 /// [`crate::controller::build::pod_refs`]:
 /// `<listener volume>-<cluster>-namenode-<role group>-<replica>`.
+///
+/// Note: this is a preliminary check to limit the number of listeners that are
+/// fetched which *can* result in over-fetching e.g. if the cluster name ends
+/// in "-namenode". The actual check, though, is an exact match in
+/// namenode_listener_refs. The only case that exact matching can't catch is
+/// when two clusters derive identical names (e.g. "c" + role group
+/// "namenode-x" vs. "c-namenode" + role group "x") but this would cause
+/// collisions with e.g. StatefulSets and Services, too, and so would not
+/// go unnoticed.
 pub(crate) fn is_namenode_listener(listener_name: &str, cluster_name: &str) -> bool {
     listener_name.starts_with(&format!(
         "{listener_volume}-{cluster_name}-{role}-",
