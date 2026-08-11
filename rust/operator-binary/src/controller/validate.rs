@@ -81,6 +81,7 @@ pub fn validate_cluster(
     let DereferencedObjects {
         hdfs_opa_config,
         namenode_listeners,
+        discovery_config_map,
     } = dereferenced_objects;
 
     let image: product_image_selection::ResolvedProductImage = hdfs
@@ -149,6 +150,7 @@ pub fn validate_cluster(
         role_groups,
         role_configs,
         namenode_listeners,
+        discovery_config_map,
         status,
     ))
 }

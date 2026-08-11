@@ -31,6 +31,7 @@ pub fn validate_cluster(hdfs: &v1alpha1::HdfsCluster) -> ValidatedCluster {
         crate::controller::dereference::DereferencedObjects {
             hdfs_opa_config: None,
             namenode_listeners: vec![],
+            discovery_config_map: None,
         },
     )
     .expect("cluster spec should be valid")
@@ -73,4 +74,27 @@ pub fn datanode_config<'a>(
     anynode_config(validated_cluster, &HdfsNodeRole::Data, role_group_name)
         .as_datanode()
         .expect("should be a DataNode")
+}
+
+/// A namenode pod `Listener` with a single ingress address, shaped as the dereference step
+/// fetches it from the cluster. `name` must follow the `listener-<pod name>` convention
+/// (see `crate::crd::pod_listener_name`) for `namenode_listener_refs` to find it.
+pub fn namenode_listener(
+    name: &str,
+    address: &str,
+    port: i32,
+) -> stackable_operator::crd::listener::v1alpha1::Listener {
+    use stackable_operator::crd::listener::v1alpha1 as listener;
+
+    let mut namenode_listener = listener::Listener::new(name, listener::ListenerSpec::default());
+    namenode_listener.status = Some(listener::ListenerStatus {
+        service_name: None,
+        ingress_addresses: Some(vec![listener::ListenerIngress {
+            address: address.to_owned(),
+            address_type: listener::AddressType::Hostname,
+            ports: std::collections::BTreeMap::from([("rpc".to_string(), port)]),
+        }]),
+        node_ports: None,
+    });
+    namenode_listener
 }

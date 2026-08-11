@@ -66,6 +66,9 @@ pub enum Error {
         role: HdfsNodeRole,
         role_group: RoleGroupName,
     },
+
+    #[snafu(display("failed to build the discovery ConfigMap"))]
+    DiscoveryConfigMap { source: resource::discovery::Error },
 }
 
 /// Builds every Kubernetes resource for the given validated cluster.
@@ -76,9 +79,10 @@ pub enum Error {
 /// cluster domain used to build Kerberos principals), not a live client.
 ///
 /// The resources are returned as flat, unordered collections. The reconcile step re-groups the
-/// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during upgrades. The
-/// discovery `ConfigMap` is deliberately not built here: it needs a live client to resolve
-/// listener addresses and is therefore handled in the reconcile step.
+/// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during upgrades.
+/// The discovery `ConfigMap` is included when it can be built or re-emitted (see
+/// [`resource::discovery::build_discovery_config_map`]); it is only absent before its first
+/// successful build.
 pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
@@ -134,6 +138,16 @@ pub fn build(
         if let Some(pdb) = resource::pdb::build_pdb(cluster, role) {
             pod_disruption_budgets.push(pdb);
         }
+    }
+
+    // The discovery ConfigMap is skipped only before its first successful build (no namenode
+    // Listener addresses yet, nothing stored to re-emit); afterwards a stored ConfigMap is
+    // re-emitted unchanged whenever it cannot be rebuilt, so it stays tracked.
+    if let Some(discovery_config_map) =
+        resource::discovery::build_discovery_config_map(cluster, cluster_info)
+            .context(DiscoveryConfigMapSnafu)?
+    {
+        config_maps.push(discovery_config_map);
     }
 
     Ok(KubernetesResources {
@@ -369,7 +383,10 @@ mod tests {
     use stackable_operator::kube::Resource;
 
     use super::build;
-    use crate::controller::build::properties::test_support::{cluster_info, validated_cluster};
+    use crate::{
+        controller::build::properties::test_support::{cluster_info, validated_cluster},
+        test_support::namenode_listener,
+    };
 
     /// The sorted `metadata.name`s of a resource collection.
     fn sorted_names(resources: &[impl Resource]) -> Vec<String> {
@@ -429,6 +446,32 @@ mod tests {
             ["hdfs-serviceaccount"]
         );
         assert_eq!(sorted_names(&resources.role_bindings), ["hdfs-rolebinding"]);
+    }
+
+    /// With every namenode Listener carrying an ingress address, the build step emits the
+    /// discovery ConfigMap (named after the cluster) alongside the role-group ConfigMaps, so
+    /// the apply step tracks it like any other resource. Without ready Listeners it is
+    /// skipped — `build_produces_expected_resource_names` covers that side.
+    #[test]
+    fn build_includes_the_discovery_config_map_when_listeners_are_ready() {
+        let mut cluster = validated_cluster();
+        cluster.namenode_listeners = vec![namenode_listener(
+            "listener-hdfs-namenode-default-0",
+            "namenode-0.example.org",
+            31000,
+        )];
+
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
+
+        assert_eq!(
+            sorted_names(&resources.config_maps),
+            [
+                "hdfs",
+                "hdfs-datanode-default",
+                "hdfs-journalnode-default",
+                "hdfs-namenode-default",
+            ]
+        );
     }
 
     /// Every StatefulSet's (immutable) `serviceName` must reference a headless Service that the

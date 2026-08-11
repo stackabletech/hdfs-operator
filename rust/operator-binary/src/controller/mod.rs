@@ -52,10 +52,9 @@ pub struct Applied;
 ///
 /// The resources are flat, unordered collections. The reconcile step re-groups the
 /// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during
-/// upgrades. The discovery `ConfigMap` is not part of this set: it can only be built once
-/// every namenode `Listener` has an ingress address, so the reconcile step builds and
-/// applies it separately, outside the `ClusterResources` orphan tracking (see
-/// [`apply::apply_discovery_config_map`] for why it must stay untracked).
+/// upgrades. The discovery `ConfigMap` is part of `config_maps` whenever it can be built or
+/// re-emitted; it is only absent before its first successful build (see
+/// [`build::resource::discovery::build_discovery_config_map`]).
 ///
 /// `T` is a marker that indicates if these resources are only [`Prepared`] or already [`Applied`].
 /// The marker is useful e.g. to ensure that the cluster status is updated based on the applied
@@ -102,6 +101,9 @@ pub struct ValidatedCluster {
     /// The namenode pod `Listener`s as currently stored in the cluster (see
     /// [`crate::controller::dereference::DereferencedObjects::namenode_listeners`]).
     pub namenode_listeners: Vec<listener::v1alpha1::Listener>,
+    /// The discovery `ConfigMap` as currently stored in the cluster (see
+    /// [`crate::controller::dereference::DereferencedObjects::discovery_config_map`]).
+    pub discovery_config_map: Option<ConfigMap>,
     /// The validated view of the cluster's current status, resolved once during
     /// validation.
     pub status: ValidatedClusterStatus,
@@ -118,6 +120,7 @@ impl ValidatedCluster {
         role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
         role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
         namenode_listeners: Vec<listener::v1alpha1::Listener>,
+        discovery_config_map: Option<ConfigMap>,
         status: ValidatedClusterStatus,
     ) -> Self {
         // `app_version_label_value` is constructed to be a valid label value, so it is also a valid
@@ -142,6 +145,7 @@ impl ValidatedCluster {
             role_groups,
             role_configs,
             namenode_listeners,
+            discovery_config_map,
             status,
         }
     }

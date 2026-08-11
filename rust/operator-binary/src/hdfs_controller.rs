@@ -18,11 +18,8 @@ use strum::{EnumDiscriminants, IntoEnumIterator, IntoStaticStr};
 
 use crate::{
     controller::{
-        apply::{self, Applier, apply_discovery_config_map},
-        build::{
-            self,
-            resource::discovery::{self, build_discovery_config_map},
-        },
+        apply::{self, Applier},
+        build::{self},
         update_status::{self, update_status},
     },
     crd::{HdfsNodeRole, v1alpha1},
@@ -51,19 +48,10 @@ pub enum Error {
         source: crate::controller::validate::Error,
     },
 
-    #[snafu(display("failed to apply the discovery ConfigMap"))]
-    ApplyDiscoveryConfigMap { source: apply::Error },
-
     #[snafu(display("failed to build Kubernetes resources"))]
     BuildResources {
         source: crate::controller::build::Error,
     },
-
-    #[snafu(display("cannot collect discovery configuration"))]
-    CollectDiscoveryConfig { source: crate::crd::Error },
-
-    #[snafu(display("cannot build config discovery config map"))]
-    BuildDiscoveryConfigMap { source: discovery::Error },
 
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
@@ -115,8 +103,8 @@ pub async fn reconcile_hdfs(
     )
     .context(ValidateSnafu)?;
 
-    // Build every (non-discovery) Kubernetes resource up front. This step needs no client: all
-    // external references are already dereferenced and validated. The ServiceAccount name is
+    // Build every Kubernetes resource up front. This step needs no client: all external
+    // references are already dereferenced and validated. The ServiceAccount name is
     // deterministic on the built RBAC object, so the build does not depend on the applied one.
     let resources = build::build(&validated_cluster, &client.kubernetes_cluster_info)
         .context(BuildResourcesSnafu)?;
@@ -149,36 +137,6 @@ pub async fn reconcile_hdfs(
     .apply(resources, validated_cluster.status.upgrade_state)
     .await
     .context(ApplyResourcesSnafu)?;
-
-    // The discovery ConfigMap is built from the namenode Listeners' ingress addresses, which
-    // only the listener-operator writes. Around the first reconcile runs the Listeners are
-    // missing or still address-less; the ConfigMap is skipped then instead of failing the
-    // whole run -- the Listener watch triggers a new run once the addresses are set. An
-    // already existing discovery ConfigMap is left untouched in that window (it is applied
-    // outside the ClusterResources orphan tracking).
-    match crate::crd::namenode_listener_refs(
-        build::pod_refs(&validated_cluster, &HdfsNodeRole::Name),
-        &validated_cluster.namenode_listeners,
-    )
-    .context(CollectDiscoveryConfigSnafu)?
-    {
-        Some(namenode_listener_refs) => {
-            let discovery_cm = build_discovery_config_map(
-                &validated_cluster,
-                &client.kubernetes_cluster_info,
-                &namenode_listener_refs,
-            )
-            .context(BuildDiscoveryConfigMapSnafu)?;
-
-            apply_discovery_config_map(client, &discovery_cm)
-                .await
-                .context(ApplyDiscoveryConfigMapSnafu)?;
-        }
-        None => tracing::info!(
-            "not all namenode Listeners have an ingress address yet, skipping the discovery \
-             ConfigMap"
-        ),
-    }
 
     update_status(client, hdfs, &validated_cluster, &applied)
         .await
