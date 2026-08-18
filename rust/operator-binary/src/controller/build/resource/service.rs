@@ -12,7 +12,10 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{ValidatedCluster, build},
+    controller::{
+        ValidatedCluster,
+        build::{self, recommended_labels_for_role_group_resources},
+    },
     crd::HdfsNodeRole,
 };
 
@@ -34,7 +37,10 @@ pub(crate) fn rolegroup_headless_service(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
 ) -> Result<Service> {
-    tracing::info!("Setting up headless Service for role {role} role group {role_group_name}");
+    tracing::info!(
+        "Setting up headless Service for role {role} role group {role_group_name}",
+        role = role.as_ref()
+    );
 
     let service_spec = ServiceSpec {
         // Internal communication does not need to be exposed
@@ -66,7 +72,7 @@ pub(crate) fn rolegroup_headless_service(
             cluster
                 .governing_service_name(role, role_group_name)
                 .to_string(),
-            cluster.recommended_labels(role, role_group_name),
+            recommended_labels_for_role_group_resources(cluster, role, role_group_name),
         )
         .build(),
         spec: Some(service_spec),
@@ -79,7 +85,10 @@ pub(crate) fn rolegroup_metrics_service(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
 ) -> Result<Service> {
-    tracing::info!("Setting up metrics Service for role {role} role group {role_group_name}");
+    tracing::info!(
+        "Setting up metrics Service for role {role} role group {role_group_name}",
+        role = role.as_ref()
+    );
 
     let service_spec = ServiceSpec {
         // Internal communication does not need to be exposed
@@ -112,7 +121,7 @@ pub(crate) fn rolegroup_metrics_service(
                 .role_group_resource_names(role, role_group_name)
                 .metrics_service_name()
                 .to_string(),
-            cluster.recommended_labels(role, role_group_name),
+            recommended_labels_for_role_group_resources(cluster, role, role_group_name),
         )
         .with_labels(prometheus_labels(&Scraping::Enabled))
         .with_annotations(prometheus_annotations(
@@ -168,7 +177,7 @@ mod tests {
                     "labels": {
                         "app.kubernetes.io/component": "namenode",
                         "app.kubernetes.io/instance": "hdfs",
-                        "app.kubernetes.io/managed-by": "hdfs.stackable.tech_hdfs-operator-hdfs-controller",
+                        "app.kubernetes.io/managed-by": "hdfs.stackable.tech_hdfs-controller",
                         "app.kubernetes.io/name": "hdfs",
                         "app.kubernetes.io/role-group": "default",
                         "app.kubernetes.io/version": app_version_label("3.4.0"),

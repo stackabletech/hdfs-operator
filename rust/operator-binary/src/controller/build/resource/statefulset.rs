@@ -48,7 +48,10 @@ pub(crate) fn build_rolegroup_statefulset(
     role_group_name: &RoleGroupName,
     rolegroup_config: &ValidatedRoleGroupConfig,
 ) -> Result<StatefulSet, Error> {
-    tracing::info!("Setting up StatefulSet for role {role} role group {role_group_name}");
+    tracing::info!(
+        "Setting up StatefulSet for role {role} role group {role_group_name}",
+        role = (**role).clone()
+    );
 
     let image = &validated.image;
     let merged_config = &rolegroup_config.config;

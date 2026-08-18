@@ -78,7 +78,7 @@ pub fn construct_role_specific_jvm_args(
             "-Djava.security.properties={config_dir}/{}",
             ConfigFileName::Security
         ),
-        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{hdfs_role}.yaml")
+        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={metrics_port}:/stackable/jmx/{hdfs_role}.yaml", hdfs_role = hdfs_role.as_ref())
     ]);
     if kerberos_enabled {
         jvm_args.push(format!(

@@ -50,7 +50,10 @@ pub fn build_rolegroup_config_map(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
 ) -> Result<ConfigMap> {
-    tracing::info!("Setting up ConfigMap for role {role} role group {role_group_name}");
+    tracing::info!(
+        "Setting up ConfigMap for role {role} role group {role_group_name}",
+        role = (**role).clone()
+    );
 
     let metadata = build::rolegroup_metadata(cluster, role, role_group_name);
 

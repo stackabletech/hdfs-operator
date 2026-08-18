@@ -23,6 +23,7 @@ use stackable_operator::{
         fragment::{Fragment, ValidationError},
         merge::Merge,
     },
+    constant,
     crd::listener,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -31,14 +32,14 @@ use stackable_operator::{
         self,
         spec::{ContainerLogConfig, Logging},
     },
-    role_utils::{self, GenericRoleConfig, Role},
+    role_utils::{self, GenericRoleConfig},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
         config_overrides::KeyValueConfigOverrides,
-        role_utils::JavaCommonConfig,
+        role_utils::{JavaCommonConfig, Role},
         types::{
             common::Port,
             kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, ServiceName},
@@ -455,12 +456,14 @@ impl AnyNodeConfig {
     }
 }
 
+constant!(JOURNALNODE_ROLE_NAME: RoleName = "journalnode");
+constant!(NAMENODE_ROLE_NAME: RoleName = "namenode");
+constant!(DATANODE_ROLE_NAME: RoleName = "datanode");
+
 #[derive(
     Clone,
     Copy,
     Debug,
-    Deserialize,
-    Display,
     EnumIter,
     EnumString,
     IntoStaticStr,
@@ -470,29 +473,25 @@ impl AnyNodeConfig {
     Ord,
     PartialEq,
     PartialOrd,
-    Serialize,
 )]
 pub enum HdfsNodeRole {
     #[serde(rename = "journalnode")]
-    #[strum(serialize = "journalnode")]
     Journal,
     #[serde(rename = "namenode")]
-    #[strum(serialize = "namenode")]
     Name,
     #[serde(rename = "datanode")]
-    #[strum(serialize = "datanode")]
     Data,
 }
 
-impl From<HdfsNodeRole> for RoleName {
-    fn from(value: HdfsNodeRole) -> Self {
-        RoleName::from_str(&value.to_string()).expect("a HdfsNodeRole is a valid role name")
-    }
-}
+impl Deref for HdfsNodeRole {
+    type Target = RoleName;
 
-impl From<&HdfsNodeRole> for RoleName {
-    fn from(value: &HdfsNodeRole) -> Self {
-        RoleName::from_str(&value.to_string()).expect("a HdfsNodeRole is a valid role name")
+    fn deref(&self) -> &Self::Target {
+        match self {
+            HdfsNodeRole::Journal => &JOURNALNODE_ROLE_NAME,
+            HdfsNodeRole::Name => &NAMENODE_ROLE_NAME,
+            HdfsNodeRole::Data => &DATANODE_ROLE_NAME,
+        }
     }
 }
 
@@ -564,7 +563,7 @@ pub(crate) fn is_namenode_listener(listener_name: &str, cluster_name: &str) -> b
     listener_name.starts_with(&format!(
         "{listener_volume}-{cluster_name}-{role}-",
         listener_volume = *LISTENER_VOLUME_NAME,
-        role = HdfsNodeRole::Name,
+        role = *HdfsNodeRole::Name,
     ))
 }
 

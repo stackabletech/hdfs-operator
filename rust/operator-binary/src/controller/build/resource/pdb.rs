@@ -2,11 +2,11 @@ use std::cmp::{max, min};
 
 use stackable_operator::{
     k8s_openapi::api::policy::v1::PodDisruptionBudget,
-    v2::{builder::pdb::pod_disruption_budget_builder_with_role, types::operator::RoleName},
+    v2::builder::pdb::pod_disruption_budget_builder_with_role,
 };
 
 use crate::{
-    controller::{ValidatedCluster, build, controller_name, operator_name, product_name},
+    controller::{CONTROLLER_NAME, OPERATOR_NAME, PRODUCT_NAME, ValidatedCluster, build},
     crd::HdfsNodeRole,
 };
 
@@ -25,13 +25,12 @@ pub fn build_pdb(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Option<PodD
         ),
         HdfsNodeRole::Journal => max_unavailable_journal_nodes(),
     });
-    let role_name: RoleName = role.into();
     let pdb = pod_disruption_budget_builder_with_role(
         cluster,
-        &product_name(),
-        &role_name,
-        &operator_name(),
-        &controller_name(),
+        &PRODUCT_NAME,
+        role,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
     )
     .with_max_unavailable(max_unavailable)
     .build();
