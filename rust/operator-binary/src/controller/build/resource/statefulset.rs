@@ -50,7 +50,7 @@ pub(crate) fn build_rolegroup_statefulset(
 ) -> Result<StatefulSet, Error> {
     tracing::info!(
         "Setting up StatefulSet for role {role} role group {role_group_name}",
-        role = (**role).clone()
+        role = role.as_ref()
     );
 
     let image = &validated.image;
