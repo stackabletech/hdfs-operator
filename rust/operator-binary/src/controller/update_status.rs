@@ -11,7 +11,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    OPERATOR_NAME,
+    HDFS_OPERATOR_NAME,
     controller::{ValidatedCluster, apply::AppliedResources},
     crd::{HdfsClusterStatus, UpgradeState, v1alpha1},
 };
@@ -78,7 +78,7 @@ pub async fn update_status(
     };
 
     client
-        .apply_patch_status(OPERATOR_NAME, hdfs, &status)
+        .apply_patch_status(HDFS_OPERATOR_NAME, hdfs, &status)
         .await
         .context(ApplyStatusSnafu)?;
 

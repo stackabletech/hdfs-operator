@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, marker::PhantomData, str::FromStr};
 
 use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
+    constant,
     crd::listener,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -10,30 +11,28 @@ use stackable_operator::{
         rbac::v1::RoleBinding,
     },
     kube::{Resource, api::ObjectMeta},
-    kvp::Labels,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        kvp::label::recommended_labels,
         role_group_utils::ResourceNames,
         role_utils::{self, RoleGroupConfig},
         types::{
             kubernetes::{ConfigMapName, NamespaceName, ServiceName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
-                RoleGroupName, RoleName,
+                RoleGroupName,
             },
         },
     },
 };
 
 use crate::{
-    OPERATOR_NAME,
+    HDFS_OPERATOR_NAME,
     controller::build::opa::HdfsOpaConfig,
     crd::{
         AnyNodeConfig, HdfsNodeRole, UpgradeState, constants::APP_NAME,
         security::AuthenticationConfig, v1alpha1,
     },
-    hdfs_controller::RESOURCE_MANAGER_HDFS_CONTROLLER,
+    hdfs_controller::HDFS_CONTROLLER_NAME,
 };
 
 pub mod apply;
@@ -41,6 +40,10 @@ pub mod build;
 pub mod dereference;
 pub mod update_status;
 pub mod validate;
+
+constant!(PRODUCT_NAME: ProductName = APP_NAME);
+constant!(OPERATOR_NAME: OperatorName = HDFS_OPERATOR_NAME);
+constant!(CONTROLLER_NAME: ControllerName = HDFS_CONTROLLER_NAME);
 
 /// Marker for prepared Kubernetes resources which are not applied yet.
 pub struct Prepared;
@@ -176,7 +179,7 @@ impl ValidatedCluster {
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
-            product_name: product_name(),
+            product_name: PRODUCT_NAME.clone(),
         }
     }
 
@@ -188,44 +191,9 @@ impl ValidatedCluster {
     ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: role.into(),
+            role_name: (**role).clone(),
             role_group_name: role_group_name.clone(),
         }
-    }
-
-    /// Recommended labels for a resource that is not tied to a concrete [`HdfsNodeRole`], using a free-form role/role-group label value.
-    pub fn recommended_labels_for(
-        &self,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
-    }
-
-    fn recommended_labels_with(
-        &self,
-        product_version: &ProductVersion,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        recommended_labels(
-            self,
-            &product_name(),
-            product_version,
-            &operator_name(),
-            &controller_name(),
-            role_name,
-            role_group_name,
-        )
-    }
-
-    /// Recommended labels for a role-group resource.
-    pub fn recommended_labels(
-        &self,
-        role: &HdfsNodeRole,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        self.recommended_labels_for(&role.into(), role_group_name)
     }
 
     /// The name of a role group's governing headless Service.
@@ -250,22 +218,6 @@ impl ValidatedCluster {
         )
         .expect("a qualified role group name is a valid Service name")
     }
-}
-
-/// The product name (`hdfs`) as a type-safe label value.
-pub(crate) fn product_name() -> ProductName {
-    ProductName::from_str(APP_NAME).expect("'hdfs' is a valid product name")
-}
-
-/// The operator name as a type-safe label value.
-pub(crate) fn operator_name() -> OperatorName {
-    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
-}
-
-/// The controller name as a type-safe label value.
-pub(crate) fn controller_name() -> ControllerName {
-    ControllerName::from_str(RESOURCE_MANAGER_HDFS_CONTROLLER)
-        .expect("the controller name is a valid label value")
 }
 
 /// Lets [`ValidatedCluster`] be used as the owner [`Resource`]. The kind/group/version/plural
@@ -384,22 +336,4 @@ impl ValidatedClusterConfig {
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
-}
-
-#[cfg(test)]
-mod tests {
-    use stackable_operator::v2::types::operator::RoleName;
-    use strum::IntoEnumIterator;
-
-    use crate::crd::HdfsNodeRole;
-
-    /// Locks the invariant behind the `expect` in the `From<HdfsNodeRole> for RoleName` impls:
-    /// every `HdfsNodeRole` variant (present and future) must serialise to a valid `RoleName`.
-    #[test]
-    fn every_hdfs_node_role_serialises_to_a_valid_role_name() {
-        for role in HdfsNodeRole::iter() {
-            let _: RoleName = (&role).into();
-            let _: RoleName = role.into();
-        }
-    }
 }

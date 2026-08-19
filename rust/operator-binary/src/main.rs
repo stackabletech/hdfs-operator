@@ -53,8 +53,9 @@ mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-pub const OPERATOR_NAME: &str = "hdfs.stackable.tech";
-pub const HDFS_FULL_CONTROLLER_NAME: &str = concatcp!(HDFS_CONTROLLER_NAME, '.', OPERATOR_NAME);
+pub const HDFS_OPERATOR_NAME: &str = "hdfs.stackable.tech";
+pub const HDFS_FULL_CONTROLLER_NAME: &str =
+    concatcp!(HDFS_CONTROLLER_NAME, '.', HDFS_OPERATOR_NAME);
 
 #[derive(clap::Parser)]
 #[clap(about, author)]
@@ -101,9 +102,11 @@ async fn main() -> anyhow::Result<()> {
                     .run(sigterm_watcher.handle())
                     .map(anyhow::Ok);
 
-            let client =
-                client::initialize_operator(Some(OPERATOR_NAME.to_string()), &common.cluster_info)
-                    .await?;
+            let client = client::initialize_operator(
+                Some(HDFS_OPERATOR_NAME.to_string()),
+                &common.cluster_info,
+            )
+            .await?;
 
             let webhook_server = create_webhook_server(
                 &operator_environment,

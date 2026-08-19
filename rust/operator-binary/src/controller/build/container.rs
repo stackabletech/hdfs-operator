@@ -637,6 +637,7 @@ impl ContainerConfig {
                 {create_vector_shutdown_file_command}
                 "#,
                     hadoop_home = Self::HADOOP_HOME,
+                    role = role.as_ref(),
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
                     create_vector_shutdown_file_command =
@@ -1500,10 +1501,22 @@ impl ContainerVolumeDirs {
 impl From<HdfsNodeRole> for ContainerVolumeDirs {
     fn from(role: HdfsNodeRole) -> Self {
         ContainerVolumeDirs {
-            final_config_dir: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR),
-            config_mount: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR_MOUNT),
+            final_config_dir: format!(
+                "{base}/{role}",
+                base = Self::NODE_BASE_CONFIG_DIR,
+                role = role.as_ref()
+            ),
+            config_mount: format!(
+                "{base}/{role}",
+                base = Self::NODE_BASE_CONFIG_DIR_MOUNT,
+                role = role.as_ref()
+            ),
             config_mount_name: ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME.to_string(),
-            log_mount: format!("{base}/{role}", base = Self::NODE_BASE_LOG_DIR_MOUNT),
+            log_mount: format!(
+                "{base}/{role}",
+                base = Self::NODE_BASE_LOG_DIR_MOUNT,
+                role = role.as_ref()
+            ),
             log_mount_name: ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME.to_string(),
         }
     }
@@ -1512,10 +1525,22 @@ impl From<HdfsNodeRole> for ContainerVolumeDirs {
 impl From<&HdfsNodeRole> for ContainerVolumeDirs {
     fn from(role: &HdfsNodeRole) -> Self {
         ContainerVolumeDirs {
-            final_config_dir: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR),
-            config_mount: format!("{base}/{role}", base = Self::NODE_BASE_CONFIG_DIR_MOUNT),
+            final_config_dir: format!(
+                "{base}/{role}",
+                base = Self::NODE_BASE_CONFIG_DIR,
+                role = role.as_ref()
+            ),
+            config_mount: format!(
+                "{base}/{role}",
+                base = Self::NODE_BASE_CONFIG_DIR_MOUNT,
+                role = role.as_ref()
+            ),
             config_mount_name: ContainerConfig::HDFS_CONFIG_VOLUME_MOUNT_NAME.to_string(),
-            log_mount: format!("{base}/{role}", base = Self::NODE_BASE_LOG_DIR_MOUNT),
+            log_mount: format!(
+                "{base}/{role}",
+                base = Self::NODE_BASE_LOG_DIR_MOUNT,
+                role = role.as_ref()
+            ),
             log_mount_name: ContainerConfig::HDFS_LOG_VOLUME_MOUNT_NAME.to_string(),
         }
     }

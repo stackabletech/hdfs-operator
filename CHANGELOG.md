@@ -14,6 +14,15 @@ All notable changes to this project will be documented in this file.
 - The reconciler now applies resources and derives the cluster status in discrete
   apply and update_status steps ([#811]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#814]).
+- Bump stackable-operator to 0.116.0 ([#819]).
+- `envOverrides` names are now validated by the shared `EnvVarName` type when the HdfsCluster
+  resource is deserialized, rather than during reconciliation ([#819]).
+- The recommended labels are now built with the typed operator-rs `v2` label functions ([#819]).
+  The value of the `app.kubernetes.io/managed-by` label changes from `hdfs.stackable.tech_hdfs-operator-hdfs-controller`
+  to `hdfs.stackable.tech_hdfs-controller` on all managed resources, and the RBAC ServiceAccount and RoleBinding
+  are no longer created with the placeholder `app.kubernetes.io/component: none` and
+  `app.kubernetes.io/role-group: none` labels.
+  StatefulSet selectors and volume claim templates are unchanged, so upgrading is non-breaking.
 
 ### Fixed
 
@@ -26,6 +35,7 @@ All notable changes to this project will be documented in this file.
 [#810]: https://github.com/stackabletech/hdfs-operator/pull/810
 [#811]: https://github.com/stackabletech/hdfs-operator/pull/811
 [#814]: https://github.com/stackabletech/hdfs-operator/pull/814
+[#819]: https://github.com/stackabletech/hdfs-operator/pull/819
 
 ## [26.7.0] - 2026-07-21
 

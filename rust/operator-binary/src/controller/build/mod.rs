@@ -7,21 +7,26 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
         builder::meta::ownerreference_from_resource,
-        types::{common::Port, operator::RoleGroupName},
+        kvp::label,
+        types::{
+            common::Port,
+            operator::{RoleGroupName, RoleName},
+        },
     },
 };
 
 use crate::{
     controller::{
-        KubernetesResources, Prepared, ValidatedCluster,
+        CONTROLLER_NAME, KubernetesResources, OPERATOR_NAME, PRODUCT_NAME, Prepared,
+        ValidatedCluster,
         build::resource::rbac::{build_role_binding, build_service_account},
     },
     crd::{
         HdfsNodeRole, HdfsPodRef,
         constants::{
-            APP_NAME, DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_HTTP_PORT,
-            DEFAULT_DATA_NODE_HTTPS_PORT, DEFAULT_DATA_NODE_IPC_PORT,
-            DEFAULT_DATA_NODE_METRICS_PORT, DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
+            DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_HTTPS_PORT,
+            DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
+            DEFAULT_DATA_NODE_NATIVE_METRICS_HTTP_PORT,
             DEFAULT_DATA_NODE_NATIVE_METRICS_HTTPS_PORT, DEFAULT_JOURNAL_NODE_HTTP_PORT,
             DEFAULT_JOURNAL_NODE_HTTPS_PORT, DEFAULT_JOURNAL_NODE_METRICS_PORT,
             DEFAULT_JOURNAL_NODE_NATIVE_METRICS_HTTP_PORT,
@@ -46,21 +51,21 @@ pub mod resource;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to build Service for role {role} role group {role_group}"))]
+    #[snafu(display("failed to build Service for role {role} role group {role_group}", role = role.as_ref()))]
     Service {
         source: resource::service::Error,
         role: HdfsNodeRole,
         role_group: RoleGroupName,
     },
 
-    #[snafu(display("failed to build ConfigMap for role {role} role group {role_group}"))]
+    #[snafu(display("failed to build ConfigMap for role {role} role group {role_group}", role = role.as_ref()))]
     ConfigMap {
         source: resource::config_map::Error,
         role: HdfsNodeRole,
         role_group: RoleGroupName,
     },
 
-    #[snafu(display("failed to build StatefulSet for role {role} role group {role_group}"))]
+    #[snafu(display("failed to build StatefulSet for role {role} role group {role_group}", role = role.as_ref()))]
     StatefulSet {
         source: resource::statefulset::Error,
         role: HdfsNodeRole,
@@ -230,7 +235,7 @@ pub(crate) fn rolegroup_metadata(
             .role_group_resource_names(role, role_group_name)
             .qualified_role_group_name()
             .to_string(),
-        cluster.recommended_labels(role, role_group_name),
+        recommended_labels_for_role_group_resources(cluster, role, role_group_name),
     )
 }
 
@@ -241,10 +246,8 @@ pub(crate) fn rolegroup_selector_labels(
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
 ) -> Result<Labels, LabelError> {
-    let role_name = role.to_string();
-    let mut group_labels =
-        Labels::role_group_selector(cluster, APP_NAME, &role_name, role_group_name.as_ref())?;
-    group_labels.parse_insert(("role", &role_name))?;
+    let mut group_labels = role_group_selector(cluster, role, role_group_name);
+    group_labels.parse_insert(("role", role.as_ref()))?;
     group_labels.parse_insert(("group", role_group_name.as_ref()))?;
 
     Ok(group_labels)
@@ -376,6 +379,55 @@ fn role_data_ports(role: &HdfsNodeRole, https_enabled: bool) -> Vec<(String, Por
             },
         ],
     }
+}
+
+pub(crate) fn recommended_labels_for_cluster_resources(cluster: &ValidatedCluster) -> Labels {
+    label::recommended_labels_for_cluster_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+    )
+}
+
+pub(crate) fn recommended_labels_for_role_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+) -> Labels {
+    label::recommended_labels_for_role_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+    )
+}
+
+pub(crate) fn recommended_labels_for_role_group_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::recommended_labels_for_role_group_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+        role_group_name,
+    )
+}
+
+/// Selector labels matching the pods of a role group.
+pub(crate) fn role_group_selector(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::role_group_selector(&cluster.name, &PRODUCT_NAME, role_name, role_group_name)
 }
 
 #[cfg(test)]

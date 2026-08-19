@@ -1,13 +1,11 @@
 //! Build the discovery `ConfigMap` for the HdfsCluster.
 
-use std::str::FromStr;
-
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::operator::{ClusterName, RoleGroupName},
+    v2::types::operator::ClusterName,
 };
 
 use crate::{
@@ -19,14 +17,13 @@ use crate::{
             properties::{
                 ConfigFileName, core_site::CoreSiteConfigBuilder, hdfs_site::HdfsSiteConfigBuilder,
             },
+            recommended_labels_for_role_resources,
         },
     },
     crd::{HdfsNodeRole, HdfsPodRef, namenode_listener_refs},
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;
-
-stackable_operator::constant!(DISCOVERY_ROLE_GROUP: RoleGroupName = "discovery");
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -126,13 +123,12 @@ pub(crate) fn discovery_config_map_name(cluster_name: &ClusterName) -> String {
 
 /// Shared metadata for both the freshly built and the re-emitted discovery ConfigMap, so
 /// that the two are identical apart from their contents. The ConfigMap carries the standard
-/// recommended labels (required by `ClusterResources::add`), attributed to the namenode role
-/// and a `discovery` role group.
+/// recommended labels (required by `ClusterResources::add`), attributed to the namenode role.
 fn discovery_config_map_meta(cluster: &ValidatedCluster) -> ObjectMetaBuilder {
     object_meta(
         cluster,
         discovery_config_map_name(&cluster.name),
-        cluster.recommended_labels(&HdfsNodeRole::Name, &DISCOVERY_ROLE_GROUP),
+        recommended_labels_for_role_resources(cluster, &HdfsNodeRole::Name),
     )
 }
 

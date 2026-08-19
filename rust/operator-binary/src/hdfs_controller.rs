@@ -26,7 +26,6 @@ use crate::{
     event::{build_invalid_replica_message, publish_warning_event},
 };
 
-pub const RESOURCE_MANAGER_HDFS_CONTROLLER: &str = "hdfs-operator-hdfs-controller";
 pub const HDFS_CONTROLLER_NAME: &str = "hdfs-controller";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]

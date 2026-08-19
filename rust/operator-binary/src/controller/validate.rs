@@ -6,11 +6,10 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
     config::{fragment::FromFragment, merge::Merge},
-    role_utils::{GenericRoleConfig, Role},
+    role_utils::GenericRoleConfig,
     v2::{
-        builder::pod::container::{EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
-        role_utils::{JavaCommonConfig, with_validated_config},
+        role_utils::{JavaCommonConfig, Role, with_validated_config},
         types::operator::RoleGroupName,
     },
 };
@@ -49,11 +48,6 @@ pub enum Error {
     #[snafu(display("failed to get the cluster uid"))]
     GetClusterUid {
         source: stackable_operator::v2::controller_utils::Error,
-    },
-
-    #[snafu(display("invalid environment variable override name"))]
-    ParseEnvVarName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
     #[snafu(display("invalid role group name {role_group:?}"))]
@@ -190,21 +184,13 @@ where
             >(role_group, role, &default_config)
             .context(ValidateRoleGroupConfigSnafu)?;
 
-            let mut env_overrides = EnvVarSet::new();
-            for (env_var_name, env_var_value) in validated.config.env_overrides {
-                env_overrides = env_overrides.with_value(
-                    &EnvVarName::from_str(&env_var_name).context(ParseEnvVarNameSnafu)?,
-                    env_var_value,
-                );
-            }
-
             // Re-wrap the per-role validated config into the role-agnostic
             // `AnyNodeConfig`; the merged overrides carry over unchanged.
             let validated = ValidatedRoleGroupConfig {
                 replicas: validated.replicas,
                 config: wrap(validated.config.config),
                 config_overrides: validated.config.config_overrides,
-                env_overrides,
+                env_overrides: validated.config.env_overrides.into(),
                 cli_overrides: validated.config.cli_overrides,
                 pod_overrides: validated.config.pod_overrides,
                 product_specific_common_config: validated.config.product_specific_common_config,
