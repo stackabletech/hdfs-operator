@@ -52,7 +52,7 @@ pub fn build_rolegroup_config_map(
 ) -> Result<ConfigMap> {
     tracing::info!(
         "Setting up ConfigMap for role {role} role group {role_group_name}",
-        role = (**role).clone()
+        role = role.as_ref()
     );
 
     let metadata = build::rolegroup_metadata(cluster, role, role_group_name);
