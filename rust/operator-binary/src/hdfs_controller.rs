@@ -364,4 +364,30 @@ spec: {}
 
         assert_eq!(action, Action::await_change());
     }
+
+    #[test]
+    fn reconcile_proceeds_for_live_cluster() {
+        let hdfs = serde_yaml::from_str(
+            r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+spec:
+  image:
+    productVersion: 3.5.0
+  clusterConfig:
+    zookeeperConfigMapName: simple-znode
+"#,
+        )
+        .expect("valid HbaseCluster YAML");
+
+        let result = reconcile(hdfs);
+
+        assert!(
+            matches!(result, Err(Error::Dereference { .. })),
+            "a live cluster must reach the API but when dereferencing against the unreachable test server: {result:?}"
+        );
+    }
 }
