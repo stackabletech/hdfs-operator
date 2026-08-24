@@ -29,6 +29,8 @@ All notable changes to this project will be documented in this file.
 - Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
   which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
   See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#814]).
+- The operator now watches all resources that it creates and early-exits the reconcile action when the
+  cluster is marked for deletion ([#821]).
 
 [#801]: https://github.com/stackabletech/hdfs-operator/pull/801
 [#806]: https://github.com/stackabletech/hdfs-operator/pull/806
@@ -36,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#811]: https://github.com/stackabletech/hdfs-operator/pull/811
 [#814]: https://github.com/stackabletech/hdfs-operator/pull/814
 [#819]: https://github.com/stackabletech/hdfs-operator/pull/819
+[#821]: https://github.com/stackabletech/hdfs-operator/pull/821
 
 ## [26.7.0] - 2026-07-21
 
