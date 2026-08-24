@@ -1,0 +1,60 @@
+# Every resource the operator applies carries an ownerReference and a `.owns()` watch
+# (main.rs); deleting it must trigger a reconcile of the HdfsCluster, which re-applies
+# it. This step checks that chain — the ClusterRole's `watch` verbs plus the `.owns()`
+# routing — and lives here because this test already cycles the pods. The `.watches()`
+# registrations (referenced-but-unowned ConfigMaps and Listeners) can't be tested by
+# deletion: the operator never recreates what it didn't apply. The namenode Listeners
+# are also not owned resources — they are created by the listener-operator from the
+# StatefulSet's listener volume claims, not applied by this operator.
+#
+# Recreation is proven by UID change: mere existence could pass without any deletion.
+# TestStep commands run exactly once (no kuttl retry loop), so the polling stays quiet.
+#
+# The ConfigMap deleted here is the discovery one, named after the cluster.
+# Deliberately skipped: the role-group ConfigMaps
+# (hdfs-{namenode,datanode,journalnode}-default) — `.owns(ConfigMap)` is already
+# exercised via the discovery ConfigMap, and deleting ConfigMaps mounted into running
+# pods would disturb them.
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+metadata:
+  name: delete-owned-resources
+timeout: 300
+commands:
+  - script: |
+      set -eu
+
+      delete_and_await_recreation() {
+        kind=$1
+        name=$2
+        old_uid=$(kubectl get -n "$NAMESPACE" "$kind" "$name" -o jsonpath='{.metadata.uid}')
+        kubectl delete -n "$NAMESPACE" "$kind" "$name" --wait=false
+        # Recreation is a single reconcile away, so this normally succeeds on the
+        # first iteration; 30s is a generous upper bound well below the step timeout.
+        for _ in $(seq 1 30); do
+          new_uid=$(kubectl get -n "$NAMESPACE" "$kind" "$name" -o jsonpath='{.metadata.uid}' 2>/dev/null || true)
+          if [ -n "$new_uid" ] && [ "$new_uid" != "$old_uid" ]; then
+            return 0
+          fi
+          sleep 1
+        done
+        echo "$kind/$name was not recreated (old uid: $old_uid, current: '${new_uid:-}')" >&2
+        return 1
+      }
+
+      delete_and_await_recreation serviceaccount       hdfs-serviceaccount
+      delete_and_await_recreation rolebinding          hdfs-rolebinding
+      delete_and_await_recreation poddisruptionbudget  hdfs-namenode
+      delete_and_await_recreation poddisruptionbudget  hdfs-datanode
+      delete_and_await_recreation poddisruptionbudget  hdfs-journalnode
+      delete_and_await_recreation configmap            hdfs
+      delete_and_await_recreation service              hdfs-namenode-default
+      delete_and_await_recreation service              hdfs-namenode-default-metrics
+      delete_and_await_recreation service              hdfs-datanode-default
+      delete_and_await_recreation service              hdfs-datanode-default-metrics
+      delete_and_await_recreation service              hdfs-journalnode-default
+      delete_and_await_recreation service              hdfs-journalnode-default-metrics
+      delete_and_await_recreation statefulset          hdfs-namenode-default
+      delete_and_await_recreation statefulset          hdfs-datanode-default
+      delete_and_await_recreation statefulset          hdfs-journalnode-default
