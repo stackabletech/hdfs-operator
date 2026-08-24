@@ -3186,6 +3186,7 @@ dependencies = [
  "clap",
  "const_format",
  "futures 0.3.34",
+ "http",
  "indoc",
  "rstest",
  "serde",

@@ -28,7 +28,8 @@ rules:
       - list
       - patch
       - watch
-  # serviceaccounts are applied via SSA and tracked for orphan cleanup.
+  # serviceaccounts are applied via SSA and tracked for orphan cleanup
+  # and watched by the controller.
   - apiGroups:
       - ""
     resources:
@@ -39,7 +40,9 @@ rules:
       - get
       - list
       - patch
-  # rolebindings are applied via SSA and tracked for orphan cleanup.
+      - watch
+  # rolebindings are applied via SSA and tracked for orphan cleanup
+  # and watched by the controller.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -50,6 +53,7 @@ rules:
       - get
       - list
       - patch
+      - watch
   # statefulsets are applied via SSA, tracked for orphan cleanup.
   - apiGroups:
       - apps
@@ -62,7 +66,8 @@ rules:
       - list
       - patch
       - watch
-  # poddisruptionbudgets are applied via SSA and tracked for orphan cleanup.
+  # poddisruptionbudgets are applied via SSA and tracked for orphan cleanup
+  # and watched by the controller.
   - apiGroups:
       - policy
     resources:
@@ -73,6 +78,7 @@ rules:
       - get
       - list
       - patch
+      - watch
   # Required for maintaining the CRDs within the operator (including the conversion webhook info).
   # Also for the startup condition check before the controller can run.
   - apiGroups:

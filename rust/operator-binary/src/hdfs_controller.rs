@@ -84,6 +84,10 @@ pub async fn reconcile_hdfs(
 ) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
 
+    if hdfs.meta().deletion_timestamp.is_some() {
+        return Ok(Action::await_change());
+    }
+
     let hdfs = hdfs
         .0
         .as_ref()
@@ -160,13 +164,25 @@ mod test {
     use std::str::FromStr;
 
     use stackable_operator::{
-        builder::pod::PodBuilder, commons::networking::DomainName, kube::api::ObjectMeta,
-        kvp::Labels, utils::cluster_info::KubernetesClusterInfo,
+        builder::pod::PodBuilder,
+        client::Client,
+        commons::networking::DomainName,
+        kube::{
+            Client as KubeClient, Config,
+            api::ObjectMeta,
+            runtime::{
+                controller::Action,
+                events::{Recorder, Reporter},
+            },
+        },
+        kvp::Labels,
+        utils::cluster_info::KubernetesClusterInfo,
         v2::types::operator::RoleGroupName,
     };
 
     use super::*;
     use crate::{
+        HDFS_FULL_CONTROLLER_NAME,
         controller::build::container::ContainerConfig,
         test_support::{deserialize_cluster, role_group_config, validate_cluster},
     };
@@ -260,5 +276,92 @@ spec:
                 .value,
             Some("group-value".to_string())
         );
+    }
+
+    /// A [`Ctx`] whose client points at a closed port. Any API call made through it fails the
+    /// reconciliation, so an `Ok` result proves the reconciler returned before touching the
+    /// Kubernetes API.
+    fn unreachable_ctx() -> Arc<Ctx> {
+        let config = Config::new(
+            "http://127.0.0.1:1"
+                .parse::<http::Uri>()
+                .expect("valid static URI"),
+        );
+        let kube_client = KubeClient::try_from(config).expect("client from static config");
+
+        Arc::new(Ctx {
+            client: Client::new(
+                kube_client.clone(),
+                None,
+                "default".to_owned(),
+                KubernetesClusterInfo {
+                    cluster_domain: DomainName::from_str("cluster.local")
+                        .expect("valid cluster domain"),
+                },
+            ),
+            operator_environment: OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_owned(),
+                operator_service_name: "hdfs-operator".to_owned(),
+                image_repository: "oci.stackable.tech/sdp".to_owned(),
+            },
+            event_recorder: Arc::new(Recorder::new(
+                kube_client,
+                Reporter {
+                    controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            )),
+        })
+    }
+
+    fn reconcile(hdfs: DeserializeGuard<v1alpha1::HdfsCluster>) -> Result<Action, Error> {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread tokio runtime")
+            .block_on(async { reconcile_hdfs(Arc::new(hdfs), unreachable_ctx()).await })
+    }
+
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster() {
+        let hdfs = serde_yaml::from_str(
+            r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  deletionTimestamp: "2026-08-14T12:00:00Z"
+spec:
+  image:
+    productVersion: 3.2.2
+"#,
+        )
+        .expect("valid cluster YAML");
+
+        let action = reconcile(hdfs).expect("a deleted cluster reconciles without any API call");
+
+        assert_eq!(action, Action::await_change());
+    }
+
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster_with_invalid_spec() {
+        let hdfs = serde_yaml::from_str(
+            r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  deletionTimestamp: "2026-08-14T12:00:00Z"
+spec: {}
+"#,
+        )
+        .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
+
+        let action =
+            reconcile(hdfs).expect("a deleted cluster reconciles even when its spec is invalid");
+
+        assert_eq!(action, Action::await_change());
     }
 }
