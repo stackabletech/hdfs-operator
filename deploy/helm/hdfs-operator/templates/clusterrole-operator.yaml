@@ -13,27 +13,16 @@ rules:
       - nodes/proxy
     verbs:
       - get
-  # Manage core workload resources created per HdfsCluster.
-  # All resources are applied via Server-Side Apply (create + patch) and tracked for
-  # orphan cleanup (list + delete).
+  # Manage core workload resources created per HdfsCluster (the ServiceAccount
+  # provides workload pod identity). All resources are applied via Server-Side Apply
+  # (create + patch), tracked for orphan cleanup (list + delete) and watched by the
+  # controller.
   - apiGroups:
       - ""
     resources:
       - configmaps
-      - services
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - watch
-  # serviceaccounts are applied via SSA and tracked for orphan cleanup
-  # and watched by the controller.
-  - apiGroups:
-      - ""
-    resources:
       - serviceaccounts
+      - services
     verbs:
       - create
       - delete

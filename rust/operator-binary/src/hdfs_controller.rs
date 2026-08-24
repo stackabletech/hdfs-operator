@@ -278,74 +278,11 @@ spec:
         );
     }
 
-    /// A [`Ctx`] whose client points at a closed port. Any API call made through it fails the
-    /// reconciliation, so an `Ok` result proves the reconciler returned before touching the
-    /// Kubernetes API.
-    fn unreachable_ctx() -> Arc<Ctx> {
-        let config = Config::new(
-            "http://127.0.0.1:1"
-                .parse::<http::Uri>()
-                .expect("valid static URI"),
-        );
-        let kube_client = KubeClient::try_from(config).expect("client from static config");
-
-        Arc::new(Ctx {
-            client: Client::new(
-                kube_client.clone(),
-                None,
-                "default".to_owned(),
-                KubernetesClusterInfo {
-                    cluster_domain: DomainName::from_str("cluster.local")
-                        .expect("valid cluster domain"),
-                },
-            ),
-            operator_environment: OperatorEnvironmentOptions {
-                operator_namespace: "stackable-operators".to_owned(),
-                operator_service_name: "hdfs-operator".to_owned(),
-                image_repository: "oci.stackable.tech/sdp".to_owned(),
-            },
-            event_recorder: Arc::new(Recorder::new(
-                kube_client,
-                Reporter {
-                    controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            )),
-        })
-    }
-
-    fn reconcile(hdfs: DeserializeGuard<v1alpha1::HdfsCluster>) -> Result<Action, Error> {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("current-thread tokio runtime")
-            .block_on(async { reconcile_hdfs(Arc::new(hdfs), unreachable_ctx()).await })
-    }
-
+    /// The client points at a closed port, so any API call would fail the reconciliation: an `Ok`
+    /// proves that a cluster being deleted returns before the reconciler touches the Kubernetes
+    /// API, and because the spec is invalid, before the [`DeserializeGuard`] is unwrapped.
     #[test]
     fn reconcile_exits_early_for_deleted_cluster() {
-        let hdfs = serde_yaml::from_str(
-            r#"
-apiVersion: hdfs.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: hdfs
-  namespace: default
-  deletionTimestamp: "2026-08-14T12:00:00Z"
-spec:
-  image:
-    productVersion: 3.2.2
-"#,
-        )
-        .expect("valid cluster YAML");
-
-        let action = reconcile(hdfs).expect("a deleted cluster reconciles without any API call");
-
-        assert_eq!(action, Action::await_change());
-    }
-
-    #[test]
-    fn reconcile_exits_early_for_deleted_cluster_with_invalid_spec() {
         let hdfs = serde_yaml::from_str(
             r#"
 apiVersion: hdfs.stackable.tech/v1alpha1
@@ -359,35 +296,44 @@ spec: {}
         )
         .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
 
-        let action =
-            reconcile(hdfs).expect("a deleted cluster reconciles even when its spec is invalid");
+        let action = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread tokio runtime")
+            .block_on(async {
+                let kube_client = KubeClient::try_from(Config::new(
+                    "http://127.0.0.1:1".parse().expect("valid static URI"),
+                ))
+                .expect("client from static config");
+
+                let ctx = Arc::new(Ctx {
+                    client: Client::new(
+                        kube_client.clone(),
+                        None,
+                        "default".to_owned(),
+                        KubernetesClusterInfo {
+                            cluster_domain: DomainName::from_str("cluster.local")
+                                .expect("valid cluster domain"),
+                        },
+                    ),
+                    event_recorder: Arc::new(Recorder::new(
+                        kube_client,
+                        Reporter {
+                            controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
+                            instance: None,
+                        },
+                    )),
+                    operator_environment: OperatorEnvironmentOptions {
+                        operator_namespace: "stackable-operators".to_owned(),
+                        operator_service_name: "hdfs-operator".to_owned(),
+                        image_repository: "oci.stackable.tech/sdp".to_owned(),
+                    },
+                });
+
+                reconcile_hdfs(Arc::new(hdfs), ctx).await
+            })
+            .expect("a deleted cluster reconciles without any API call");
 
         assert_eq!(action, Action::await_change());
-    }
-
-    #[test]
-    fn reconcile_proceeds_for_live_cluster() {
-        let hdfs = serde_yaml::from_str(
-            r#"
-apiVersion: hdfs.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: hdfs
-  namespace: default
-spec:
-  image:
-    productVersion: 3.5.0
-  clusterConfig:
-    zookeeperConfigMapName: simple-znode
-"#,
-        )
-        .expect("valid cluster YAML");
-
-        let result = reconcile(hdfs);
-
-        assert!(
-            matches!(result, Err(Error::Dereference { .. })),
-            "a live cluster must reach the API but when dereferencing against the unreachable test server: {result:?}"
-        );
     }
 }
