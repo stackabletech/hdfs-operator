@@ -381,7 +381,7 @@ spec:
     zookeeperConfigMapName: simple-znode
 "#,
         )
-        .expect("valid HbaseCluster YAML");
+        .expect("valid cluster YAML");
 
         let result = reconcile(hdfs);
 
