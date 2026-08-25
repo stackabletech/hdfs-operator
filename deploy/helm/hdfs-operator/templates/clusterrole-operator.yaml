@@ -13,13 +13,15 @@ rules:
       - nodes/proxy
     verbs:
       - get
-  # Manage core workload resources created per HdfsCluster.
-  # All resources are applied via Server-Side Apply (create + patch) and tracked for
-  # orphan cleanup (list + delete).
+  # Manage core workload resources created per HdfsCluster (the ServiceAccount
+  # provides workload pod identity). All resources are applied via Server-Side Apply
+  # (create + patch), tracked for orphan cleanup (list + delete) and watched by the
+  # controller.
   - apiGroups:
       - ""
     resources:
       - configmaps
+      - serviceaccounts
       - services
     verbs:
       - create
@@ -28,18 +30,8 @@ rules:
       - list
       - patch
       - watch
-  # serviceaccounts are applied via SSA and tracked for orphan cleanup.
-  - apiGroups:
-      - ""
-    resources:
-      - serviceaccounts
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-  # rolebindings are applied via SSA and tracked for orphan cleanup.
+  # rolebindings are applied via SSA and tracked for orphan cleanup
+  # and watched by the controller.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -50,6 +42,7 @@ rules:
       - get
       - list
       - patch
+      - watch
   # statefulsets are applied via SSA, tracked for orphan cleanup.
   - apiGroups:
       - apps
@@ -62,7 +55,8 @@ rules:
       - list
       - patch
       - watch
-  # poddisruptionbudgets are applied via SSA and tracked for orphan cleanup.
+  # poddisruptionbudgets are applied via SSA and tracked for orphan cleanup
+  # and watched by the controller.
   - apiGroups:
       - policy
     resources:
@@ -73,6 +67,7 @@ rules:
       - get
       - list
       - patch
+      - watch
   # Required for maintaining the CRDs within the operator (including the conversion webhook info).
   # Also for the startup condition check before the controller can run.
   - apiGroups:

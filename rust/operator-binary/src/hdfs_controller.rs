@@ -84,6 +84,10 @@ pub async fn reconcile_hdfs(
 ) -> HdfsOperatorResult<Action> {
     tracing::info!("Starting reconcile");
 
+    if hdfs.meta().deletion_timestamp.is_some() {
+        return Ok(Action::await_change());
+    }
+
     let hdfs = hdfs
         .0
         .as_ref()
@@ -160,13 +164,25 @@ mod test {
     use std::str::FromStr;
 
     use stackable_operator::{
-        builder::pod::PodBuilder, commons::networking::DomainName, kube::api::ObjectMeta,
-        kvp::Labels, utils::cluster_info::KubernetesClusterInfo,
+        builder::pod::PodBuilder,
+        client::Client,
+        commons::networking::DomainName,
+        kube::{
+            Client as KubeClient, Config,
+            api::ObjectMeta,
+            runtime::{
+                controller::Action,
+                events::{Recorder, Reporter},
+            },
+        },
+        kvp::Labels,
+        utils::cluster_info::KubernetesClusterInfo,
         v2::types::operator::RoleGroupName,
     };
 
     use super::*;
     use crate::{
+        HDFS_FULL_CONTROLLER_NAME,
         controller::build::container::ContainerConfig,
         test_support::{deserialize_cluster, role_group_config, validate_cluster},
     };
@@ -260,5 +276,64 @@ spec:
                 .value,
             Some("group-value".to_string())
         );
+    }
+
+    /// The client points at a closed port, so any API call would fail the reconciliation: an `Ok`
+    /// proves that a cluster being deleted returns before the reconciler touches the Kubernetes
+    /// API, and because the spec is invalid, before the [`DeserializeGuard`] is unwrapped.
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster() {
+        let hdfs = serde_yaml::from_str(
+            r#"
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  deletionTimestamp: "2026-08-14T12:00:00Z"
+spec: {}
+"#,
+        )
+        .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
+
+        let action = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread tokio runtime")
+            .block_on(async {
+                let kube_client = KubeClient::try_from(Config::new(
+                    "http://127.0.0.1:1".parse().expect("valid static URI"),
+                ))
+                .expect("client from static config");
+
+                let ctx = Arc::new(Ctx {
+                    client: Client::new(
+                        kube_client.clone(),
+                        None,
+                        "default".to_owned(),
+                        KubernetesClusterInfo {
+                            cluster_domain: DomainName::from_str("cluster.local")
+                                .expect("valid cluster domain"),
+                        },
+                    ),
+                    event_recorder: Arc::new(Recorder::new(
+                        kube_client,
+                        Reporter {
+                            controller: HDFS_FULL_CONTROLLER_NAME.to_string(),
+                            instance: None,
+                        },
+                    )),
+                    operator_environment: OperatorEnvironmentOptions {
+                        operator_namespace: "stackable-operators".to_owned(),
+                        operator_service_name: "hdfs-operator".to_owned(),
+                        image_repository: "oci.stackable.tech/sdp".to_owned(),
+                    },
+                });
+
+                reconcile_hdfs(Arc::new(hdfs), ctx).await
+            })
+            .expect("a deleted cluster reconciles without any API call");
+
+        assert_eq!(action, Action::await_change());
     }
 }

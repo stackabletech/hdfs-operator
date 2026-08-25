@@ -17,7 +17,9 @@ use stackable_operator::{
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Service},
+        core::v1::{ConfigMap, Service, ServiceAccount},
+        policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
     },
     kube::{
         Api, CustomResourceExt, ResourceExt,
@@ -156,7 +158,15 @@ async fn main() -> anyhow::Result<()> {
             let hdfs_cluster_store = hdfs_controller.store();
             let hdfs_controller = hdfs_controller
                 .owns(
-                    watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<DeserializeGuard<PodDisruptionBudget>>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<DeserializeGuard<RoleBinding>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
@@ -164,7 +174,11 @@ async fn main() -> anyhow::Result<()> {
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<ServiceAccount>>(&client),
+                    watcher::Config::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                     watcher::Config::default(),
                 )
                 .watches(
