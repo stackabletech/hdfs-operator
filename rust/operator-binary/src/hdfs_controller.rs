@@ -10,7 +10,6 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, events::Recorder},
     },
-    kvp::LabelError,
     logging::controller::ReconcilerError,
     shared::time::Duration,
 };
@@ -54,9 +53,6 @@ pub enum Error {
 
     #[snafu(display("failed to create cluster event"))]
     FailedToCreateClusterEvent { source: crate::event::Error },
-
-    #[snafu(display("failed to build cluster resources label"))]
-    BuildClusterResourcesLabel { source: LabelError },
 
     #[snafu(display("HdfsCluster object is invalid"))]
     InvalidHdfsCluster {

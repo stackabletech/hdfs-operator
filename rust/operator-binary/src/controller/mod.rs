@@ -13,7 +13,7 @@ use stackable_operator::{
     kube::{Resource, api::ObjectMeta},
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        role_group_utils::ResourceNames,
+        role_group_utils::{QualifiedRoleGroupName, ResourceNames},
         role_utils::{self, RoleGroupConfig},
         types::{
             kubernetes::{ConfigMapName, NamespaceName, ServiceName, Uid},
@@ -211,6 +211,13 @@ impl ValidatedCluster {
         role: &HdfsNodeRole,
         role_group_name: &RoleGroupName,
     ) -> ServiceName {
+        const _: () = assert!(
+            QualifiedRoleGroupName::MAX_LENGTH <= ServiceName::MAX_LENGTH,
+            "The string `<qualified_role_group_name>` must not exceed the limit of Service names."
+        );
+        let _ = QualifiedRoleGroupName::IS_RFC_1035_LABEL_NAME;
+        let _ = QualifiedRoleGroupName::IS_VALID_LABEL_VALUE;
+
         ServiceName::from_str(
             self.role_group_resource_names(role, role_group_name)
                 .qualified_role_group_name()
@@ -336,4 +343,17 @@ impl ValidatedClusterConfig {
 #[derive(Clone, Debug)]
 pub struct ValidatedRoleConfig {
     pub pdb: stackable_operator::commons::pdb::PdbConfig,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *PRODUCT_NAME;
+        let _ = *OPERATOR_NAME;
+        let _ = *CONTROLLER_NAME;
+    }
 }
