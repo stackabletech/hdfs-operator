@@ -462,7 +462,10 @@ impl ContainerConfig {
             .args(self.args(cluster, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, resources.as_ref())?)
             .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels))
-            .expect("The mount paths are statically defined and there should be no duplicates.")
+            .expect(
+                "The mount paths are either statically defined or derived from the unique PVC \
+                 names, so there are no duplicates.",
+            )
             .add_container_ports(self.container_ports(cluster));
 
         if let Some(resources) = resources {
@@ -509,7 +512,10 @@ impl ContainerConfig {
             .args(self.args(cluster, cluster_info, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, None)?)
             .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels))
-            .expect("The mount paths are statically defined and there should be no duplicates.");
+            .expect(
+                "The mount paths are either statically defined or derived from the unique PVC \
+                 names, so there are no duplicates.",
+            );
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
