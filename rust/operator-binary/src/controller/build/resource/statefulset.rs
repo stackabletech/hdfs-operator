@@ -36,9 +36,6 @@ pub enum Error {
 
     #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown { source: graceful_shutdown::Error },
-
-    #[snafu(display("failed to build role-group volume claim templates from config"))]
-    BuildRoleGroupVolumeClaimTemplates { source: container::Error },
 }
 
 pub(crate) fn build_rolegroup_statefulset(
@@ -108,8 +105,7 @@ pub(crate) fn build_rolegroup_statefulset(
     pod_template.merge_from(rolegroup_config.pod_overrides.clone());
 
     // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
-    let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels)
-        .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
+    let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels);
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),
