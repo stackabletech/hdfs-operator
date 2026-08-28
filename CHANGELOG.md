@@ -23,7 +23,7 @@ All notable changes to this project will be documented in this file.
   are no longer created with the placeholder `app.kubernetes.io/component: none` and
   `app.kubernetes.io/role-group: none` labels.
   StatefulSet selectors and volume claim templates are unchanged, so upgrading is non-breaking.
-- Make operations infallible where appropriate ([#XXX]).
+- Make operations infallible where appropriate ([#824]).
 
 ### Fixed
 
@@ -40,7 +40,7 @@ All notable changes to this project will be documented in this file.
 [#814]: https://github.com/stackabletech/hdfs-operator/pull/814
 [#819]: https://github.com/stackabletech/hdfs-operator/pull/819
 [#821]: https://github.com/stackabletech/hdfs-operator/pull/821
-[#XXX]: https://github.com/stackabletech/hdfs-operator/pull/XXX
+[#824]: https://github.com/stackabletech/hdfs-operator/pull/824
 
 ## [26.7.0] - 2026-07-21
 
