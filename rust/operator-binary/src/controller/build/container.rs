@@ -286,7 +286,7 @@ impl ContainerConfig {
                                 .context(MissingSecretLifetimeSnafu)?,
                         )
                         .build()
-                        .expect("The annotations are built from a validated secret class and static scopes."),
+                        .expect("The annotation keys are static and annotation values cannot be invalid."),
                     )
                     .build(),
             )
@@ -304,7 +304,7 @@ impl ContainerConfig {
                         .with_kerberos_service_name(role.kerberos_service_name())
                         .with_kerberos_service_name("HTTP")
                         .build()
-                        .expect("The annotations are built from a validated secret class and static scopes."),
+                        .expect("The annotation keys are static and annotation values cannot be invalid."),
                     )
                     .build(),
             )
@@ -405,7 +405,7 @@ impl ContainerConfig {
                     labels,
                 )
                 .build_ephemeral()
-                .expect("The annotations are built from a validated listener class and validated labels.")
+                .expect("The annotation keys are static and annotation values cannot be invalid.")
                 .volume_claim_template
                 .expect("The listener volume source builder always sets a volume claim template.");
 
@@ -1043,7 +1043,7 @@ impl ContainerConfig {
                                 labels,
                             )
                             .build_ephemeral()
-                            .expect("The annotations are built from a validated listener class and validated labels."),
+                            .expect("The annotation keys are static and annotation values cannot be invalid."),
                         )
                         .build(),
                 );
