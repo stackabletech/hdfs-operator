@@ -2,9 +2,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "operator.fullname" . }}-clusterrole
+  name: {{ include "hdfs-operator.fullname" . }}-clusterrole
   labels:
-  {{- include "operator.labels" . | nindent 4 }}
+  {{- include "hdfs-operator.labels" . | nindent 4 }}
 rules:
   # For automatic cluster domain detection (reads kubelet config via the nodes/proxy API).
   - apiGroups:
@@ -104,18 +104,18 @@ rules:
       - watch
   # Watch HdfsClusters for reconciliation
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - {{ include "hdfs-operator.name" . }}.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters
+      - {{ include "hdfs-operator.name" . }}clusters
     verbs:
       - get
       - list
       - watch
   # Status subresource: updated at the end of every reconciliation.
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - {{ include "hdfs-operator.name" . }}.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters/status
+      - {{ include "hdfs-operator.name" . }}clusters/status
     verbs:
       - patch
   # Manage the hdfs-clusterrolebinding-nodes ClusterRoleBinding via Server-Side Apply.
@@ -126,7 +126,7 @@ rules:
     resources:
       - clusterrolebindings
     resourceNames:
-      - {{ include "operator.name" . }}-clusterrolebinding-nodes
+      - {{ include "hdfs-operator.name" . }}-clusterrolebinding-nodes
     verbs:
       - create
       - patch
@@ -144,5 +144,5 @@ rules:
     verbs:
       - bind
     resourceNames:
-      - {{ include "operator.name" . }}-clusterrole
-      - {{ include "operator.name" . }}-clusterrole-nodes
+      - {{ include "hdfs-operator.name" . }}-clusterrole
+      - {{ include "hdfs-operator.name" . }}-clusterrole-nodes
