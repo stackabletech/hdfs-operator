@@ -17,6 +17,10 @@ core-site.xml: |-
       <name>io.file.buffer.size</name>
       <value>131072</value>
     </property>
+    <property>
+      <name>ipc.client.connect.max.retries.on.timeouts</name>
+      <value>3</value>
+    </property>
   </configuration>
 format-namenodes.log4j.properties: |+
   log4j.rootLogger=INFO, CONSOLE, FILE

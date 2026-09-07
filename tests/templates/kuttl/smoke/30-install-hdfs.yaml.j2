@@ -25,6 +25,16 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   nameNodes:
+    configOverrides:
+      core-site.xml:
+        # After the chaos monkey (60-unleash-the-chaosmonkey.yaml.j2) force-deletes all pods,
+        # the format-namenodes probe of the other namenode can resolve its name to the stale
+        # pre-delete pod IP (DNS cache) and silently retry a black-hole TCP connect for
+        # 45 x 20s = 15 min by default, exceeding the chaos-monkey step's 10 min `kubectl wait`.
+        # zkfc is unaffected: graceful fencing and health monitoring override their retries via
+        # ha.failover-controller.graceful-fence.connection.retries and
+        # ha.health-monitor.rpc.connect.max.retries respectively.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     envOverrides:
       COMMON_VAR: role-value # overridden by role group below
       ROLE_VAR: role-value   # only defined here at role level
@@ -51,6 +61,11 @@ spec:
             - -Xms820m
             - -Xmx820m
   dataNodes:
+    configOverrides:
+      core-site.xml:
+        # See the identical nameNodes override: wait-for-namenodes runs the same haadmin
+        # probe against namenodes that may resolve to a stale pod IP after the chaos monkey.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     envOverrides:
       COMMON_VAR: role-value # overridden by role group below
       ROLE_VAR: role-value   # only defined here at role level
