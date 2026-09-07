@@ -196,6 +196,12 @@ impl ContainerConfig {
     const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the volumes or volume mounts cannot be added to the builders. Only call this
+    /// on builders whose volume names and mount paths are still distinct from the ones added
+    /// here.
     pub fn add_containers_and_volumes(
         pb: &mut PodBuilder,
         cluster: &ValidatedCluster,
@@ -394,6 +400,13 @@ impl ContainerConfig {
         Ok(())
     }
 
+    /// Returns the persistent volume claim templates for the given node role, including the
+    /// listener volume claim template for namenodes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a volume source cannot be built, which cannot happen because the annotation
+    /// keys are static and annotation values cannot be invalid.
     pub fn volume_claim_templates(
         merged_config: &AnyNodeConfig,
         labels: &Labels,
@@ -444,6 +457,10 @@ impl ContainerConfig {
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
+    ///
+    /// # Panics
+    ///
+    /// Panics if two of the volume mounts added here share a mount path but differ otherwise.
     fn main_container(
         &self,
         cluster: &ValidatedCluster,
@@ -495,6 +512,10 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
+    ///
+    /// # Panics
+    ///
+    /// Panics if two of the volume mounts added here share a mount path but differ otherwise.
     fn init_container(
         &self,
         cluster: &ValidatedCluster,
@@ -1031,6 +1052,11 @@ impl ContainerConfig {
     }
 
     /// Return the container volumes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a volume source cannot be built, which cannot happen because the annotation
+    /// keys are static and annotation values cannot be invalid.
     fn volumes(
         &self,
         merged_config: &AnyNodeConfig,
