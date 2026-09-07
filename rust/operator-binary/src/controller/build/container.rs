@@ -400,13 +400,6 @@ impl ContainerConfig {
         Ok(())
     }
 
-    /// Returns the persistent volume claim templates for the given node role, including the
-    /// listener volume claim template for namenodes.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a volume source cannot be built, which cannot happen because the annotation
-    /// keys are static and annotation values cannot be invalid.
     pub fn volume_claim_templates(
         merged_config: &AnyNodeConfig,
         labels: &Labels,
@@ -1052,11 +1045,6 @@ impl ContainerConfig {
     }
 
     /// Return the container volumes.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a volume source cannot be built, which cannot happen because the annotation
-    /// keys are static and annotation values cannot be invalid.
     fn volumes(
         &self,
         merged_config: &AnyNodeConfig,
