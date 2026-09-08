@@ -27,6 +27,11 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
+    #[snafu(display("failed to build ConfigMap"))]
+    BuildConfigMap {
+        source: stackable_operator::builder::configmap::Error,
+    },
+
     #[snafu(display("failed to collect the namenode listener refs"))]
     CollectListenerRefs { source: crate::crd::Error },
 }
@@ -83,7 +88,7 @@ pub fn build_discovery_config_map(
             build_discovery_core_site_xml(cluster, cluster_info),
         )
         .build()
-        .expect("The ConfigMap metadata is set in this function.");
+        .context(BuildConfigMapSnafu)?;
 
     Ok(Some(config_map))
 }

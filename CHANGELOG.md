@@ -23,7 +23,7 @@ All notable changes to this project will be documented in this file.
   are no longer created with the placeholder `app.kubernetes.io/component: none` and
   `app.kubernetes.io/role-group: none` labels.
   StatefulSet selectors and volume claim templates are unchanged, so upgrading is non-breaking.
-- Make operations infallible where appropriate ([#824]).
+- Make operations infallible where dependent on static inputs ([#824]).
 
 ### Fixed
 

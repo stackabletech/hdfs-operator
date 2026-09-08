@@ -33,6 +33,13 @@ pub enum Error {
         source: PropertiesWriterError,
         rolegroup: String,
     },
+
+    #[snafu(display("cannot build config map for role {role:?} and role group {role_group:?}"))]
+    Assemble {
+        source: stackable_operator::builder::configmap::Error,
+        role: String,
+        role_group: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -111,7 +118,8 @@ pub fn build_rolegroup_config_map(
         );
     }
 
-    Ok(builder
-        .build()
-        .expect("The ConfigMap metadata is set in this function."))
+    builder.build().with_context(|_| AssembleSnafu {
+        role: role.to_string(),
+        role_group: role_group_name.to_string(),
+    })
 }

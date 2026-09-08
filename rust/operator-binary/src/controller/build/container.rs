@@ -14,12 +14,16 @@ use std::{collections::BTreeMap, str::FromStr};
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::pod::{
-        PodBuilder,
-        resources::ResourceRequirementsBuilder,
-        volume::{
-            ListenerOperatorVolumeSourceBuilder, ListenerReference, SecretFormat,
-            SecretOperatorVolumeSourceBuilder, VolumeBuilder, VolumeMountBuilder,
+    builder::{
+        self,
+        pod::{
+            PodBuilder,
+            resources::ResourceRequirementsBuilder,
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, SecretFormat, SecretOperatorVolumeSourceBuilder,
+                SecretOperatorVolumeSourceBuilderError, VolumeBuilder, VolumeMountBuilder,
+            },
         },
     },
     commons::secret_class::SecretClassVolumeProvisionParts,
@@ -124,6 +128,25 @@ pub enum Error {
     #[snafu(display("failed to construct JVM arguments fro role {role:?}"))]
     ConstructJvmArguments { source: jvm::Error, role: String },
 
+    #[snafu(display("failed to build secret volume for {volume_name:?}"))]
+    BuildSecretVolume {
+        source: SecretOperatorVolumeSourceBuilderError,
+        volume_name: String,
+    },
+
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
+    },
+
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
@@ -196,12 +219,6 @@ impl ContainerConfig {
     const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the volumes or volume mounts cannot be added to the builders. Only call this
-    /// on builders whose volume names and mount paths are still distinct from the ones added
-    /// here.
     pub fn add_containers_and_volumes(
         pb: &mut PodBuilder,
         cluster: &ValidatedCluster,
@@ -219,8 +236,8 @@ impl ContainerConfig {
         let object_name = resource_names.qualified_role_group_name().to_string();
         let merged_config = &rolegroup_config.config;
 
-        pb.add_volumes(main_container_config.volumes(merged_config, &object_name, labels))
-            .expect("The volume names are statically defined and there should be no duplicates.");
+        pb.add_volumes(main_container_config.volumes(merged_config, &object_name, labels)?)
+            .context(AddVolumeSnafu)?;
         pb.add_container(main_container_config.main_container(
             cluster,
             cluster_info,
@@ -292,11 +309,13 @@ impl ContainerConfig {
                                 .context(MissingSecretLifetimeSnafu)?,
                         )
                         .build()
-                        .expect("The annotation keys are static and annotation values cannot be invalid."),
+                        .context(BuildSecretVolumeSnafu {
+                            volume_name: &*TLS_STORE_VOLUME_NAME,
+                        })?,
                     )
                     .build(),
             )
-            .expect("The volume names are statically defined and there should be no duplicates.");
+            .context(AddVolumeSnafu)?;
 
             pb.add_volume(
                 VolumeBuilder::new(&*KERBEROS_VOLUME_NAME)
@@ -310,11 +329,13 @@ impl ContainerConfig {
                         .with_kerberos_service_name(role.kerberos_service_name())
                         .with_kerberos_service_name("HTTP")
                         .build()
-                        .expect("The annotation keys are static and annotation values cannot be invalid."),
+                        .context(BuildSecretVolumeSnafu {
+                            volume_name: &*KERBEROS_VOLUME_NAME,
+                        })?,
                     )
                     .build(),
             )
-            .expect("The volume names are statically defined and there should be no duplicates.");
+            .context(AddVolumeSnafu)?;
         }
 
         // role specific pod settings configured here
@@ -326,8 +347,8 @@ impl ContainerConfig {
                     merged_config,
                     &object_name,
                     labels,
-                ))
-                .expect("The volume names are statically defined and there should be no duplicates.");
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_container(zkfc_container_config.main_container(
                     cluster,
                     cluster_info,
@@ -342,10 +363,8 @@ impl ContainerConfig {
                     merged_config,
                     &object_name,
                     labels,
-                ))
-                .expect(
-                    "The volume names are statically defined and there should be no duplicates.",
-                );
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_init_container(format_namenodes_container_config.init_container(
                     cluster,
                     cluster_info,
@@ -361,10 +380,8 @@ impl ContainerConfig {
                     merged_config,
                     &object_name,
                     labels,
-                ))
-                .expect(
-                    "The volume names are statically defined and there should be no duplicates.",
-                );
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_init_container(format_zookeeper_container_config.init_container(
                     cluster,
                     cluster_info,
@@ -381,10 +398,8 @@ impl ContainerConfig {
                     merged_config,
                     &object_name,
                     labels,
-                ))
-                .expect(
-                    "The volume names are statically defined and there should be no duplicates.",
-                );
+                )?)
+                .context(AddVolumeSnafu)?;
                 pb.add_init_container(wait_for_namenodes_container_config.init_container(
                     cluster,
                     cluster_info,
@@ -403,7 +418,7 @@ impl ContainerConfig {
     pub fn volume_claim_templates(
         merged_config: &AnyNodeConfig,
         labels: &Labels,
-    ) -> Vec<PersistentVolumeClaim> {
+    ) -> Result<Vec<PersistentVolumeClaim>> {
         match merged_config {
             AnyNodeConfig::Name(node) => {
                 let listener = ListenerOperatorVolumeSourceBuilder::new(
@@ -411,7 +426,7 @@ impl ContainerConfig {
                     labels,
                 )
                 .build_ephemeral()
-                .expect("The annotation keys are static and annotation values cannot be invalid.")
+                .context(BuildListenerVolumeSnafu)?
                 .volume_claim_template
                 .expect("The listener volume source builder always sets a volume claim template.");
 
@@ -432,16 +447,16 @@ impl ContainerConfig {
                     },
                 ];
 
-                pvcs
+                Ok(pvcs)
             }
-            AnyNodeConfig::Journal(node) => vec![node.resources.storage.data.build_pvc(
+            AnyNodeConfig::Journal(node) => Ok(vec![node.resources.storage.data.build_pvc(
                 ContainerConfig::DATA_VOLUME_MOUNT_NAME,
                 Some(vec!["ReadWriteOnce"]),
-            )],
-            AnyNodeConfig::Data(node) => DataNodeStorageConfig {
+            )]),
+            AnyNodeConfig::Data(node) => Ok(DataNodeStorageConfig {
                 pvcs: node.resources.storage.clone(),
             }
-            .build_pvcs(),
+            .build_pvcs()),
         }
     }
 
@@ -450,10 +465,6 @@ impl ContainerConfig {
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
-    ///
-    /// # Panics
-    ///
-    /// Panics if two of the volume mounts added here share a mount path but differ otherwise.
     fn main_container(
         &self,
         cluster: &ValidatedCluster,
@@ -471,11 +482,8 @@ impl ContainerConfig {
             .command(Self::command())
             .args(self.args(cluster, cluster_info, role, merged_config, &[])?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, resources.as_ref())?)
-            .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels))
-            .expect(
-                "The mount paths are either statically defined or derived from the unique PVC \
-                 names, so there are no duplicates.",
-            )
+            .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels)?)
+            .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(cluster));
 
         if let Some(resources) = resources {
@@ -505,10 +513,6 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
-    ///
-    /// # Panics
-    ///
-    /// Panics if two of the volume mounts added here share a mount path but differ otherwise.
     fn init_container(
         &self,
         cluster: &ValidatedCluster,
@@ -525,11 +529,8 @@ impl ContainerConfig {
             .command(Self::command())
             .args(self.args(cluster, cluster_info, role, merged_config, namenode_podrefs)?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, None)?)
-            .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels))
-            .expect(
-                "The mount paths are either statically defined or derived from the unique PVC \
-                 names, so there are no duplicates.",
-            );
+            .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels)?)
+            .context(AddVolumeMountSnafu)?;
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
@@ -1050,7 +1051,7 @@ impl ContainerConfig {
         merged_config: &AnyNodeConfig,
         object_name: &str,
         labels: &Labels,
-    ) -> Vec<Volume> {
+    ) -> Result<Vec<Volume>> {
         let mut volumes = vec![];
 
         if let ContainerConfig::Hdfs { .. } = self {
@@ -1063,7 +1064,7 @@ impl ContainerConfig {
                                 labels,
                             )
                             .build_ephemeral()
-                            .expect("The annotation keys are static and annotation values cannot be invalid."),
+                            .context(BuildListenerVolumeSnafu)?,
                         )
                         .build(),
                 );
@@ -1112,7 +1113,7 @@ impl ContainerConfig {
             self.volume_mount_dirs().log_mount_name(),
         ));
 
-        volumes
+        Ok(volumes)
     }
 
     /// Returns the container volume mounts.
@@ -1121,7 +1122,7 @@ impl ContainerConfig {
         cluster: &ValidatedCluster,
         merged_config: &AnyNodeConfig,
         labels: &Labels,
-    ) -> Vec<VolumeMount> {
+    ) -> Result<Vec<VolumeMount>> {
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
                 .build(),
@@ -1178,7 +1179,7 @@ impl ContainerConfig {
                         );
                     }
                     HdfsNodeRole::Data => {
-                        for pvc in Self::volume_claim_templates(merged_config, labels) {
+                        for pvc in Self::volume_claim_templates(merged_config, labels)? {
                             let pvc_name = pvc.name_any();
                             volume_mounts.push(VolumeMount {
                                 mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
@@ -1195,7 +1196,7 @@ impl ContainerConfig {
             | ContainerConfig::FormatZooKeeper { .. } => {}
         }
 
-        volume_mounts
+        Ok(volume_mounts)
     }
 
     /// Create a config directory for the respective container.
