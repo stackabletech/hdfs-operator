@@ -19,10 +19,7 @@ use stackable_operator::{
             PvcConfigFragment, Resources, ResourcesFragment,
         },
     },
-    config::{
-        fragment::{Fragment, ValidationError},
-        merge::Merge,
-    },
+    config::{fragment::Fragment, merge::Merge},
     constant,
     crd::listener,
     deep_merger::ObjectOverrides,
@@ -32,7 +29,7 @@ use stackable_operator::{
         self,
         spec::{ContainerLogConfig, Logging},
     },
-    role_utils::{self, GenericRoleConfig},
+    role_utils::GenericRoleConfig,
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
@@ -94,17 +91,8 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object has no associated namespace"))]
-    NoNamespace,
-
-    #[snafu(display("missing role {role:?}"))]
-    MissingRole { role: String },
-
     #[snafu(display("missing role group {role_group:?} for role {role:?}"))]
     MissingRoleGroup { role: String, role_group: String },
-
-    #[snafu(display("fragment validation failure"))]
-    FragmentValidationFailure { source: ValidationError },
 
     #[snafu(display("port {port} ({port_name:?}) is out of bounds, must be within {range:?}", range = 0..=u16::MAX))]
     PortOutOfBounds {
@@ -112,9 +100,6 @@ pub enum Error {
         port_name: String,
         port: i32,
     },
-
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
 #[versioned(
@@ -701,12 +686,6 @@ pub enum NameNodeContainer {
     FormatZooKeeper,
 }
 
-/// The default [`ListenerClassName`] used to expose a role group.
-pub fn default_listener_class() -> ListenerClassName {
-    ListenerClassName::from_str(DEFAULT_LISTENER_CLASS)
-        .expect("the default listener class is a valid ListenerClassName")
-}
-
 #[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -757,7 +736,7 @@ impl NameNodeConfigFragment {
                 },
             },
             logging: product_logging::spec::default_logging(),
-            listener_class: Some(default_listener_class()),
+            listener_class: Some(DEFAULT_LISTENER_CLASS.clone()),
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
@@ -845,7 +824,7 @@ impl DataNodeConfigFragment {
                 )]),
             },
             logging: product_logging::spec::default_logging(),
-            listener_class: Some(default_listener_class()),
+            listener_class: Some(DEFAULT_LISTENER_CLASS.clone()),
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role),
                 graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
@@ -971,6 +950,14 @@ mod test {
             .storage
             .get(storage_name)
             .expect("storage should be defined")
+    }
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *NAMENODE_ROLE_NAME;
+        let _ = *DATANODE_ROLE_NAME;
+        let _ = *JOURNALNODE_ROLE_NAME;
     }
 
     #[test]

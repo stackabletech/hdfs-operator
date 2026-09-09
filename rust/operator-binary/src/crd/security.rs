@@ -3,6 +3,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
     commons::opa::OpaConfig,
+    constant,
     schemars::{self, JsonSchema},
     v2::types::kubernetes::SecretClassName,
 };
@@ -17,8 +18,12 @@ pub struct AuthenticationConfig {
     pub kerberos: KerberosConfig,
 }
 
+constant!(DEFAULT_TLS_SECRET_CLASS: SecretClassName = "tls");
+
+/// Serde default for `tlsSecretClass`. Kept as a function because `#[serde(default = "...")]`
+/// requires a function path.
 fn default_tls_secret_class() -> SecretClassName {
-    SecretClassName::from_str("tls").expect("\"tls\" should be a valid SecretClassName")
+    DEFAULT_TLS_SECRET_CLASS.clone()
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -33,4 +38,15 @@ pub struct KerberosConfig {
 pub struct AuthorizationConfig {
     // No doc - it's in the struct.
     pub opa: OpaConfig,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *DEFAULT_TLS_SECRET_CLASS;
+    }
 }

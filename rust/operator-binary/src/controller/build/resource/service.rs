@@ -21,11 +21,6 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to build object meta data"))]
-    ObjectMeta {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to build roleGroup selector labels"))]
     RoleGroupSelectorLabels { source: LabelError },
 }

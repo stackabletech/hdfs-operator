@@ -17,6 +17,10 @@ core-site.xml: |-
       <name>io.file.buffer.size</name>
       <value>131072</value>
     </property>
+    <property>
+      <name>ipc.client.connect.max.retries.on.timeouts</name>
+      <value>3</value>
+    </property>
   </configuration>
 hadoop-policy.xml: |-
   <?xml version="1.0"?>
@@ -360,3 +364,4 @@ wait-for-namenodes.log4j.properties: |+
   log4j.appender.FILE.MaxBackupIndex=1
   log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
 
+# The blank line above is part of the value: the operator-rs log4j template ends with an empty line.

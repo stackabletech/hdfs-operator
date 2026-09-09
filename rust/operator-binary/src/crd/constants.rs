@@ -3,7 +3,10 @@ use std::str::FromStr;
 use stackable_operator::{
     constant,
     shared::time::Duration,
-    v2::types::{common::Port, kubernetes::VolumeName},
+    v2::types::{
+        common::Port,
+        kubernetes::{ListenerClassName, VolumeName},
+    },
 };
 
 pub const DEFAULT_DFS_REPLICATION_FACTOR: u8 = 3;
@@ -23,7 +26,7 @@ pub const SERVICE_PORT_NAME_DATA: &str = "data";
 pub const SERVICE_PORT_NAME_METRICS: &str = "metrics";
 pub const SERVICE_PORT_NAME_JMX_METRICS: &str = "jmx-metrics";
 
-pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
+constant!(pub DEFAULT_LISTENER_CLASS: ListenerClassName = "cluster-internal");
 
 pub const DEFAULT_NAME_NODE_METRICS_PORT: Port = Port(8183);
 pub const DEFAULT_NAME_NODE_NATIVE_METRICS_HTTP_PORT: Port = Port(9870);
@@ -91,3 +94,15 @@ pub const DATANODE_ROOT_DATA_DIR_SUFFIX: &str = "/datanode";
 
 constant!(pub LISTENER_VOLUME_NAME: VolumeName = "listener");
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *LISTENER_VOLUME_NAME;
+        let _ = *DEFAULT_LISTENER_CLASS;
+    }
+}
