@@ -41,7 +41,7 @@ All notable changes to this project will be documented in this file.
 [#819]: https://github.com/stackabletech/hdfs-operator/pull/819
 [#821]: https://github.com/stackabletech/hdfs-operator/pull/821
 [#824]: https://github.com/stackabletech/hdfs-operator/pull/824
-[#829]: https://github.com/stackabletech/hdfs-operator/pull/824
+[#829]: https://github.com/stackabletech/hdfs-operator/pull/829
 
 ## [26.7.0] - 2026-07-21
 
