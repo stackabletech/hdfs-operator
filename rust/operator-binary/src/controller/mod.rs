@@ -100,7 +100,12 @@ pub struct ValidatedCluster {
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
     pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
-    pub role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+    /// The namenode role-level config (currently the PDB), or `None` if the role is absent.
+    pub namenode_config: Option<ValidatedRoleConfig>,
+    /// The datanode role-level config (currently the PDB), or `None` if the role is absent.
+    pub datanode_config: Option<ValidatedRoleConfig>,
+    /// The journalnode role-level config (currently the PDB), or `None` if the role is absent.
+    pub journalnode_config: Option<ValidatedRoleConfig>,
     /// The namenode pod `Listener`s as currently stored in the cluster (see
     /// [`crate::controller::dereference::DereferencedObjects::namenode_listeners`]).
     pub namenode_listeners: Vec<listener::v1alpha1::Listener>,
@@ -121,7 +126,9 @@ impl ValidatedCluster {
         image: ResolvedProductImage,
         cluster_config: ValidatedClusterConfig,
         role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
-        role_configs: BTreeMap<HdfsNodeRole, ValidatedRoleConfig>,
+        namenode_config: Option<ValidatedRoleConfig>,
+        datanode_config: Option<ValidatedRoleConfig>,
+        journalnode_config: Option<ValidatedRoleConfig>,
         namenode_listeners: Vec<listener::v1alpha1::Listener>,
         discovery_config_map: Option<ConfigMap>,
         status: ValidatedClusterStatus,
@@ -146,7 +153,9 @@ impl ValidatedCluster {
             product_version,
             cluster_config,
             role_groups,
-            role_configs,
+            namenode_config,
+            datanode_config,
+            journalnode_config,
             namenode_listeners,
             discovery_config_map,
             status,

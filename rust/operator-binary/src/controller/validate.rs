@@ -88,18 +88,20 @@ pub fn validate_cluster(
         )
         .context(ResolveProductImageSnafu)?;
 
+    let validated_role_config = |role: HdfsNodeRole| {
+        hdfs.role_config(&role).map(
+            |GenericRoleConfig {
+                 pod_disruption_budget,
+             }| ValidatedRoleConfig {
+                pdb: pod_disruption_budget.clone(),
+            },
+        )
+    };
+
     let mut role_groups = BTreeMap::new();
-    let mut role_configs = BTreeMap::new();
     let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
 
     for hdfs_role in HdfsNodeRole::iter() {
-        if let Some(GenericRoleConfig {
-            pod_disruption_budget: pdb,
-        }) = hdfs.role_config(&hdfs_role)
-        {
-            role_configs.insert(hdfs_role, ValidatedRoleConfig { pdb: pdb.clone() });
-        }
-
         let group_configs = match hdfs_role {
             HdfsNodeRole::Name => validate_role_group_configs(
                 hdfs.spec.name_nodes.as_ref(),
@@ -142,7 +144,9 @@ pub fn validate_cluster(
         image,
         ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         role_groups,
-        role_configs,
+        validated_role_config(HdfsNodeRole::Name),
+        validated_role_config(HdfsNodeRole::Data),
+        validated_role_config(HdfsNodeRole::Journal),
         namenode_listeners,
         discovery_config_map,
         status,
