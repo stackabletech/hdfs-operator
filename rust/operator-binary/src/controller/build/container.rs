@@ -101,6 +101,18 @@ pub(crate) const TLS_STORE_PASSWORD: &str = "changeit";
 constant!(pub(crate) KERBEROS_VOLUME_NAME: VolumeName = "kerberos");
 
 constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+// The main container of each role is named after the role (not after its logging key `hdfs`);
+// a unit test pins these names to the role names.
+constant!(NAMENODE_CONTAINER_NAME: ContainerName = "namenode");
+constant!(DATANODE_CONTAINER_NAME: ContainerName = "datanode");
+constant!(JOURNALNODE_CONTAINER_NAME: ContainerName = "journalnode");
+// The side and init containers are named like the strum `Display` of the corresponding
+// `NameNodeContainer`/`DataNodeContainer` variants, which operator-rs's `Logging<T>` still
+// requires; a unit test pins the two spellings together.
+constant!(pub(crate) ZKFC_CONTAINER_NAME: ContainerName = "zkfc");
+constant!(pub(crate) FORMAT_NAMENODES_CONTAINER_NAME: ContainerName = "format-namenodes");
+constant!(pub(crate) FORMAT_ZOOKEEPER_CONTAINER_NAME: ContainerName = "format-zookeeper");
+constant!(pub(crate) WAIT_FOR_NAMENODES_CONTAINER_NAME: ContainerName = "wait-for-namenodes");
 // The volume the rolegroup ConfigMap (including the static `vector.yaml`) is mounted into.
 constant!(VECTOR_CONFIG_VOLUME_NAME: VolumeName = "hdfs-config");
 // The volume holding the product logs that Vector tails.
@@ -161,10 +173,8 @@ pub enum Error {
 #[derive(Display)]
 pub enum ContainerConfig {
     Hdfs {
-        /// HDFS role (name-, data-, journal-node) which will be the container_name.
+        /// HDFS role (name-, data-, journal-node) which determines the container name.
         role: HdfsNodeRole,
-        /// The container name derived from the provided role.
-        container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
         /// Port name of the IPC/RPC port, used for the readiness probe.
@@ -177,26 +187,18 @@ pub enum ContainerConfig {
         metrics_port: Port,
     },
     Zkfc {
-        /// The provided custom container name.
-        container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
     },
     FormatNameNodes {
-        /// The provided custom container name.
-        container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
     },
     FormatZooKeeper {
-        /// The provided custom container name.
-        container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
     },
     WaitForNameNodes {
-        /// The provided custom container name.
-        container_name: String,
         /// Volume mounts for config and logging.
         volume_mounts: ContainerVolumeDirs,
     },
@@ -474,7 +476,7 @@ impl ContainerConfig {
         labels: &Labels,
     ) -> Result<Container, Error> {
         let merged_config = &rolegroup_config.config;
-        let mut cb = new_container_builder(&self.container_name());
+        let mut cb = new_container_builder(self.name());
 
         let resources = self.resources(merged_config);
 
@@ -523,7 +525,7 @@ impl ContainerConfig {
         labels: &Labels,
     ) -> Result<Container, Error> {
         let merged_config = &rolegroup_config.config;
-        let mut cb = new_container_builder(&self.container_name());
+        let mut cb = new_container_builder(self.name());
 
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
@@ -542,21 +544,19 @@ impl ContainerConfig {
         Ok(cb.build())
     }
 
-    /// Return the container name.
-    fn name(&self) -> &str {
-        match &self {
-            ContainerConfig::Hdfs { container_name, .. } => container_name.as_str(),
-            ContainerConfig::Zkfc { container_name, .. } => container_name.as_str(),
-            ContainerConfig::FormatNameNodes { container_name, .. } => container_name.as_str(),
-            ContainerConfig::FormatZooKeeper { container_name, .. } => container_name.as_str(),
-            ContainerConfig::WaitForNameNodes { container_name, .. } => container_name.as_str(),
+    /// Return the typed container name.
+    fn name(&self) -> &'static ContainerName {
+        match self {
+            ContainerConfig::Hdfs { role, .. } => match role {
+                HdfsNodeRole::Name => &NAMENODE_CONTAINER_NAME,
+                HdfsNodeRole::Data => &DATANODE_CONTAINER_NAME,
+                HdfsNodeRole::Journal => &JOURNALNODE_CONTAINER_NAME,
+            },
+            ContainerConfig::Zkfc { .. } => &ZKFC_CONTAINER_NAME,
+            ContainerConfig::FormatNameNodes { .. } => &FORMAT_NAMENODES_CONTAINER_NAME,
+            ContainerConfig::FormatZooKeeper { .. } => &FORMAT_ZOOKEEPER_CONTAINER_NAME,
+            ContainerConfig::WaitForNameNodes { .. } => &WAIT_FOR_NAMENODES_CONTAINER_NAME,
         }
-    }
-
-    /// Return the type-safe container name.
-    fn container_name(&self) -> ContainerName {
-        ContainerName::from_str(self.name())
-            .expect("a ContainerConfig name is a valid container name")
     }
 
     /// Return volume mount directories depending on the container.
@@ -652,8 +652,8 @@ impl ContainerConfig {
                     hadoop_home = Self::HADOOP_HOME
                 ));
             }
-            ContainerConfig::FormatNameNodes { container_name, .. } => {
-                args.push_str(&bash_capture_shell_helper(container_name));
+            ContainerConfig::FormatNameNodes { .. } => {
+                args.push_str(&bash_capture_shell_helper(self.name().as_ref()));
 
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
@@ -728,8 +728,8 @@ impl ContainerConfig {
                         .join(" "),
                 ));
             }
-            ContainerConfig::FormatZooKeeper { container_name, .. } => {
-                args.push_str(&bash_capture_shell_helper(container_name));
+            ContainerConfig::FormatZooKeeper { .. } => {
+                args.push_str(&bash_capture_shell_helper(self.name().as_ref()));
 
                 if let Some(container_config) = merged_config.as_namenode().map(|node| {
                     node.logging
@@ -760,8 +760,8 @@ impl ContainerConfig {
                     hadoop_home = Self::HADOOP_HOME,
                 ));
             }
-            ContainerConfig::WaitForNameNodes { container_name, .. } => {
-                args.push_str(&bash_capture_shell_helper(container_name));
+            ContainerConfig::WaitForNameNodes { .. } => {
+                args.push_str(&bash_capture_shell_helper(self.name().as_ref()));
 
                 if let Some(container_config) = merged_config.as_datanode().map(|node| {
                     node.logging
@@ -1385,7 +1385,6 @@ impl From<HdfsNodeRole> for ContainerConfig {
         match role {
             HdfsNodeRole::Name => Self::Hdfs {
                 role,
-                container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
@@ -1394,7 +1393,6 @@ impl From<HdfsNodeRole> for ContainerConfig {
             },
             HdfsNodeRole::Data => Self::Hdfs {
                 role,
-                container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
                 ipc_port_name: SERVICE_PORT_NAME_IPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
@@ -1403,7 +1401,6 @@ impl From<HdfsNodeRole> for ContainerConfig {
             },
             HdfsNodeRole::Journal => Self::Hdfs {
                 role,
-                container_name: role.to_string(),
                 volume_mounts: ContainerVolumeDirs::from(role),
                 ipc_port_name: SERVICE_PORT_NAME_RPC,
                 web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
@@ -1417,53 +1414,45 @@ impl From<HdfsNodeRole> for ContainerConfig {
 impl ContainerConfig {
     /// The ZooKeeper fail-over controller side container of the namenodes.
     fn zkfc() -> Self {
-        let container_name = NameNodeContainer::Zkfc.to_string();
         Self::Zkfc {
             volume_mounts: ContainerVolumeDirs::for_container(
-                &container_name,
+                ZKFC_CONTAINER_NAME.as_ref(),
                 Self::ZKFC_CONFIG_VOLUME_MOUNT_NAME,
                 Self::ZKFC_LOG_VOLUME_MOUNT_NAME,
             ),
-            container_name,
         }
     }
 
     /// The init container formatting the namenodes.
     fn format_namenodes() -> Self {
-        let container_name = NameNodeContainer::FormatNameNodes.to_string();
         Self::FormatNameNodes {
             volume_mounts: ContainerVolumeDirs::for_container(
-                &container_name,
+                FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
                 Self::FORMAT_NAMENODES_CONFIG_VOLUME_MOUNT_NAME,
                 Self::FORMAT_NAMENODES_LOG_VOLUME_MOUNT_NAME,
             ),
-            container_name,
         }
     }
 
     /// The init container formatting ZooKeeper for the namenodes.
     fn format_zookeeper() -> Self {
-        let container_name = NameNodeContainer::FormatZooKeeper.to_string();
         Self::FormatZooKeeper {
             volume_mounts: ContainerVolumeDirs::for_container(
-                &container_name,
+                FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
                 Self::FORMAT_ZOOKEEPER_CONFIG_VOLUME_MOUNT_NAME,
                 Self::FORMAT_ZOOKEEPER_LOG_VOLUME_MOUNT_NAME,
             ),
-            container_name,
         }
     }
 
     /// The init container of the datanodes waiting for the namenodes.
     fn wait_for_namenodes() -> Self {
-        let container_name = DataNodeContainer::WaitForNameNodes.to_string();
         Self::WaitForNameNodes {
             volume_mounts: ContainerVolumeDirs::for_container(
-                &container_name,
+                WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
                 Self::WAIT_FOR_NAMENODES_CONFIG_VOLUME_MOUNT_NAME,
                 Self::WAIT_FOR_NAMENODES_LOG_VOLUME_MOUNT_NAME,
             ),
-            container_name,
         }
     }
 }
@@ -1614,6 +1603,8 @@ fn bash_capture_shell_helper(container_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use strum::IntoEnumIterator;
+
     use super::*;
 
     #[test]
@@ -1622,7 +1613,48 @@ mod tests {
         let _ = *TLS_STORE_VOLUME_NAME;
         let _ = *KERBEROS_VOLUME_NAME;
         let _ = *VECTOR_CONTAINER_NAME;
+        let _ = *NAMENODE_CONTAINER_NAME;
+        let _ = *DATANODE_CONTAINER_NAME;
+        let _ = *JOURNALNODE_CONTAINER_NAME;
+        let _ = *ZKFC_CONTAINER_NAME;
+        let _ = *FORMAT_NAMENODES_CONTAINER_NAME;
+        let _ = *FORMAT_ZOOKEEPER_CONTAINER_NAME;
+        let _ = *WAIT_FOR_NAMENODES_CONTAINER_NAME;
         let _ = *VECTOR_CONFIG_VOLUME_NAME;
         let _ = *VECTOR_LOG_VOLUME_NAME;
+    }
+
+    /// The main container of every role is named after the role.
+    #[test]
+    fn main_container_names_match_role_names() {
+        for role in HdfsNodeRole::iter() {
+            assert_eq!(
+                ContainerConfig::from(role).name().to_string(),
+                role.to_string()
+            );
+        }
+    }
+
+    /// The typed side and init container names must agree with the strum `Display` of the
+    /// `NameNodeContainer`/`DataNodeContainer` variants, which operator-rs's `Logging<T>` still
+    /// requires.
+    #[test]
+    fn side_container_names_match_display() {
+        assert_eq!(
+            ContainerConfig::zkfc().name().to_string(),
+            NameNodeContainer::Zkfc.to_string()
+        );
+        assert_eq!(
+            ContainerConfig::format_namenodes().name().to_string(),
+            NameNodeContainer::FormatNameNodes.to_string()
+        );
+        assert_eq!(
+            ContainerConfig::format_zookeeper().name().to_string(),
+            NameNodeContainer::FormatZooKeeper.to_string()
+        );
+        assert_eq!(
+            ContainerConfig::wait_for_namenodes().name().to_string(),
+            DataNodeContainer::WaitForNameNodes.to_string()
+        );
     }
 }

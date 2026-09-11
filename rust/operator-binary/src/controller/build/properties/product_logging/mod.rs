@@ -1,7 +1,7 @@
 //! Builders for the logging-related files in the rolegroup `ConfigMap`: the per-container
 //! `*.log4j.properties` configs and the (static) Vector agent config (`vector.yaml`).
 
-use std::{borrow::Cow, fmt::Display};
+use std::borrow::Cow;
 
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
@@ -12,7 +12,13 @@ use stackable_operator::{
     v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::crd::{AnyNodeConfig, DataNodeContainer, NameNodeContainer};
+use crate::{
+    controller::build::container::{
+        FORMAT_NAMENODES_CONTAINER_NAME, FORMAT_ZOOKEEPER_CONTAINER_NAME,
+        WAIT_FOR_NAMENODES_CONTAINER_NAME, ZKFC_CONTAINER_NAME,
+    },
+    crd::{AnyNodeConfig, DataNodeContainer, NameNodeContainer},
+};
 
 // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
 // require less.
@@ -90,7 +96,7 @@ pub fn build_log4j_configs(merged_config: &AnyNodeConfig) -> Vec<(&'static str, 
             .as_namenode()
             .map(|nn| nn.logging.for_container(&NameNodeContainer::Zkfc)),
         ZKFC_LOG4J_CONFIG_FILE,
-        &NameNodeContainer::Zkfc,
+        ZKFC_CONTAINER_NAME.as_ref(),
         ZKFC_LOG_FILE,
         MAX_ZKFC_LOG_FILE_SIZE,
     );
@@ -101,7 +107,7 @@ pub fn build_log4j_configs(merged_config: &AnyNodeConfig) -> Vec<(&'static str, 
                 .for_container(&NameNodeContainer::FormatNameNodes)
         }),
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
-        &NameNodeContainer::FormatNameNodes,
+        FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
         FORMAT_NAMENODES_LOG_FILE,
         MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
     );
@@ -112,7 +118,7 @@ pub fn build_log4j_configs(merged_config: &AnyNodeConfig) -> Vec<(&'static str, 
                 .for_container(&NameNodeContainer::FormatZooKeeper)
         }),
         FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        &NameNodeContainer::FormatZooKeeper,
+        FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
         FORMAT_ZOOKEEPER_LOG_FILE,
         MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
     );
@@ -123,7 +129,7 @@ pub fn build_log4j_configs(merged_config: &AnyNodeConfig) -> Vec<(&'static str, 
                 .for_container(&DataNodeContainer::WaitForNameNodes)
         }),
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-        &DataNodeContainer::WaitForNameNodes,
+        WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
         WAIT_FOR_NAMENODES_LOG_FILE,
         MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
     );
@@ -135,7 +141,7 @@ fn add_log4j_config_if_automatic(
     configs: &mut Vec<(&'static str, String)>,
     log_config: Option<Cow<ContainerLogConfig>>,
     log_config_file: &'static str,
-    container_name: impl Display,
+    log_dir_name: &str,
     log_file: &str,
     max_log_file_size: MemoryQuantity,
 ) {
@@ -146,7 +152,7 @@ fn add_log4j_config_if_automatic(
         configs.push((
             log_config_file,
             product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/{container_name}"),
+                &format!("{STACKABLE_LOG_DIR}/{log_dir_name}"),
                 log_file,
                 max_log_file_size
                     .scale_to(BinaryMultiple::Mebi)
