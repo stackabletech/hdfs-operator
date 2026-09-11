@@ -20,7 +20,7 @@ use crate::{
             },
         },
     },
-    crd::HdfsNodeRole,
+    crd::{DataNodeContainer, HdfsNodeRole, NameNodeContainer},
 };
 
 #[derive(Snafu, Debug)]
@@ -108,7 +108,36 @@ pub fn build_rolegroup_config_map(
             )?,
         );
 
-    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(merged_config) {
+    let hdfs_logging = merged_config.hdfs_logging();
+    let (zkfc_logging, format_namenodes_logging, format_zookeeper_logging) =
+        match merged_config.as_namenode() {
+            Some(namenode) => (
+                Some(namenode.logging.for_container(&NameNodeContainer::Zkfc)),
+                Some(
+                    namenode
+                        .logging
+                        .for_container(&NameNodeContainer::FormatNameNodes),
+                ),
+                Some(
+                    namenode
+                        .logging
+                        .for_container(&NameNodeContainer::FormatZooKeeper),
+                ),
+            ),
+            None => (None, None, None),
+        };
+    let wait_for_namenodes_logging = merged_config.as_datanode().map(|dn| {
+        dn.logging
+            .for_container(&DataNodeContainer::WaitForNameNodes)
+    });
+    let log4j_configs = product_logging::build_log4j_configs(
+        Some(&*hdfs_logging),
+        zkfc_logging.as_deref(),
+        format_namenodes_logging.as_deref(),
+        format_zookeeper_logging.as_deref(),
+        wait_for_namenodes_logging.as_deref(),
+    );
+    for (log_config_file, log4j_config) in log4j_configs {
         builder.add_data(log_config_file, log4j_config);
     }
     if merged_config.vector_logging_enabled() {
