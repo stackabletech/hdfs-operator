@@ -123,7 +123,7 @@ pub struct RoleGroupLogging {
     pub hdfs: ContainerLogConfig,
     /// The Vector sidecar; `None` when the Vector agent is disabled for this role group.
     pub vector: Option<ContainerLogConfig>,
-    /// The containers only one role has.
+    /// The containers unique to this role group's own role; the variant identifies that role.
     pub role: RoleContainerLogging,
 }
 

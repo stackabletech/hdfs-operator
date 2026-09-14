@@ -129,9 +129,9 @@ pub fn validate_cluster(
             .and_then(|status| status.upgrade_target_product_version.clone()),
     };
 
-    // Built as a struct literal rather than through a constructor: the three role-level configs
-    // are the same type, so as positional arguments two of them could be swapped silently, giving
-    // a role another role's PodDisruptionBudget.
+    // The three role-level configs share one type, so each is named at the point it is set: as
+    // positional arguments two of them could be swapped silently, giving a role another role's
+    // PodDisruptionBudget.
     Ok(ValidatedCluster {
         metadata: ValidatedCluster::object_meta(&cluster_name, &namespace, &uid),
         product_version: ValidatedCluster::product_version(&image),

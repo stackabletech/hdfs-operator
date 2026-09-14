@@ -104,17 +104,17 @@ pub struct ValidatedCluster {
     pub product_version: ProductVersion,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
-    /// The namenode role-level config (currently the PDB), or `None` if the role is absent.
+    /// The namenode role-level config, or `None` if the role is absent.
     pub namenode_config: Option<ValidatedRoleConfig>,
     /// The validated config of every namenode role group, keyed by role group name; empty if the
     /// role is absent.
     pub namenode_role_group_configs: BTreeMap<RoleGroupName, NameNodeRoleGroupConfig>,
-    /// The datanode role-level config (currently the PDB), or `None` if the role is absent.
+    /// The datanode role-level config, or `None` if the role is absent.
     pub datanode_config: Option<ValidatedRoleConfig>,
     /// The validated config of every datanode role group, keyed by role group name; empty if the
     /// role is absent.
     pub datanode_role_group_configs: BTreeMap<RoleGroupName, DataNodeRoleGroupConfig>,
-    /// The journalnode role-level config (currently the PDB), or `None` if the role is absent.
+    /// The journalnode role-level config, or `None` if the role is absent.
     pub journalnode_config: Option<ValidatedRoleConfig>,
     /// The validated config of every journalnode role group, keyed by role group name; empty if
     /// the role is absent.
