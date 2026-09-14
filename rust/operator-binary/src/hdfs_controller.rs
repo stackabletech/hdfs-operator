@@ -110,10 +110,9 @@ pub async fn reconcile_hdfs(
 
     // Warn about invalid replica counts. This is validation feedback and independent of the
     // resource application below.
+    // Every role is checked, including one that is absent from the spec entirely: a cluster
+    // without journalnodes is exactly the case the warning is for.
     for role in HdfsNodeRole::iter() {
-        if !validated_cluster.role_groups.contains_key(&role) {
-            continue;
-        }
         if let Some(message) = build_invalid_replica_message(&validated_cluster, &role) {
             publish_warning_event(
                 &ctx,
@@ -179,8 +178,11 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::{container::ContainerConfig, role_group_logging},
-        test_support::{datanode_config, deserialize_cluster, role_group_config, validate_cluster},
+        controller::build::{ResolvedRoleGroup, RoleGroupLogging, container::ContainerConfig},
+        crd::DataNodeContainer,
+        test_support::{
+            datanode_config, datanode_role_group_config, deserialize_cluster, validate_cluster,
+        },
     };
 
     #[test]
@@ -222,9 +224,42 @@ spec:
         let hdfs = deserialize_cluster(cr);
         let validated_cluster = validate_cluster(&hdfs);
         let role_group_name = RoleGroupName::from_str("default").unwrap();
-        let role_group_config = role_group_config(&validated_cluster, &role, &role_group_name);
+        let role_group_config = datanode_role_group_config(&validated_cluster, &role_group_name);
         let datanode_config = datanode_config(&validated_cluster, &role_group_name);
         let labels = Labels::new();
+        let resolved = ResolvedRoleGroup {
+            selector_labels: labels.clone(),
+            common: datanode_config.common.clone(),
+            resources: datanode_config.resources.clone().into(),
+            volume_claim_templates: ContainerConfig::datanode_volume_claim_templates(
+                datanode_config,
+            ),
+            listener_volume: Some(
+                ContainerConfig::datanode_listener_volume(datanode_config, &labels)
+                    .expect("the datanode listener volume should build"),
+            ),
+            logging: RoleGroupLogging {
+                hdfs: datanode_config
+                    .logging
+                    .for_container(&DataNodeContainer::Hdfs)
+                    .into_owned(),
+                vector: datanode_config.logging.enable_vector_agent.then(|| {
+                    datanode_config
+                        .logging
+                        .for_container(&DataNodeContainer::Vector)
+                        .into_owned()
+                }),
+                zkfc: None,
+                format_namenodes: None,
+                format_zookeeper: None,
+                wait_for_namenodes: Some(
+                    datanode_config
+                        .logging
+                        .for_container(&DataNodeContainer::WaitForNameNodes)
+                        .into_owned(),
+                ),
+            },
+        };
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
@@ -237,14 +272,7 @@ spec:
             &role,
             &role_group_name,
             role_group_config,
-            &datanode_config.common,
-            &datanode_config.resources.clone().into(),
-            &ContainerConfig::datanode_volume_claim_templates(datanode_config),
-            Some(
-                ContainerConfig::datanode_listener_volume(datanode_config, &labels)
-                    .expect("the datanode listener volume should build"),
-            ),
-            &role_group_logging(&role_group_config.config),
+            &resolved,
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;

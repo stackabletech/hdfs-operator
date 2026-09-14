@@ -82,7 +82,7 @@ pub fn build_log4j_configs(logging: &RoleGroupLogging) -> Vec<(&'static str, Str
 
     add_log4j_config_if_automatic(
         &mut configs,
-        logging.hdfs.as_ref(),
+        Some(&logging.hdfs),
         HDFS_LOG4J_CONFIG_FILE,
         "hdfs",
         HDFS_LOG_FILE,

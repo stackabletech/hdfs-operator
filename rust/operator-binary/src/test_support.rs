@@ -3,8 +3,13 @@ use std::str::FromStr;
 use stackable_operator::v2::types::operator::RoleGroupName;
 
 use crate::{
-    controller::{ValidatedCluster, ValidatedRoleGroupConfig, validate},
-    crd::{AnyNodeConfig, DataNodeConfig, HdfsNodeRole, v1alpha1},
+    controller::{
+        DataNodeRoleGroupConfig, JournalNodeRoleGroupConfig, NameNodeRoleGroupConfig,
+        ValidatedCluster, validate,
+    },
+    crd::{
+        CommonNodeConfig, DataNodeConfig, HdfsNodeRole, JournalNodeConfig, NameNodeConfig, v1alpha1,
+    },
 };
 
 /// The expected `app.kubernetes.io/version` label value for the given product version.
@@ -46,34 +51,69 @@ pub fn role_group_name(name: &str) -> RoleGroupName {
     RoleGroupName::from_str(name).expect("role group name should be valid")
 }
 
-pub fn role_group_config<'a>(
+pub fn namenode_role_group_config<'a>(
     validated_cluster: &'a ValidatedCluster,
-    role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
-) -> &'a ValidatedRoleGroupConfig {
+) -> &'a NameNodeRoleGroupConfig {
     validated_cluster
-        .role_groups
-        .get(role)
-        .expect("role should be defined")
+        .namenode_role_group_configs
         .get(role_group_name)
-        .expect("role group should be defined")
+        .expect("namenode role group should be defined")
 }
 
-pub fn anynode_config<'a>(
+pub fn datanode_role_group_config<'a>(
     validated_cluster: &'a ValidatedCluster,
-    role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
-) -> &'a AnyNodeConfig {
-    &role_group_config(validated_cluster, role, role_group_name).config
+) -> &'a DataNodeRoleGroupConfig {
+    validated_cluster
+        .datanode_role_group_configs
+        .get(role_group_name)
+        .expect("datanode role group should be defined")
+}
+
+pub fn journalnode_role_group_config<'a>(
+    validated_cluster: &'a ValidatedCluster,
+    role_group_name: &RoleGroupName,
+) -> &'a JournalNodeRoleGroupConfig {
+    validated_cluster
+        .journalnode_role_group_configs
+        .get(role_group_name)
+        .expect("journalnode role group should be defined")
+}
+
+pub fn namenode_config<'a>(
+    validated_cluster: &'a ValidatedCluster,
+    role_group_name: &RoleGroupName,
+) -> &'a NameNodeConfig {
+    &namenode_role_group_config(validated_cluster, role_group_name).config
 }
 
 pub fn datanode_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role_group_name: &RoleGroupName,
 ) -> &'a DataNodeConfig {
-    anynode_config(validated_cluster, &HdfsNodeRole::Data, role_group_name)
-        .as_datanode()
-        .expect("should be a DataNode")
+    &datanode_role_group_config(validated_cluster, role_group_name).config
+}
+
+pub fn journalnode_config<'a>(
+    validated_cluster: &'a ValidatedCluster,
+    role_group_name: &RoleGroupName,
+) -> &'a JournalNodeConfig {
+    &journalnode_role_group_config(validated_cluster, role_group_name).config
+}
+
+/// The merged [`CommonNodeConfig`] of one role group, for tests that assert on the settings every
+/// role shares.
+pub fn common_config<'a>(
+    validated_cluster: &'a ValidatedCluster,
+    role: &HdfsNodeRole,
+    role_group_name: &RoleGroupName,
+) -> &'a CommonNodeConfig {
+    match role {
+        HdfsNodeRole::Name => &namenode_config(validated_cluster, role_group_name).common,
+        HdfsNodeRole::Data => &datanode_config(validated_cluster, role_group_name).common,
+        HdfsNodeRole::Journal => &journalnode_config(validated_cluster, role_group_name).common,
+    }
 }
 
 /// A namenode pod `Listener` with a single ingress address, shaped as the dereference step

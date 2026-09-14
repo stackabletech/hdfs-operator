@@ -1,11 +1,21 @@
+use std::collections::BTreeMap;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ObjectReference,
     kube::runtime::events::{Event, EventType},
+    v2::{
+        role_utils::{JavaCommonConfig, RoleGroupConfig},
+        types::operator::RoleGroupName,
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{controller::ValidatedCluster, crd::HdfsNodeRole, hdfs_controller::Ctx};
+use crate::{
+    controller::ValidatedCluster,
+    crd::{HdfsNodeRole, v1alpha1},
+    hdfs_controller::Ctx,
+};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -43,13 +53,11 @@ pub fn build_invalid_replica_message(
     validated_cluster: &ValidatedCluster,
     role: &HdfsNodeRole,
 ) -> Option<String> {
-    let replicas: u16 = validated_cluster
-        .role_groups
-        .get(role)
-        .into_iter()
-        .flatten()
-        .map(|(_, role_group)| role_group.replicas.unwrap_or_default())
-        .sum();
+    let replicas = match role {
+        HdfsNodeRole::Name => total_replicas(&validated_cluster.namenode_role_group_configs),
+        HdfsNodeRole::Data => total_replicas(&validated_cluster.datanode_role_group_configs),
+        HdfsNodeRole::Journal => total_replicas(&validated_cluster.journalnode_role_group_configs),
+    };
 
     let dfs_replication = validated_cluster.cluster_config.dfs_replication;
     let role_name = role.to_string();
@@ -70,4 +78,18 @@ pub fn build_invalid_replica_message(
     } else {
         None
     }
+}
+
+/// The total number of replicas across the role groups of one role, counting a role group without
+/// an explicit replica count as zero.
+fn total_replicas<C>(
+    role_group_configs: &BTreeMap<
+        RoleGroupName,
+        RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+    >,
+) -> u16 {
+    role_group_configs
+        .values()
+        .map(|role_group| role_group.replicas.unwrap_or_default())
+        .sum()
 }

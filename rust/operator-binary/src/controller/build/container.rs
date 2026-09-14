@@ -67,7 +67,7 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self, RoleGroupLogging,
+            self, ResolvedRoleGroup, RoleGroupLogging,
             jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
             kerberos::KERBEROS_CONTAINER_PATH,
             properties::product_logging::{
@@ -80,8 +80,7 @@ use crate::{
         },
     },
     crd::{
-        CommonNodeConfig, DataNodeConfig, HdfsNodeRole, HdfsPodRef, JournalNodeConfig,
-        NameNodeConfig, UpgradeState,
+        DataNodeConfig, HdfsNodeRole, HdfsPodRef, JournalNodeConfig, NameNodeConfig, UpgradeState,
         constants::{
             DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
             DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR,
@@ -214,11 +213,7 @@ impl ContainerConfig {
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
     ///
-    /// Every role-specific value is resolved by the caller: `common` is the role group's merged
-    /// common config, `resources` its container resource requirements, `volume_claim_templates`
-    /// its PVC templates (the datanode data volumes are mounted from them) and `listener_volume`
-    /// its ephemeral listener volume, which only datanodes have.
-    #[allow(clippy::too_many_arguments)]
+    /// Every role-specific value is resolved by the caller into `resolved`.
     pub fn add_containers_and_volumes<C>(
         pb: &mut PodBuilder,
         cluster: &ValidatedCluster,
@@ -226,11 +221,7 @@ impl ContainerConfig {
         role: &HdfsNodeRole,
         role_group_name: &RoleGroupName,
         rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-        common: &CommonNodeConfig,
-        resources: &ResourceRequirements,
-        volume_claim_templates: &[PersistentVolumeClaim],
-        listener_volume: Option<Volume>,
-        logging: &RoleGroupLogging,
+        resolved: &ResolvedRoleGroup,
     ) -> Result<(), Error> {
         let namenode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Name);
 
@@ -239,20 +230,22 @@ impl ContainerConfig {
         let resource_names = cluster.role_group_resource_names(role, role_group_name);
         let object_name = resource_names.qualified_role_group_name().to_string();
 
-        pb.add_volumes(main_container_config.volumes(logging, listener_volume, &object_name))
-            .context(AddVolumeSnafu)?;
+        pb.add_volumes(main_container_config.volumes(
+            &resolved.logging,
+            resolved.listener_volume.as_ref(),
+            &object_name,
+        ))
+        .context(AddVolumeSnafu)?;
         pb.add_container(main_container_config.main_container(
             cluster,
             cluster_info,
             role,
             rolegroup_config,
-            logging,
-            resources,
-            volume_claim_templates,
+            resolved,
         )?);
 
         // Vector sidecar container.
-        if let Some(vector_logging) = &logging.vector {
+        if let Some(vector_logging) = &resolved.logging.vector {
             let vector_aggregator_config_map_name = cluster
                 .cluster_config
                 .logging
@@ -309,7 +302,8 @@ impl ContainerConfig {
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
                         .with_auto_tls_cert_lifetime(
-                            common
+                            resolved
+                                .common
                                 .requested_secret_lifetime
                                 .context(MissingSecretLifetimeSnafu)?,
                         )
@@ -348,22 +342,24 @@ impl ContainerConfig {
             HdfsNodeRole::Name => {
                 // Zookeeper fail over container
                 let zkfc_container_config = Self::Zkfc;
-                pb.add_volumes(zkfc_container_config.volumes(logging, None, &object_name))
-                    .context(AddVolumeSnafu)?;
+                pb.add_volumes(zkfc_container_config.volumes(
+                    &resolved.logging,
+                    None,
+                    &object_name,
+                ))
+                .context(AddVolumeSnafu)?;
                 pb.add_container(zkfc_container_config.main_container(
                     cluster,
                     cluster_info,
                     role,
                     rolegroup_config,
-                    logging,
-                    resources,
-                    volume_claim_templates,
+                    resolved,
                 )?);
 
                 // Format namenode init container
                 let format_namenodes_container_config = Self::FormatNameNodes;
                 pb.add_volumes(format_namenodes_container_config.volumes(
-                    logging,
+                    &resolved.logging,
                     None,
                     &object_name,
                 ))
@@ -373,16 +369,14 @@ impl ContainerConfig {
                     cluster_info,
                     role,
                     rolegroup_config,
-                    logging,
-                    resources,
-                    volume_claim_templates,
+                    resolved,
                     &namenode_podrefs,
                 )?);
 
                 // Format ZooKeeper init container
                 let format_zookeeper_container_config = Self::FormatZooKeeper;
                 pb.add_volumes(format_zookeeper_container_config.volumes(
-                    logging,
+                    &resolved.logging,
                     None,
                     &object_name,
                 ))
@@ -392,9 +386,7 @@ impl ContainerConfig {
                     cluster_info,
                     role,
                     rolegroup_config,
-                    logging,
-                    resources,
-                    volume_claim_templates,
+                    resolved,
                     &namenode_podrefs,
                 )?);
             }
@@ -402,7 +394,7 @@ impl ContainerConfig {
                 // Wait for namenode init container
                 let wait_for_namenodes_container_config = Self::WaitForNameNodes;
                 pb.add_volumes(wait_for_namenodes_container_config.volumes(
-                    logging,
+                    &resolved.logging,
                     None,
                     &object_name,
                 ))
@@ -412,9 +404,7 @@ impl ContainerConfig {
                     cluster_info,
                     role,
                     rolegroup_config,
-                    logging,
-                    resources,
-                    volume_claim_templates,
+                    resolved,
                     &namenode_podrefs,
                 )?);
             }
@@ -497,26 +487,23 @@ impl ContainerConfig {
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
-    #[allow(clippy::too_many_arguments)]
     fn main_container<C>(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
         rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-        logging: &RoleGroupLogging,
-        role_group_resources: &ResourceRequirements,
-        volume_claim_templates: &[PersistentVolumeClaim],
+        resolved: &ResolvedRoleGroup,
     ) -> Result<Container, Error> {
         let mut cb = new_container_builder(self.container_name());
 
-        let resources = self.resources(role_group_resources);
+        let resources = self.resources(&resolved.resources);
 
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
-            .args(self.args(cluster, cluster_info, role, logging, &[])?)
+            .args(self.args(cluster, cluster_info, role, &resolved.logging, &[])?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, resources.as_ref())?)
-            .add_volume_mounts(self.volume_mounts(cluster, volume_claim_templates))
+            .add_volume_mounts(self.volume_mounts(cluster, &resolved.volume_claim_templates))
             .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(cluster));
 
@@ -547,31 +534,34 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
-    #[allow(clippy::too_many_arguments)]
     fn init_container<C>(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
         rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-        logging: &RoleGroupLogging,
-        role_group_resources: &ResourceRequirements,
-        volume_claim_templates: &[PersistentVolumeClaim],
+        resolved: &ResolvedRoleGroup,
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<Container, Error> {
         let mut cb = new_container_builder(self.container_name());
 
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
-            .args(self.args(cluster, cluster_info, role, logging, namenode_podrefs)?)
+            .args(self.args(
+                cluster,
+                cluster_info,
+                role,
+                &resolved.logging,
+                namenode_podrefs,
+            )?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, None)?)
-            .add_volume_mounts(self.volume_mounts(cluster, volume_claim_templates))
+            .add_volume_mounts(self.volume_mounts(cluster, &resolved.volume_claim_templates))
             .context(AddVolumeMountSnafu)?;
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
         // Going forward this should be replaced by calculating init container resources in the pod builder.
-        if let Some(resources) = self.resources(role_group_resources) {
+        if let Some(resources) = self.resources(&resolved.resources) {
             cb.resources(resources);
         }
 
@@ -664,14 +654,9 @@ impl ContainerConfig {
 
         match self {
             ContainerConfig::Hdfs { role, .. } => {
-                if let Some(container_log_config) = &logging.hdfs {
-                    args.push_str(
-                        &self.copy_log4j_properties_cmd(
-                            HDFS_LOG4J_CONFIG_FILE,
-                            container_log_config,
-                        ),
-                    );
-                }
+                args.push_str(
+                    &self.copy_log4j_properties_cmd(HDFS_LOG4J_CONFIG_FILE, &logging.hdfs),
+                );
 
                 args.push_str(&formatdoc!(
                     r#"\
@@ -1103,15 +1088,13 @@ impl ContainerConfig {
     fn volumes(
         &self,
         logging: &RoleGroupLogging,
-        listener_volume: Option<Volume>,
+        listener_volume: Option<&Volume>,
         object_name: &str,
     ) -> Vec<Volume> {
         let mut volumes = vec![];
 
         if let ContainerConfig::Hdfs { .. } = self {
-            if let Some(listener_volume) = listener_volume {
-                volumes.push(listener_volume);
-            }
+            volumes.extend(listener_volume.cloned());
 
             volumes.push(
                 VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
@@ -1132,7 +1115,7 @@ impl ContainerConfig {
         }
 
         let container_log_config = match self {
-            ContainerConfig::Hdfs { .. } => logging.hdfs.as_ref(),
+            ContainerConfig::Hdfs { .. } => Some(&logging.hdfs),
             ContainerConfig::Zkfc => logging.zkfc.as_ref(),
             ContainerConfig::FormatNameNodes => logging.format_namenodes.as_ref(),
             ContainerConfig::FormatZooKeeper => logging.format_zookeeper.as_ref(),

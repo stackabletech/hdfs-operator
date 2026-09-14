@@ -14,7 +14,7 @@ use stackable_operator::{
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
         role_group_utils::{QualifiedRoleGroupName, ResourceNames},
-        role_utils::{self, RoleGroupConfig},
+        role_utils::{self, JavaCommonConfig, RoleGroupConfig},
         types::{
             kubernetes::{ConfigMapName, NamespaceName, ServiceName, Uid},
             operator::{
@@ -29,8 +29,8 @@ use crate::{
     HDFS_OPERATOR_NAME,
     controller::build::opa::HdfsOpaConfig,
     crd::{
-        AnyNodeConfig, HdfsNodeRole, UpgradeState, constants::APP_NAME,
-        security::AuthenticationConfig, v1alpha1,
+        DataNodeConfig, HdfsNodeRole, JournalNodeConfig, NameNodeConfig, UpgradeState,
+        constants::APP_NAME, security::AuthenticationConfig, v1alpha1,
     },
     hdfs_controller::HDFS_CONTROLLER_NAME,
 };
@@ -53,9 +53,10 @@ pub struct Applied;
 
 /// Every Kubernetes resource produced by the build step.
 ///
-/// The resources are flat, unordered collections. The reconcile step re-groups the
-/// StatefulSets by role to preserve HDFS's ordered, rollout-gated deployment during
-/// upgrades. The discovery `ConfigMap` is part of `config_maps` whenever it can be built or
+/// The resources are flat collections. `stateful_sets` is ordered by role — journalnodes, then
+/// namenodes, then datanodes — because the apply step rolls them out in that order during
+/// upgrades to preserve HDFS's rollout-gated deployment (see [`apply::Applier::apply`]).
+/// The discovery `ConfigMap` is part of `config_maps` whenever it can be built or
 /// re-emitted; it is only absent before its first successful build (see
 /// [`build::resource::discovery::build_discovery_config_map`]).
 ///
@@ -72,13 +73,17 @@ pub struct KubernetesResources<T> {
     pub status: PhantomData<T>,
 }
 
-/// The [`RoleGroupConfig`] specialised for HDFS: the validated config is the
-/// per-role [`AnyNodeConfig`],
-pub type ValidatedRoleGroupConfig = RoleGroupConfig<
-    AnyNodeConfig,
-    stackable_operator::v2::role_utils::JavaCommonConfig,
-    v1alpha1::HdfsConfigOverrides,
->;
+/// The [`RoleGroupConfig`] of one namenode role group.
+pub type NameNodeRoleGroupConfig =
+    RoleGroupConfig<NameNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+
+/// The [`RoleGroupConfig`] of one datanode role group.
+pub type DataNodeRoleGroupConfig =
+    RoleGroupConfig<DataNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+
+/// The [`RoleGroupConfig`] of one journalnode role group.
+pub type JournalNodeRoleGroupConfig =
+    RoleGroupConfig<JournalNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
 
 /// The validated cluster: proves that config merging and validation succeeded
 /// for every role and role group before any resources are created. Placed in the
@@ -99,7 +104,15 @@ pub struct ValidatedCluster {
     pub product_version: ProductVersion,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
-    pub role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
+    /// The validated config of every namenode role group, keyed by role group name; empty if the
+    /// role is absent.
+    pub namenode_role_group_configs: BTreeMap<RoleGroupName, NameNodeRoleGroupConfig>,
+    /// The validated config of every datanode role group, keyed by role group name; empty if the
+    /// role is absent.
+    pub datanode_role_group_configs: BTreeMap<RoleGroupName, DataNodeRoleGroupConfig>,
+    /// The validated config of every journalnode role group, keyed by role group name; empty if
+    /// the role is absent.
+    pub journalnode_role_group_configs: BTreeMap<RoleGroupName, JournalNodeRoleGroupConfig>,
     /// The namenode role-level config (currently the PDB), or `None` if the role is absent.
     pub namenode_config: Option<ValidatedRoleConfig>,
     /// The datanode role-level config (currently the PDB), or `None` if the role is absent.
@@ -125,7 +138,9 @@ impl ValidatedCluster {
         uid: Uid,
         image: ResolvedProductImage,
         cluster_config: ValidatedClusterConfig,
-        role_groups: BTreeMap<HdfsNodeRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
+        namenode_role_group_configs: BTreeMap<RoleGroupName, NameNodeRoleGroupConfig>,
+        datanode_role_group_configs: BTreeMap<RoleGroupName, DataNodeRoleGroupConfig>,
+        journalnode_role_group_configs: BTreeMap<RoleGroupName, JournalNodeRoleGroupConfig>,
         namenode_config: Option<ValidatedRoleConfig>,
         datanode_config: Option<ValidatedRoleConfig>,
         journalnode_config: Option<ValidatedRoleConfig>,
@@ -152,7 +167,9 @@ impl ValidatedCluster {
             image,
             product_version,
             cluster_config,
-            role_groups,
+            namenode_role_group_configs,
+            datanode_role_group_configs,
+            journalnode_role_group_configs,
             namenode_config,
             datanode_config,
             journalnode_config,

@@ -25,10 +25,7 @@ use stackable_operator::{
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
-    product_logging::{
-        self,
-        spec::{ContainerLogConfig, Logging},
-    },
+    product_logging::{self, spec::Logging},
     role_utils::GenericRoleConfig,
     schemars::{self, JsonSchema},
     shared::time::Duration,
@@ -355,92 +352,6 @@ pub struct CommonNodeConfig {
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
-}
-
-/// Configuration for a rolegroup of an unknown type.
-#[derive(Clone, Debug)]
-pub enum AnyNodeConfig {
-    Name(NameNodeConfig),
-    Data(DataNodeConfig),
-    Journal(JournalNodeConfig),
-}
-
-impl Deref for AnyNodeConfig {
-    type Target = CommonNodeConfig;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            AnyNodeConfig::Name(node) => &node.common,
-            AnyNodeConfig::Data(node) => &node.common,
-            AnyNodeConfig::Journal(node) => &node.common,
-        }
-    }
-}
-
-impl AnyNodeConfig {
-    // Downcasting helpers for each variant
-    #[allow(unused)]
-    pub fn as_namenode(&self) -> Option<&NameNodeConfig> {
-        if let Self::Name(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_datanode(&self) -> Option<&DataNodeConfig> {
-        if let Self::Data(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    #[allow(unused)]
-    pub fn as_journalnode(&self) -> Option<&JournalNodeConfig> {
-        if let Self::Journal(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    // Logging config is distinct between each role, due to the different enum types,
-    // so provide helpers for containers that are common between all roles.
-    pub fn hdfs_logging(&'_ self) -> Cow<'_, ContainerLogConfig> {
-        match self {
-            AnyNodeConfig::Name(node) => node.logging.for_container(&NameNodeContainer::Hdfs),
-            AnyNodeConfig::Data(node) => node.logging.for_container(&DataNodeContainer::Hdfs),
-            AnyNodeConfig::Journal(node) => node.logging.for_container(&JournalNodeContainer::Hdfs),
-        }
-    }
-
-    pub fn vector_logging(&'_ self) -> Cow<'_, ContainerLogConfig> {
-        match &self {
-            AnyNodeConfig::Name(node) => node.logging.for_container(&NameNodeContainer::Vector),
-            AnyNodeConfig::Data(node) => node.logging.for_container(&DataNodeContainer::Vector),
-            AnyNodeConfig::Journal(node) => {
-                node.logging.for_container(&JournalNodeContainer::Vector)
-            }
-        }
-    }
-
-    pub fn vector_logging_enabled(&self) -> bool {
-        match self {
-            AnyNodeConfig::Name(node) => node.logging.enable_vector_agent,
-            AnyNodeConfig::Data(node) => node.logging.enable_vector_agent,
-            AnyNodeConfig::Journal(node) => node.logging.enable_vector_agent,
-        }
-    }
-
-    #[allow(unused)]
-    pub fn requested_secret_lifetime(&self) -> Option<Duration> {
-        match self {
-            AnyNodeConfig::Name(node) => node.common.requested_secret_lifetime,
-            AnyNodeConfig::Data(node) => node.common.requested_secret_lifetime,
-            AnyNodeConfig::Journal(node) => node.common.requested_secret_lifetime,
-        }
-    }
 }
 
 constant!(JOURNALNODE_ROLE_NAME: RoleName = "journalnode");
