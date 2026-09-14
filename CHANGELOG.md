@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support floating tag in product image selection ([#831]).
+
 ### Changed
 
 - Internal operator refactoring: introduce a build() step in the reconciler that
@@ -42,6 +46,7 @@ All notable changes to this project will be documented in this file.
 [#821]: https://github.com/stackabletech/hdfs-operator/pull/821
 [#824]: https://github.com/stackabletech/hdfs-operator/pull/824
 [#829]: https://github.com/stackabletech/hdfs-operator/pull/829
+[#831]: https://github.com/stackabletech/hdfs-operator/pull/831
 
 ## [26.7.0] - 2026-07-21
 
