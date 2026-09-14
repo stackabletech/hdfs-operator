@@ -1,33 +1,34 @@
 //! Build the per-rolegroup `ConfigMap` for the HdfsCluster.
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
     k8s_openapi::api::core::v1::ConfigMap,
     product_logging::framework::VECTOR_CONFIG_FILE,
     utils::cluster_info::KubernetesClusterInfo,
-    v2::{config_file_writer::PropertiesWriterError, types::operator::RoleGroupName},
+    v2::{
+        config_file_writer::PropertiesWriterError,
+        role_utils::{JavaCommonConfig, RoleGroupConfig},
+        types::operator::RoleGroupName,
+    },
 };
 
 use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self,
+            self, RoleGroupLogging,
             properties::{
                 ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging,
                 security_properties, ssl_client, ssl_server,
             },
         },
     },
-    crd::HdfsNodeRole,
+    crd::{HdfsNodeRole, storage::DataNodeStorageConfigInnerType, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("the validated cluster has no role group {role_group:?} for role {role:?}"))]
-    MissingRoleGroup { role: String, role_group: String },
-
     #[snafu(display("failed to serialize {} for {rolegroup}", ConfigFileName::Security))]
     JvmSecurityProperties {
         source: PropertiesWriterError,
@@ -44,11 +45,19 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub fn build_rolegroup_config_map(
+/// Builds the [`ConfigMap`] of one role group.
+///
+/// Every role-specific value is resolved by the caller: `datanode_storage` is the datanode data
+/// volume configuration (`None` for the other roles) and `logging` the log config of each of the
+/// role group's containers.
+pub fn build_rolegroup_config_map<C>(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
+    rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+    datanode_storage: Option<DataNodeStorageConfigInnerType>,
+    logging: &RoleGroupLogging,
 ) -> Result<ConfigMap> {
     tracing::info!(
         "Setting up ConfigMap for role {role} role group {role_group_name}",
@@ -57,24 +66,13 @@ pub fn build_rolegroup_config_map(
 
     let metadata = build::rolegroup_metadata(cluster, role, role_group_name);
 
-    let rolegroup_config = cluster
-        .role_groups
-        .get(role)
-        .and_then(|role_groups| role_groups.get(role_group_name))
-        .with_context(|| MissingRoleGroupSnafu {
-            role: role.to_string(),
-            role_group: role_group_name.to_string(),
-        })?;
-    let merged_config = &rolegroup_config.config;
     let config_overrides = &rolegroup_config.config_overrides;
     let cluster_config = &cluster.cluster_config;
 
     let hdfs_site_xml = hdfs_site::build(
         cluster,
         cluster_info,
-        merged_config
-            .as_datanode()
-            .map(|node| node.resources.storage.clone()),
+        datanode_storage,
         config_overrides.hdfs_site_xml.clone(),
     );
     let core_site_xml = core_site::build(
@@ -110,9 +108,7 @@ pub fn build_rolegroup_config_map(
             )?,
         );
 
-    let logging = build::role_group_logging(merged_config);
-
-    let log4j_configs = product_logging::build_log4j_configs(&logging);
+    let log4j_configs = product_logging::build_log4j_configs(logging);
     for (log_config_file, log4j_config) in log4j_configs {
         builder.add_data(log_config_file, log4j_config);
     }

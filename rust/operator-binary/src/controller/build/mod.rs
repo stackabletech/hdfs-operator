@@ -3,6 +3,7 @@ use std::{collections::HashMap, marker::PhantomData};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
+    k8s_openapi::api::core::v1::ResourceRequirements,
     kvp::{LabelError, Labels},
     product_logging::spec::ContainerLogConfig,
     utils::cluster_info::KubernetesClusterInfo,
@@ -20,10 +21,14 @@ use crate::{
     controller::{
         CONTROLLER_NAME, KubernetesResources, OPERATOR_NAME, PRODUCT_NAME, Prepared,
         ValidatedCluster,
-        build::resource::rbac::{build_role_binding, build_service_account},
+        build::{
+            container::ContainerConfig,
+            resource::rbac::{build_role_binding, build_service_account},
+        },
     },
     crd::{
-        AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
+        AnyNodeConfig, CommonNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef,
+        NameNodeContainer,
         constants::{
             DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_HTTPS_PORT,
             DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
@@ -75,6 +80,27 @@ pub enum Error {
 
     #[snafu(display("failed to build the discovery ConfigMap"))]
     DiscoveryConfigMap { source: resource::discovery::Error },
+
+    #[snafu(display("failed to build selector labels for role {role} role group {role_group}", role = role.as_ref()))]
+    RoleGroupSelectorLabels {
+        source: LabelError,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build volume claim templates for role {role} role group {role_group}", role = role.as_ref()))]
+    VolumeClaimTemplates {
+        source: container::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build listener volume for role {role} role group {role_group}", role = role.as_ref()))]
+    ListenerVolume {
+        source: container::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
 }
 
 /// The log configuration of every container in one role group, resolved during the build step
@@ -192,12 +218,68 @@ pub fn build(
                         role_group: role_group_name.clone(),
                     })?,
             );
+            // Everything the shared builders need that depends on the role is resolved here, so
+            // that they never see the `AnyNodeConfig` enum themselves.
+            //
+            // These matches are temporary scaffolding: once this loop is unrolled per role, each
+            // role resolves its own values from its own typed config.
+            let merged_config = &rg_config.config;
+            let common: &CommonNodeConfig = merged_config;
+            let logging = role_group_logging(merged_config);
+            let resources: ResourceRequirements = match merged_config {
+                AnyNodeConfig::Name(config) => config.resources.clone().into(),
+                AnyNodeConfig::Data(config) => config.resources.clone().into(),
+                AnyNodeConfig::Journal(config) => config.resources.clone().into(),
+            };
+
+            // We must use the selector labels and not the recommended labels for the listener
+            // volumes below. This is because the recommended set contains a "managed-by" label.
+            // That label triggers the cluster resources to "manage" listeners, which is wrong and
+            // leads to errors. The listeners are managed by the listener-operator.
+            let selector_labels = rolegroup_selector_labels(cluster, role, role_group_name)
+                .context(RoleGroupSelectorLabelsSnafu {
+                    role: *role,
+                    role_group: role_group_name.clone(),
+                })?;
+
+            // Datanodes use an ephemeral listener volume while namenodes use a persistent volume
+            // claim template for stable per-pod identity.
+            let (volume_claim_templates, listener_volume) = match merged_config {
+                AnyNodeConfig::Name(config) => (
+                    ContainerConfig::namenode_volume_claim_templates(config, &selector_labels)
+                        .context(VolumeClaimTemplatesSnafu {
+                            role: *role,
+                            role_group: role_group_name.clone(),
+                        })?,
+                    None,
+                ),
+                AnyNodeConfig::Data(config) => (
+                    ContainerConfig::datanode_volume_claim_templates(config),
+                    Some(
+                        ContainerConfig::datanode_listener_volume(config, &selector_labels)
+                            .context(ListenerVolumeSnafu {
+                                role: *role,
+                                role_group: role_group_name.clone(),
+                            })?,
+                    ),
+                ),
+                AnyNodeConfig::Journal(config) => (
+                    ContainerConfig::journalnode_volume_claim_templates(config),
+                    None,
+                ),
+            };
+
             config_maps.push(
                 resource::config_map::build_rolegroup_config_map(
                     cluster,
                     cluster_info,
                     role,
                     role_group_name,
+                    rg_config,
+                    merged_config
+                        .as_datanode()
+                        .map(|config| config.resources.storage.clone()),
+                    &logging,
                 )
                 .context(ConfigMapSnafu {
                     role: *role,
@@ -211,6 +293,11 @@ pub fn build(
                     role,
                     role_group_name,
                     rg_config,
+                    common,
+                    &resources,
+                    volume_claim_templates,
+                    listener_volume,
+                    &logging,
                 )
                 .context(StatefulSetSnafu {
                     role: *role,

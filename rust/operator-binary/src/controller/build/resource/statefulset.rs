@@ -5,25 +5,31 @@ use stackable_operator::{
     builder::pod::{PodBuilder, security::PodSecurityContextBuilder},
     k8s_openapi::{
         DeepMerge,
-        api::apps::v1::{StatefulSet, StatefulSetSpec},
+        api::{
+            apps::v1::{StatefulSet, StatefulSetSpec},
+            core::v1::{PersistentVolumeClaim, ResourceRequirements, Volume},
+        },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::api::ObjectMeta,
     kvp::{LabelError, Labels},
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::operator::RoleGroupName,
+    v2::{
+        role_utils::{JavaCommonConfig, RoleGroupConfig},
+        types::operator::RoleGroupName,
+    },
 };
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedRoleGroupConfig,
+        ValidatedCluster,
         build::{
-            self,
+            self, RoleGroupLogging,
             container::{self, ContainerConfig},
             graceful_shutdown::{self, add_graceful_shutdown_config},
         },
     },
-    crd::{AnyNodeConfig, HdfsNodeRole},
+    crd::{CommonNodeConfig, HdfsNodeRole, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
@@ -36,17 +42,26 @@ pub enum Error {
 
     #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown { source: graceful_shutdown::Error },
-
-    #[snafu(display("failed to build role-group volume claim templates from config"))]
-    BuildRoleGroupVolumeClaimTemplates { source: container::Error },
 }
 
-pub(crate) fn build_rolegroup_statefulset(
+/// Builds the [`StatefulSet`] of one role group.
+///
+/// Every role-specific value is resolved by the caller: `common` is the role group's merged
+/// common config, `resources` its container resource requirements, `volume_claim_templates` its
+/// PVC templates, `listener_volume` its ephemeral listener volume (datanodes only) and `logging`
+/// the log config of each of its containers.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_rolegroup_statefulset<C>(
     validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
-    rolegroup_config: &ValidatedRoleGroupConfig,
+    rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+    common: &CommonNodeConfig,
+    resources: &ResourceRequirements,
+    volume_claim_templates: Vec<PersistentVolumeClaim>,
+    listener_volume: Option<Volume>,
+    logging: &RoleGroupLogging,
 ) -> Result<StatefulSet, Error> {
     tracing::info!(
         "Setting up StatefulSet for role {role} role group {role_group_name}",
@@ -54,7 +69,6 @@ pub(crate) fn build_rolegroup_statefulset(
     );
 
     let image = &validated.image;
-    let merged_config = &rolegroup_config.config;
 
     // PodBuilder for StatefulSet Pod template.
     let mut pb = PodBuilder::new();
@@ -70,7 +84,7 @@ pub(crate) fn build_rolegroup_statefulset(
 
     pb.metadata(pb_metadata)
         .image_pull_secrets_from_product_image(image)
-        .affinity(&merged_config.affinity)
+        .affinity(&common.affinity)
         .service_account_name(
             validated
                 .cluster_resource_names()
@@ -83,14 +97,7 @@ pub(crate) fn build_rolegroup_statefulset(
                 .build(),
         );
 
-    let logging = build::role_group_logging(merged_config);
-
-    // Adds all containers and volumes to the pod builder
-    // We must use the selector labels ("rolegroup_selector_labels") and not the recommended labels
-    // for the ephemeral listener volumes created by this function.
-    // This is because the recommended set contains a "managed-by" label. This label triggers
-    // the cluster resources to "manage" listeners which is wrong and leads to errors.
-    // The listeners are managed by the listener-operator.
+    // Adds all containers and volumes to the pod builder.
     ContainerConfig::add_containers_and_volumes(
         &mut pb,
         validated,
@@ -98,31 +105,20 @@ pub(crate) fn build_rolegroup_statefulset(
         role,
         role_group_name,
         rolegroup_config,
-        &logging,
-        &rolegroup_selector_labels,
+        common,
+        resources,
+        &volume_claim_templates,
+        listener_volume,
+        logging,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
-    add_graceful_shutdown_config(merged_config, &mut pb).context(GracefulShutdownSnafu)?;
+    add_graceful_shutdown_config(common, &mut pb).context(GracefulShutdownSnafu)?;
 
     // The `podOverrides` were already merged (role <- role group) during validation
     // by the local-`framework` `with_validated_config`.
     let mut pod_template = pb.build_template();
     pod_template.merge_from(rolegroup_config.pod_overrides.clone());
-
-    // This match is temporary scaffolding: once this function is typed per role, each role
-    // computes its own PVC templates directly.
-    let pvcs = match merged_config {
-        AnyNodeConfig::Name(config) => {
-            // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
-            ContainerConfig::namenode_volume_claim_templates(config, &rolegroup_selector_labels)
-                .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?
-        }
-        AnyNodeConfig::Journal(config) => {
-            ContainerConfig::journalnode_volume_claim_templates(config)
-        }
-        AnyNodeConfig::Data(config) => ContainerConfig::datanode_volume_claim_templates(config),
-    };
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),
@@ -138,7 +134,7 @@ pub(crate) fn build_rolegroup_statefulset(
         ),
         template: pod_template,
 
-        volume_claim_templates: Some(pvcs),
+        volume_claim_templates: Some(volume_claim_templates),
         ..StatefulSetSpec::default()
     };
 

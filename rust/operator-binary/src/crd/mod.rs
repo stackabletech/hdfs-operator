@@ -433,6 +433,7 @@ impl AnyNodeConfig {
         }
     }
 
+    #[allow(unused)]
     pub fn requested_secret_lifetime(&self) -> Option<Duration> {
         match self {
             AnyNodeConfig::Name(node) => node.common.requested_secret_lifetime,

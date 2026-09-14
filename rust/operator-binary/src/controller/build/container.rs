@@ -53,6 +53,7 @@ use stackable_operator::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, VectorContainerLogConfig,
             vector_container,
         },
+        role_utils::{JavaCommonConfig, RoleGroupConfig},
         types::{
             common::Port,
             kubernetes::{ConfigMapName, ContainerName, VolumeName},
@@ -64,7 +65,7 @@ use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedRoleGroupConfig,
+        ValidatedCluster,
         build::{
             self, RoleGroupLogging,
             jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
@@ -79,8 +80,8 @@ use crate::{
         },
     },
     crd::{
-        AnyNodeConfig, DataNodeConfig, HdfsNodeRole, HdfsPodRef, JournalNodeConfig, NameNodeConfig,
-        UpgradeState,
+        CommonNodeConfig, DataNodeConfig, HdfsNodeRole, HdfsPodRef, JournalNodeConfig,
+        NameNodeConfig, UpgradeState,
         constants::{
             DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
             DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR,
@@ -92,6 +93,7 @@ use crate::{
             SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
+        v1alpha1,
     },
 };
 
@@ -168,20 +170,6 @@ pub enum Error {
     },
 }
 
-/// Converts a role group's merged `resources` into Kubernetes resource requirements.
-///
-/// This is temporary scaffolding: once the callers are typed per role, each of them converts its
-/// own role group's `resources` directly and this function goes away.
-pub(crate) fn role_group_resource_requirements(
-    merged_config: &AnyNodeConfig,
-) -> ResourceRequirements {
-    match merged_config {
-        AnyNodeConfig::Name(config) => config.resources.clone().into(),
-        AnyNodeConfig::Data(config) => config.resources.clone().into(),
-        AnyNodeConfig::Journal(config) => config.resources.clone().into(),
-    }
-}
-
 /// ContainerConfig contains information to create all main, side and init containers for
 /// the HDFS cluster.
 #[derive(Display)]
@@ -225,18 +213,24 @@ impl ContainerConfig {
     const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
-    // The parameter list shrinks again once the callers are typed per role and this function
-    // no longer has to take both the merged config and the data resolved from it.
+    ///
+    /// Every role-specific value is resolved by the caller: `common` is the role group's merged
+    /// common config, `resources` its container resource requirements, `volume_claim_templates`
+    /// its PVC templates (the datanode data volumes are mounted from them) and `listener_volume`
+    /// its ephemeral listener volume, which only datanodes have.
     #[allow(clippy::too_many_arguments)]
-    pub fn add_containers_and_volumes(
+    pub fn add_containers_and_volumes<C>(
         pb: &mut PodBuilder,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
         role_group_name: &RoleGroupName,
-        rolegroup_config: &ValidatedRoleGroupConfig,
+        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+        common: &CommonNodeConfig,
+        resources: &ResourceRequirements,
+        volume_claim_templates: &[PersistentVolumeClaim],
+        listener_volume: Option<Volume>,
         logging: &RoleGroupLogging,
-        labels: &Labels,
     ) -> Result<(), Error> {
         let namenode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Name);
 
@@ -244,25 +238,6 @@ impl ContainerConfig {
         let main_container_config = Self::from(*role);
         let resource_names = cluster.role_group_resource_names(role, role_group_name);
         let object_name = resource_names.qualified_role_group_name().to_string();
-        let merged_config = &rolegroup_config.config;
-
-        // Datanodes use ephemeral listener volumes while namenodes use persistent
-        // volume claim templates for stable per-pod identity.
-        let listener_volume = match merged_config {
-            AnyNodeConfig::Data(config) => Some(
-                VolumeBuilder::new(&*LISTENER_VOLUME_NAME)
-                    .ephemeral(
-                        ListenerOperatorVolumeSourceBuilder::new(
-                            &ListenerReference::ListenerClass(config.listener_class.to_string()),
-                            labels,
-                        )
-                        .build_ephemeral()
-                        .context(BuildListenerVolumeSnafu)?,
-                    )
-                    .build(),
-            ),
-            AnyNodeConfig::Name(_) | AnyNodeConfig::Journal(_) => None,
-        };
 
         pb.add_volumes(main_container_config.volumes(logging, listener_volume, &object_name))
             .context(AddVolumeSnafu)?;
@@ -272,6 +247,8 @@ impl ContainerConfig {
             role,
             rolegroup_config,
             logging,
+            resources,
+            volume_claim_templates,
         )?);
 
         // Vector sidecar container.
@@ -332,8 +309,8 @@ impl ContainerConfig {
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
                         .with_auto_tls_cert_lifetime(
-                            merged_config
-                                .requested_secret_lifetime()
+                            common
+                                .requested_secret_lifetime
                                 .context(MissingSecretLifetimeSnafu)?,
                         )
                         .build()
@@ -379,6 +356,8 @@ impl ContainerConfig {
                     role,
                     rolegroup_config,
                     logging,
+                    resources,
+                    volume_claim_templates,
                 )?);
 
                 // Format namenode init container
@@ -395,6 +374,8 @@ impl ContainerConfig {
                     role,
                     rolegroup_config,
                     logging,
+                    resources,
+                    volume_claim_templates,
                     &namenode_podrefs,
                 )?);
 
@@ -412,6 +393,8 @@ impl ContainerConfig {
                     role,
                     rolegroup_config,
                     logging,
+                    resources,
+                    volume_claim_templates,
                     &namenode_podrefs,
                 )?);
             }
@@ -430,6 +413,8 @@ impl ContainerConfig {
                     role,
                     rolegroup_config,
                     logging,
+                    resources,
+                    volume_claim_templates,
                     &namenode_podrefs,
                 )?);
             }
@@ -489,29 +474,49 @@ impl ContainerConfig {
         .build_pvcs()
     }
 
+    /// The ephemeral listener volume of a datanode role group.
+    ///
+    /// Datanodes use an ephemeral listener volume, while namenodes use a persistent volume claim
+    /// template for stable per-pod identity (see [`Self::namenode_volume_claim_templates`]) and
+    /// journalnodes have no listener at all.
+    pub fn datanode_listener_volume(config: &DataNodeConfig, labels: &Labels) -> Result<Volume> {
+        Ok(VolumeBuilder::new(&*LISTENER_VOLUME_NAME)
+            .ephemeral(
+                ListenerOperatorVolumeSourceBuilder::new(
+                    &ListenerReference::ListenerClass(config.listener_class.to_string()),
+                    labels,
+                )
+                .build_ephemeral()
+                .context(BuildListenerVolumeSnafu)?,
+            )
+            .build())
+    }
+
     /// Creates the main/side containers for:
     /// - Namenode main process
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
-    fn main_container(
+    #[allow(clippy::too_many_arguments)]
+    fn main_container<C>(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        rolegroup_config: &ValidatedRoleGroupConfig,
+        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         logging: &RoleGroupLogging,
+        role_group_resources: &ResourceRequirements,
+        volume_claim_templates: &[PersistentVolumeClaim],
     ) -> Result<Container, Error> {
-        let merged_config = &rolegroup_config.config;
         let mut cb = new_container_builder(self.container_name());
 
-        let resources = self.resources(&role_group_resource_requirements(merged_config));
+        let resources = self.resources(role_group_resources);
 
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
             .args(self.args(cluster, cluster_info, role, logging, &[])?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, resources.as_ref())?)
-            .add_volume_mounts(self.volume_mounts(cluster, merged_config))
+            .add_volume_mounts(self.volume_mounts(cluster, volume_claim_templates))
             .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(cluster));
 
@@ -542,29 +547,31 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
-    fn init_container(
+    #[allow(clippy::too_many_arguments)]
+    fn init_container<C>(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         role: &HdfsNodeRole,
-        rolegroup_config: &ValidatedRoleGroupConfig,
+        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         logging: &RoleGroupLogging,
+        role_group_resources: &ResourceRequirements,
+        volume_claim_templates: &[PersistentVolumeClaim],
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<Container, Error> {
-        let merged_config = &rolegroup_config.config;
         let mut cb = new_container_builder(self.container_name());
 
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
             .args(self.args(cluster, cluster_info, role, logging, namenode_podrefs)?)
             .add_env_vars(self.env(cluster, role, rolegroup_config, None)?)
-            .add_volume_mounts(self.volume_mounts(cluster, merged_config))
+            .add_volume_mounts(self.volume_mounts(cluster, volume_claim_templates))
             .context(AddVolumeMountSnafu)?;
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
         // Going forward this should be replaced by calculating init container resources in the pod builder.
-        if let Some(resources) = self.resources(&role_group_resource_requirements(merged_config)) {
+        if let Some(resources) = self.resources(role_group_resources) {
             cb.resources(resources);
         }
 
@@ -894,11 +901,11 @@ impl ContainerConfig {
     }
 
     /// Returns the container env variables.
-    fn env(
+    fn env<C>(
         &self,
         cluster: &ValidatedCluster,
         role: &HdfsNodeRole,
-        rolegroup_config: &ValidatedRoleGroupConfig,
+        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         resources: Option<&ResourceRequirements>,
     ) -> Result<Vec<EnvVar>, Error> {
         // Maps env var name to env var object. This allows env_overrides to work
@@ -1143,10 +1150,13 @@ impl ContainerConfig {
     }
 
     /// Returns the container volume mounts.
+    ///
+    /// `volume_claim_templates` are the role group's PVC templates; the datanode main container
+    /// mounts one data directory per data PVC, named after it.
     fn volume_mounts(
         &self,
         cluster: &ValidatedCluster,
-        merged_config: &AnyNodeConfig,
+        volume_claim_templates: &[PersistentVolumeClaim],
     ) -> Vec<VolumeMount> {
         let volume_mount_dirs = self.volume_mount_dirs();
         let mut volume_mounts = vec![
@@ -1205,10 +1215,7 @@ impl ContainerConfig {
                         );
                     }
                     HdfsNodeRole::Data => {
-                        let config = merged_config.as_datanode().expect(
-                            "A datanode container is only built for a datanode role group.",
-                        );
-                        for pvc in Self::datanode_volume_claim_templates(config) {
+                        for pvc in volume_claim_templates {
                             let pvc_name = pvc.name_any();
                             volume_mounts.push(VolumeMount {
                                 mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
@@ -1274,11 +1281,11 @@ impl ContainerConfig {
     }
 
     /// Build HADOOP_{*node}_OPTS for each namenode, datanodes and journalnodes.
-    fn build_hadoop_opts(
+    fn build_hadoop_opts<C>(
         &self,
         cluster: &ValidatedCluster,
         resources: Option<&ResourceRequirements>,
-        rolegroup_config: &ValidatedRoleGroupConfig,
+        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
     ) -> Result<String, Error> {
         match self {
             ContainerConfig::Hdfs {

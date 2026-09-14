@@ -180,7 +180,7 @@ mod test {
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
         controller::build::{container::ContainerConfig, role_group_logging},
-        test_support::{deserialize_cluster, role_group_config, validate_cluster},
+        test_support::{datanode_config, deserialize_cluster, role_group_config, validate_cluster},
     };
 
     #[test]
@@ -223,6 +223,8 @@ spec:
         let validated_cluster = validate_cluster(&hdfs);
         let role_group_name = RoleGroupName::from_str("default").unwrap();
         let role_group_config = role_group_config(&validated_cluster, &role, &role_group_name);
+        let datanode_config = datanode_config(&validated_cluster, &role_group_name);
+        let labels = Labels::new();
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
@@ -235,8 +237,14 @@ spec:
             &role,
             &role_group_name,
             role_group_config,
+            &datanode_config.common,
+            &datanode_config.resources.clone().into(),
+            &ContainerConfig::datanode_volume_claim_templates(datanode_config),
+            Some(
+                ContainerConfig::datanode_listener_volume(datanode_config, &labels)
+                    .expect("the datanode listener volume should build"),
+            ),
             &role_group_logging(&role_group_config.config),
-            &Labels::new(),
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;
