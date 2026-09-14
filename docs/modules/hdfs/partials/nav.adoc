@@ -19,7 +19,7 @@
 *** xref:hdfs:usage-guide/operations/graceful-shutdown.adoc[]
 * xref:hdfs:reference/index.adoc[]
 ** xref:hdfs:reference/crds.adoc[]
-*** {crd-docs}/hdfs.stackable.tech/hdfscluster/v1alpha1/[HdfsCluster {external-link-icon}^]
+*** {crd-ref}/hdfs.stackable.tech/v1alpha1/hdfscluster{crd-ref-release}[HdfsCluster {external-link-icon}^]
 ** xref:hdfs:reference/discovery.adoc[]
 ** xref:hdfs:reference/commandline-parameters.adoc[]
 ** xref:hdfs:reference/environment-variables.adoc[]
