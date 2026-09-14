@@ -17,14 +17,14 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self, RoleGroupLogging,
+            self, ResolvedRoleGroup,
             properties::{
                 ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging,
                 security_properties, ssl_client, ssl_server,
             },
         },
     },
-    crd::{HdfsNodeRole, storage::DataNodeStorageConfigInnerType, v1alpha1},
+    crd::v1alpha1,
 };
 
 #[derive(Snafu, Debug)]
@@ -47,24 +47,24 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds the [`ConfigMap`] of one role group.
 ///
-/// Every role-specific value is resolved by the caller: `datanode_storage` is the datanode data
-/// volume configuration (`None` for the other roles) and `logging` the log config of each of the
-/// role group's containers.
+/// Every role-specific value is resolved by the caller into `resolved`, the role itself included:
+/// taking the role and the datanode storage configuration as two independent parameters would let
+/// a caller pass a datanode without its storage, which silently drops `dfs.datanode.data.dir`.
 pub fn build_rolegroup_config_map<C>(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
     rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    datanode_storage: Option<DataNodeStorageConfigInnerType>,
-    logging: &RoleGroupLogging,
+    resolved: &ResolvedRoleGroup,
 ) -> Result<ConfigMap> {
+    let role = resolved.role.node_role();
+
     tracing::info!(
         "Setting up ConfigMap for role {role} role group {role_group_name}",
         role = role.as_ref()
     );
 
-    let metadata = build::rolegroup_metadata(cluster, role, role_group_name);
+    let metadata = build::rolegroup_metadata(cluster, &role, role_group_name);
 
     let config_overrides = &rolegroup_config.config_overrides;
     let cluster_config = &cluster.cluster_config;
@@ -72,12 +72,12 @@ pub fn build_rolegroup_config_map<C>(
     let hdfs_site_xml = hdfs_site::build(
         cluster,
         cluster_info,
-        datanode_storage,
+        resolved.role.datanode_storage(),
         config_overrides.hdfs_site_xml.clone(),
     );
     let core_site_xml = core_site::build(
         cluster,
-        *role,
+        role,
         cluster_info,
         config_overrides.core_site_xml.clone(),
     );
@@ -108,10 +108,10 @@ pub fn build_rolegroup_config_map<C>(
             )?,
         );
 
-    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(logging) {
+    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(&resolved.logging) {
         builder.add_data(log_config_file, log4j_config);
     }
-    if logging.vector.is_some() {
+    if resolved.logging.vector.is_some() {
         builder.add_data(
             VECTOR_CONFIG_FILE,
             product_logging::vector_config_file_content(),

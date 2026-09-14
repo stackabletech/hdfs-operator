@@ -1,19 +1,13 @@
-use std::collections::BTreeMap;
-
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     k8s_openapi::api::core::v1::ObjectReference,
     kube::runtime::events::{Event, EventType},
-    v2::{
-        role_utils::{JavaCommonConfig, RoleGroupConfig},
-        types::operator::RoleGroupName,
-    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    controller::ValidatedCluster,
-    crd::{HdfsNodeRole, v1alpha1},
+    controller::{ValidatedCluster, build::total_replicas},
+    crd::HdfsNodeRole,
     hdfs_controller::Ctx,
 };
 
@@ -71,7 +65,7 @@ pub fn build_invalid_replica_message(
         Some(format!(
             "{role_name}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"
         ))
-    } else if !role.replicas_can_be_even() && replicas < dfs_replication as u16 {
+    } else if role.check_valid_dfs_replication() && replicas < dfs_replication as u16 {
         Some(format!(
             "{role_name}: HDFS replication factor [{dfs_replication}] is configured greater than data node replicas [{replicas}]"
         ))
@@ -80,16 +74,133 @@ pub fn build_invalid_replica_message(
     }
 }
 
-/// The total number of replicas across the role groups of one role, counting a role group without
-/// an explicit replica count as zero.
-fn total_replicas<C>(
-    role_group_configs: &BTreeMap<
-        RoleGroupName,
-        RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    >,
-) -> u16 {
-    role_group_configs
-        .values()
-        .map(|role_group| role_group.replicas.unwrap_or_default())
-        .sum()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::deserialize_and_validate_cluster;
+
+    /// A role group with no explicit `replicas` runs one pod — Kubernetes' default for a
+    /// `StatefulSet` with `replicas: null` — so it must not be counted as zero. Counting it as
+    /// zero produced a warning event telling the user to configure at least one datanode when
+    /// they already had one.
+    #[test]
+    fn an_unset_replica_count_counts_as_one_datanode() {
+        let cluster = deserialize_and_validate_cluster(
+            "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+    dfsReplication: 1
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 3
+  dataNodes:
+    roleGroups:
+      default: {}
+",
+        );
+
+        assert_eq!(
+            build_invalid_replica_message(&cluster, &HdfsNodeRole::Data),
+            None
+        );
+    }
+
+    /// A role with no role groups at all really does have zero replicas, and still warns.
+    #[test]
+    fn a_role_without_role_groups_still_warns() {
+        let cluster = deserialize_and_validate_cluster(
+            "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+    dfsReplication: 1
+  nameNodes:
+    roleGroups: {}
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 3
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+",
+        );
+
+        assert_eq!(
+            build_invalid_replica_message(&cluster, &HdfsNodeRole::Name).as_deref(),
+            Some(
+                "namenode: only has 0 replicas configured, it is strongly recommended to use at \
+                 least [2]"
+            )
+        );
+    }
+
+    /// A `dfsReplication` above the datanode count means HDFS cannot place every replica, so the
+    /// user is warned. The gate for this is [`HdfsNodeRole::check_valid_dfs_replication`], which
+    /// is true for datanodes only — the message is about datanodes.
+    #[test]
+    fn fewer_datanodes_than_the_replication_factor_warns() {
+        let cluster = deserialize_and_validate_cluster(
+            "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+    dfsReplication: 3
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 3
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 2
+",
+        );
+
+        assert_eq!(
+            build_invalid_replica_message(&cluster, &HdfsNodeRole::Data).as_deref(),
+            Some(
+                "datanode: HDFS replication factor [3] is configured greater than data node \
+                 replicas [2]"
+            )
+        );
+    }
 }

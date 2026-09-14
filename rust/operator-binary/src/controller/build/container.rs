@@ -232,7 +232,7 @@ impl ContainerConfig {
 
         pb.add_volumes(main_container_config.volumes(
             &resolved.logging,
-            resolved.listener_volume.as_ref(),
+            resolved.role.listener_volume(),
             &object_name,
         ))
         .context(AddVolumeSnafu)?;
@@ -683,7 +683,7 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::Zkfc => {
-                if let Some(container_log_config) = &logging.zkfc {
+                if let Some(container_log_config) = logging.role.zkfc() {
                     args.push_str(
                         &self.copy_log4j_properties_cmd(
                             ZKFC_LOG4J_CONFIG_FILE,
@@ -699,7 +699,7 @@ impl ContainerConfig {
             ContainerConfig::FormatNameNodes => {
                 args.push_str(&bash_capture_shell_helper(self.container_name().as_ref()));
 
-                if let Some(container_log_config) = &logging.format_namenodes {
+                if let Some(container_log_config) = logging.role.format_namenodes() {
                     args.push_str(&self.copy_log4j_properties_cmd(
                         FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
                         container_log_config,
@@ -772,7 +772,7 @@ impl ContainerConfig {
             ContainerConfig::FormatZooKeeper => {
                 args.push_str(&bash_capture_shell_helper(self.container_name().as_ref()));
 
-                if let Some(container_log_config) = &logging.format_zookeeper {
+                if let Some(container_log_config) = logging.role.format_zookeeper() {
                     args.push_str(&self.copy_log4j_properties_cmd(
                         FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
                         container_log_config,
@@ -801,7 +801,7 @@ impl ContainerConfig {
             ContainerConfig::WaitForNameNodes => {
                 args.push_str(&bash_capture_shell_helper(self.container_name().as_ref()));
 
-                if let Some(container_log_config) = &logging.wait_for_namenodes {
+                if let Some(container_log_config) = logging.role.wait_for_namenodes() {
                     args.push_str(&self.copy_log4j_properties_cmd(
                         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
                         container_log_config,
@@ -1116,10 +1116,10 @@ impl ContainerConfig {
 
         let container_log_config = match self {
             ContainerConfig::Hdfs { .. } => Some(&logging.hdfs),
-            ContainerConfig::Zkfc => logging.zkfc.as_ref(),
-            ContainerConfig::FormatNameNodes => logging.format_namenodes.as_ref(),
-            ContainerConfig::FormatZooKeeper => logging.format_zookeeper.as_ref(),
-            ContainerConfig::WaitForNameNodes => logging.wait_for_namenodes.as_ref(),
+            ContainerConfig::Zkfc => logging.role.zkfc(),
+            ContainerConfig::FormatNameNodes => logging.role.format_namenodes(),
+            ContainerConfig::FormatZooKeeper => logging.role.format_zookeeper(),
+            ContainerConfig::WaitForNameNodes => logging.role.wait_for_namenodes(),
         };
         let volume_mount_dirs = self.volume_mount_dirs();
         volumes.extend(Self::common_container_volumes(

@@ -178,7 +178,10 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::{ResolvedRoleGroup, RoleGroupLogging, container::ContainerConfig},
+        controller::build::{
+            ResolvedRoleGroup, RoleContainerLogging, RoleGroupLogging, RoleSpecificResources,
+            container::ContainerConfig,
+        },
         crd::DataNodeContainer,
         test_support::{
             datanode_config, datanode_role_group_config, deserialize_cluster, validate_cluster,
@@ -234,10 +237,14 @@ spec:
             volume_claim_templates: ContainerConfig::datanode_volume_claim_templates(
                 datanode_config,
             ),
-            listener_volume: Some(
-                ContainerConfig::datanode_listener_volume(datanode_config, &labels)
-                    .expect("the datanode listener volume should build"),
-            ),
+            role: RoleSpecificResources::Data {
+                listener_volume: ContainerConfig::datanode_listener_volume(
+                    datanode_config,
+                    &labels,
+                )
+                .expect("the datanode listener volume should build"),
+                storage: datanode_config.resources.storage.clone(),
+            },
             logging: RoleGroupLogging {
                 hdfs: datanode_config
                     .logging
@@ -249,15 +256,12 @@ spec:
                         .for_container(&DataNodeContainer::Vector)
                         .into_owned()
                 }),
-                zkfc: None,
-                format_namenodes: None,
-                format_zookeeper: None,
-                wait_for_namenodes: Some(
-                    datanode_config
+                role: RoleContainerLogging::Data {
+                    wait_for_namenodes: datanode_config
                         .logging
                         .for_container(&DataNodeContainer::WaitForNameNodes)
                         .into_owned(),
-                ),
+                },
             },
         };
 

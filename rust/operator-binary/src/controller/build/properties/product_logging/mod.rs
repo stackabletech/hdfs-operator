@@ -90,7 +90,7 @@ pub fn build_log4j_configs(logging: &RoleGroupLogging) -> Vec<(&'static str, Str
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        logging.zkfc.as_ref(),
+        logging.role.zkfc(),
         ZKFC_LOG4J_CONFIG_FILE,
         ZKFC_CONTAINER_NAME.as_ref(),
         ZKFC_LOG_FILE,
@@ -98,7 +98,7 @@ pub fn build_log4j_configs(logging: &RoleGroupLogging) -> Vec<(&'static str, Str
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        logging.format_namenodes.as_ref(),
+        logging.role.format_namenodes(),
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
         FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
         FORMAT_NAMENODES_LOG_FILE,
@@ -106,7 +106,7 @@ pub fn build_log4j_configs(logging: &RoleGroupLogging) -> Vec<(&'static str, Str
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        logging.format_zookeeper.as_ref(),
+        logging.role.format_zookeeper(),
         FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
         FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
         FORMAT_ZOOKEEPER_LOG_FILE,
@@ -114,7 +114,7 @@ pub fn build_log4j_configs(logging: &RoleGroupLogging) -> Vec<(&'static str, Str
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        logging.wait_for_namenodes.as_ref(),
+        logging.role.wait_for_namenodes(),
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
         WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
         WAIT_FOR_NAMENODES_LOG_FILE,
