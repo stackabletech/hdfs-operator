@@ -96,7 +96,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        controller::build::container::ContainerConfig,
+        controller::build::container::{ContainerConfig, role_group_resource_requirements},
         crd::constants::DEFAULT_NAME_NODE_METRICS_PORT,
         test_support::{deserialize_and_validate_cluster, role_group_config, role_group_name},
     };
@@ -200,7 +200,8 @@ mod tests {
         let role_group_config =
             role_group_config(&validated_cluster, &role, &role_group_name("default"));
 
-        let resources = ContainerConfig::from(role).resources(&role_group_config.config);
+        let resources = ContainerConfig::from(role)
+            .resources(&role_group_resource_requirements(&role_group_config.config));
 
         construct_role_specific_jvm_args(
             &role,

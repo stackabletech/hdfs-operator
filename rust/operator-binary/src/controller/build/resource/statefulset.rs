@@ -23,7 +23,7 @@ use crate::{
             graceful_shutdown::{self, add_graceful_shutdown_config},
         },
     },
-    crd::HdfsNodeRole,
+    crd::{AnyNodeConfig, HdfsNodeRole},
 };
 
 #[derive(Snafu, Debug)]
@@ -107,9 +107,19 @@ pub(crate) fn build_rolegroup_statefulset(
     let mut pod_template = pb.build_template();
     pod_template.merge_from(rolegroup_config.pod_overrides.clone());
 
-    // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
-    let pvcs = ContainerConfig::volume_claim_templates(merged_config, &rolegroup_selector_labels)
-        .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?;
+    // This match is temporary scaffolding: once this function is typed per role, each role
+    // computes its own PVC templates directly.
+    let pvcs = match merged_config {
+        AnyNodeConfig::Name(config) => {
+            // The same comment regarding labels is valid here as it is for the ContainerConfig::add_containers_and_volumes() call above.
+            ContainerConfig::namenode_volume_claim_templates(config, &rolegroup_selector_labels)
+                .context(BuildRoleGroupVolumeClaimTemplatesSnafu)?
+        }
+        AnyNodeConfig::Journal(config) => {
+            ContainerConfig::journalnode_volume_claim_templates(config)
+        }
+        AnyNodeConfig::Data(config) => ContainerConfig::datanode_volume_claim_templates(config),
+    };
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),
