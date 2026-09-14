@@ -99,6 +99,10 @@ pub fn validate_cluster(
 
     let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
 
+    let journalnode_role_group_configs = validate_role_group_configs(
+        hdfs.spec.journal_nodes.as_ref(),
+        JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Journal),
+    )?;
     let namenode_role_group_configs = validate_role_group_configs(
         hdfs.spec.name_nodes.as_ref(),
         NameNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Name),
@@ -106,10 +110,6 @@ pub fn validate_cluster(
     let datanode_role_group_configs = validate_role_group_configs(
         hdfs.spec.data_nodes.as_ref(),
         DataNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Data),
-    )?;
-    let journalnode_role_group_configs = validate_role_group_configs(
-        hdfs.spec.journal_nodes.as_ref(),
-        JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Journal),
     )?;
 
     let namespace = get_namespace(hdfs).context(GetClusterNamespaceSnafu)?;

@@ -108,8 +108,7 @@ pub fn build_rolegroup_config_map<C>(
             )?,
         );
 
-    let log4j_configs = product_logging::build_log4j_configs(logging);
-    for (log_config_file, log4j_config) in log4j_configs {
+    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(logging) {
         builder.add_data(log_config_file, log4j_config);
     }
     if logging.vector.is_some() {

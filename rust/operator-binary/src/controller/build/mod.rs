@@ -144,7 +144,8 @@ pub struct ResolvedRoleGroup {
     pub selector_labels: Labels,
     /// The role group's merged config that is common to every role.
     pub common: CommonNodeConfig,
-    /// The resource requirements of the role group's containers.
+    /// The resource requirements of the role group's main and init containers; the ZKFC sidecar
+    /// has fixed requirements of its own and ignores this.
     pub resources: ResourceRequirements,
     /// The `StatefulSet`'s persistent volume claim templates.
     pub volume_claim_templates: Vec<PersistentVolumeClaim>,
