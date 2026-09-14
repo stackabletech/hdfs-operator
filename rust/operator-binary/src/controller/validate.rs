@@ -16,8 +16,8 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRoleConfig,
-        dereference::DereferencedObjects,
+        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRole,
+        ValidatedRoleConfig, dereference::DereferencedObjects,
     },
     crd::{
         DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfigFragment, NameNodeConfigFragment,
@@ -99,6 +99,9 @@ pub fn validate_cluster(
 
     let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
 
+    // Validated in `HdfsNodeRole` declaration order, because the first role that fails is the
+    // error the user sees: reordering these three statements changes which misconfiguration gets
+    // reported when more than one role is wrong.
     let journalnode_role_group_configs = validate_role_group_configs(
         hdfs.spec.journal_nodes.as_ref(),
         JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Journal),
@@ -132,12 +135,18 @@ pub fn validate_cluster(
         uid,
         image,
         ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
-        namenode_role_group_configs,
-        datanode_role_group_configs,
-        journalnode_role_group_configs,
-        validated_role_config(HdfsNodeRole::Name),
-        validated_role_config(HdfsNodeRole::Data),
-        validated_role_config(HdfsNodeRole::Journal),
+        ValidatedRole {
+            role_groups: namenode_role_group_configs,
+            config: validated_role_config(HdfsNodeRole::Name),
+        },
+        ValidatedRole {
+            role_groups: datanode_role_group_configs,
+            config: validated_role_config(HdfsNodeRole::Data),
+        },
+        ValidatedRole {
+            role_groups: journalnode_role_group_configs,
+            config: validated_role_config(HdfsNodeRole::Journal),
+        },
         namenode_listeners,
         discovery_config_map,
         status,

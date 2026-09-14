@@ -14,9 +14,9 @@ use crate::{
 /// has no validated config or PDBs are disabled.
 pub fn build_pdb(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Option<PodDisruptionBudget> {
     let role_config = match role {
-        HdfsNodeRole::Name => cluster.namenode_config.as_ref(),
-        HdfsNodeRole::Data => cluster.datanode_config.as_ref(),
-        HdfsNodeRole::Journal => cluster.journalnode_config.as_ref(),
+        HdfsNodeRole::Name => cluster.namenode.config.as_ref(),
+        HdfsNodeRole::Data => cluster.datanode.config.as_ref(),
+        HdfsNodeRole::Journal => cluster.journalnode.config.as_ref(),
     }?;
     let pdb = &role_config.pdb;
     if !pdb.enabled {

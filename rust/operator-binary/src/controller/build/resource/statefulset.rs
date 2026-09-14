@@ -20,12 +20,12 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self, ResolvedRoleGroup,
+            self, ResolvedRoleGroup, RoleGroupResolver,
             container::{self, ContainerConfig},
             graceful_shutdown::{self, add_graceful_shutdown_config},
         },
     },
-    crd::{HdfsNodeRole, v1alpha1},
+    crd::v1alpha1,
 };
 
 #[derive(Snafu, Debug)]
@@ -39,15 +39,17 @@ pub enum Error {
 
 /// Builds the [`StatefulSet`] of one role group.
 ///
-/// Every role-specific value is resolved by the caller into `resolved`.
-pub(crate) fn build_rolegroup_statefulset<C>(
+/// Every role-specific value is resolved by the caller into `resolved`. The role comes from the
+/// role group's config type, so it cannot disagree with `resolved`.
+pub(crate) fn build_rolegroup_statefulset<C: RoleGroupResolver>(
     validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
     rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
     resolved: ResolvedRoleGroup,
 ) -> Result<StatefulSet, Error> {
+    let role = &C::ROLE;
+
     tracing::info!(
         "Setting up StatefulSet for role {role} role group {role_group_name}",
         role = role.as_ref()
@@ -83,7 +85,6 @@ pub(crate) fn build_rolegroup_statefulset<C>(
         &mut pb,
         validated,
         cluster_info,
-        role,
         role_group_name,
         rolegroup_config,
         &resolved,

@@ -358,6 +358,13 @@ constant!(JOURNALNODE_ROLE_NAME: RoleName = "journalnode");
 constant!(NAMENODE_ROLE_NAME: RoleName = "namenode");
 constant!(DATANODE_ROLE_NAME: RoleName = "datanode");
 
+/// The HDFS roles, declared in the order they must be rolled out during an upgrade:
+/// journalnodes, then namenodes, then datanodes.
+///
+/// The variant order is load-bearing, because the derived [`Ord`] is what orders the
+/// StatefulSets the apply step rolls out (see
+/// [`crate::controller::build::build`] and [`crate::controller::apply::Applier::apply`]).
+/// Reordering the variants reorders an HDFS upgrade.
 #[derive(
     Clone,
     Copy,

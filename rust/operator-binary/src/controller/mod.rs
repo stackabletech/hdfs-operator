@@ -73,17 +73,25 @@ pub struct KubernetesResources<T> {
     pub status: PhantomData<T>,
 }
 
-/// The [`RoleGroupConfig`] of one namenode role group.
-pub type NameNodeRoleGroupConfig =
-    RoleGroupConfig<NameNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+/// The [`RoleGroupConfig`] of one HDFS role group, specialised for the role's validated config
+/// type `C` (one of [`NameNodeConfig`], [`DataNodeConfig`] or [`JournalNodeConfig`]).
+pub type HdfsRoleGroupConfig<C> =
+    RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
 
-/// The [`RoleGroupConfig`] of one datanode role group.
-pub type DataNodeRoleGroupConfig =
-    RoleGroupConfig<DataNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
-
-/// The [`RoleGroupConfig`] of one journalnode role group.
-pub type JournalNodeRoleGroupConfig =
-    RoleGroupConfig<JournalNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+/// One role's validated configuration: every role group of the role, plus the role-level config.
+///
+/// The two are kept together so they cannot be paired with the wrong role. `C` is the role's own
+/// validated config type, so a `ValidatedRole<NameNodeConfig>` does not compile where a
+/// `ValidatedRole<DataNodeConfig>` is expected — passing one role's PodDisruptionBudget to
+/// another role would otherwise be a silent swap of two same-typed values.
+#[derive(Clone, Debug)]
+pub struct ValidatedRole<C> {
+    /// The validated config of every role group, keyed by role group name; empty if the role is
+    /// absent from the spec.
+    pub role_groups: BTreeMap<RoleGroupName, HdfsRoleGroupConfig<C>>,
+    /// The role-level config (currently the PDB), or `None` if the role is absent.
+    pub config: Option<ValidatedRoleConfig>,
+}
 
 /// The validated cluster: proves that config merging and validation succeeded
 /// for every role and role group before any resources are created. Placed in the
@@ -104,21 +112,12 @@ pub struct ValidatedCluster {
     pub product_version: ProductVersion,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
-    /// The validated config of every namenode role group, keyed by role group name; empty if the
-    /// role is absent.
-    pub namenode_role_group_configs: BTreeMap<RoleGroupName, NameNodeRoleGroupConfig>,
-    /// The validated config of every datanode role group, keyed by role group name; empty if the
-    /// role is absent.
-    pub datanode_role_group_configs: BTreeMap<RoleGroupName, DataNodeRoleGroupConfig>,
-    /// The validated config of every journalnode role group, keyed by role group name; empty if
-    /// the role is absent.
-    pub journalnode_role_group_configs: BTreeMap<RoleGroupName, JournalNodeRoleGroupConfig>,
-    /// The namenode role-level config (currently the PDB), or `None` if the role is absent.
-    pub namenode_config: Option<ValidatedRoleConfig>,
-    /// The datanode role-level config (currently the PDB), or `None` if the role is absent.
-    pub datanode_config: Option<ValidatedRoleConfig>,
-    /// The journalnode role-level config (currently the PDB), or `None` if the role is absent.
-    pub journalnode_config: Option<ValidatedRoleConfig>,
+    /// The namenode role: its role groups and its role-level config.
+    pub namenode: ValidatedRole<NameNodeConfig>,
+    /// The datanode role: its role groups and its role-level config.
+    pub datanode: ValidatedRole<DataNodeConfig>,
+    /// The journalnode role: its role groups and its role-level config.
+    pub journalnode: ValidatedRole<JournalNodeConfig>,
     /// The namenode pod `Listener`s as currently stored in the cluster (see
     /// [`crate::controller::dereference::DereferencedObjects::namenode_listeners`]).
     pub namenode_listeners: Vec<listener::v1alpha1::Listener>,
@@ -138,12 +137,9 @@ impl ValidatedCluster {
         uid: Uid,
         image: ResolvedProductImage,
         cluster_config: ValidatedClusterConfig,
-        namenode_role_group_configs: BTreeMap<RoleGroupName, NameNodeRoleGroupConfig>,
-        datanode_role_group_configs: BTreeMap<RoleGroupName, DataNodeRoleGroupConfig>,
-        journalnode_role_group_configs: BTreeMap<RoleGroupName, JournalNodeRoleGroupConfig>,
-        namenode_config: Option<ValidatedRoleConfig>,
-        datanode_config: Option<ValidatedRoleConfig>,
-        journalnode_config: Option<ValidatedRoleConfig>,
+        namenode: ValidatedRole<NameNodeConfig>,
+        datanode: ValidatedRole<DataNodeConfig>,
+        journalnode: ValidatedRole<JournalNodeConfig>,
         namenode_listeners: Vec<listener::v1alpha1::Listener>,
         discovery_config_map: Option<ConfigMap>,
         status: ValidatedClusterStatus,
@@ -167,12 +163,9 @@ impl ValidatedCluster {
             image,
             product_version,
             cluster_config,
-            namenode_role_group_configs,
-            datanode_role_group_configs,
-            journalnode_role_group_configs,
-            namenode_config,
-            datanode_config,
-            journalnode_config,
+            namenode,
+            datanode,
+            journalnode,
             namenode_listeners,
             discovery_config_map,
             status,

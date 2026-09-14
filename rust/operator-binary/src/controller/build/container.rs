@@ -67,7 +67,7 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self, ResolvedRoleGroup, RoleGroupLogging,
+            self, ResolvedRoleGroup, RoleGroupLogging, RoleGroupResolver,
             jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
             kerberos::KERBEROS_CONTAINER_PATH,
             properties::product_logging::{
@@ -213,16 +213,18 @@ impl ContainerConfig {
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
     ///
-    /// Every role-specific value is resolved by the caller into `resolved`.
-    pub fn add_containers_and_volumes<C>(
+    /// Every role-specific value is resolved by the caller into `resolved`. The role comes from
+    /// the role group's config type, so it cannot disagree with `resolved`: pairing a role with
+    /// another role's resolved values would silently drop the containers' `log4j.properties`.
+    pub fn add_containers_and_volumes<C: RoleGroupResolver>(
         pb: &mut PodBuilder,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
-        role: &HdfsNodeRole,
         role_group_name: &RoleGroupName,
         rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         resolved: &ResolvedRoleGroup,
     ) -> Result<(), Error> {
+        let role = &C::ROLE;
         let namenode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Name);
 
         // HDFS main container

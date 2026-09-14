@@ -178,11 +178,7 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::{
-            ResolvedRoleGroup, RoleContainerLogging, RoleGroupLogging, RoleSpecificResources,
-            container::ContainerConfig,
-        },
-        crd::DataNodeContainer,
+        controller::build::{RoleGroupResolver, container::ContainerConfig},
         test_support::{
             datanode_config, datanode_role_group_config, deserialize_cluster, validate_cluster,
         },
@@ -228,42 +224,11 @@ spec:
         let validated_cluster = validate_cluster(&hdfs);
         let role_group_name = RoleGroupName::from_str("default").unwrap();
         let role_group_config = datanode_role_group_config(&validated_cluster, &role_group_name);
-        let datanode_config = datanode_config(&validated_cluster, &role_group_name);
-        let labels = Labels::new();
-        let resolved = ResolvedRoleGroup {
-            selector_labels: labels.clone(),
-            common: datanode_config.common.clone(),
-            resources: datanode_config.resources.clone().into(),
-            volume_claim_templates: ContainerConfig::datanode_volume_claim_templates(
-                datanode_config,
-            ),
-            role: RoleSpecificResources::Data {
-                listener_volume: ContainerConfig::datanode_listener_volume(
-                    datanode_config,
-                    &labels,
-                )
-                .expect("the datanode listener volume should build"),
-                storage: datanode_config.resources.storage.clone(),
-            },
-            logging: RoleGroupLogging {
-                hdfs: datanode_config
-                    .logging
-                    .for_container(&DataNodeContainer::Hdfs)
-                    .into_owned(),
-                vector: datanode_config.logging.enable_vector_agent.then(|| {
-                    datanode_config
-                        .logging
-                        .for_container(&DataNodeContainer::Vector)
-                        .into_owned()
-                }),
-                role: RoleContainerLogging::Data {
-                    wait_for_namenodes: datanode_config
-                        .logging
-                        .for_container(&DataNodeContainer::WaitForNameNodes)
-                        .into_owned(),
-                },
-            },
-        };
+        // Resolved through the production path, so this test cannot drift from what the build
+        // step actually hands the container builder.
+        let resolved = datanode_config(&validated_cluster, &role_group_name)
+            .resolve(&role_group_name, Labels::new())
+            .expect("the datanode role group should resolve");
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
@@ -273,7 +238,6 @@ spec:
             &KubernetesClusterInfo {
                 cluster_domain: DomainName::try_from("cluster.local").unwrap(),
             },
-            &role,
             &role_group_name,
             role_group_config,
             &resolved,

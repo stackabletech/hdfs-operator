@@ -72,7 +72,7 @@ pub fn build_rolegroup_config_map<C>(
     let hdfs_site_xml = hdfs_site::build(
         cluster,
         cluster_info,
-        resolved.role.datanode_storage(),
+        resolved.role.datanode_storage().cloned(),
         config_overrides.hdfs_site_xml.clone(),
     );
     let core_site_xml = core_site::build(
