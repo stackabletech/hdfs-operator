@@ -379,6 +379,7 @@ impl Deref for AnyNodeConfig {
 
 impl AnyNodeConfig {
     // Downcasting helpers for each variant
+    #[allow(unused)]
     pub fn as_namenode(&self) -> Option<&NameNodeConfig> {
         if let Self::Name(node) = self {
             Some(node)

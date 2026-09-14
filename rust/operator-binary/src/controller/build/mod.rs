@@ -4,6 +4,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     kvp::{LabelError, Labels},
+    product_logging::spec::ContainerLogConfig,
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
         builder::meta::ownerreference_from_resource,
@@ -22,7 +23,7 @@ use crate::{
         build::resource::rbac::{build_role_binding, build_service_account},
     },
     crd::{
-        HdfsNodeRole, HdfsPodRef,
+        AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
         constants::{
             DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_HTTPS_PORT,
             DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
@@ -74,6 +75,84 @@ pub enum Error {
 
     #[snafu(display("failed to build the discovery ConfigMap"))]
     DiscoveryConfigMap { source: resource::discovery::Error },
+}
+
+/// The log configuration of every container in one role group, resolved during the build step
+/// by code that knows the role, so the shared builders never see a role-specific
+/// `Logging<C>`.
+#[derive(Clone, Debug, Default)]
+pub struct RoleGroupLogging {
+    /// The main `hdfs` container.
+    pub hdfs: Option<ContainerLogConfig>,
+    /// The Vector sidecar; `None` when the Vector agent is disabled for this role group.
+    pub vector: Option<ContainerLogConfig>,
+    /// The namenode `zkfc` side container.
+    pub zkfc: Option<ContainerLogConfig>,
+    /// The namenode `format-namenodes` init container.
+    pub format_namenodes: Option<ContainerLogConfig>,
+    /// The namenode `format-zookeeper` init container.
+    pub format_zookeeper: Option<ContainerLogConfig>,
+    /// The datanode `wait-for-namenodes` init container.
+    pub wait_for_namenodes: Option<ContainerLogConfig>,
+}
+
+/// Resolves a role group's merged `logging` into the role-agnostic [`RoleGroupLogging`] the
+/// shared builders consume, filling in only the containers the role actually has.
+///
+/// This is temporary scaffolding: once the callers are typed per role, each of them resolves its
+/// own role group's containers directly and this function goes away.
+pub(crate) fn role_group_logging(config: &AnyNodeConfig) -> RoleGroupLogging {
+    let hdfs = Some(config.hdfs_logging().into_owned());
+    let vector = config
+        .vector_logging_enabled()
+        .then(|| config.vector_logging().into_owned());
+
+    match config {
+        AnyNodeConfig::Name(name_node) => RoleGroupLogging {
+            hdfs,
+            vector,
+            zkfc: Some(
+                name_node
+                    .logging
+                    .for_container(&NameNodeContainer::Zkfc)
+                    .into_owned(),
+            ),
+            format_namenodes: Some(
+                name_node
+                    .logging
+                    .for_container(&NameNodeContainer::FormatNameNodes)
+                    .into_owned(),
+            ),
+            format_zookeeper: Some(
+                name_node
+                    .logging
+                    .for_container(&NameNodeContainer::FormatZooKeeper)
+                    .into_owned(),
+            ),
+            wait_for_namenodes: None,
+        },
+        AnyNodeConfig::Data(data_node) => RoleGroupLogging {
+            hdfs,
+            vector,
+            zkfc: None,
+            format_namenodes: None,
+            format_zookeeper: None,
+            wait_for_namenodes: Some(
+                data_node
+                    .logging
+                    .for_container(&DataNodeContainer::WaitForNameNodes)
+                    .into_owned(),
+            ),
+        },
+        AnyNodeConfig::Journal(_) => RoleGroupLogging {
+            hdfs,
+            vector,
+            zkfc: None,
+            format_namenodes: None,
+            format_zookeeper: None,
+            wait_for_namenodes: None,
+        },
+    }
 }
 
 /// Builds every Kubernetes resource for the given validated cluster.

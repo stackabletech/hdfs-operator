@@ -83,6 +83,8 @@ pub(crate) fn build_rolegroup_statefulset(
                 .build(),
         );
 
+    let logging = build::role_group_logging(merged_config);
+
     // Adds all containers and volumes to the pod builder
     // We must use the selector labels ("rolegroup_selector_labels") and not the recommended labels
     // for the ephemeral listener volumes created by this function.
@@ -96,6 +98,7 @@ pub(crate) fn build_rolegroup_statefulset(
         role,
         role_group_name,
         rolegroup_config,
+        &logging,
         &rolegroup_selector_labels,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;

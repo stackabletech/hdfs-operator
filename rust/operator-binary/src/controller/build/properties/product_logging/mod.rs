@@ -10,9 +10,12 @@ use stackable_operator::{
     v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::controller::build::container::{
-    FORMAT_NAMENODES_CONTAINER_NAME, FORMAT_ZOOKEEPER_CONTAINER_NAME,
-    WAIT_FOR_NAMENODES_CONTAINER_NAME, ZKFC_CONTAINER_NAME,
+use crate::controller::build::{
+    RoleGroupLogging,
+    container::{
+        FORMAT_NAMENODES_CONTAINER_NAME, FORMAT_ZOOKEEPER_CONTAINER_NAME,
+        WAIT_FOR_NAMENODES_CONTAINER_NAME, ZKFC_CONTAINER_NAME,
+    },
 };
 
 // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
@@ -74,18 +77,12 @@ pub fn vector_config_file_content() -> String {
 ///
 /// Returns `(filename, rendered content)` pairs; containers using a custom log ConfigMap are
 /// skipped, so the result is empty when none use automatic logging.
-pub fn build_log4j_configs(
-    hdfs: Option<&ContainerLogConfig>,
-    zkfc: Option<&ContainerLogConfig>,
-    format_namenodes: Option<&ContainerLogConfig>,
-    format_zookeeper: Option<&ContainerLogConfig>,
-    wait_for_namenodes: Option<&ContainerLogConfig>,
-) -> Vec<(&'static str, String)> {
+pub fn build_log4j_configs(logging: &RoleGroupLogging) -> Vec<(&'static str, String)> {
     let mut configs = Vec::new();
 
     add_log4j_config_if_automatic(
         &mut configs,
-        hdfs,
+        logging.hdfs.as_ref(),
         HDFS_LOG4J_CONFIG_FILE,
         "hdfs",
         HDFS_LOG_FILE,
@@ -93,7 +90,7 @@ pub fn build_log4j_configs(
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        zkfc,
+        logging.zkfc.as_ref(),
         ZKFC_LOG4J_CONFIG_FILE,
         ZKFC_CONTAINER_NAME.as_ref(),
         ZKFC_LOG_FILE,
@@ -101,7 +98,7 @@ pub fn build_log4j_configs(
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        format_namenodes,
+        logging.format_namenodes.as_ref(),
         FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
         FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
         FORMAT_NAMENODES_LOG_FILE,
@@ -109,7 +106,7 @@ pub fn build_log4j_configs(
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        format_zookeeper,
+        logging.format_zookeeper.as_ref(),
         FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
         FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
         FORMAT_ZOOKEEPER_LOG_FILE,
@@ -117,7 +114,7 @@ pub fn build_log4j_configs(
     );
     add_log4j_config_if_automatic(
         &mut configs,
-        wait_for_namenodes,
+        logging.wait_for_namenodes.as_ref(),
         WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
         WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
         WAIT_FOR_NAMENODES_LOG_FILE,

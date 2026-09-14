@@ -179,7 +179,7 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::container::ContainerConfig,
+        controller::build::{container::ContainerConfig, role_group_logging},
         test_support::{deserialize_cluster, role_group_config, validate_cluster},
     };
 
@@ -235,6 +235,7 @@ spec:
             &role,
             &role_group_name,
             role_group_config,
+            &role_group_logging(&role_group_config.config),
             &Labels::new(),
         )
         .unwrap();
