@@ -48,9 +48,9 @@ pub fn build_invalid_replica_message(
     role: &HdfsNodeRole,
 ) -> Option<String> {
     let replicas = match role {
-        HdfsNodeRole::Name => total_replicas(&validated_cluster.namenode.role_groups),
-        HdfsNodeRole::Data => total_replicas(&validated_cluster.datanode.role_groups),
-        HdfsNodeRole::Journal => total_replicas(&validated_cluster.journalnode.role_groups),
+        HdfsNodeRole::Name => total_replicas(&validated_cluster.namenode_role_group_configs),
+        HdfsNodeRole::Data => total_replicas(&validated_cluster.datanode_role_group_configs),
+        HdfsNodeRole::Journal => total_replicas(&validated_cluster.journalnode_role_group_configs),
     };
 
     let dfs_replication = validated_cluster.cluster_config.dfs_replication;

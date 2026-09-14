@@ -3,7 +3,10 @@ use std::str::FromStr;
 use stackable_operator::v2::types::operator::RoleGroupName;
 
 use crate::{
-    controller::{HdfsRoleGroupConfig, ValidatedCluster, validate},
+    controller::{
+        DataNodeRoleGroupConfig, JournalNodeRoleGroupConfig, NameNodeRoleGroupConfig,
+        ValidatedCluster, validate,
+    },
     crd::{
         CommonNodeConfig, DataNodeConfig, HdfsNodeRole, JournalNodeConfig, NameNodeConfig, v1alpha1,
     },
@@ -51,10 +54,9 @@ pub fn role_group_name(name: &str) -> RoleGroupName {
 pub fn namenode_role_group_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role_group_name: &RoleGroupName,
-) -> &'a HdfsRoleGroupConfig<NameNodeConfig> {
+) -> &'a NameNodeRoleGroupConfig {
     validated_cluster
-        .namenode
-        .role_groups
+        .namenode_role_group_configs
         .get(role_group_name)
         .expect("namenode role group should be defined")
 }
@@ -62,10 +64,9 @@ pub fn namenode_role_group_config<'a>(
 pub fn datanode_role_group_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role_group_name: &RoleGroupName,
-) -> &'a HdfsRoleGroupConfig<DataNodeConfig> {
+) -> &'a DataNodeRoleGroupConfig {
     validated_cluster
-        .datanode
-        .role_groups
+        .datanode_role_group_configs
         .get(role_group_name)
         .expect("datanode role group should be defined")
 }
@@ -73,10 +74,9 @@ pub fn datanode_role_group_config<'a>(
 pub fn journalnode_role_group_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role_group_name: &RoleGroupName,
-) -> &'a HdfsRoleGroupConfig<JournalNodeConfig> {
+) -> &'a JournalNodeRoleGroupConfig {
     validated_cluster
-        .journalnode
-        .role_groups
+        .journalnode_role_group_configs
         .get(role_group_name)
         .expect("journalnode role group should be defined")
 }

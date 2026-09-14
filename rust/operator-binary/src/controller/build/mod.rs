@@ -536,19 +536,19 @@ pub fn build(
     build_role(
         cluster,
         cluster_info,
-        &cluster.journalnode.role_groups,
+        &cluster.journalnode_role_group_configs,
         &mut built,
     )?;
     build_role(
         cluster,
         cluster_info,
-        &cluster.namenode.role_groups,
+        &cluster.namenode_role_group_configs,
         &mut built,
     )?;
     build_role(
         cluster,
         cluster_info,
-        &cluster.datanode.role_groups,
+        &cluster.datanode_role_group_configs,
         &mut built,
     )?;
 
@@ -661,9 +661,9 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .collect();
 
     let replicas_per_role_group = match role {
-        HdfsNodeRole::Name => role_group_replicas(&cluster.namenode.role_groups),
-        HdfsNodeRole::Data => role_group_replicas(&cluster.datanode.role_groups),
-        HdfsNodeRole::Journal => role_group_replicas(&cluster.journalnode.role_groups),
+        HdfsNodeRole::Name => role_group_replicas(&cluster.namenode_role_group_configs),
+        HdfsNodeRole::Data => role_group_replicas(&cluster.datanode_role_group_configs),
+        HdfsNodeRole::Journal => role_group_replicas(&cluster.journalnode_role_group_configs),
     };
 
     replicas_per_role_group
@@ -738,7 +738,7 @@ pub(crate) fn rolegroup_selector_labels(
 
 /// The total number of datanode replicas across all datanode role groups.
 pub(crate) fn num_datanodes(cluster: &ValidatedCluster) -> u16 {
-    total_replicas(&cluster.datanode.role_groups)
+    total_replicas(&cluster.datanode_role_group_configs)
 }
 
 /// The ports exposed by the rolegroup headless service for the given `role`.

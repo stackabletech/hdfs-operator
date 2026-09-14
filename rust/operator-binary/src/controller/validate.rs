@@ -16,8 +16,8 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRole,
-        ValidatedRoleConfig, dereference::DereferencedObjects,
+        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRoleConfig,
+        dereference::DereferencedObjects,
     },
     crd::{
         DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfigFragment, NameNodeConfigFragment,
@@ -129,28 +129,27 @@ pub fn validate_cluster(
             .and_then(|status| status.upgrade_target_product_version.clone()),
     };
 
-    Ok(ValidatedCluster::new(
-        cluster_name,
+    // Built as a struct literal rather than through a constructor: the three role-level configs
+    // are the same type, so as positional arguments two of them could be swapped silently, giving
+    // a role another role's PodDisruptionBudget.
+    Ok(ValidatedCluster {
+        metadata: ValidatedCluster::object_meta(&cluster_name, &namespace, &uid),
+        product_version: ValidatedCluster::product_version(&image),
+        name: cluster_name,
         namespace,
         uid,
+        cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         image,
-        ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
-        ValidatedRole {
-            role_groups: namenode_role_group_configs,
-            config: validated_role_config(HdfsNodeRole::Name),
-        },
-        ValidatedRole {
-            role_groups: datanode_role_group_configs,
-            config: validated_role_config(HdfsNodeRole::Data),
-        },
-        ValidatedRole {
-            role_groups: journalnode_role_group_configs,
-            config: validated_role_config(HdfsNodeRole::Journal),
-        },
+        namenode_config: validated_role_config(HdfsNodeRole::Name),
+        namenode_role_group_configs,
+        datanode_config: validated_role_config(HdfsNodeRole::Data),
+        datanode_role_group_configs,
+        journalnode_config: validated_role_config(HdfsNodeRole::Journal),
+        journalnode_role_group_configs,
         namenode_listeners,
         discovery_config_map,
         status,
-    ))
+    })
 }
 
 /// Validates every role group of a role into a map keyed by role group name.

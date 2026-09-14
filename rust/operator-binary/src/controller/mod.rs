@@ -73,25 +73,17 @@ pub struct KubernetesResources<T> {
     pub status: PhantomData<T>,
 }
 
-/// The [`RoleGroupConfig`] of one HDFS role group, specialised for the role's validated config
-/// type `C` (one of [`NameNodeConfig`], [`DataNodeConfig`] or [`JournalNodeConfig`]).
-pub type HdfsRoleGroupConfig<C> =
-    RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+/// The [`RoleGroupConfig`] of one namenode role group.
+pub type NameNodeRoleGroupConfig =
+    RoleGroupConfig<NameNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
 
-/// One role's validated configuration: every role group of the role, plus the role-level config.
-///
-/// The two are kept together so they cannot be paired with the wrong role. `C` is the role's own
-/// validated config type, so a `ValidatedRole<NameNodeConfig>` does not compile where a
-/// `ValidatedRole<DataNodeConfig>` is expected — passing one role's PodDisruptionBudget to
-/// another role would otherwise be a silent swap of two same-typed values.
-#[derive(Clone, Debug)]
-pub struct ValidatedRole<C> {
-    /// The validated config of every role group, keyed by role group name; empty if the role is
-    /// absent from the spec.
-    pub role_groups: BTreeMap<RoleGroupName, HdfsRoleGroupConfig<C>>,
-    /// The role-level config (currently the PDB), or `None` if the role is absent.
-    pub config: Option<ValidatedRoleConfig>,
-}
+/// The [`RoleGroupConfig`] of one datanode role group.
+pub type DataNodeRoleGroupConfig =
+    RoleGroupConfig<DataNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+
+/// The [`RoleGroupConfig`] of one journalnode role group.
+pub type JournalNodeRoleGroupConfig =
+    RoleGroupConfig<JournalNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
 
 /// The validated cluster: proves that config merging and validation succeeded
 /// for every role and role group before any resources are created. Placed in the
@@ -112,12 +104,21 @@ pub struct ValidatedCluster {
     pub product_version: ProductVersion,
     pub image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
-    /// The namenode role: its role groups and its role-level config.
-    pub namenode: ValidatedRole<NameNodeConfig>,
-    /// The datanode role: its role groups and its role-level config.
-    pub datanode: ValidatedRole<DataNodeConfig>,
-    /// The journalnode role: its role groups and its role-level config.
-    pub journalnode: ValidatedRole<JournalNodeConfig>,
+    /// The namenode role-level config (currently the PDB), or `None` if the role is absent.
+    pub namenode_config: Option<ValidatedRoleConfig>,
+    /// The validated config of every namenode role group, keyed by role group name; empty if the
+    /// role is absent.
+    pub namenode_role_group_configs: BTreeMap<RoleGroupName, NameNodeRoleGroupConfig>,
+    /// The datanode role-level config (currently the PDB), or `None` if the role is absent.
+    pub datanode_config: Option<ValidatedRoleConfig>,
+    /// The validated config of every datanode role group, keyed by role group name; empty if the
+    /// role is absent.
+    pub datanode_role_group_configs: BTreeMap<RoleGroupName, DataNodeRoleGroupConfig>,
+    /// The journalnode role-level config (currently the PDB), or `None` if the role is absent.
+    pub journalnode_config: Option<ValidatedRoleConfig>,
+    /// The validated config of every journalnode role group, keyed by role group name; empty if
+    /// the role is absent.
+    pub journalnode_role_group_configs: BTreeMap<RoleGroupName, JournalNodeRoleGroupConfig>,
     /// The namenode pod `Listener`s as currently stored in the cluster (see
     /// [`crate::controller::dereference::DereferencedObjects::namenode_listeners`]).
     pub namenode_listeners: Vec<listener::v1alpha1::Listener>,
@@ -130,46 +131,29 @@ pub struct ValidatedCluster {
 }
 
 impl ValidatedCluster {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        name: ClusterName,
-        namespace: NamespaceName,
-        uid: Uid,
-        image: ResolvedProductImage,
-        cluster_config: ValidatedClusterConfig,
-        namenode: ValidatedRole<NameNodeConfig>,
-        datanode: ValidatedRole<DataNodeConfig>,
-        journalnode: ValidatedRole<JournalNodeConfig>,
-        namenode_listeners: Vec<listener::v1alpha1::Listener>,
-        discovery_config_map: Option<ConfigMap>,
-        status: ValidatedClusterStatus,
-    ) -> Self {
-        // `app_version_label_value` is constructed to be a valid label value, so it is also a valid
-        // `ProductVersion`.
-        let product_version = ProductVersion::from_str(&image.app_version_label_value)
-            .expect("the app version label value is a valid product version");
-        Self {
-            metadata: ObjectMeta {
-                name: Some(name.to_string()),
-                namespace: Some(namespace.to_string()),
-                // The uid is required so this type can produce valid owner references
-                // (Kubernetes rejects owner references without a uid).
-                uid: Some(uid.to_string()),
-                ..ObjectMeta::default()
-            },
-            name,
-            namespace,
-            uid,
-            image,
-            product_version,
-            cluster_config,
-            namenode,
-            datanode,
-            journalnode,
-            namenode_listeners,
-            discovery_config_map,
-            status,
+    /// The `ObjectMeta` a `ValidatedCluster` carries so it can own the objects built from it.
+    ///
+    /// The uid is required: Kubernetes rejects owner references without one.
+    pub(crate) fn object_meta(
+        name: &ClusterName,
+        namespace: &NamespaceName,
+        uid: &Uid,
+    ) -> ObjectMeta {
+        ObjectMeta {
+            name: Some(name.to_string()),
+            namespace: Some(namespace.to_string()),
+            uid: Some(uid.to_string()),
+            ..ObjectMeta::default()
         }
+    }
+
+    /// The product version of the resolved image.
+    ///
+    /// `app_version_label_value` is constructed to be a valid label value, so it is also a valid
+    /// `ProductVersion`.
+    pub(crate) fn product_version(image: &ResolvedProductImage) -> ProductVersion {
+        ProductVersion::from_str(&image.app_version_label_value)
+            .expect("the app version label value is a valid product version")
     }
 
     /// Whether HTTPS is enabled, derived from the validated authentication settings.
