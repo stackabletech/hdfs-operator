@@ -28,12 +28,11 @@ spec:
   nameNodes:
     configOverrides:
       core-site.xml:
-        # 30-stop-hdfs.yaml.j2 scales every StatefulSet to zero, so both namenodes go at once.
-        # On restart, `OrderedReady` holds namenode-1 back until namenode-0 is ready, while
-        # namenode-0's format-namenodes init container probes namenode-1 with
-        # `hdfs haadmin -getServiceState`. That peer cannot exist yet, so its name does not
-        # resolve and the ipc client retries an `<unresolved>` address on the connect-timeout
-        # path: 45 x 20s = 15 min by default, outlasting this test's asserts.
+        # After all namenodes go at once, a deleted pod's name keeps resolving to its dead IP for
+        # up to ~30s (CoreDNS cache racing the endpoint update). format-namenodes probes it with
+        # `hdfs haadmin -getServiceState`, the TCP connect black-holes, and the default 45 x 20s
+        # retry budget outlasts this test's asserts. Whether the probe lands in that window is
+        # environment-dependent: local kind loses the race far more often than CI.
         ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       logging:
@@ -44,8 +43,7 @@ spec:
   dataNodes:
     configOverrides:
       core-site.xml:
-        # See the identical nameNodes override: wait-for-namenodes runs the same haadmin probe
-        # against namenodes that cannot exist yet, with the same retry budget.
+        # See the identical nameNodes override: wait-for-namenodes runs the same haadmin probe.
         ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       logging:
