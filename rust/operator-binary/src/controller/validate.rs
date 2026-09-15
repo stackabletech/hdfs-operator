@@ -87,21 +87,12 @@ pub fn validate_cluster(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let validated_role_config = |role: HdfsNodeRole| {
-        hdfs.role_config(&role).map(
-            |GenericRoleConfig {
-                 pod_disruption_budget,
-             }| ValidatedRoleConfig {
-                pdb: pod_disruption_budget.clone(),
-            },
-        )
-    };
-
     let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
 
-    // Validated in `HdfsNodeRole` declaration order, because the first role that fails is the
-    // error the user sees: reordering these three statements changes which misconfiguration gets
-    // reported when more than one role is wrong.
+    // The first failure propagates, so the order of these three statements decides which
+    // misconfiguration the user is told about when more than one role is wrong. It follows
+    // `HdfsNodeRole`'s declaration order to leave a reader one order to hold in mind rather than
+    // two; that declaration order is fixed by the upgrade rollout, for which see [`HdfsNodeRole`].
     let journalnode_role_group_configs = validate_role_group_configs(
         hdfs.spec.journal_nodes.as_ref(),
         JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Journal),
@@ -140,16 +131,33 @@ pub fn validate_cluster(
         uid,
         cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         image,
-        namenode_config: validated_role_config(HdfsNodeRole::Name),
+        namenode_config: validated_role_config(hdfs, HdfsNodeRole::Name),
         namenode_role_group_configs,
-        datanode_config: validated_role_config(HdfsNodeRole::Data),
+        datanode_config: validated_role_config(hdfs, HdfsNodeRole::Data),
         datanode_role_group_configs,
-        journalnode_config: validated_role_config(HdfsNodeRole::Journal),
+        journalnode_config: validated_role_config(hdfs, HdfsNodeRole::Journal),
         journalnode_role_group_configs,
         namenode_listeners,
         discovery_config_map,
         status,
     })
+}
+
+/// The validated role-level config of one role, or `None` if the role is absent from the spec.
+///
+/// [`GenericRoleConfig`] is destructured without `..`, so a field added to it upstream fails to
+/// compile here instead of being silently left unvalidated.
+fn validated_role_config(
+    hdfs: &v1alpha1::HdfsCluster,
+    role: HdfsNodeRole,
+) -> Option<ValidatedRoleConfig> {
+    hdfs.role_config(&role).map(
+        |GenericRoleConfig {
+             pod_disruption_budget,
+         }| ValidatedRoleConfig {
+            pdb: pod_disruption_budget.clone(),
+        },
+    )
 }
 
 /// Validates every role group of a role into a map keyed by role group name.

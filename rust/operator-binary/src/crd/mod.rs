@@ -417,7 +417,11 @@ impl HdfsNodeRole {
         }
     }
 
-    pub fn check_valid_dfs_replication(&self) -> bool {
+    /// Whether this role's replica count is the one `dfs.replication` is compared against.
+    ///
+    /// Only datanodes hold block replicas, so only their count can fall short of the
+    /// replication factor.
+    pub fn replicas_must_cover_dfs_replication(&self) -> bool {
         match self {
             HdfsNodeRole::Name => false,
             HdfsNodeRole::Data => true,

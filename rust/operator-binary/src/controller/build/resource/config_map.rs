@@ -17,7 +17,7 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self, ResolvedRoleGroup,
+            self, ResolvedRoleGroup, RoleGroupResolver,
             properties::{
                 ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging,
                 security_properties, ssl_client, ssl_server,
@@ -47,17 +47,20 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds the [`ConfigMap`] of one role group.
 ///
-/// Every role-specific value is resolved by the caller into `resolved`, the role itself included:
-/// taking the role and the datanode storage configuration as two independent parameters would let
-/// a caller pass a datanode without its storage, which silently drops `dfs.datanode.data.dir`.
-pub fn build_rolegroup_config_map<C>(
+/// Every role-specific value is resolved by the caller into `resolved`. The role comes from
+/// `C::ROLE`, and `C`'s [`RoleGroupResolver`] bound ties it to `resolved`, so this cannot read one
+/// role's `HdfsNodeRole` alongside another role's resolved values. The datanode storage
+/// configuration comes from `resolved` rather than a separate parameter: taking it independently
+/// would let a caller pass a datanode without its storage, which silently drops
+/// `dfs.datanode.data.dir`.
+pub fn build_rolegroup_config_map<C: RoleGroupResolver>(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role_group_name: &RoleGroupName,
     rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    resolved: &ResolvedRoleGroup,
+    resolved: &ResolvedRoleGroup<C>,
 ) -> Result<ConfigMap> {
-    let role = resolved.role.node_role();
+    let role = C::ROLE;
 
     tracing::info!(
         "Setting up ConfigMap for role {role} role group {role_group_name}",
@@ -108,7 +111,9 @@ pub fn build_rolegroup_config_map<C>(
             )?,
         );
 
-    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(&resolved.logging) {
+    for (log_config_file, log4j_config) in
+        product_logging::build_log4j_configs(&resolved.logging, &resolved.role)
+    {
         builder.add_data(log_config_file, log4j_config);
     }
     if resolved.logging.vector.is_some() {

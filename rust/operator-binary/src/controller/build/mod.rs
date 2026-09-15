@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt::Display,
     marker::PhantomData,
 };
 
@@ -9,11 +8,10 @@ use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, PersistentVolumeClaim, ResourceRequirements, Service, Volume},
+        core::v1::{ConfigMap, Service},
         policy::v1::PodDisruptionBudget,
     },
     kvp::{LabelError, Labels},
-    product_logging::spec::{ContainerLogConfig, Logging},
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
         builder::meta::ownerreference_from_resource,
@@ -30,14 +28,10 @@ use crate::{
     controller::{
         CONTROLLER_NAME, KubernetesResources, OPERATOR_NAME, PRODUCT_NAME, Prepared,
         ValidatedCluster,
-        build::{
-            container::ContainerConfig,
-            resource::rbac::{build_role_binding, build_service_account},
-        },
+        build::resource::rbac::{build_role_binding, build_service_account},
     },
     crd::{
-        CommonNodeConfig, DataNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef,
-        JournalNodeConfig, JournalNodeContainer, NameNodeConfig, NameNodeContainer,
+        HdfsNodeRole, HdfsPodRef,
         constants::{
             DEFAULT_DATA_NODE_DATA_PORT, DEFAULT_DATA_NODE_HTTP_PORT, DEFAULT_DATA_NODE_HTTPS_PORT,
             DEFAULT_DATA_NODE_IPC_PORT, DEFAULT_DATA_NODE_METRICS_PORT,
@@ -53,7 +47,6 @@ use crate::{
             SERVICE_PORT_NAME_IPC, SERVICE_PORT_NAME_JMX_METRICS, SERVICE_PORT_NAME_METRICS,
             SERVICE_PORT_NAME_RPC,
         },
-        storage::DataNodeStorageConfigInnerType,
         v1alpha1,
     },
 };
@@ -64,6 +57,7 @@ pub mod jvm;
 pub mod kerberos;
 pub mod opa;
 pub mod properties;
+pub mod resolve;
 pub mod resource;
 
 #[derive(Snafu, Debug)]
@@ -114,326 +108,8 @@ pub enum Error {
     },
 }
 
-/// The log configuration of every container in one role group, resolved during the build step
-/// by code that knows the role, so the shared builders never see a role-specific
-/// `Logging<C>`.
-#[derive(Debug)]
-pub struct RoleGroupLogging {
-    /// The main `hdfs` container, which every role has.
-    pub hdfs: ContainerLogConfig,
-    /// The Vector sidecar; `None` when the Vector agent is disabled for this role group.
-    pub vector: Option<ContainerLogConfig>,
-    /// The containers unique to this role group's own role; the variant identifies that role.
-    pub role: RoleContainerLogging,
-}
-
-/// The log configuration of the side and init containers that only one role runs.
-///
-/// These live in an enum rather than in `Option` fields so that "the `zkfc` log config exists
-/// exactly when this is a namenode" is checked by the compiler at every construction site. A
-/// missing log config is otherwise silent: the container's `log4j.properties` is left out of both
-/// the `ConfigMap` and the `cp` in the container args, so it logs with Hadoop's built-in defaults
-/// and Vector collects nothing for it.
-#[derive(Debug)]
-pub enum RoleContainerLogging {
-    /// Journalnodes run no role-specific container.
-    Journal,
-    /// The namenode `zkfc` side container and its two init containers.
-    Name {
-        zkfc: ContainerLogConfig,
-        format_namenodes: ContainerLogConfig,
-        format_zookeeper: ContainerLogConfig,
-    },
-    /// The datanode `wait-for-namenodes` init container.
-    Data {
-        wait_for_namenodes: ContainerLogConfig,
-    },
-}
-
-impl RoleContainerLogging {
-    /// The namenode `zkfc` side container's log config; `None` for the other roles.
-    pub fn zkfc(&self) -> Option<&ContainerLogConfig> {
-        match self {
-            Self::Name { zkfc, .. } => Some(zkfc),
-            Self::Journal | Self::Data { .. } => None,
-        }
-    }
-
-    /// The namenode `format-namenodes` init container's log config; `None` for the other roles.
-    pub fn format_namenodes(&self) -> Option<&ContainerLogConfig> {
-        match self {
-            Self::Name {
-                format_namenodes, ..
-            } => Some(format_namenodes),
-            Self::Journal | Self::Data { .. } => None,
-        }
-    }
-
-    /// The namenode `format-zookeeper` init container's log config; `None` for the other roles.
-    pub fn format_zookeeper(&self) -> Option<&ContainerLogConfig> {
-        match self {
-            Self::Name {
-                format_zookeeper, ..
-            } => Some(format_zookeeper),
-            Self::Journal | Self::Data { .. } => None,
-        }
-    }
-
-    /// The datanode `wait-for-namenodes` init container's log config; `None` for the other roles.
-    pub fn wait_for_namenodes(&self) -> Option<&ContainerLogConfig> {
-        match self {
-            Self::Data { wait_for_namenodes } => Some(wait_for_namenodes),
-            Self::Journal | Self::Name { .. } => None,
-        }
-    }
-}
-
-/// Everything about one role group that the shared builders below cannot derive themselves: the
-/// values resolved from its role-specific config, plus the selector labels, which the build loop
-/// already needs for the listener volume and the PVC templates.
-///
-/// Resolving these in the build loop, which knows the role, is what lets the builders be generic
-/// over the role group's config type.
-pub struct ResolvedRoleGroup {
-    /// The selector labels of the role group's pods, also used as the `StatefulSet` selector and
-    /// on its listener volume.
-    ///
-    /// We must use the selector labels and not the recommended labels for the listener volumes.
-    /// This is because the recommended set contains a "managed-by" label. That label triggers the
-    /// cluster resources to "manage" listeners, which is wrong and leads to errors. The listeners
-    /// are managed by the listener-operator.
-    pub selector_labels: Labels,
-    /// The role group's merged config that is common to every role.
-    pub common: CommonNodeConfig,
-    /// The resource requirements of the role group's main and init containers; the ZKFC sidecar
-    /// has fixed requirements of its own and ignores this.
-    pub resources: ResourceRequirements,
-    /// The `StatefulSet`'s persistent volume claim templates.
-    pub volume_claim_templates: Vec<PersistentVolumeClaim>,
-    /// The values that exist for one role only.
-    pub role: RoleSpecificResources,
-    /// The log config of each of the role group's containers.
-    pub logging: RoleGroupLogging,
-}
-
-/// The role group values that exist for one role only.
-///
-/// These live in an enum rather than in `Option` fields so the compiler checks the pairing at
-/// every construction site: a datanode without its storage configuration does not compile — that
-/// would silently drop `dfs.datanode.data.dir` and send the datanodes' blocks to container-local
-/// storage — and neither does a namenode with a pod-level listener volume, which would collide
-/// with the identically named volume claim template and be rejected at apply time.
-pub enum RoleSpecificResources {
-    /// Journalnodes have no listener and no role-specific storage configuration.
-    Journal,
-    /// Namenodes get their listener from a volume claim template in `volume_claim_templates`, for
-    /// stable per-pod identity, so they have no pod-level listener volume.
-    Name,
-    /// Datanodes need no stable per-pod identity, so their listener is an ephemeral pod volume.
-    /// They are also the only role that configures `dfs.datanode.data.dir`.
-    Data {
-        listener_volume: Volume,
-        storage: DataNodeStorageConfigInnerType,
-    },
-}
-
-impl RoleSpecificResources {
-    /// The role these values belong to.
-    pub fn node_role(&self) -> HdfsNodeRole {
-        match self {
-            Self::Journal => HdfsNodeRole::Journal,
-            Self::Name => HdfsNodeRole::Name,
-            Self::Data { .. } => HdfsNodeRole::Data,
-        }
-    }
-
-    /// The role group's ephemeral listener volume; only datanodes have one.
-    pub fn listener_volume(&self) -> Option<&Volume> {
-        match self {
-            Self::Data {
-                listener_volume, ..
-            } => Some(listener_volume),
-            Self::Journal | Self::Name => None,
-        }
-    }
-
-    /// The datanode data volume configuration, which drives `dfs.datanode.data.dir`; `None` for
-    /// the other roles.
-    pub fn datanode_storage(&self) -> Option<&DataNodeStorageConfigInnerType> {
-        match self {
-            Self::Data { storage, .. } => Some(storage),
-            Self::Journal | Self::Name => None,
-        }
-    }
-}
-
-/// The log config of the two containers every role has: the main `hdfs` container, and the Vector
-/// sidecar, which is `None` when the Vector agent is disabled for the role group.
-///
-/// Each role names these containers with its own enum, so this is generic over that enum rather
-/// than repeated once per role.
-fn common_container_logging<T>(
-    logging: &Logging<T>,
-    hdfs: T,
-    vector: T,
-) -> (ContainerLogConfig, Option<ContainerLogConfig>)
-where
-    T: Clone + Display + Ord,
-{
-    (
-        logging.for_container(&hdfs).into_owned(),
-        logging
-            .enable_vector_agent
-            .then(|| logging.for_container(&vector).into_owned()),
-    )
-}
-
-/// How to resolve one role group's role-specific values, implemented once per role config type.
-///
-/// This is what lets [`build_role`] be written once: the trait supplies the role and the single
-/// role-dependent step, and everything else about building a role group is identical across the
-/// three roles.
-///
-/// [`Self::ROLE`] is also the single source of truth for the role in the shared builders: they
-/// take the role group's config type and read the role from it, rather than taking the role as a
-/// second parameter that a caller could pair with the wrong config.
-pub(crate) trait RoleGroupResolver {
-    /// The role whose config this is.
-    const ROLE: HdfsNodeRole;
-
-    /// Resolves everything the shared builders cannot derive themselves. Takes the selector
-    /// labels because two of the three roles need them to build their listener.
-    fn resolve(
-        &self,
-        role_group_name: &RoleGroupName,
-        selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup, Error>;
-}
-
-impl RoleGroupResolver for JournalNodeConfig {
-    const ROLE: HdfsNodeRole = HdfsNodeRole::Journal;
-
-    fn resolve(
-        &self,
-        _role_group_name: &RoleGroupName,
-        selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup, Error> {
-        let (hdfs, vector) = common_container_logging(
-            &self.logging,
-            JournalNodeContainer::Hdfs,
-            JournalNodeContainer::Vector,
-        );
-
-        Ok(ResolvedRoleGroup {
-            selector_labels,
-            common: self.common.clone(),
-            resources: self.resources.clone().into(),
-            volume_claim_templates: ContainerConfig::journalnode_volume_claim_templates(self),
-            role: RoleSpecificResources::Journal,
-            logging: RoleGroupLogging {
-                hdfs,
-                vector,
-                role: RoleContainerLogging::Journal,
-            },
-        })
-    }
-}
-
-impl RoleGroupResolver for NameNodeConfig {
-    const ROLE: HdfsNodeRole = HdfsNodeRole::Name;
-
-    fn resolve(
-        &self,
-        role_group_name: &RoleGroupName,
-        selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup, Error> {
-        // Namenodes get their listener from a persistent volume claim template, for stable
-        // per-pod identity, rather than from an ephemeral volume.
-        let volume_claim_templates =
-            ContainerConfig::namenode_volume_claim_templates(self, &selector_labels).context(
-                VolumeClaimTemplatesSnafu {
-                    role: Self::ROLE,
-                    role_group: role_group_name.clone(),
-                },
-            )?;
-
-        let (hdfs, vector) = common_container_logging(
-            &self.logging,
-            NameNodeContainer::Hdfs,
-            NameNodeContainer::Vector,
-        );
-
-        Ok(ResolvedRoleGroup {
-            selector_labels,
-            common: self.common.clone(),
-            resources: self.resources.clone().into(),
-            volume_claim_templates,
-            role: RoleSpecificResources::Name,
-            logging: RoleGroupLogging {
-                hdfs,
-                vector,
-                role: RoleContainerLogging::Name {
-                    zkfc: self
-                        .logging
-                        .for_container(&NameNodeContainer::Zkfc)
-                        .into_owned(),
-                    format_namenodes: self
-                        .logging
-                        .for_container(&NameNodeContainer::FormatNameNodes)
-                        .into_owned(),
-                    format_zookeeper: self
-                        .logging
-                        .for_container(&NameNodeContainer::FormatZooKeeper)
-                        .into_owned(),
-                },
-            },
-        })
-    }
-}
-
-impl RoleGroupResolver for DataNodeConfig {
-    const ROLE: HdfsNodeRole = HdfsNodeRole::Data;
-
-    fn resolve(
-        &self,
-        role_group_name: &RoleGroupName,
-        selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup, Error> {
-        // Datanodes use an ephemeral listener volume, since they need no stable per-pod identity.
-        let listener_volume = ContainerConfig::datanode_listener_volume(self, &selector_labels)
-            .context(ListenerVolumeSnafu {
-                role: Self::ROLE,
-                role_group: role_group_name.clone(),
-            })?;
-
-        let (hdfs, vector) = common_container_logging(
-            &self.logging,
-            DataNodeContainer::Hdfs,
-            DataNodeContainer::Vector,
-        );
-
-        Ok(ResolvedRoleGroup {
-            selector_labels,
-            common: self.common.clone(),
-            resources: self.resources.clone().into(),
-            volume_claim_templates: ContainerConfig::datanode_volume_claim_templates(self),
-            role: RoleSpecificResources::Data {
-                listener_volume,
-                storage: self.resources.storage.clone(),
-            },
-            logging: RoleGroupLogging {
-                hdfs,
-                vector,
-                role: RoleContainerLogging::Data {
-                    wait_for_namenodes: self
-                        .logging
-                        .for_container(&DataNodeContainer::WaitForNameNodes)
-                        .into_owned(),
-                },
-            },
-        })
-    }
-}
+pub(crate) use resolve::RoleGroupResolver;
+pub use resolve::{ResolvedRoleGroup, RoleGroupLogging, RoleSpecificValues};
 
 /// The resources built for the role groups of one role, accumulated across the roles by
 /// [`build`].
@@ -491,7 +167,7 @@ fn build_role<C: RoleGroupResolver>(
                 cluster_info,
                 role_group_name,
                 rg_config,
-                resolved,
+                &resolved,
             )
             .context(StatefulSetSnafu {
                 role: *role,
@@ -532,7 +208,8 @@ pub fn build(
     // journalnodes first, then namenodes, then datanodes, each role gated on the previous one
     // (see [`crate::controller::apply::Applier::apply`]). That order comes from the
     // `HdfsNodeRole` key of `RoleGroupResources::stateful_sets`, not from the order of the calls
-    // below, which are free to be rearranged.
+    // below. The other three collections are plain `Vec`s appended in call order, which the apply
+    // step does not depend on: it applies each of them in bulk.
     build_role(
         cluster,
         cluster_info,
@@ -614,13 +291,13 @@ fn build_role_group_services(
 pub(crate) const DEFAULT_REPLICAS: u16 = 1;
 
 /// The replica count of every role group in the map, defaulting to [`DEFAULT_REPLICAS`] where it
-/// is unset.
-fn role_group_replicas<C>(
-    role_group_configs: &BTreeMap<
+/// is unset. The single place that applies that default.
+fn role_group_replicas<'a, C>(
+    role_group_configs: &'a BTreeMap<
         RoleGroupName,
         RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
     >,
-) -> Vec<(&RoleGroupName, u16)> {
+) -> impl Iterator<Item = (&'a RoleGroupName, u16)> + 'a {
     role_group_configs
         .iter()
         .map(|(role_group_name, role_group)| {
@@ -629,7 +306,6 @@ fn role_group_replicas<C>(
                 role_group.replicas.unwrap_or(DEFAULT_REPLICAS),
             )
         })
-        .collect()
 }
 
 /// The total number of replicas across the role groups of one role, counting a role group without
@@ -640,9 +316,8 @@ pub(crate) fn total_replicas<C>(
         RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
     >,
 ) -> u16 {
-    role_group_configs
-        .values()
-        .map(|role_group| role_group.replicas.unwrap_or(DEFAULT_REPLICAS))
+    role_group_replicas(role_group_configs)
+        .map(|(_, replicas)| replicas)
         .sum()
 }
 
@@ -660,10 +335,12 @@ pub(crate) fn pod_refs(cluster: &ValidatedCluster, role: &HdfsNodeRole) -> Vec<H
         .into_iter()
         .collect();
 
-    let replicas_per_role_group = match role {
-        HdfsNodeRole::Name => role_group_replicas(&cluster.namenode_role_group_configs),
-        HdfsNodeRole::Data => role_group_replicas(&cluster.datanode_role_group_configs),
-        HdfsNodeRole::Journal => role_group_replicas(&cluster.journalnode_role_group_configs),
+    let replicas_per_role_group: Vec<(&RoleGroupName, u16)> = match role {
+        HdfsNodeRole::Name => role_group_replicas(&cluster.namenode_role_group_configs).collect(),
+        HdfsNodeRole::Data => role_group_replicas(&cluster.datanode_role_group_configs).collect(),
+        HdfsNodeRole::Journal => {
+            role_group_replicas(&cluster.journalnode_role_group_configs).collect()
+        }
     };
 
     replicas_per_role_group

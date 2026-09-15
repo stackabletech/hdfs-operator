@@ -65,7 +65,7 @@ pub fn build_invalid_replica_message(
         Some(format!(
             "{role_name}: currently has an even number of replicas [{replicas}], but should always have an odd number to ensure quorum"
         ))
-    } else if role.check_valid_dfs_replication() && replicas < dfs_replication as u16 {
+    } else if role.replicas_must_cover_dfs_replication() && replicas < dfs_replication as u16 {
         Some(format!(
             "{role_name}: HDFS replication factor [{dfs_replication}] is configured greater than data node replicas [{replicas}]"
         ))
@@ -161,7 +161,7 @@ spec:
     }
 
     /// A `dfsReplication` above the datanode count means HDFS cannot place every replica, so the
-    /// user is warned. The gate for this is [`HdfsNodeRole::check_valid_dfs_replication`], which
+    /// user is warned. The gate for this is [`HdfsNodeRole::replicas_must_cover_dfs_replication`], which
     /// is true for datanodes only — the message is about datanodes.
     #[test]
     fn fewer_datanodes_than_the_replication_factor_warns() {
@@ -201,6 +201,47 @@ spec:
                 "datanode: HDFS replication factor [3] is configured greater than data node \
                  replicas [2]"
             )
+        );
+    }
+
+    /// The `dfsReplication` warning is worded in terms of datanode replicas, so only datanodes
+    /// are compared against it. A journalnode role group with fewer replicas than
+    /// `dfsReplication` is not a misconfiguration and must stay silent.
+    #[test]
+    fn journalnodes_are_not_compared_to_the_replication_factor() {
+        let cluster = deserialize_and_validate_cluster(
+            "
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+    dfsReplication: 5
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 2
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 3
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 5
+",
+        );
+
+        assert_eq!(
+            build_invalid_replica_message(&cluster, &HdfsNodeRole::Journal),
+            None
         );
     }
 }

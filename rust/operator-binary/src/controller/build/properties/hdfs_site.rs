@@ -331,7 +331,10 @@ mod tests {
     use indoc::indoc;
 
     use super::*;
-    use crate::controller::build::properties::test_support::{cluster_info, validated_cluster};
+    use crate::{
+        controller::build::properties::test_support::{cluster_info, validated_cluster},
+        test_support::{datanode_config, role_group_name},
+    };
 
     #[test]
     fn renders_operator_defaults() {
@@ -370,6 +373,32 @@ mod tests {
                 <name>dfs.replication</name>
                     <value>5</value>"}),
             "{xml}"
+        );
+    }
+
+    /// With a datanode's storage config, `dfs.datanode.data.dir` names one directory per PVC,
+    /// tagged with its HDFS storage type. Losing this property is silent: the datanodes fall back
+    /// to Hadoop's default directory, which is container-local, so their blocks are gone on the
+    /// next restart.
+    #[test]
+    fn datanode_storage_renders_the_data_dir() {
+        let validated_cluster = validated_cluster();
+        let storage = datanode_config(&validated_cluster, &role_group_name("default"))
+            .resources
+            .storage
+            .clone();
+
+        let xml = build(
+            &validated_cluster,
+            &cluster_info(),
+            Some(storage),
+            KeyValueConfigOverrides::default(),
+        );
+
+        assert!(
+            xml.contains("<name>dfs.datanode.data.dir</name>")
+                && xml.contains("<value>[DISK]/stackable/data/data/datanode</value>"),
+            "rendered hdfs-site.xml:\n{xml}"
         );
     }
 }

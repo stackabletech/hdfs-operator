@@ -11,7 +11,7 @@ use stackable_operator::{
 };
 
 use crate::controller::build::{
-    RoleGroupLogging,
+    RoleGroupLogging, RoleSpecificValues,
     container::{
         FORMAT_NAMENODES_CONTAINER_NAME, FORMAT_ZOOKEEPER_CONTAINER_NAME,
         WAIT_FOR_NAMENODES_CONTAINER_NAME, ZKFC_CONTAINER_NAME,
@@ -77,64 +77,82 @@ pub fn vector_config_file_content() -> String {
 ///
 /// Returns `(filename, rendered content)` pairs; containers using a custom log ConfigMap are
 /// skipped, so the result is empty when none use automatic logging.
-pub fn build_log4j_configs(logging: &RoleGroupLogging) -> Vec<(&'static str, String)> {
+pub fn build_log4j_configs(
+    logging: &RoleGroupLogging,
+    role: &RoleSpecificValues,
+) -> Vec<(&'static str, String)> {
     let mut configs = Vec::new();
 
     add_log4j_config_if_automatic(
         &mut configs,
-        Some(&logging.hdfs),
+        &logging.hdfs,
         HDFS_LOG4J_CONFIG_FILE,
         "hdfs",
         HDFS_LOG_FILE,
         MAX_HDFS_LOG_FILE_SIZE,
     );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        logging.role.zkfc(),
-        ZKFC_LOG4J_CONFIG_FILE,
-        ZKFC_CONTAINER_NAME.as_ref(),
-        ZKFC_LOG_FILE,
-        MAX_ZKFC_LOG_FILE_SIZE,
-    );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        logging.role.format_namenodes(),
-        FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
-        FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
-        FORMAT_NAMENODES_LOG_FILE,
-        MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-    );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        logging.role.format_zookeeper(),
-        FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
-        FORMAT_ZOOKEEPER_LOG_FILE,
-        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
-    );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        logging.role.wait_for_namenodes(),
-        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-        WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
-        WAIT_FOR_NAMENODES_LOG_FILE,
-        MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
-    );
+
+    // Exhaustive, so a role's containers and their log4j configs cannot drift apart.
+    match role {
+        RoleSpecificValues::Journal => {}
+        RoleSpecificValues::Name {
+            zkfc,
+            format_namenodes,
+            format_zookeeper,
+        } => {
+            add_log4j_config_if_automatic(
+                &mut configs,
+                zkfc,
+                ZKFC_LOG4J_CONFIG_FILE,
+                ZKFC_CONTAINER_NAME.as_ref(),
+                ZKFC_LOG_FILE,
+                MAX_ZKFC_LOG_FILE_SIZE,
+            );
+            add_log4j_config_if_automatic(
+                &mut configs,
+                format_namenodes,
+                FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
+                FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
+                FORMAT_NAMENODES_LOG_FILE,
+                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+            );
+            add_log4j_config_if_automatic(
+                &mut configs,
+                format_zookeeper,
+                FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+                FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
+                FORMAT_ZOOKEEPER_LOG_FILE,
+                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+            );
+        }
+        RoleSpecificValues::Data {
+            wait_for_namenodes, ..
+        } => {
+            add_log4j_config_if_automatic(
+                &mut configs,
+                wait_for_namenodes,
+                WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+                WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
+                WAIT_FOR_NAMENODES_LOG_FILE,
+                MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+            );
+        }
+    }
 
     configs
 }
 
 fn add_log4j_config_if_automatic(
     configs: &mut Vec<(&'static str, String)>,
-    log_config: Option<&ContainerLogConfig>,
+    log_config: &ContainerLogConfig,
     log_config_file: &'static str,
     log_dir_name: &str,
     log_file: &str,
     max_log_file_size: MemoryQuantity,
 ) {
-    if let Some(ContainerLogConfig {
+    if let ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = log_config
+    } = log_config
     {
         configs.push((
             log_config_file,

@@ -39,14 +39,15 @@ pub enum Error {
 
 /// Builds the [`StatefulSet`] of one role group.
 ///
-/// Every role-specific value is resolved by the caller into `resolved`. The role comes from the
-/// role group's config type, so it cannot disagree with `resolved`.
+/// Every role-specific value is resolved by the caller into `resolved`. The role comes from
+/// `C::ROLE`, and `resolved` is [`ResolvedRoleGroup<C>`](ResolvedRoleGroup), produced by that same
+/// `C`'s [`RoleGroupResolver::resolve`], so it cannot disagree with `resolved`.
 pub(crate) fn build_rolegroup_statefulset<C: RoleGroupResolver>(
     validated: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role_group_name: &RoleGroupName,
     rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    resolved: ResolvedRoleGroup,
+    resolved: &ResolvedRoleGroup<C>,
 ) -> Result<StatefulSet, Error> {
     let role = &C::ROLE;
 
@@ -87,7 +88,7 @@ pub(crate) fn build_rolegroup_statefulset<C: RoleGroupResolver>(
         cluster_info,
         role_group_name,
         rolegroup_config,
-        &resolved,
+        resolved,
     )
     .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
@@ -102,7 +103,7 @@ pub(crate) fn build_rolegroup_statefulset<C: RoleGroupResolver>(
         pod_management_policy: Some("OrderedReady".to_string()),
         replicas: rolegroup_config.replicas.map(i32::from),
         selector: LabelSelector {
-            match_labels: Some(resolved.selector_labels.into()),
+            match_labels: Some(resolved.selector_labels.clone().into()),
             ..LabelSelector::default()
         },
         service_name: Some(
@@ -112,7 +113,7 @@ pub(crate) fn build_rolegroup_statefulset<C: RoleGroupResolver>(
         ),
         template: pod_template,
 
-        volume_claim_templates: Some(resolved.volume_claim_templates),
+        volume_claim_templates: Some(resolved.volume_claim_templates.clone()),
         ..StatefulSetSpec::default()
     };
 
