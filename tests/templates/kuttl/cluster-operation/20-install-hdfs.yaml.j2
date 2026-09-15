@@ -26,6 +26,15 @@ spec:
     stopped: false
     reconciliationPaused: false
   nameNodes:
+    configOverrides:
+      core-site.xml:
+        # 30-stop-hdfs.yaml.j2 scales every StatefulSet to zero, so both namenodes go at once.
+        # On restart, `OrderedReady` holds namenode-1 back until namenode-0 is ready, while
+        # namenode-0's format-namenodes init container probes namenode-1 with
+        # `hdfs haadmin -getServiceState`. That peer cannot exist yet, so its name does not
+        # resolve and the ipc client retries an `<unresolved>` address on the connect-timeout
+        # path: 45 x 20s = 15 min by default, outlasting this test's asserts.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -33,6 +42,11 @@ spec:
       default:
         replicas: 2
   dataNodes:
+    configOverrides:
+      core-site.xml:
+        # See the identical nameNodes override: wait-for-namenodes runs the same haadmin probe
+        # against namenodes that cannot exist yet, with the same retry budget.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
