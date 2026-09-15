@@ -125,7 +125,7 @@ struct RoleGroupResources {
 }
 
 /// Builds every resource of every role group of one role, plus that role's PDB, appending them to
-/// `out`.
+/// `rg_resources`.
 fn build_role<C: RoleGroupResolver>(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
@@ -133,12 +133,12 @@ fn build_role<C: RoleGroupResolver>(
         RoleGroupName,
         RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
     >,
-    out: &mut RoleGroupResources,
+    rg_resources: &mut RoleGroupResources,
 ) -> Result<(), Error> {
     let role = &C::ROLE;
 
     for (role_group_name, rg_config) in role_group_configs {
-        build_role_group_services(cluster, role, role_group_name, &mut out.services)?;
+        build_role_group_services(cluster, role, role_group_name, &mut rg_resources.services)?;
 
         let selector_labels = rolegroup_selector_labels(cluster, role, role_group_name).context(
             RoleGroupSelectorLabelsSnafu {
@@ -148,7 +148,7 @@ fn build_role<C: RoleGroupResolver>(
         )?;
         let resolved = rg_config.config.resolve(role_group_name, selector_labels)?;
 
-        out.config_maps.push(
+        rg_resources.config_maps.push(
             resource::config_map::build_rolegroup_config_map(
                 cluster,
                 cluster_info,
@@ -161,7 +161,7 @@ fn build_role<C: RoleGroupResolver>(
                 role_group: role_group_name.clone(),
             })?,
         );
-        out.stateful_sets.entry(C::ROLE).or_default().push(
+        rg_resources.stateful_sets.entry(C::ROLE).or_default().push(
             resource::statefulset::build_rolegroup_statefulset(
                 cluster,
                 cluster_info,
@@ -177,7 +177,7 @@ fn build_role<C: RoleGroupResolver>(
     }
 
     if let Some(pdb) = resource::pdb::build_pdb(cluster, role) {
-        out.pod_disruption_budgets.push(pdb);
+        rg_resources.pod_disruption_budgets.push(pdb);
     }
 
     Ok(())
