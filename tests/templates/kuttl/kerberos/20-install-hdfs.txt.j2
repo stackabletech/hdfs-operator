@@ -27,6 +27,15 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   nameNodes:
+    configOverrides:
+      core-site.xml:
+        # The chaos monkey (31-unleash-the-chaosmonkey.yaml.j2) force-deletes every HDFS pod, so
+        # both namenodes go at once. `OrderedReady` then holds namenode-1 back until namenode-0 is
+        # ready, while namenode-0's format-namenodes init container probes namenode-1 with
+        # `hdfs haadmin -getServiceState` — a peer that cannot exist yet. At the default 45 retries
+        # x 20s that probe blocks for 15 min, outlasting the chaos monkey's 10 min `kubectl wait`
+        # and failing the step.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -43,6 +52,11 @@ spec:
       default:
         replicas: 2
   dataNodes:
+    configOverrides:
+      core-site.xml:
+        # wait-for-namenodes runs the same haadmin probe against the same unreachable peers, with
+        # the same retry budget.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       requestedSecretLifetime: 2d
       logging:

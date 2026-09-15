@@ -27,10 +27,12 @@ spec:
   nameNodes:
     configOverrides:
       core-site.xml:
-        # After the chaos monkey (60-unleash-the-chaosmonkey.yaml.j2) force-deletes all pods,
-        # the format-namenodes probe of the other namenode can resolve its name to the stale
-        # pre-delete pod IP (DNS cache) and silently retry a black-hole TCP connect for
-        # 45 x 20s = 15 min by default, exceeding the chaos-monkey step's 10 min `kubectl wait`.
+        # The chaos monkey (60-unleash-the-chaosmonkey.yaml.j2) force-deletes every HDFS pod, so
+        # both namenodes go at once. `OrderedReady` holds namenode-1 back until namenode-0 is
+        # ready, while namenode-0's format-namenodes init container probes namenode-1 with
+        # `hdfs haadmin -getServiceState`. That peer cannot exist yet, so its name does not
+        # resolve and the ipc client retries an `<unresolved>` address on the connect-timeout
+        # path: 45 x 20s = 15 min by default, outlasting the step's 10 min `kubectl wait`.
         # zkfc is unaffected: graceful fencing and health monitoring override their retries via
         # ha.failover-controller.graceful-fence.connection.retries and
         # ha.health-monitor.rpc.connect.max.retries respectively.
@@ -63,8 +65,8 @@ spec:
   dataNodes:
     configOverrides:
       core-site.xml:
-        # See the identical nameNodes override: wait-for-namenodes runs the same haadmin
-        # probe against namenodes that may resolve to a stale pod IP after the chaos monkey.
+        # See the identical nameNodes override: wait-for-namenodes runs the same haadmin probe
+        # against namenodes that cannot exist yet, with the same retry budget.
         ipc.client.connect.max.retries.on.timeouts: "3"
     envOverrides:
       COMMON_VAR: role-value # overridden by role group below
