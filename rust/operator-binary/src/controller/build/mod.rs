@@ -111,15 +111,13 @@ pub enum Error {
 pub(crate) use resolve::RoleGroupResolver;
 pub use resolve::{ResolvedRoleGroup, RoleGroupLogging, RoleSpecificValues};
 
-/// The resources built for the role groups of one role, accumulated across the roles by
-/// [`build`].
+/// The resources of every role, accumulated one role at a time by [`build_role`].
 #[derive(Default)]
 struct RoleGroupResources {
     services: Vec<Service>,
     config_maps: Vec<ConfigMap>,
-    /// Keyed by role so that flattening the map yields the StatefulSets in rollout order,
-    /// whatever order [`build`] happens to call [`build_role`] in. See [`HdfsNodeRole`], whose
-    /// variant order defines that rollout order.
+    /// Keyed by role, so flattening the map yields the StatefulSets in the rollout order
+    /// [`HdfsNodeRole`]'s variant order defines, whatever order the roles were built in.
     stateful_sets: BTreeMap<HdfsNodeRole, Vec<StatefulSet>>,
     pod_disruption_budgets: Vec<PodDisruptionBudget>,
 }
@@ -190,11 +188,9 @@ fn build_role<C: RoleGroupResolver>(
 /// `cluster_info` carries static cluster information resolved at operator startup (e.g. the
 /// cluster domain used to build Kerberos principals), not a live client.
 ///
-/// The resources are returned as flat collections. `stateful_sets` is ordered by role —
-/// journalnodes, then namenodes, then datanodes — because the apply step rolls them out in that
-/// order during upgrades to preserve HDFS's rollout-gated deployment (see
-/// [`crate::controller::apply::Applier::apply`]). That ordering is structural: they are
-/// accumulated in a [`BTreeMap`] keyed by [`HdfsNodeRole`] and flattened in key order.
+/// The resources are returned as flat collections. `stateful_sets` comes out in [`HdfsNodeRole`]
+/// order, which the apply step depends on; that is structural, from a [`BTreeMap`] flattened in
+/// key order, not from the order the roles are built in.
 /// The discovery `ConfigMap` is included when it can be built or re-emitted (see
 /// [`resource::discovery::build_discovery_config_map`]); it is only absent before its first
 /// successful build.
@@ -204,12 +200,8 @@ pub fn build(
 ) -> Result<KubernetesResources<Prepared>, Error> {
     let mut built = RoleGroupResources::default();
 
-    // The rollout order of the StatefulSets is load-bearing: the apply step rolls them out
-    // journalnodes first, then namenodes, then datanodes, each role gated on the previous one
-    // (see [`crate::controller::apply::Applier::apply`]). That order comes from the
-    // `HdfsNodeRole` key of `RoleGroupResources::stateful_sets`, not from the order of the calls
-    // below. The other three collections are plain `Vec`s appended in call order, which the apply
-    // step does not depend on: it applies each of them in bulk.
+    // These three calls are free to be reordered: the StatefulSets are keyed by role, and the
+    // apply step does not depend on the order of the other three collections.
     build_role(
         cluster,
         cluster_info,

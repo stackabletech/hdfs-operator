@@ -80,9 +80,8 @@ mod tests {
     use crate::test_support::deserialize_and_validate_cluster;
 
     /// A role group with no explicit `replicas` runs one pod — Kubernetes' default for a
-    /// `StatefulSet` with `replicas: null` — so it must not be counted as zero. Counting it as
-    /// zero produced a warning event telling the user to configure at least one datanode when
-    /// they already had one.
+    /// `StatefulSet` with `replicas: null` — so counting it as zero would warn about a role group
+    /// that is fine.
     #[test]
     fn an_unset_replica_count_counts_as_one_datanode() {
         let cluster = deserialize_and_validate_cluster(
@@ -161,8 +160,8 @@ spec:
     }
 
     /// A `dfsReplication` above the datanode count means HDFS cannot place every replica, so the
-    /// user is warned. The gate for this is [`HdfsNodeRole::replicas_must_cover_dfs_replication`], which
-    /// is true for datanodes only — the message is about datanodes.
+    /// user is warned. [`HdfsNodeRole::replicas_must_cover_dfs_replication`] gates it to datanodes,
+    /// which is what the message is about.
     #[test]
     fn fewer_datanodes_than_the_replication_factor_warns() {
         let cluster = deserialize_and_validate_cluster(

@@ -1,9 +1,6 @@
-//! Resolving one role group's role-specific values, once per role.
+//! Resolving one role group into the values the shared builders cannot derive themselves.
 //!
-//! These types live in their own module so that [`ResolvedRoleGroup`]'s private `_config` field is
-//! private to *them*: the shared builders in [`super::container`] and [`super::resource`] are
-//! siblings of this module rather than descendants, so [`RoleGroupResolver::resolve`] is the only
-//! way any of them can obtain a bundle.
+//! One [`RoleGroupResolver`] impl per role config type, so a role's resolution is written once.
 
 use std::{fmt::Display, marker::PhantomData};
 
@@ -22,12 +19,8 @@ use crate::crd::{
     storage::DataNodeStorageConfigInnerType,
 };
 
-/// The log configuration of the two containers every role has, resolved during the build step by
-/// code that knows the role, so the shared builders never see a role-specific `Logging<C>`.
-///
-/// The containers only one role runs carry their log config in [`RoleSpecificValues`], so that
-/// "the `zkfc` log config exists exactly when this is a namenode" is one fact, not two that have
-/// to agree.
+/// The log config of the two containers every role has. Containers only one role runs carry theirs
+/// in [`RoleSpecificValues`], which is the single place the role is decided.
 #[derive(Debug)]
 pub struct RoleGroupLogging {
     /// The main `hdfs` container, which every role has.
@@ -36,20 +29,12 @@ pub struct RoleGroupLogging {
     pub vector: Option<ContainerLogConfig>,
 }
 
-/// Everything about one role group that the shared builders below cannot derive themselves: the
-/// values resolved from its role-specific config, plus the selector labels, which the build loop
-/// already needs for the listener volume and the PVC templates.
+/// The values the shared builders cannot derive themselves, resolved by
+/// [`RoleGroupResolver::resolve`], which knows the role.
 ///
-/// Resolving these in the build loop, which knows the role, is what lets the builders be generic
-/// over the role group's config type.
-///
-/// `C` is the role group's config type, the same one [`RoleGroupResolver`] is implemented on.
 /// Every builder takes `RoleGroupConfig<C, ..>` and `ResolvedRoleGroup<C>` together, so one role's
-/// overrides and replica count cannot be paired with another role's resolved values: the two
-/// parameters are the same `C` or they do not compile. The private `_config` field makes
-/// [`RoleGroupResolver::resolve`] the only constructor outside this module — a struct literal
-/// elsewhere is rejected with `E0451` — so a `C` can never disagree with the values filled in
-/// beside it.
+/// overrides and replica count cannot be paired with another role's resolved values: both are the
+/// same `C` or they do not compile.
 pub struct ResolvedRoleGroup<C> {
     /// The selector labels of the role group's pods, also used as the `StatefulSet` selector and
     /// on its listener volume.
@@ -70,22 +55,20 @@ pub struct ResolvedRoleGroup<C> {
     pub role: RoleSpecificValues,
     /// The log config of each of the role group's containers.
     pub logging: RoleGroupLogging,
-    /// Ties this bundle to the role group's config type; see the struct documentation. The
-    /// `fn() -> C` spelling marks the relationship without claiming this struct owns a `C`.
+    /// Ties the bundle to its config type. Private, so [`RoleGroupResolver::resolve`] is the only
+    /// constructor outside this module — a struct literal elsewhere is `E0451`. `fn() -> C` rather
+    /// than `C`, so the bundle does not read as owning one.
     _config: PhantomData<fn() -> C>,
 }
 
-/// Everything that exists for one role only: the containers that role runs, their log configs,
-/// and its storage and listener arrangements.
+/// Everything that exists for one role only: the containers that role runs, their log configs, and
+/// its storage and listener arrangements.
 ///
-/// One enum rather than several `Option` fields, so the compiler checks the pairing at every
-/// construction site and every consumer is exhaustive. A datanode without its storage
-/// configuration does not compile — that would silently drop `dfs.datanode.data.dir` and send the
-/// datanodes' blocks to container-local storage. Neither does a namenode with a pod-level
-/// listener volume, which would collide with the identically named volume claim template and be
-/// rejected at apply time. And neither does a container without its log config, which would leave
-/// `log4j.properties` out of both the `ConfigMap` and the `cp` in the container args, so the
-/// container logs with Hadoop's built-in defaults and Vector collects nothing for it.
+/// An enum rather than `Option` fields, so consumers are exhaustive and three silent failures do
+/// not compile: a datanode without its storage drops `dfs.datanode.data.dir` and sends its blocks
+/// to container-local storage; a namenode with a pod-level listener volume collides with the
+/// identically named claim template and is rejected at apply time; a container without its log
+/// config falls back to Hadoop's built-in logging, uncollected by Vector.
 pub enum RoleSpecificValues {
     /// Journalnodes run no role-specific container, have no listener and no role-specific
     /// storage configuration.
@@ -153,14 +136,9 @@ where
 
 /// How to resolve one role group's role-specific values, implemented once per role config type.
 ///
-/// This is what lets [`build_role`](super::build_role) be written once: the trait supplies the role and the single
-/// role-dependent step, and everything else about building a role group is identical across the
-/// three roles.
-///
-/// [`Self::ROLE`] is the single source of truth for the role in the shared builders: they take the
-/// role group's config type and read the role from it, rather than taking the role as a second
-/// parameter a caller could pair with the wrong config. See [`ResolvedRoleGroup`] for what the
-/// shared `C` guarantees.
+/// The trait supplies the role and the single role-dependent step, which is what lets
+/// [`build_role`](super::build_role) be written once. The shared builders read [`Self::ROLE`]
+/// instead of taking a role parameter a caller could pair with the wrong config.
 pub(crate) trait RoleGroupResolver: Sized {
     /// The role whose config this is.
     const ROLE: HdfsNodeRole;

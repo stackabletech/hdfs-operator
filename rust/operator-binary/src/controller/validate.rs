@@ -89,10 +89,8 @@ pub fn validate_cluster(
 
     let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
 
-    // The first failure propagates, so the order of these three statements decides which
-    // misconfiguration the user is told about when more than one role is wrong. It follows
-    // `HdfsNodeRole`'s declaration order to leave a reader one order to hold in mind rather than
-    // two; that declaration order is fixed by the upgrade rollout, for which see [`HdfsNodeRole`].
+    // The first failure propagates, so this order decides which misconfiguration the user is told
+    // about when more than one role is wrong. It is `HdfsNodeRole`'s variant order.
     let journalnode_role_group_configs = validate_role_group_configs(
         hdfs.spec.journal_nodes.as_ref(),
         JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Journal),
@@ -120,9 +118,8 @@ pub fn validate_cluster(
             .and_then(|status| status.upgrade_target_product_version.clone()),
     };
 
-    // The three role-level configs share one type, so each is named at the point it is set: as
-    // positional arguments two of them could be swapped silently, giving a role another role's
-    // PodDisruptionBudget.
+    // The three role-level configs share one type, so naming each field is what stops a role
+    // being given another role's PodDisruptionBudget.
     Ok(ValidatedCluster {
         metadata: ValidatedCluster::object_meta(&cluster_name, &namespace, &uid),
         product_version: ValidatedCluster::product_version(&image),
@@ -199,8 +196,7 @@ where
             >(role_group, role, &default_config)
             .context(ValidateRoleGroupConfigSnafu)?;
 
-            // Flatten the nested config into a single `RoleGroupConfig`; the merged overrides
-            // carry over unchanged.
+            // The overrides carry over unchanged.
             let validated = RoleGroupConfig {
                 replicas: validated.replicas,
                 config: validated.config.config,

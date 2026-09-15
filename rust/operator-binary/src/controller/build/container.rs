@@ -213,11 +213,8 @@ impl ContainerConfig {
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
     ///
-    /// Every role-specific value is resolved by the caller into `resolved`. The role comes from
-    /// `C::ROLE`, and `resolved` is [`ResolvedRoleGroup<C>`](ResolvedRoleGroup), produced by that
-    /// same `C`'s [`RoleGroupResolver::resolve`], so it cannot disagree with `resolved`: pairing a
-    /// role with another role's resolved values would silently drop the containers'
-    /// `log4j.properties`.
+    /// Every role-specific value is resolved by the caller into `resolved`; the role itself comes
+    /// from `C::ROLE`, the same `C` that produced it.
     pub fn add_containers_and_volumes<C: RoleGroupResolver>(
         pb: &mut PodBuilder,
         cluster: &ValidatedCluster,
@@ -1081,10 +1078,9 @@ impl ContainerConfig {
 
     /// Return the container volumes.
     ///
-    /// `container_log_config` is this container's own log config, chosen by the caller from the
-    /// role group's `RoleGroupLogging` or [`RoleSpecificValues`]; a container is never built
-    /// without one. `listener_volume` is the role group's ephemeral listener volume, which only
-    /// the main container of the datanodes has.
+    /// `container_log_config` is this container's own, chosen by the caller from
+    /// [`build::RoleGroupLogging`] or [`RoleSpecificValues`]. `listener_volume` is the role
+    /// group's ephemeral listener volume, which only the datanode main container has.
     fn volumes(
         &self,
         container_log_config: &ContainerLogConfig,

@@ -53,9 +53,8 @@ pub struct Applied;
 
 /// Every Kubernetes resource produced by the build step.
 ///
-/// The resources are flat collections. `stateful_sets` is ordered by role — journalnodes, then
-/// namenodes, then datanodes — because the apply step rolls them out in that order during
-/// upgrades to preserve HDFS's rollout-gated deployment (see [`apply::Applier::apply`]).
+/// The resources are flat collections. `stateful_sets` is ordered by [`HdfsNodeRole`], which
+/// [`apply::Applier::apply`] relies on when rolling out an upgrade.
 /// The discovery `ConfigMap` is part of `config_maps` whenever it can be built or
 /// re-emitted; it is only absent before its first successful build (see
 /// [`build::resource::discovery::build_discovery_config_map`]).
