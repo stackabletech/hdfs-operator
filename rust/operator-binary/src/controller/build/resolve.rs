@@ -55,10 +55,10 @@ pub struct ResolvedRoleGroup<C> {
     pub role: RoleSpecificValues,
     /// The log config of each of the role group's containers.
     pub logging: RoleGroupLogging,
-    /// Ties the bundle to its config type. Private, so [`RoleGroupResolver::resolve`] is the only
-    /// constructor outside this module — a struct literal elsewhere is `E0451`. `fn() -> C` rather
-    /// than `C`, so the bundle does not read as owning one.
-    _config: PhantomData<fn() -> C>,
+    /// Ties the bundle to its config type. Needed because `C` appears in no other field, which on
+    /// its own does not compile (`E0392`). Private, so [`RoleGroupResolver::resolve`] is the only
+    /// constructor outside this module — a struct literal elsewhere is `E0451`.
+    _config: PhantomData<C>,
 }
 
 /// Everything that exists for one role only: the containers that role runs, their log configs, and
