@@ -9,23 +9,12 @@ use stackable_operator::{
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::api::ObjectMeta,
-    utils::cluster_info::KubernetesClusterInfo,
-    v2::{
-        role_utils::{JavaCommonConfig, RoleGroupConfig},
-        types::operator::RoleGroupName,
-    },
 };
 
-use crate::{
-    controller::{
-        ValidatedCluster,
-        build::{
-            self, ResolvedRoleGroup, RoleGroupResolver,
-            container::{self, ContainerConfig},
-            graceful_shutdown::{self, add_graceful_shutdown_config},
-        },
-    },
-    crd::v1alpha1,
+use crate::controller::build::{
+    self, RoleGroupBuilder,
+    container::{self, ContainerConfig},
+    graceful_shutdown::{self, add_graceful_shutdown_config},
 };
 
 #[derive(Snafu, Debug)]
@@ -39,17 +28,18 @@ pub enum Error {
 
 /// Builds the [`StatefulSet`] of one role group.
 ///
-/// Every role-specific value is resolved by the caller into `resolved`. The role comes from
-/// `C::ROLE`, and `resolved` is [`ResolvedRoleGroup<C>`](ResolvedRoleGroup), produced by that same
-/// `C`'s [`RoleGroupResolver::resolve`], so it cannot disagree with `resolved`.
-pub(crate) fn build_rolegroup_statefulset<C: RoleGroupResolver>(
-    validated: &ValidatedCluster,
-    cluster_info: &KubernetesClusterInfo,
-    role_group_name: &RoleGroupName,
-    rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    resolved: &ResolvedRoleGroup<C>,
+/// Everything about the role group comes from `resolved`, the role and the merged overrides
+/// included, so there is nothing here to pair with the wrong role group.
+pub(crate) fn build_rolegroup_statefulset(
+    builder: &RoleGroupBuilder,
 ) -> Result<StatefulSet, Error> {
-    let role = &C::ROLE;
+    let RoleGroupBuilder {
+        cluster: validated,
+        role_group_name,
+        resolved,
+        ..
+    } = builder;
+    let role = &builder.role();
 
     tracing::info!(
         "Setting up StatefulSet for role {role} role group {role_group_name}",
@@ -82,26 +72,19 @@ pub(crate) fn build_rolegroup_statefulset<C: RoleGroupResolver>(
         );
 
     // Adds all containers and volumes to the pod builder.
-    ContainerConfig::add_containers_and_volumes(
-        &mut pb,
-        validated,
-        cluster_info,
-        role_group_name,
-        rolegroup_config,
-        resolved,
-    )
-    .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
+    ContainerConfig::add_containers_and_volumes(&mut pb, builder)
+        .context(FailedToCreateContainerAndVolumeConfigurationSnafu)?;
 
     add_graceful_shutdown_config(&resolved.common, &mut pb).context(GracefulShutdownSnafu)?;
 
     // The `podOverrides` were already merged (role <- role group) during validation
     // by the local-`framework` `with_validated_config`.
     let mut pod_template = pb.build_template();
-    pod_template.merge_from(rolegroup_config.pod_overrides.clone());
+    pod_template.merge_from(resolved.merged.pod_overrides.clone());
 
     let statefulset_spec = StatefulSetSpec {
         pod_management_policy: Some("OrderedReady".to_string()),
-        replicas: rolegroup_config.replicas.map(i32::from),
+        replicas: resolved.merged.replicas.map(i32::from),
         selector: LabelSelector {
             match_labels: Some(resolved.selector_labels.clone().into()),
             ..LabelSelector::default()

@@ -1,23 +1,63 @@
-//! Resolving one role group into the values the shared builders cannot derive themselves.
+//! Resolving one role group into everything the shared builders need.
 //!
 //! One [`RoleGroupResolver`] impl per role config type, so a role's resolution is written once.
+//! [`RoleGroupResolver::resolve`] takes the whole [`RoleGroupConfig`] and returns a
+//! [`ResolvedRoleGroup`] that no longer mentions the config type, so the builders take one
+//! non-generic argument and read the role back out of it.
 
-use std::{fmt::Display, marker::PhantomData};
+use std::fmt::Display;
 
 use snafu::ResultExt;
 use stackable_operator::{
-    k8s_openapi::api::core::v1::{PersistentVolumeClaim, ResourceRequirements, Volume},
+    k8s_openapi::api::core::v1::{
+        PersistentVolumeClaim, PodTemplateSpec, ResourceRequirements, Volume,
+    },
     kvp::Labels,
     product_logging::spec::{ContainerLogConfig, Logging},
-    v2::types::operator::RoleGroupName,
+    v2::{
+        builder::pod::container::EnvVarSet,
+        jvm_argument_overrides::JvmArgumentOverrides,
+        role_utils::{JavaCommonConfig, RoleGroupConfig},
+        types::operator::RoleGroupName,
+    },
 };
 
 use super::{Error, ListenerVolumeSnafu, VolumeClaimTemplatesSnafu, container::ContainerConfig};
 use crate::crd::{
     CommonNodeConfig, DataNodeConfig, DataNodeContainer, HdfsNodeRole, JournalNodeConfig,
     JournalNodeContainer, NameNodeConfig, NameNodeContainer,
-    storage::DataNodeStorageConfigInnerType,
+    storage::DataNodeStorageConfigInnerType, v1alpha1,
 };
+
+/// The role group's merged values that the builders use verbatim: its replica count and the
+/// override sets. Nothing here depends on the role, which is why it is carried alongside the
+/// resolved values rather than among them.
+///
+/// `cli_overrides` is deliberately absent: it is merged during validation but no builder reads it.
+pub struct MergedRoleGroupConfig {
+    pub replicas: Option<u16>,
+    pub config_overrides: v1alpha1::HdfsConfigOverrides,
+    pub env_overrides: EnvVarSet,
+    pub pod_overrides: PodTemplateSpec,
+    pub jvm_argument_overrides: JvmArgumentOverrides,
+}
+
+impl MergedRoleGroupConfig {
+    fn of<C>(
+        rg_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+    ) -> Self {
+        Self {
+            replicas: rg_config.replicas,
+            config_overrides: rg_config.config_overrides.clone(),
+            env_overrides: rg_config.env_overrides.clone(),
+            pod_overrides: rg_config.pod_overrides.clone(),
+            jvm_argument_overrides: rg_config
+                .product_specific_common_config
+                .jvm_argument_overrides
+                .clone(),
+        }
+    }
+}
 
 /// The log config of the two containers every role has. Containers only one role runs carry theirs
 /// in [`RoleSpecificValues`], which is the single place the role is decided.
@@ -32,10 +72,9 @@ pub struct RoleGroupLogging {
 /// The values the shared builders cannot derive themselves, resolved by
 /// [`RoleGroupResolver::resolve`], which knows the role.
 ///
-/// Every builder takes `RoleGroupConfig<C, ..>` and `ResolvedRoleGroup<C>` together, so one role's
-/// overrides and replica count cannot be paired with another role's resolved values: both are the
-/// same `C` or they do not compile.
-pub struct ResolvedRoleGroup<C> {
+/// The builders take this and nothing else about the role group, so there is no second argument to
+/// pair with the wrong one. The role comes from [`RoleSpecificValues::node_role`].
+pub struct ResolvedRoleGroup {
     /// The selector labels of the role group's pods, also used as the `StatefulSet` selector and
     /// on its listener volume.
     ///
@@ -55,10 +94,8 @@ pub struct ResolvedRoleGroup<C> {
     pub role: RoleSpecificValues,
     /// The log config of each of the role group's containers.
     pub logging: RoleGroupLogging,
-    /// Ties the bundle to its config type. Needed because `C` appears in no other field, which on
-    /// its own does not compile (`E0392`). Private, so [`RoleGroupResolver::resolve`] is the only
-    /// constructor outside this module — a struct literal elsewhere is `E0451`.
-    _config: PhantomData<C>,
+    /// The role group's replica count and overrides, carried through unchanged.
+    pub merged: MergedRoleGroupConfig,
 }
 
 /// Everything that exists for one role only: the containers that role runs, their log configs, and
@@ -93,6 +130,15 @@ pub enum RoleSpecificValues {
 }
 
 impl RoleSpecificValues {
+    /// The role these values belong to.
+    pub fn node_role(&self) -> HdfsNodeRole {
+        match self {
+            Self::Journal => HdfsNodeRole::Journal,
+            Self::Name { .. } => HdfsNodeRole::Name,
+            Self::Data { .. } => HdfsNodeRole::Data,
+        }
+    }
+
     /// The role group's ephemeral listener volume; only datanodes have one.
     pub fn listener_volume(&self) -> Option<&Volume> {
         match self {
@@ -146,34 +192,35 @@ pub(crate) trait RoleGroupResolver: Sized {
     /// Resolves everything the shared builders cannot derive themselves. Takes the selector
     /// labels because two of the three roles need them to build their listener.
     fn resolve(
-        &self,
+        rg_config: &RoleGroupConfig<Self, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         role_group_name: &RoleGroupName,
         selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup<Self>, Error>;
+    ) -> Result<ResolvedRoleGroup, Error>;
 }
 
 impl RoleGroupResolver for JournalNodeConfig {
     const ROLE: HdfsNodeRole = HdfsNodeRole::Journal;
 
     fn resolve(
-        &self,
+        rg_config: &RoleGroupConfig<Self, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         _role_group_name: &RoleGroupName,
         selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup<Self>, Error> {
+    ) -> Result<ResolvedRoleGroup, Error> {
+        let config = &rg_config.config;
         let (hdfs, vector) = common_container_logging(
-            &self.logging,
+            &config.logging,
             JournalNodeContainer::Hdfs,
             JournalNodeContainer::Vector,
         );
 
         Ok(ResolvedRoleGroup {
             selector_labels,
-            common: self.common.clone(),
-            resources: self.resources.clone().into(),
-            volume_claim_templates: ContainerConfig::journalnode_volume_claim_templates(self),
+            common: config.common.clone(),
+            resources: config.resources.clone().into(),
+            volume_claim_templates: ContainerConfig::journalnode_volume_claim_templates(config),
             role: RoleSpecificValues::Journal,
             logging: RoleGroupLogging { hdfs, vector },
-            _config: PhantomData,
+            merged: MergedRoleGroupConfig::of(rg_config),
         })
     }
 }
@@ -182,14 +229,15 @@ impl RoleGroupResolver for NameNodeConfig {
     const ROLE: HdfsNodeRole = HdfsNodeRole::Name;
 
     fn resolve(
-        &self,
+        rg_config: &RoleGroupConfig<Self, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         role_group_name: &RoleGroupName,
         selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup<Self>, Error> {
+    ) -> Result<ResolvedRoleGroup, Error> {
+        let config = &rg_config.config;
         // Namenodes get their listener from a persistent volume claim template, for stable
         // per-pod identity, rather than from an ephemeral volume.
         let volume_claim_templates =
-            ContainerConfig::namenode_volume_claim_templates(self, &selector_labels).context(
+            ContainerConfig::namenode_volume_claim_templates(config, &selector_labels).context(
                 VolumeClaimTemplatesSnafu {
                     role: Self::ROLE,
                     role_group: role_group_name.clone(),
@@ -197,32 +245,32 @@ impl RoleGroupResolver for NameNodeConfig {
             )?;
 
         let (hdfs, vector) = common_container_logging(
-            &self.logging,
+            &config.logging,
             NameNodeContainer::Hdfs,
             NameNodeContainer::Vector,
         );
 
         Ok(ResolvedRoleGroup {
             selector_labels,
-            common: self.common.clone(),
-            resources: self.resources.clone().into(),
+            common: config.common.clone(),
+            resources: config.resources.clone().into(),
             volume_claim_templates,
             role: RoleSpecificValues::Name {
-                zkfc: self
+                zkfc: config
                     .logging
                     .for_container(&NameNodeContainer::Zkfc)
                     .into_owned(),
-                format_namenodes: self
+                format_namenodes: config
                     .logging
                     .for_container(&NameNodeContainer::FormatNameNodes)
                     .into_owned(),
-                format_zookeeper: self
+                format_zookeeper: config
                     .logging
                     .for_container(&NameNodeContainer::FormatZooKeeper)
                     .into_owned(),
             },
             logging: RoleGroupLogging { hdfs, vector },
-            _config: PhantomData,
+            merged: MergedRoleGroupConfig::of(rg_config),
         })
     }
 }
@@ -231,38 +279,39 @@ impl RoleGroupResolver for DataNodeConfig {
     const ROLE: HdfsNodeRole = HdfsNodeRole::Data;
 
     fn resolve(
-        &self,
+        rg_config: &RoleGroupConfig<Self, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
         role_group_name: &RoleGroupName,
         selector_labels: Labels,
-    ) -> Result<ResolvedRoleGroup<Self>, Error> {
+    ) -> Result<ResolvedRoleGroup, Error> {
+        let config = &rg_config.config;
         // Datanodes use an ephemeral listener volume, since they need no stable per-pod identity.
-        let listener_volume = ContainerConfig::datanode_listener_volume(self, &selector_labels)
+        let listener_volume = ContainerConfig::datanode_listener_volume(config, &selector_labels)
             .context(ListenerVolumeSnafu {
-                role: Self::ROLE,
-                role_group: role_group_name.clone(),
-            })?;
+            role: Self::ROLE,
+            role_group: role_group_name.clone(),
+        })?;
 
         let (hdfs, vector) = common_container_logging(
-            &self.logging,
+            &config.logging,
             DataNodeContainer::Hdfs,
             DataNodeContainer::Vector,
         );
 
         Ok(ResolvedRoleGroup {
             selector_labels,
-            common: self.common.clone(),
-            resources: self.resources.clone().into(),
-            volume_claim_templates: ContainerConfig::datanode_volume_claim_templates(self),
+            common: config.common.clone(),
+            resources: config.resources.clone().into(),
+            volume_claim_templates: ContainerConfig::datanode_volume_claim_templates(config),
             role: RoleSpecificValues::Data {
                 listener_volume,
-                storage: self.resources.storage.clone(),
-                wait_for_namenodes: self
+                storage: config.resources.storage.clone(),
+                wait_for_namenodes: config
                     .logging
                     .for_container(&DataNodeContainer::WaitForNameNodes)
                     .into_owned(),
             },
             logging: RoleGroupLogging { hdfs, vector },
-            _config: PhantomData,
+            merged: MergedRoleGroupConfig::of(rg_config),
         })
     }
 }

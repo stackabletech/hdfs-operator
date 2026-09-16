@@ -53,11 +53,9 @@ use stackable_operator::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, VectorContainerLogConfig,
             vector_container,
         },
-        role_utils::{JavaCommonConfig, RoleGroupConfig},
         types::{
             common::Port,
             kubernetes::{ConfigMapName, ContainerName, VolumeName},
-            operator::RoleGroupName,
         },
     },
 };
@@ -67,7 +65,7 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self, ResolvedRoleGroup, RoleGroupResolver, RoleSpecificValues,
+            self, ResolvedRoleGroup, RoleGroupBuilder, RoleSpecificValues,
             jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
             kerberos::KERBEROS_CONTAINER_PATH,
             properties::product_logging::{
@@ -92,7 +90,6 @@ use crate::{
             SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
-        v1alpha1,
     },
 };
 
@@ -213,17 +210,19 @@ impl ContainerConfig {
 
     /// Add all main, side and init containers as well as required volumes to the pod builder.
     ///
-    /// Every role-specific value is resolved by the caller into `resolved`; the role itself comes
-    /// from `C::ROLE`, the same `C` that produced it.
-    pub fn add_containers_and_volumes<C: RoleGroupResolver>(
+    /// Everything about the role group comes from `resolved`, the role and the merged overrides
+    /// included, so there is nothing here to pair with the wrong role group.
+    pub(crate) fn add_containers_and_volumes(
         pb: &mut PodBuilder,
-        cluster: &ValidatedCluster,
-        cluster_info: &KubernetesClusterInfo,
-        role_group_name: &RoleGroupName,
-        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-        resolved: &ResolvedRoleGroup<C>,
+        builder: &RoleGroupBuilder,
     ) -> Result<(), Error> {
-        let role = &C::ROLE;
+        let RoleGroupBuilder {
+            cluster,
+            cluster_info,
+            role_group_name,
+            resolved,
+        } = builder;
+        let role = &builder.role();
         let namenode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Name);
 
         // HDFS main container
@@ -241,7 +240,6 @@ impl ContainerConfig {
             cluster,
             cluster_info,
             &resolved.logging.hdfs,
-            rolegroup_config,
             resolved,
         )?);
 
@@ -355,7 +353,6 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     zkfc,
-                    rolegroup_config,
                     resolved,
                 )?);
 
@@ -371,7 +368,6 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     format_namenodes,
-                    rolegroup_config,
                     resolved,
                     &namenode_podrefs,
                 )?);
@@ -388,7 +384,6 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     format_zookeeper,
-                    rolegroup_config,
                     resolved,
                     &namenode_podrefs,
                 )?);
@@ -408,7 +403,6 @@ impl ContainerConfig {
                     cluster,
                     cluster_info,
                     wait_for_namenodes,
-                    rolegroup_config,
                     resolved,
                     &namenode_podrefs,
                 )?);
@@ -491,15 +485,14 @@ impl ContainerConfig {
     /// - Namenode ZooKeeper fail over controller (ZKFC)
     /// - Datanode main process
     /// - Journalnode main process
-    fn main_container<C: RoleGroupResolver>(
+    fn main_container(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         container_log_config: &ContainerLogConfig,
-        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-        resolved: &ResolvedRoleGroup<C>,
+        resolved: &ResolvedRoleGroup,
     ) -> Result<Container, Error> {
-        let role = &C::ROLE;
+        let role = &resolved.role.node_role();
         let mut cb = new_container_builder(self.container_name());
 
         let resources = self.resources(&resolved.resources);
@@ -507,7 +500,7 @@ impl ContainerConfig {
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
             .args(self.args(cluster, cluster_info, role, container_log_config, &[])?)
-            .add_env_vars(self.env(cluster, role, rolegroup_config, resources.as_ref())?)
+            .add_env_vars(self.env(cluster, role, resolved, resources.as_ref())?)
             .add_volume_mounts(self.volume_mounts(cluster, &resolved.volume_claim_templates))
             .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(cluster));
@@ -539,16 +532,15 @@ impl ContainerConfig {
     /// Creates respective init containers for:
     /// - Namenode (format-namenodes, format-zookeeper)
     /// - Datanode (wait-for-namenodes)
-    fn init_container<C: RoleGroupResolver>(
+    fn init_container(
         &self,
         cluster: &ValidatedCluster,
         cluster_info: &KubernetesClusterInfo,
         container_log_config: &ContainerLogConfig,
-        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-        resolved: &ResolvedRoleGroup<C>,
+        resolved: &ResolvedRoleGroup,
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<Container, Error> {
-        let role = &C::ROLE;
+        let role = &resolved.role.node_role();
         let mut cb = new_container_builder(self.container_name());
 
         cb.image_from_product_image(&cluster.image)
@@ -560,7 +552,7 @@ impl ContainerConfig {
                 container_log_config,
                 namenode_podrefs,
             )?)
-            .add_env_vars(self.env(cluster, role, rolegroup_config, None)?)
+            .add_env_vars(self.env(cluster, role, resolved, None)?)
             .add_volume_mounts(self.volume_mounts(cluster, &resolved.volume_claim_templates))
             .context(AddVolumeMountSnafu)?;
 
@@ -881,11 +873,11 @@ impl ContainerConfig {
     }
 
     /// Returns the container env variables.
-    fn env<C>(
+    fn env(
         &self,
         cluster: &ValidatedCluster,
         role: &HdfsNodeRole,
-        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+        resolved: &ResolvedRoleGroup,
         resources: Option<&ResourceRequirements>,
     ) -> Result<Vec<EnvVar>, Error> {
         // Maps env var name to env var object. This allows env_overrides to work
@@ -916,7 +908,7 @@ impl ContainerConfig {
                 role_opts_name.clone(),
                 EnvVar {
                     name: role_opts_name,
-                    value: Some(self.build_hadoop_opts(cluster, resources, rolegroup_config)?),
+                    value: Some(self.build_hadoop_opts(cluster, resources, resolved)?),
                     ..EnvVar::default()
                 },
             );
@@ -980,7 +972,8 @@ impl ContainerConfig {
         );
 
         // Overrides need to come last
-        let mut env_override_vars: BTreeMap<String, EnvVar> = rolegroup_config
+        let mut env_override_vars: BTreeMap<String, EnvVar> = resolved
+            .merged
             .env_overrides
             .clone()
             .into_iter()
@@ -1253,11 +1246,11 @@ impl ContainerConfig {
     }
 
     /// Build HADOOP_{*node}_OPTS for each namenode, datanodes and journalnodes.
-    fn build_hadoop_opts<C>(
+    fn build_hadoop_opts(
         &self,
         cluster: &ValidatedCluster,
         resources: Option<&ResourceRequirements>,
-        rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+        resolved: &ResolvedRoleGroup,
     ) -> Result<String, Error> {
         match self {
             ContainerConfig::Hdfs {
@@ -1267,9 +1260,7 @@ impl ContainerConfig {
                 let config_dir = volume_mount_dirs.final_config();
                 construct_role_specific_jvm_args(
                     role,
-                    &rolegroup_config
-                        .product_specific_common_config
-                        .jvm_argument_overrides,
+                    &resolved.merged.jvm_argument_overrides,
                     cluster.has_kerberos_enabled(),
                     resources,
                     config_dir,

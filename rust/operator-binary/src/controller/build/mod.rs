@@ -59,6 +59,7 @@ pub mod opa;
 pub mod properties;
 pub mod resolve;
 pub mod resource;
+pub mod role_group_builder;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -108,8 +109,10 @@ pub enum Error {
     },
 }
 
-pub(crate) use resolve::RoleGroupResolver;
-pub use resolve::{ResolvedRoleGroup, RoleGroupLogging, RoleSpecificValues};
+pub(crate) use resolve::{
+    ResolvedRoleGroup, RoleGroupLogging, RoleGroupResolver, RoleSpecificValues,
+};
+pub(crate) use role_group_builder::RoleGroupBuilder;
 
 /// The resources of every role, accumulated one role at a time by [`build_role`].
 #[derive(Default)]
@@ -136,42 +139,15 @@ fn build_role<C: RoleGroupResolver>(
     let role = &C::ROLE;
 
     for (role_group_name, rg_config) in role_group_configs {
-        build_role_group_services(cluster, role, role_group_name, &mut rg_resources.services)?;
+        let builder = RoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
 
-        let selector_labels = rolegroup_selector_labels(cluster, role, role_group_name).context(
-            RoleGroupSelectorLabelsSnafu {
-                role: *role,
-                role_group: role_group_name.clone(),
-            },
-        )?;
-        let resolved = rg_config.config.resolve(role_group_name, selector_labels)?;
-
-        rg_resources.config_maps.push(
-            resource::config_map::build_rolegroup_config_map(
-                cluster,
-                cluster_info,
-                role_group_name,
-                rg_config,
-                &resolved,
-            )
-            .context(ConfigMapSnafu {
-                role: *role,
-                role_group: role_group_name.clone(),
-            })?,
-        );
-        rg_resources.stateful_sets.entry(C::ROLE).or_default().push(
-            resource::statefulset::build_rolegroup_statefulset(
-                cluster,
-                cluster_info,
-                role_group_name,
-                rg_config,
-                &resolved,
-            )
-            .context(StatefulSetSnafu {
-                role: *role,
-                role_group: role_group_name.clone(),
-            })?,
-        );
+        rg_resources.services.extend(builder.build_services()?);
+        rg_resources.config_maps.push(builder.build_config_map()?);
+        rg_resources
+            .stateful_sets
+            .entry(C::ROLE)
+            .or_default()
+            .push(builder.build_stateful_set()?);
     }
 
     if let Some(pdb) = resource::pdb::build_pdb(cluster, role) {
@@ -248,34 +224,6 @@ pub fn build(
         role_bindings: vec![build_role_binding(cluster)],
         status: PhantomData,
     })
-}
-
-/// Builds the two Services for one role group. Role-agnostic: it reads nothing from the role
-/// config.
-fn build_role_group_services(
-    cluster: &ValidatedCluster,
-    role: &HdfsNodeRole,
-    role_group_name: &RoleGroupName,
-    services: &mut Vec<Service>,
-) -> Result<(), Error> {
-    services.push(
-        resource::service::rolegroup_headless_service(cluster, role, role_group_name).context(
-            ServiceSnafu {
-                role: *role,
-                role_group: role_group_name.clone(),
-            },
-        )?,
-    );
-    services.push(
-        resource::service::rolegroup_metrics_service(cluster, role, role_group_name).context(
-            ServiceSnafu {
-                role: *role,
-                role_group: role_group_name.clone(),
-            },
-        )?,
-    );
-
-    Ok(())
 }
 
 /// The replica count a role group gets when it does not set one: Kubernetes runs a single pod for
