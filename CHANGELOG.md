@@ -4,17 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
+  ([#831]).
+
 ### Changed
 
+- BREAKING: `spec.image.stackableVersion` must now be a full, valid semver version, e.g. `26.7.1`.
+  Abbreviated values such as `26.7` are no longer accepted ([#831]).
+- BREAKING: `spec.image.pullPolicy` now defaults to `IfNotPresent` for non-floating tags instead of
+  always defaulting to `Always` ([#831]).
 - Internal operator refactoring: introduce a build() step in the reconciler that
   assembles all relevant Kubernetes resources before anything is applied ([#801]).
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#806]).
-- Bump stackable-operator to 0.114.0 ([#810]).
+- Bump stackable-operator to 0.118.0 ([#810], [#819], [#831]).
 - The reconciler now applies resources and derives the cluster status in discrete
   apply and update_status steps ([#811]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#814]).
-- Bump stackable-operator to 0.116.0 ([#819]).
 - `envOverrides` names are now validated by the shared `EnvVarName` type when the HdfsCluster
   resource is deserialized, rather than during reconciliation ([#819]).
 - The recommended labels are now built with the typed operator-rs `v2` label functions ([#819]).
@@ -42,6 +50,7 @@ All notable changes to this project will be documented in this file.
 [#821]: https://github.com/stackabletech/hdfs-operator/pull/821
 [#824]: https://github.com/stackabletech/hdfs-operator/pull/824
 [#829]: https://github.com/stackabletech/hdfs-operator/pull/829
+[#831]: https://github.com/stackabletech/hdfs-operator/pull/831
 
 ## [26.7.0] - 2026-07-21
 
