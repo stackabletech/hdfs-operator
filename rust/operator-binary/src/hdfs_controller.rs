@@ -170,7 +170,6 @@ mod test {
                 events::{Recorder, Reporter},
             },
         },
-        kvp::Labels,
         utils::cluster_info::KubernetesClusterInfo,
         v2::types::operator::RoleGroupName,
     };
@@ -178,10 +177,8 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::{RoleGroupResolver, container::ContainerConfig},
-        test_support::{
-            datanode_config, datanode_role_group_config, deserialize_cluster, validate_cluster,
-        },
+        controller::build::{RoleGroupBuilder, container::ContainerConfig},
+        test_support::{datanode_role_group_config, deserialize_cluster, validate_cluster},
     };
 
     #[test]
@@ -224,25 +221,22 @@ spec:
         let validated_cluster = validate_cluster(&hdfs);
         let role_group_name = RoleGroupName::from_str("default").unwrap();
         let role_group_config = datanode_role_group_config(&validated_cluster, &role_group_name);
-        // Resolved through the production path, so this test cannot drift from what the build
-        // step actually hands the container builder.
-        let resolved = datanode_config(&validated_cluster, &role_group_name)
-            .resolve(&role_group_name, Labels::new())
-            .expect("the datanode role group should resolve");
+        let cluster_info = KubernetesClusterInfo {
+            cluster_domain: DomainName::try_from("cluster.local").unwrap(),
+        };
+        // Built through the production path, so this test cannot drift from what the build step
+        // actually hands the container builder.
+        let builder = RoleGroupBuilder::new(
+            &validated_cluster,
+            &cluster_info,
+            &role_group_name,
+            role_group_config,
+        )
+        .expect("the datanode role group should resolve");
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
-        ContainerConfig::add_containers_and_volumes(
-            &mut pb,
-            &validated_cluster,
-            &KubernetesClusterInfo {
-                cluster_domain: DomainName::try_from("cluster.local").unwrap(),
-            },
-            &role_group_name,
-            role_group_config,
-            &resolved,
-        )
-        .unwrap();
+        ContainerConfig::add_containers_and_volumes(&mut pb, &builder).unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;
         let env_vars = containers
             .iter()

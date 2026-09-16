@@ -2,29 +2,16 @@
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder,
-    k8s_openapi::api::core::v1::ConfigMap,
-    product_logging::framework::VECTOR_CONFIG_FILE,
-    utils::cluster_info::KubernetesClusterInfo,
-    v2::{
-        config_file_writer::PropertiesWriterError,
-        role_utils::{JavaCommonConfig, RoleGroupConfig},
-        types::operator::RoleGroupName,
-    },
+    builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE, v2::config_file_writer::PropertiesWriterError,
 };
 
-use crate::{
-    controller::{
-        ValidatedCluster,
-        build::{
-            self, ResolvedRoleGroup, RoleGroupResolver,
-            properties::{
-                ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging,
-                security_properties, ssl_client, ssl_server,
-            },
-        },
+use crate::controller::build::{
+    self, RoleGroupBuilder,
+    properties::{
+        ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging, security_properties,
+        ssl_client, ssl_server,
     },
-    crd::v1alpha1,
 };
 
 #[derive(Snafu, Debug)]
@@ -47,20 +34,18 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds the [`ConfigMap`] of one role group.
 ///
-/// Every role-specific value is resolved by the caller into `resolved`. The role comes from
-/// `C::ROLE`, and `C`'s [`RoleGroupResolver`] bound ties it to `resolved`, so this cannot read one
-/// role's `HdfsNodeRole` alongside another role's resolved values. The datanode storage
-/// configuration comes from `resolved` rather than a separate parameter: taking it independently
-/// would let a caller pass a datanode without its storage, which silently drops
-/// `dfs.datanode.data.dir`.
-pub fn build_rolegroup_config_map<C: RoleGroupResolver>(
-    cluster: &ValidatedCluster,
-    cluster_info: &KubernetesClusterInfo,
-    role_group_name: &RoleGroupName,
-    rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    resolved: &ResolvedRoleGroup<C>,
-) -> Result<ConfigMap> {
-    let role = C::ROLE;
+/// Everything about the role group comes from `resolved`, the role and the merged overrides
+/// included, so there is nothing here to pair with the wrong role group. The datanode storage
+/// configuration comes from `resolved` for the same reason: taking it independently would let a
+/// caller pass a datanode without its storage, which silently drops `dfs.datanode.data.dir`.
+pub(crate) fn build_rolegroup_config_map(builder: &RoleGroupBuilder) -> Result<ConfigMap> {
+    let RoleGroupBuilder {
+        cluster,
+        cluster_info,
+        role_group_name,
+        resolved,
+    } = builder;
+    let role = builder.role();
 
     tracing::info!(
         "Setting up ConfigMap for role {role} role group {role_group_name}",
@@ -69,7 +54,7 @@ pub fn build_rolegroup_config_map<C: RoleGroupResolver>(
 
     let metadata = build::rolegroup_metadata(cluster, &role, role_group_name);
 
-    let config_overrides = &rolegroup_config.config_overrides;
+    let config_overrides = &resolved.merged.config_overrides;
     let cluster_config = &cluster.cluster_config;
 
     let hdfs_site_xml = hdfs_site::build(
