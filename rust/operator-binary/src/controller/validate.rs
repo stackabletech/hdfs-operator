@@ -83,7 +83,7 @@ pub fn validate_cluster(
         .resolve(
             CONTAINER_IMAGE_BASE_NAME,
             image_repository,
-            crate::built_info::PKG_VERSION,
+            &crate::built_info::PKG_VERSION_SEMVER,
         )
         .context(ResolveProductImageSnafu)?;
 
