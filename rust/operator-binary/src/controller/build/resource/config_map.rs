@@ -1,33 +1,34 @@
 //! Build the per-rolegroup `ConfigMap` for the HdfsCluster.
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder,
     k8s_openapi::api::core::v1::ConfigMap,
     product_logging::framework::VECTOR_CONFIG_FILE,
     utils::cluster_info::KubernetesClusterInfo,
-    v2::{config_file_writer::PropertiesWriterError, types::operator::RoleGroupName},
+    v2::{
+        config_file_writer::PropertiesWriterError,
+        role_utils::{JavaCommonConfig, RoleGroupConfig},
+        types::operator::RoleGroupName,
+    },
 };
 
 use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            self,
+            self, ResolvedRoleGroup, RoleGroupResolver,
             properties::{
                 ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging,
                 security_properties, ssl_client, ssl_server,
             },
         },
     },
-    crd::HdfsNodeRole,
+    crd::v1alpha1,
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("the validated cluster has no role group {role_group:?} for role {role:?}"))]
-    MissingRoleGroup { role: String, role_group: String },
-
     #[snafu(display("failed to serialize {} for {rolegroup}", ConfigFileName::Security))]
     JvmSecurityProperties {
         source: PropertiesWriterError,
@@ -44,40 +45,42 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub fn build_rolegroup_config_map(
+/// Builds the [`ConfigMap`] of one role group.
+///
+/// Every role-specific value is resolved by the caller into `resolved`. The role comes from
+/// `C::ROLE`, and `C`'s [`RoleGroupResolver`] bound ties it to `resolved`, so this cannot read one
+/// role's `HdfsNodeRole` alongside another role's resolved values. The datanode storage
+/// configuration comes from `resolved` rather than a separate parameter: taking it independently
+/// would let a caller pass a datanode without its storage, which silently drops
+/// `dfs.datanode.data.dir`.
+pub fn build_rolegroup_config_map<C: RoleGroupResolver>(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
+    rolegroup_config: &RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+    resolved: &ResolvedRoleGroup<C>,
 ) -> Result<ConfigMap> {
+    let role = C::ROLE;
+
     tracing::info!(
         "Setting up ConfigMap for role {role} role group {role_group_name}",
         role = role.as_ref()
     );
 
-    let metadata = build::rolegroup_metadata(cluster, role, role_group_name);
+    let metadata = build::rolegroup_metadata(cluster, &role, role_group_name);
 
-    let rolegroup_config = cluster
-        .role_groups
-        .get(role)
-        .and_then(|role_groups| role_groups.get(role_group_name))
-        .with_context(|| MissingRoleGroupSnafu {
-            role: role.to_string(),
-            role_group: role_group_name.to_string(),
-        })?;
-    let merged_config = &rolegroup_config.config;
     let config_overrides = &rolegroup_config.config_overrides;
     let cluster_config = &cluster.cluster_config;
 
     let hdfs_site_xml = hdfs_site::build(
         cluster,
         cluster_info,
-        merged_config,
+        resolved.role.datanode_storage().cloned(),
         config_overrides.hdfs_site_xml.clone(),
     );
     let core_site_xml = core_site::build(
         cluster,
-        *role,
+        role,
         cluster_info,
         config_overrides.core_site_xml.clone(),
     );
@@ -108,10 +111,12 @@ pub fn build_rolegroup_config_map(
             )?,
         );
 
-    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(merged_config) {
+    for (log_config_file, log4j_config) in
+        product_logging::build_log4j_configs(&resolved.logging, &resolved.role)
+    {
         builder.add_data(log_config_file, log4j_config);
     }
-    if merged_config.vector_logging_enabled() {
+    if resolved.logging.vector.is_some() {
         builder.add_data(
             VECTOR_CONFIG_FILE,
             product_logging::vector_config_file_content(),
