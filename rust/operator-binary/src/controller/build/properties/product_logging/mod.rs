@@ -2,6 +2,7 @@
 //! `*.log4j.properties` configs and the (static) Vector agent config (`vector.yaml`).
 
 use stackable_operator::{
+    builder::configmap::ConfigMapBuilder,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
@@ -10,12 +11,9 @@ use stackable_operator::{
     v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::controller::build::{
-    RoleGroupLogging, RoleSpecificValues,
-    container::{
-        FORMAT_NAMENODES_CONTAINER_NAME, FORMAT_ZOOKEEPER_CONTAINER_NAME,
-        WAIT_FOR_NAMENODES_CONTAINER_NAME, ZKFC_CONTAINER_NAME,
-    },
+use crate::controller::build::container::{
+    ContainerConfig, FORMAT_NAMENODES_CONTAINER_NAME, FORMAT_ZOOKEEPER_CONTAINER_NAME,
+    WAIT_FOR_NAMENODES_CONTAINER_NAME, ZKFC_CONTAINER_NAME,
 };
 
 // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
@@ -59,6 +57,13 @@ const FORMAT_NAMENODES_LOG_FILE: &str = "format-namenodes.log4j.xml";
 const FORMAT_ZOOKEEPER_LOG_FILE: &str = "format-zookeeper.log4j.xml";
 const WAIT_FOR_NAMENODES_LOG_FILE: &str = "wait-for-namenodes.log4j.xml";
 
+/// The main `hdfs` container of every role logs into this directory, whatever the container
+/// itself is named (`namenode`, `datanode`, `journalnode`).
+///
+/// Vector parses the `container` label out of the log path (see the `files_log4j` source in
+/// `vector.yaml`), so this name reaches the aggregated logs.
+const HDFS_LOG_DIR_NAME: &str = "hdfs";
+
 /// The vendored Vector agent configuration (`vector.yaml`).
 ///
 /// It is static: per-rolegroup values (namespace, cluster, role, role group, log/data dirs and the
@@ -72,102 +77,95 @@ pub fn vector_config_file_content() -> String {
     VECTOR_CONFIG.to_owned()
 }
 
-/// Renders the `*.log4j.properties` files for every container of this role group that uses the
-/// operator's automatic logging configuration.
+/// Everything about how one container logs: which file holds its `log4j.properties` in the role
+/// group `ConfigMap`, which directory it logs into, which file it writes and how large that file
+/// may grow.
 ///
-/// Returns `(filename, rendered content)` pairs; containers using a custom log ConfigMap are
-/// skipped, so the result is empty when none use automatic logging.
-pub fn build_log4j_configs(
-    logging: &RoleGroupLogging,
-    role: &RoleSpecificValues,
-) -> Vec<(&'static str, String)> {
-    let mut configs = Vec::new();
-
-    add_log4j_config_if_automatic(
-        &mut configs,
-        &logging.hdfs,
-        HDFS_LOG4J_CONFIG_FILE,
-        "hdfs",
-        HDFS_LOG_FILE,
-        MAX_HDFS_LOG_FILE_SIZE,
-    );
-
-    // Exhaustive, so a role's containers and their log4j configs cannot drift apart.
-    match role {
-        RoleSpecificValues::Journal => {}
-        RoleSpecificValues::Name {
-            zkfc,
-            format_namenodes,
-            format_zookeeper,
-        } => {
-            add_log4j_config_if_automatic(
-                &mut configs,
-                zkfc,
-                ZKFC_LOG4J_CONFIG_FILE,
-                ZKFC_CONTAINER_NAME.as_ref(),
-                ZKFC_LOG_FILE,
-                MAX_ZKFC_LOG_FILE_SIZE,
-            );
-            add_log4j_config_if_automatic(
-                &mut configs,
-                format_namenodes,
-                FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
-                FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
-                FORMAT_NAMENODES_LOG_FILE,
-                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-            );
-            add_log4j_config_if_automatic(
-                &mut configs,
-                format_zookeeper,
-                FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-                FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
-                FORMAT_ZOOKEEPER_LOG_FILE,
-                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
-            );
-        }
-        RoleSpecificValues::Data {
-            wait_for_namenodes, ..
-        } => {
-            add_log4j_config_if_automatic(
-                &mut configs,
-                wait_for_namenodes,
-                WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-                WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
-                WAIT_FOR_NAMENODES_LOG_FILE,
-                MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
-            );
-        }
-    }
-
-    configs
+/// One match, so a container's four log4j facts sit together and cannot drift apart.
+struct Log4jSpec {
+    config_file: &'static str,
+    log_dir_name: &'static str,
+    log_file: &'static str,
+    max_log_file_size: MemoryQuantity,
 }
 
-fn add_log4j_config_if_automatic(
-    configs: &mut Vec<(&'static str, String)>,
-    log_config: &ContainerLogConfig,
-    log_config_file: &'static str,
-    log_dir_name: &str,
-    log_file: &str,
-    max_log_file_size: MemoryQuantity,
-) {
-    if let ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    } = log_config
-    {
-        configs.push((
-            log_config_file,
-            product_logging::framework::create_log4j_config(
-                &format!("{STACKABLE_LOG_DIR}/{log_dir_name}"),
-                log_file,
-                max_log_file_size
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32,
-                CONSOLE_CONVERSION_PATTERN,
-                log_config,
-            ),
-        ));
+fn log4j_spec(container: &ContainerConfig) -> Log4jSpec {
+    match container {
+        ContainerConfig::Hdfs { .. } => Log4jSpec {
+            config_file: HDFS_LOG4J_CONFIG_FILE,
+            log_dir_name: HDFS_LOG_DIR_NAME,
+            log_file: HDFS_LOG_FILE,
+            max_log_file_size: MAX_HDFS_LOG_FILE_SIZE,
+        },
+        ContainerConfig::Zkfc => Log4jSpec {
+            config_file: ZKFC_LOG4J_CONFIG_FILE,
+            log_dir_name: ZKFC_CONTAINER_NAME.as_ref(),
+            log_file: ZKFC_LOG_FILE,
+            max_log_file_size: MAX_ZKFC_LOG_FILE_SIZE,
+        },
+        ContainerConfig::FormatNameNodes => Log4jSpec {
+            config_file: FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
+            log_dir_name: FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
+            log_file: FORMAT_NAMENODES_LOG_FILE,
+            max_log_file_size: MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+        },
+        ContainerConfig::FormatZooKeeper => Log4jSpec {
+            config_file: FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+            log_dir_name: FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
+            log_file: FORMAT_ZOOKEEPER_LOG_FILE,
+            max_log_file_size: MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+        },
+        ContainerConfig::WaitForNameNodes => Log4jSpec {
+            config_file: WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+            log_dir_name: WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
+            log_file: WAIT_FOR_NAMENODES_LOG_FILE,
+            max_log_file_size: MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+        },
     }
+}
+
+/// The `ConfigMap` key holding the given container's `log4j.properties`.
+///
+/// The container copies the file from there into its config directory on startup, so the key the
+/// `ConfigMap` is written with and the name the container copies must agree.
+pub(crate) fn log4j_config_file(container: &ContainerConfig) -> &'static str {
+    log4j_spec(container).config_file
+}
+
+/// Renders the given container's `log4j.properties` into the role group `ConfigMap`, if that
+/// container uses the operator's automatic logging configuration.
+///
+/// A container using a custom log `ConfigMap` mounts its own and is skipped here.
+pub(crate) fn add_log4j_config(
+    builder: &mut ConfigMapBuilder,
+    container: &ContainerConfig,
+    container_log_config: &ContainerLogConfig,
+) {
+    let ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    } = container_log_config
+    else {
+        return;
+    };
+
+    let spec = log4j_spec(container);
+
+    builder.add_data(
+        spec.config_file,
+        product_logging::framework::create_log4j_config(
+            &format!(
+                "{STACKABLE_LOG_DIR}/{log_dir_name}",
+                log_dir_name = spec.log_dir_name
+            ),
+            spec.log_file,
+            spec.max_log_file_size
+                .scale_to(BinaryMultiple::Mebi)
+                .floor()
+                .value as u32,
+            CONSOLE_CONVERSION_PATTERN,
+            log_config,
+        ),
+    );
 }
 
 #[cfg(test)]

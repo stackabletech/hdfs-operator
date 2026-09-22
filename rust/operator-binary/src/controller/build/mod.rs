@@ -23,12 +23,18 @@ use stackable_operator::{
         },
     },
 };
+use strum::IntoEnumIterator;
 
 use crate::{
     controller::{
         CONTROLLER_NAME, KubernetesResources, OPERATOR_NAME, PRODUCT_NAME, Prepared,
         ValidatedCluster,
-        build::resource::rbac::{build_role_binding, build_service_account},
+        build::{
+            resource::rbac::{build_role_binding, build_service_account},
+            role_group::{
+                DataNodeRoleGroupBuilder, JournalNodeRoleGroupBuilder, NameNodeRoleGroupBuilder,
+            },
+        },
     },
     crd::{
         HdfsNodeRole, HdfsPodRef,
@@ -57,9 +63,8 @@ pub mod jvm;
 pub mod kerberos;
 pub mod opa;
 pub mod properties;
-pub mod resolve;
 pub mod resource;
-pub mod role_group_builder;
+pub mod role_group;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -107,14 +112,23 @@ pub enum Error {
         role: HdfsNodeRole,
         role_group: RoleGroupName,
     },
+
+    #[snafu(display("failed to add the listener volume for role {role} role group {role_group}", role = role.as_ref()))]
+    AddListenerVolume {
+        source: stackable_operator::builder::pod::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build the containers of role {role} role group {role_group}", role = role.as_ref()))]
+    Container {
+        source: container::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
 }
 
-pub(crate) use resolve::{
-    ResolvedRoleGroup, RoleGroupLogging, RoleGroupResolver, RoleSpecificValues,
-};
-pub(crate) use role_group_builder::RoleGroupBuilder;
-
-/// The resources of every role, accumulated one role at a time by [`build_role`].
+/// The resources of every role, accumulated one role group at a time by [`build`].
 #[derive(Default)]
 struct RoleGroupResources {
     services: Vec<Service>,
@@ -125,44 +139,17 @@ struct RoleGroupResources {
     pod_disruption_budgets: Vec<PodDisruptionBudget>,
 }
 
-/// Builds every resource of every role group of one role, plus that role's PDB, appending them to
-/// `rg_resources`.
-fn build_role<C: RoleGroupResolver>(
-    cluster: &ValidatedCluster,
-    cluster_info: &KubernetesClusterInfo,
-    role_group_configs: &BTreeMap<
-        RoleGroupName,
-        RoleGroupConfig<C, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
-    >,
-    rg_resources: &mut RoleGroupResources,
-) -> Result<(), Error> {
-    let role = &C::ROLE;
-
-    for (role_group_name, rg_config) in role_group_configs {
-        let builder = RoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
-
-        rg_resources.services.extend(builder.build_services()?);
-        rg_resources.config_maps.push(builder.build_config_map()?);
-        rg_resources
-            .stateful_sets
-            .entry(C::ROLE)
-            .or_default()
-            .push(builder.build_stateful_set()?);
-    }
-
-    if let Some(pdb) = resource::pdb::build_pdb(cluster, role) {
-        rg_resources.pod_disruption_budgets.push(pdb);
-    }
-
-    Ok(())
-}
-
 /// Builds every Kubernetes resource for the given validated cluster.
 ///
 /// Does not need a Kubernetes client: every external reference is already dereferenced and
 /// validated by this point, so the errors returned here are resource-assembly failures only.
 /// `cluster_info` carries static cluster information resolved at operator startup (e.g. the
 /// cluster domain used to build Kerberos principals), not a live client.
+///
+/// Each of the three loops hands its role group's typed config to that role's builder, which is
+/// where everything specific to the role lives. The loops are free to be reordered: the
+/// StatefulSets are keyed by role, and the apply step does not depend on the order of the other
+/// three collections.
 ///
 /// The resources are returned as flat collections. `stateful_sets` comes out in [`HdfsNodeRole`]
 /// order, which the apply step depends on; that is structural, from a [`BTreeMap`] flattened in
@@ -176,26 +163,50 @@ pub fn build(
 ) -> Result<KubernetesResources<Prepared>, Error> {
     let mut built = RoleGroupResources::default();
 
-    // These three calls are free to be reordered: the StatefulSets are keyed by role, and the
-    // apply step does not depend on the order of the other three collections.
-    build_role(
-        cluster,
-        cluster_info,
-        &cluster.journalnode_role_group_configs,
-        &mut built,
-    )?;
-    build_role(
-        cluster,
-        cluster_info,
-        &cluster.namenode_role_group_configs,
-        &mut built,
-    )?;
-    build_role(
-        cluster,
-        cluster_info,
-        &cluster.datanode_role_group_configs,
-        &mut built,
-    )?;
+    for (role_group_name, rg_config) in &cluster.journalnode_role_group_configs {
+        let builder =
+            JournalNodeRoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
+
+        built.services.extend(builder.build_services()?);
+        built.config_maps.push(builder.build_config_map()?);
+        built
+            .stateful_sets
+            .entry(HdfsNodeRole::Journal)
+            .or_default()
+            .push(builder.build_statefulset()?);
+    }
+
+    for (role_group_name, rg_config) in &cluster.namenode_role_group_configs {
+        let builder =
+            NameNodeRoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
+
+        built.services.extend(builder.build_services()?);
+        built.config_maps.push(builder.build_config_map()?);
+        built
+            .stateful_sets
+            .entry(HdfsNodeRole::Name)
+            .or_default()
+            .push(builder.build_statefulset()?);
+    }
+
+    for (role_group_name, rg_config) in &cluster.datanode_role_group_configs {
+        let builder =
+            DataNodeRoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
+
+        built.services.extend(builder.build_services()?);
+        built.config_maps.push(builder.build_config_map()?);
+        built
+            .stateful_sets
+            .entry(HdfsNodeRole::Data)
+            .or_default()
+            .push(builder.build_statefulset()?);
+    }
+
+    for role in HdfsNodeRole::iter() {
+        if let Some(pdb) = resource::pdb::build_pdb(cluster, &role) {
+            built.pod_disruption_budgets.push(pdb);
+        }
+    }
 
     let RoleGroupResources {
         services,

@@ -159,12 +159,10 @@ mod test {
     use std::str::FromStr;
 
     use stackable_operator::{
-        builder::pod::PodBuilder,
         client::Client,
         commons::networking::DomainName,
         kube::{
             Client as KubeClient, Config,
-            api::ObjectMeta,
             runtime::{
                 controller::Action,
                 events::{Recorder, Reporter},
@@ -177,7 +175,7 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::{RoleGroupBuilder, container::ContainerConfig},
+        controller::build::role_group::DataNodeRoleGroupBuilder,
         test_support::{datanode_role_group_config, deserialize_cluster, validate_cluster},
     };
 
@@ -225,19 +223,25 @@ spec:
             cluster_domain: DomainName::try_from("cluster.local").unwrap(),
         };
         // Built through the production path, so this test cannot drift from what the build step
-        // actually hands the container builder.
-        let builder = RoleGroupBuilder::new(
+        // actually produces.
+        let builder = DataNodeRoleGroupBuilder::new(
             &validated_cluster,
             &cluster_info,
             &role_group_name,
             role_group_config,
         )
-        .expect("the datanode role group should resolve");
+        .expect("the datanode role group builder should be constructed");
 
-        let mut pb = PodBuilder::new();
-        pb.metadata(ObjectMeta::default());
-        ContainerConfig::add_containers_and_volumes(&mut pb, &builder).unwrap();
-        let containers = pb.build().unwrap().spec.unwrap().containers;
+        let stateful_set = builder
+            .build_statefulset()
+            .expect("the datanode StatefulSet should build");
+        let containers = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the Pod template has a spec")
+            .containers;
         let env_vars = containers
             .iter()
             .find(|c| c.name == role.to_string())
