@@ -32,7 +32,7 @@ use crate::{
         build::{
             resource::rbac::{build_role_binding, build_service_account},
             role_group::{
-                DataNodeRoleGroupBuilder, JournalNodeRoleGroupBuilder, NameNodeRoleGroupBuilder,
+                build_datanode_role_group, build_journalnode_role_group, build_namenode_role_group,
             },
         },
     },
@@ -165,7 +165,7 @@ pub fn build(
 
     for (role_group_name, rg_config) in &cluster.journalnode_role_group_configs {
         let builder =
-            JournalNodeRoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
+            build_journalnode_role_group(cluster, cluster_info, role_group_name, rg_config)?;
 
         built.services.extend(builder.build_services()?);
         built.config_maps.push(builder.build_config_map()?);
@@ -177,8 +177,7 @@ pub fn build(
     }
 
     for (role_group_name, rg_config) in &cluster.namenode_role_group_configs {
-        let builder =
-            NameNodeRoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
+        let builder = build_namenode_role_group(cluster, cluster_info, role_group_name, rg_config)?;
 
         built.services.extend(builder.build_services()?);
         built.config_maps.push(builder.build_config_map()?);
@@ -190,8 +189,7 @@ pub fn build(
     }
 
     for (role_group_name, rg_config) in &cluster.datanode_role_group_configs {
-        let builder =
-            DataNodeRoleGroupBuilder::new(cluster, cluster_info, role_group_name, rg_config)?;
+        let builder = build_datanode_role_group(cluster, cluster_info, role_group_name, rg_config)?;
 
         built.services.extend(builder.build_services()?);
         built.config_maps.push(builder.build_config_map()?);

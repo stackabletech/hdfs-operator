@@ -175,7 +175,7 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::role_group::DataNodeRoleGroupBuilder,
+        controller::build::role_group::build_datanode_role_group,
         test_support::{datanode_role_group_config, deserialize_cluster, validate_cluster},
     };
 
@@ -224,7 +224,7 @@ spec:
         };
         // Built through the production path, so this test cannot drift from what the build step
         // actually produces.
-        let builder = DataNodeRoleGroupBuilder::new(
+        let builder = build_datanode_role_group(
             &validated_cluster,
             &cluster_info,
             &role_group_name,

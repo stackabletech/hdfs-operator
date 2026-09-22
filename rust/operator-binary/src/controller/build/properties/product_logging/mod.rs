@@ -2,7 +2,6 @@
 //! `*.log4j.properties` configs and the (static) Vector agent config (`vector.yaml`).
 
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
@@ -132,26 +131,25 @@ pub(crate) fn log4j_config_file(container: &ContainerConfig) -> &'static str {
     log4j_spec(container).config_file
 }
 
-/// Renders the given container's `log4j.properties` into the role group `ConfigMap`, if that
-/// container uses the operator's automatic logging configuration.
+/// The given container's rendered `log4j.properties` and the `ConfigMap` key to store it under,
+/// if that container uses the operator's automatic logging configuration.
 ///
-/// A container using a custom log `ConfigMap` mounts its own and is skipped here.
-pub(crate) fn add_log4j_config(
-    builder: &mut ConfigMapBuilder,
+/// `None` for a container using a custom log `ConfigMap`: it mounts its own.
+pub(crate) fn log4j_config(
     container: &ContainerConfig,
     container_log_config: &ContainerLogConfig,
-) {
+) -> Option<(String, String)> {
     let ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
     } = container_log_config
     else {
-        return;
+        return None;
     };
 
     let spec = log4j_spec(container);
 
-    builder.add_data(
-        spec.config_file,
+    Some((
+        spec.config_file.to_owned(),
         product_logging::framework::create_log4j_config(
             &format!(
                 "{STACKABLE_LOG_DIR}/{log_dir_name}",
@@ -165,7 +163,7 @@ pub(crate) fn add_log4j_config(
             CONSOLE_CONVERSION_PATTERN,
             log_config,
         ),
-    );
+    ))
 }
 
 #[cfg(test)]
