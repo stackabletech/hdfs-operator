@@ -52,10 +52,7 @@ use stackable_operator::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, VectorContainerLogConfig,
             vector_container,
         },
-        types::{
-            common::Port,
-            kubernetes::{ConfigMapName, ContainerName, VolumeName},
-        },
+        types::kubernetes::{ConfigMapName, ContainerName, VolumeName},
     },
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
@@ -78,14 +75,12 @@ use crate::{
     crd::{
         DataNodeConfig, HdfsNodeRole, HdfsPodRef, JournalNodeConfig, NameNodeConfig, UpgradeState,
         constants::{
-            DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
-            DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, LIVENESS_PROBE_FAILURE_THRESHOLD,
-            LIVENESS_PROBE_INITIAL_DELAY_SECONDS, LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES,
-            NAMENODE_ROOT_DATA_DIR, READINESS_PROBE_FAILURE_THRESHOLD,
-            READINESS_PROBE_INITIAL_DELAY_SECONDS, READINESS_PROBE_PERIOD_SECONDS,
-            SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
-            SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
+            DATANODE_ROOT_DATA_DIR_PREFIX, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
+            LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
+            READINESS_PROBE_FAILURE_THRESHOLD, READINESS_PROBE_INITIAL_DELAY_SECONDS,
+            READINESS_PROBE_PERIOD_SECONDS, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
+            STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
     },
@@ -168,17 +163,11 @@ pub enum Error {
 /// the HDFS cluster.
 #[derive(Display)]
 pub enum ContainerConfig {
+    /// The main container of a role, named after the role it runs.
     Hdfs {
-        /// HDFS role (name-, data-, journal-node) which determines the container name.
+        /// The HDFS role this is the main container of. It determines the container name, the
+        /// port the readiness probe checks and the JMX Exporter port.
         role: HdfsNodeRole,
-        /// Port name of the IPC/RPC port, used for the readiness probe.
-        ipc_port_name: &'static str,
-        /// Port name of the web UI HTTP port, used for the liveness probe.
-        web_ui_http_port_name: &'static str,
-        /// Port name of the web UI HTTPS port, used for the liveness probe.
-        web_ui_https_port_name: &'static str,
-        /// The JMX Exporter metrics port.
-        metrics_port: Port,
     },
     /// The ZooKeeper fail-over controller side container of the namenodes.
     Zkfc,
@@ -493,7 +482,7 @@ impl ContainerConfig {
     /// Return the typed container name.
     fn container_name(&self) -> &'static ContainerName {
         match self {
-            ContainerConfig::Hdfs { role, .. } => match role {
+            ContainerConfig::Hdfs { role } => match role {
                 HdfsNodeRole::Name => &NAMENODE_CONTAINER_NAME,
                 HdfsNodeRole::Data => &DATANODE_CONTAINER_NAME,
                 HdfsNodeRole::Journal => &JOURNALNODE_CONTAINER_NAME,
@@ -576,7 +565,7 @@ impl ContainerConfig {
         };
 
         match self {
-            ContainerConfig::Hdfs { role, .. } => {
+            ContainerConfig::Hdfs { role } => {
                 args.push_str(&self.copy_log4j_properties_cmd(container_log_config));
 
                 args.push_str(&formatdoc!(
@@ -814,7 +803,7 @@ impl ContainerConfig {
         // When the users tries to start a cli tool the port is already taken by the hdfs services,
         // so we don't want to stuff all the config into HADOOP_OPTS, but rather into the specialized env variables
         // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
-        if let ContainerConfig::Hdfs { role, .. } = self {
+        if let ContainerConfig::Hdfs { role } = self {
             let role_opts_name = role.hadoop_opts_env_var_for_role().to_string();
             env.insert(
                 role_opts_name.clone(),
@@ -929,24 +918,20 @@ impl ContainerConfig {
         initial_delay_seconds: i32,
         failure_threshold: i32,
     ) -> Option<Probe> {
-        let ContainerConfig::Hdfs {
-            web_ui_http_port_name,
-            web_ui_https_port_name,
-            ..
-        } = self
-        else {
+        let ContainerConfig::Hdfs { .. } = self else {
             return None;
         };
 
+        // Every role serves its web UI under the same two port names.
         let port = if cluster.has_https_enabled() {
-            web_ui_https_port_name
+            SERVICE_PORT_NAME_HTTPS
         } else {
-            web_ui_http_port_name
+            SERVICE_PORT_NAME_HTTP
         };
 
         Some(Probe {
             // Use tcp_socket instead of http_get so that the probe is independent of the authentication settings.
-            tcp_socket: Some(Self::tcp_socket_action_for_port(*port)),
+            tcp_socket: Some(Self::tcp_socket_action_for_port(port)),
             period_seconds: Some(period_seconds),
             initial_delay_seconds: Some(initial_delay_seconds),
             failure_threshold: Some(failure_threshold),
@@ -962,8 +947,8 @@ impl ContainerConfig {
         failure_threshold: i32,
     ) -> Option<Probe> {
         match self {
-            ContainerConfig::Hdfs { ipc_port_name, .. } => Some(Probe {
-                tcp_socket: Some(Self::tcp_socket_action_for_port(*ipc_port_name)),
+            ContainerConfig::Hdfs { role } => Some(Probe {
+                tcp_socket: Some(Self::tcp_socket_action_for_port(build::ipc_port_name(role))),
                 period_seconds: Some(period_seconds),
                 initial_delay_seconds: Some(initial_delay_seconds),
                 failure_threshold: Some(failure_threshold),
@@ -1061,7 +1046,7 @@ impl ContainerConfig {
                         .build(),
                 );
             }
-            ContainerConfig::Hdfs { role, .. } => {
+            ContainerConfig::Hdfs { role } => {
                 // JournalNode doesn't use listeners, since it's only used internally by the namenodes
                 if let HdfsNodeRole::Name | HdfsNodeRole::Data = role {
                     volume_mounts.push(
@@ -1151,9 +1136,7 @@ impl ContainerConfig {
     ) -> Result<String, Error> {
         let cluster = inputs.cluster;
         match self {
-            ContainerConfig::Hdfs {
-                role, metrics_port, ..
-            } => {
+            ContainerConfig::Hdfs { role } => {
                 let volume_mount_dirs = self.volume_mount_dirs();
                 let config_dir = volume_mount_dirs.final_config();
                 construct_role_specific_jvm_args(
@@ -1162,7 +1145,7 @@ impl ContainerConfig {
                     cluster.has_kerberos_enabled(),
                     resources,
                     config_dir,
-                    metrics_port.clone(),
+                    build::jmx_metrics_port(role),
                 )
                 .with_context(|_| ConstructJvmArgumentsSnafu {
                     role: role.to_string(),
@@ -1175,7 +1158,7 @@ impl ContainerConfig {
     /// Container ports for the main containers namenode, datanode and journalnode.
     fn container_ports(&self, cluster: &ValidatedCluster) -> Vec<ContainerPort> {
         match self {
-            ContainerConfig::Hdfs { role, .. } => {
+            ContainerConfig::Hdfs { role } => {
                 // data ports
                 build::hdfs_main_container_ports(cluster, role)
                     .into_iter()
@@ -1281,29 +1264,7 @@ impl ContainerConfig {
 
 impl From<HdfsNodeRole> for ContainerConfig {
     fn from(role: HdfsNodeRole) -> Self {
-        match role {
-            HdfsNodeRole::Name => Self::Hdfs {
-                role,
-                ipc_port_name: SERVICE_PORT_NAME_RPC,
-                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
-                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
-            },
-            HdfsNodeRole::Data => Self::Hdfs {
-                role,
-                ipc_port_name: SERVICE_PORT_NAME_IPC,
-                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
-                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
-            },
-            HdfsNodeRole::Journal => Self::Hdfs {
-                role,
-                ipc_port_name: SERVICE_PORT_NAME_RPC,
-                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
-                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_JOURNAL_NODE_METRICS_PORT,
-            },
-        }
+        Self::Hdfs { role }
     }
 }
 

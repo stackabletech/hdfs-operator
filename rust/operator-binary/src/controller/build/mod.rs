@@ -413,8 +413,19 @@ pub(crate) fn native_metrics_port(cluster: &ValidatedCluster, role: &HdfsNodeRol
     }
 }
 
-/// The deprecated JMX exporter metrics port for the given `role`.
-fn jmx_metrics_port(role: &HdfsNodeRole) -> Port {
+/// The name of the port the given `role` serves IPC/RPC on, which its readiness probe checks.
+///
+/// The datanodes call theirs `ipc`, the other two `rpc`; the same names [`role_data_ports`]
+/// exposes them under.
+pub(crate) fn ipc_port_name(role: &HdfsNodeRole) -> &'static str {
+    match role {
+        HdfsNodeRole::Name | HdfsNodeRole::Journal => SERVICE_PORT_NAME_RPC,
+        HdfsNodeRole::Data => SERVICE_PORT_NAME_IPC,
+    }
+}
+
+/// The deprecated JMX Exporter metrics port for the given `role`.
+pub(crate) fn jmx_metrics_port(role: &HdfsNodeRole) -> Port {
     match role {
         HdfsNodeRole::Name => DEFAULT_NAME_NODE_METRICS_PORT,
         HdfsNodeRole::Data => DEFAULT_DATA_NODE_METRICS_PORT,
