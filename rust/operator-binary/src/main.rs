@@ -35,6 +35,7 @@ use stackable_operator::{
     shared::yaml::SerializeOptions,
     telemetry::Tracing,
     utils::signal::{self, SignalWatcher},
+    webhook::health::HealthCheckRegistry,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -117,9 +118,16 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
 
+            let mut readiness_checks = HealthCheckRegistry::new();
+            let hdfs_cluster_check = readiness_checks.register(format!(
+                "CRD {crd} installed",
+                crd = v1alpha1::HdfsCluster::crd_name()
+            ));
+
             let webhook_server = create_webhook_server(
                 &operator_environment,
                 maintenance.disable_crd_maintenance,
+                readiness_checks,
                 client.as_kube_client(),
             )
             .await?;
@@ -244,7 +252,8 @@ async fn main() -> anyhow::Result<()> {
                 .map(anyhow::Ok);
 
             let delayed_hdfs_controller = async {
-                signal::crd_established(&client, v1alpha1::HdfsCluster::crd_name(), None).await?;
+                signal::crd_established(&client, v1alpha1::HdfsCluster::crd_name()).await?;
+                hdfs_cluster_check.mark_passed();
                 hdfs_controller.await
             };
 
