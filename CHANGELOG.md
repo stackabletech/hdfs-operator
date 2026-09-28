@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#831]).
+- Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#835]).
 
 ### Changed
 
@@ -32,6 +33,7 @@ All notable changes to this project will be documented in this file.
   `app.kubernetes.io/role-group: none` labels.
   StatefulSet selectors and volume claim templates are unchanged, so upgrading is non-breaking.
 - Make operations infallible where dependent on static inputs ([#824], [#829]).
+- Bump stackable-operator to 0.119.0 ([#835]).
 
 ### Fixed
 
@@ -51,6 +53,7 @@ All notable changes to this project will be documented in this file.
 [#824]: https://github.com/stackabletech/hdfs-operator/pull/824
 [#829]: https://github.com/stackabletech/hdfs-operator/pull/829
 [#831]: https://github.com/stackabletech/hdfs-operator/pull/831
+[#835]: https://github.com/stackabletech/hdfs-operator/pull/835
 
 ## [26.7.0] - 2026-07-21
 
