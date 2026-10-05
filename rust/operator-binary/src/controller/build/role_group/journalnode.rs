@@ -5,11 +5,14 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo, v2::types::operator::RoleGroupName,
 };
 
-use super::{RoleGroupBuilder, RoleGroupInputs, common_container_logging};
+use super::{
+    Error, RoleGroupBuilder, RoleGroupInputs, RoleGroupSelectorLabelsSnafu,
+    common_container_logging,
+};
 use crate::{
     controller::{
         JournalNodeRoleGroupConfig, ValidatedCluster,
-        build::{self, Error, RoleGroupSelectorLabelsSnafu, container::ContainerConfig},
+        build::{self, container::ContainerConfig},
     },
     crd::{HdfsNodeRole, JournalNodeContainer},
 };

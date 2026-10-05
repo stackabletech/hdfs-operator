@@ -18,7 +18,7 @@ use std::fmt::Display;
 pub(crate) use datanode::build as build_datanode_role_group;
 pub(crate) use journalnode::build as build_journalnode_role_group;
 pub(crate) use namenode::build as build_namenode_role_group;
-use snafu::ResultExt;
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -27,7 +27,7 @@ use stackable_operator::{
             Service, Volume,
         },
     },
-    kvp::Labels,
+    kvp::{LabelError, Labels},
     product_logging::spec::{ContainerLogConfig, Logging},
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
@@ -37,12 +37,66 @@ use stackable_operator::{
 };
 
 use super::{
-    Error, ServiceSnafu, container::ContainerConfig, properties::product_logging, resource,
+    container::{self, ContainerConfig},
+    properties::product_logging,
+    resource,
 };
 use crate::{
     controller::ValidatedCluster,
     crd::{CommonNodeConfig, HdfsNodeRole, storage::DataNodeStorageConfigInnerType, v1alpha1},
 };
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to build Service for role {role} role group {role_group}", role = role.as_ref()))]
+    Service {
+        source: resource::service::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build ConfigMap for role {role} role group {role_group}", role = role.as_ref()))]
+    ConfigMap {
+        source: resource::config_map::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build StatefulSet for role {role} role group {role_group}", role = role.as_ref()))]
+    StatefulSet {
+        source: resource::statefulset::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build selector labels for role {role} role group {role_group}", role = role.as_ref()))]
+    RoleGroupSelectorLabels {
+        source: LabelError,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build volume claim templates for role {role} role group {role_group}", role = role.as_ref()))]
+    VolumeClaimTemplates {
+        source: container::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build listener volume for role {role} role group {role_group}", role = role.as_ref()))]
+    ListenerVolume {
+        source: container::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+
+    #[snafu(display("failed to build the containers of role {role} role group {role_group}", role = role.as_ref()))]
+    Container {
+        source: container::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
+}
 
 /// A container only one role runs, named by that role's module together with the log config that
 /// belongs to it.

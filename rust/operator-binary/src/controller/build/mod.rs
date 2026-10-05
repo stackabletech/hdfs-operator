@@ -32,7 +32,8 @@ use crate::{
         build::{
             resource::rbac::{build_role_binding, build_service_account},
             role_group::{
-                build_datanode_role_group, build_journalnode_role_group, build_namenode_role_group,
+                RoleGroupBuilder, build_datanode_role_group, build_journalnode_role_group,
+                build_namenode_role_group,
             },
         },
     },
@@ -68,57 +69,11 @@ pub mod role_group;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to build Service for role {role} role group {role_group}", role = role.as_ref()))]
-    Service {
-        source: resource::service::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("failed to build ConfigMap for role {role} role group {role_group}", role = role.as_ref()))]
-    ConfigMap {
-        source: resource::config_map::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("failed to build StatefulSet for role {role} role group {role_group}", role = role.as_ref()))]
-    StatefulSet {
-        source: resource::statefulset::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
+    #[snafu(display("failed to build the resources of a role group"))]
+    RoleGroup { source: role_group::Error },
 
     #[snafu(display("failed to build the discovery ConfigMap"))]
     DiscoveryConfigMap { source: resource::discovery::Error },
-
-    #[snafu(display("failed to build selector labels for role {role} role group {role_group}", role = role.as_ref()))]
-    RoleGroupSelectorLabels {
-        source: LabelError,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("failed to build volume claim templates for role {role} role group {role_group}", role = role.as_ref()))]
-    VolumeClaimTemplates {
-        source: container::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("failed to build listener volume for role {role} role group {role_group}", role = role.as_ref()))]
-    ListenerVolume {
-        source: container::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
-
-    #[snafu(display("failed to build the containers of role {role} role group {role_group}", role = role.as_ref()))]
-    Container {
-        source: container::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
 }
 
 /// The resources of every role, accumulated one role group at a time by [`build`].
@@ -130,6 +85,20 @@ struct RoleGroupResources {
     /// [`HdfsNodeRole`]'s variant order defines, whatever order the roles were built in.
     stateful_sets: BTreeMap<HdfsNodeRole, Vec<StatefulSet>>,
     pod_disruption_budgets: Vec<PodDisruptionBudget>,
+}
+
+impl RoleGroupResources {
+    /// Builds the Services, ConfigMap and StatefulSet of one role group and adds them to the
+    /// collections.
+    fn add(&mut self, builder: &RoleGroupBuilder) -> Result<(), role_group::Error> {
+        self.services.extend(builder.build_services()?);
+        self.config_maps.push(builder.build_config_map()?);
+        self.stateful_sets
+            .entry(builder.role)
+            .or_default()
+            .push(builder.build_statefulset()?);
+        Ok(())
+    }
 }
 
 /// Builds every Kubernetes resource for the given validated cluster.
@@ -158,39 +127,24 @@ pub fn build(
 
     for (role_group_name, rg_config) in &cluster.journalnode_role_group_configs {
         let builder =
-            build_journalnode_role_group(cluster, cluster_info, role_group_name, rg_config)?;
+            build_journalnode_role_group(cluster, cluster_info, role_group_name, rg_config)
+                .context(RoleGroupSnafu)?;
 
-        built.services.extend(builder.build_services()?);
-        built.config_maps.push(builder.build_config_map()?);
-        built
-            .stateful_sets
-            .entry(HdfsNodeRole::Journal)
-            .or_default()
-            .push(builder.build_statefulset()?);
+        built.add(&builder).context(RoleGroupSnafu)?;
     }
 
     for (role_group_name, rg_config) in &cluster.namenode_role_group_configs {
-        let builder = build_namenode_role_group(cluster, cluster_info, role_group_name, rg_config)?;
+        let builder = build_namenode_role_group(cluster, cluster_info, role_group_name, rg_config)
+            .context(RoleGroupSnafu)?;
 
-        built.services.extend(builder.build_services()?);
-        built.config_maps.push(builder.build_config_map()?);
-        built
-            .stateful_sets
-            .entry(HdfsNodeRole::Name)
-            .or_default()
-            .push(builder.build_statefulset()?);
+        built.add(&builder).context(RoleGroupSnafu)?;
     }
 
     for (role_group_name, rg_config) in &cluster.datanode_role_group_configs {
-        let builder = build_datanode_role_group(cluster, cluster_info, role_group_name, rg_config)?;
+        let builder = build_datanode_role_group(cluster, cluster_info, role_group_name, rg_config)
+            .context(RoleGroupSnafu)?;
 
-        built.services.extend(builder.build_services()?);
-        built.config_maps.push(builder.build_config_map()?);
-        built
-            .stateful_sets
-            .entry(HdfsNodeRole::Data)
-            .or_default()
-            .push(builder.build_statefulset()?);
+        built.add(&builder).context(RoleGroupSnafu)?;
     }
 
     for role in HdfsNodeRole::iter() {
