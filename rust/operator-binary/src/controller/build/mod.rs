@@ -113,13 +113,6 @@ pub enum Error {
         role_group: RoleGroupName,
     },
 
-    #[snafu(display("failed to add the listener volume for role {role} role group {role_group}", role = role.as_ref()))]
-    AddListenerVolume {
-        source: stackable_operator::builder::pod::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
-
     #[snafu(display("failed to build the containers of role {role} role group {role_group}", role = role.as_ref()))]
     Container {
         source: container::Error,

@@ -142,9 +142,6 @@ pub enum Error {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
 
-    #[snafu(display("failed to add needed volume"))]
-    AddVolume { source: builder::pod::Error },
-
     #[snafu(display("failed to add needed volumeMount"))]
     AddVolumeMount {
         source: builder::pod::container::Error,

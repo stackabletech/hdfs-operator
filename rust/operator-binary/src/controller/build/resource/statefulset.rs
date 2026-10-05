@@ -16,16 +16,12 @@ use stackable_operator::{
 
 use crate::controller::build::{
     self,
-    container::{self},
     graceful_shutdown::{self, add_graceful_shutdown_config},
     role_group::RoleGroupBuilder,
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to add a volume to the Pod"))]
-    AddVolume { source: container::Error },
-
     #[snafu(display("failed to configure graceful shutdown"))]
     GracefulShutdown { source: graceful_shutdown::Error },
 
