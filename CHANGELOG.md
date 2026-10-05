@@ -36,7 +36,9 @@ All notable changes to this project will be documented in this file.
 - Internal operator refactoring: the validated cluster carries each role's configuration in typed
   per-role fields instead of maps keyed by role, so role-specific values are resolved once and the
   shared resource builders can no longer be handed another role's configuration ([#830]).
-- Introduce a role-builder ([#833]).
+- Internal operator refactoring: each role now has its own module that gathers its role group's
+  inputs and role-specific containers, and a shared role-builder then builds the Services,
+  ConfigMap and StatefulSet from them ([#833]).
 - Bump stackable-operator to 0.119.0 ([#835]).
 
 ### Fixed
