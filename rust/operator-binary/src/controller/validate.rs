@@ -9,20 +9,19 @@ use stackable_operator::{
     role_utils::GenericRoleConfig,
     v2::{
         controller_utils::{get_cluster_name, get_namespace, get_uid},
-        role_utils::{JavaCommonConfig, Role, with_validated_config},
+        role_utils::{JavaCommonConfig, Role, RoleGroupConfig, with_validated_config},
         types::operator::RoleGroupName,
     },
 };
-use strum::IntoEnumIterator;
 
 use crate::{
     controller::{
         ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRoleConfig,
-        ValidatedRoleGroupConfig, dereference::DereferencedObjects,
+        dereference::DereferencedObjects,
     },
     crd::{
-        AnyNodeConfig, DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfigFragment,
-        NameNodeConfigFragment, UpgradeStateError, v1alpha1,
+        DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfigFragment, NameNodeConfigFragment,
+        UpgradeStateError, v1alpha1,
     },
 };
 
@@ -88,38 +87,22 @@ pub fn validate_cluster(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let mut role_groups = BTreeMap::new();
-    let mut role_configs = BTreeMap::new();
     let cluster_name = get_cluster_name(hdfs).context(GetClusterNameSnafu)?;
 
-    for hdfs_role in HdfsNodeRole::iter() {
-        if let Some(GenericRoleConfig {
-            pod_disruption_budget: pdb,
-        }) = hdfs.role_config(&hdfs_role)
-        {
-            role_configs.insert(hdfs_role, ValidatedRoleConfig { pdb: pdb.clone() });
-        }
-
-        let group_configs = match hdfs_role {
-            HdfsNodeRole::Name => validate_role_group_configs(
-                hdfs.spec.name_nodes.as_ref(),
-                NameNodeConfigFragment::default_config(cluster_name.as_ref(), &hdfs_role),
-                AnyNodeConfig::Name,
-            )?,
-            HdfsNodeRole::Data => validate_role_group_configs(
-                hdfs.spec.data_nodes.as_ref(),
-                DataNodeConfigFragment::default_config(cluster_name.as_ref(), &hdfs_role),
-                AnyNodeConfig::Data,
-            )?,
-            HdfsNodeRole::Journal => validate_role_group_configs(
-                hdfs.spec.journal_nodes.as_ref(),
-                JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &hdfs_role),
-                AnyNodeConfig::Journal,
-            )?,
-        };
-
-        role_groups.insert(hdfs_role, group_configs);
-    }
+    // The first failure propagates, so this order decides which misconfiguration the user is told
+    // about when more than one role is wrong. It is `HdfsNodeRole`'s variant order.
+    let journalnode_role_group_configs = validate_role_group_configs(
+        hdfs.spec.journal_nodes.as_ref(),
+        JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Journal),
+    )?;
+    let namenode_role_group_configs = validate_role_group_configs(
+        hdfs.spec.name_nodes.as_ref(),
+        NameNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Name),
+    )?;
+    let datanode_role_group_configs = validate_role_group_configs(
+        hdfs.spec.data_nodes.as_ref(),
+        DataNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Data),
+    )?;
 
     let namespace = get_namespace(hdfs).context(GetClusterNamespaceSnafu)?;
     let uid = get_uid(hdfs).context(GetClusterUidSnafu)?;
@@ -135,18 +118,43 @@ pub fn validate_cluster(
             .and_then(|status| status.upgrade_target_product_version.clone()),
     };
 
-    Ok(ValidatedCluster::new(
-        cluster_name,
+    // The three role-level configs share one type, so naming each field is what stops a role
+    // being given another role's PodDisruptionBudget.
+    Ok(ValidatedCluster {
+        metadata: ValidatedCluster::object_meta(&cluster_name, &namespace, &uid),
+        product_version: ValidatedCluster::product_version(&image),
+        name: cluster_name,
         namespace,
         uid,
+        cluster_config: ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
         image,
-        ValidatedClusterConfig::resolve(hdfs, hdfs_opa_config),
-        role_groups,
-        role_configs,
+        namenode_config: validated_role_config(hdfs, HdfsNodeRole::Name),
+        namenode_role_group_configs,
+        datanode_config: validated_role_config(hdfs, HdfsNodeRole::Data),
+        datanode_role_group_configs,
+        journalnode_config: validated_role_config(hdfs, HdfsNodeRole::Journal),
+        journalnode_role_group_configs,
         namenode_listeners,
         discovery_config_map,
         status,
-    ))
+    })
+}
+
+/// The validated role-level config of one role, or `None` if the role is absent from the spec.
+///
+/// [`GenericRoleConfig`] is destructured without `..`, so a field added to it upstream fails to
+/// compile here instead of being silently left unvalidated.
+fn validated_role_config(
+    hdfs: &v1alpha1::HdfsCluster,
+    role: HdfsNodeRole,
+) -> Option<ValidatedRoleConfig> {
+    hdfs.role_config(&role).map(
+        |GenericRoleConfig {
+             pod_disruption_budget,
+         }| ValidatedRoleConfig {
+            pdb: pod_disruption_budget.clone(),
+        },
+    )
 }
 
 /// Validates every role group of a role into a map keyed by role group name.
@@ -155,15 +163,19 @@ pub fn validate_cluster(
 /// [`with_validated_config`], which folds the CRD config fragment (default <-
 /// role <- role group) plus the `configOverrides`, `envOverrides`, `cliOverrides`
 /// and `podOverrides` (role group wins) into a single
-/// [`RoleGroupConfig`](stackable_operator::v2::role_utils::RoleGroupConfig). The
-/// concrete per-role validated config is wrapped into [`AnyNodeConfig`] via `wrap`.
+/// [`RoleGroupConfig`].
 ///
 /// Returns an empty map if the role is not configured.
 fn validate_role_group_configs<Config, ValidatedConfig>(
     role: Option<&Role<Config, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
     default_config: Config,
-    wrap: fn(ValidatedConfig) -> AnyNodeConfig,
-) -> Result<BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>, Error>
+) -> Result<
+    BTreeMap<
+        RoleGroupName,
+        RoleGroupConfig<ValidatedConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>,
+    >,
+    Error,
+>
 where
     Config: Clone + Merge,
     ValidatedConfig: FromFragment<Fragment = Config>,
@@ -184,11 +196,10 @@ where
             >(role_group, role, &default_config)
             .context(ValidateRoleGroupConfigSnafu)?;
 
-            // Re-wrap the per-role validated config into the role-agnostic
-            // `AnyNodeConfig`; the merged overrides carry over unchanged.
-            let validated = ValidatedRoleGroupConfig {
+            // The overrides carry over unchanged.
+            let validated = RoleGroupConfig {
                 replicas: validated.replicas,
-                config: wrap(validated.config.config),
+                config: validated.config.config,
                 config_overrides: validated.config.config_overrides,
                 env_overrides: validated.config.env_overrides.into(),
                 cli_overrides: validated.config.cli_overrides,

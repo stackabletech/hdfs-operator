@@ -1,8 +1,6 @@
 //! Builders for the logging-related files in the rolegroup `ConfigMap`: the per-container
 //! `*.log4j.properties` configs and the (static) Vector agent config (`vector.yaml`).
 
-use std::borrow::Cow;
-
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
@@ -12,12 +10,12 @@ use stackable_operator::{
     v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::{
-    controller::build::container::{
+use crate::controller::build::{
+    RoleGroupLogging, RoleSpecificValues,
+    container::{
         FORMAT_NAMENODES_CONTAINER_NAME, FORMAT_ZOOKEEPER_CONTAINER_NAME,
         WAIT_FOR_NAMENODES_CONTAINER_NAME, ZKFC_CONTAINER_NAME,
     },
-    crd::{AnyNodeConfig, DataNodeContainer, NameNodeContainer},
 };
 
 // We have a maximum of 4 continuous logging files for Namenodes. Datanodes and Journalnodes
@@ -79,75 +77,82 @@ pub fn vector_config_file_content() -> String {
 ///
 /// Returns `(filename, rendered content)` pairs; containers using a custom log ConfigMap are
 /// skipped, so the result is empty when none use automatic logging.
-pub fn build_log4j_configs(merged_config: &AnyNodeConfig) -> Vec<(&'static str, String)> {
+pub fn build_log4j_configs(
+    logging: &RoleGroupLogging,
+    role: &RoleSpecificValues,
+) -> Vec<(&'static str, String)> {
     let mut configs = Vec::new();
 
     add_log4j_config_if_automatic(
         &mut configs,
-        Some(merged_config.hdfs_logging()),
+        &logging.hdfs,
         HDFS_LOG4J_CONFIG_FILE,
         "hdfs",
         HDFS_LOG_FILE,
         MAX_HDFS_LOG_FILE_SIZE,
     );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        merged_config
-            .as_namenode()
-            .map(|nn| nn.logging.for_container(&NameNodeContainer::Zkfc)),
-        ZKFC_LOG4J_CONFIG_FILE,
-        ZKFC_CONTAINER_NAME.as_ref(),
-        ZKFC_LOG_FILE,
-        MAX_ZKFC_LOG_FILE_SIZE,
-    );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        merged_config.as_namenode().map(|nn| {
-            nn.logging
-                .for_container(&NameNodeContainer::FormatNameNodes)
-        }),
-        FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
-        FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
-        FORMAT_NAMENODES_LOG_FILE,
-        MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-    );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        merged_config.as_namenode().map(|nn| {
-            nn.logging
-                .for_container(&NameNodeContainer::FormatZooKeeper)
-        }),
-        FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-        FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
-        FORMAT_ZOOKEEPER_LOG_FILE,
-        MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
-    );
-    add_log4j_config_if_automatic(
-        &mut configs,
-        merged_config.as_datanode().map(|dn| {
-            dn.logging
-                .for_container(&DataNodeContainer::WaitForNameNodes)
-        }),
-        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-        WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
-        WAIT_FOR_NAMENODES_LOG_FILE,
-        MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
-    );
+
+    // Exhaustive, so a role's containers and their log4j configs cannot drift apart.
+    match role {
+        RoleSpecificValues::Journal => {}
+        RoleSpecificValues::Name {
+            zkfc,
+            format_namenodes,
+            format_zookeeper,
+        } => {
+            add_log4j_config_if_automatic(
+                &mut configs,
+                zkfc,
+                ZKFC_LOG4J_CONFIG_FILE,
+                ZKFC_CONTAINER_NAME.as_ref(),
+                ZKFC_LOG_FILE,
+                MAX_ZKFC_LOG_FILE_SIZE,
+            );
+            add_log4j_config_if_automatic(
+                &mut configs,
+                format_namenodes,
+                FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
+                FORMAT_NAMENODES_CONTAINER_NAME.as_ref(),
+                FORMAT_NAMENODES_LOG_FILE,
+                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
+            );
+            add_log4j_config_if_automatic(
+                &mut configs,
+                format_zookeeper,
+                FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
+                FORMAT_ZOOKEEPER_CONTAINER_NAME.as_ref(),
+                FORMAT_ZOOKEEPER_LOG_FILE,
+                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+            );
+        }
+        RoleSpecificValues::Data {
+            wait_for_namenodes, ..
+        } => {
+            add_log4j_config_if_automatic(
+                &mut configs,
+                wait_for_namenodes,
+                WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
+                WAIT_FOR_NAMENODES_CONTAINER_NAME.as_ref(),
+                WAIT_FOR_NAMENODES_LOG_FILE,
+                MAX_WAIT_NAMENODES_LOG_FILE_SIZE,
+            );
+        }
+    }
 
     configs
 }
 
 fn add_log4j_config_if_automatic(
     configs: &mut Vec<(&'static str, String)>,
-    log_config: Option<Cow<ContainerLogConfig>>,
+    log_config: &ContainerLogConfig,
     log_config_file: &'static str,
     log_dir_name: &str,
     log_file: &str,
     max_log_file_size: MemoryQuantity,
 ) {
-    if let Some(ContainerLogConfig {
+    if let ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = log_config.as_deref()
+    } = log_config
     {
         configs.push((
             log_config_file,

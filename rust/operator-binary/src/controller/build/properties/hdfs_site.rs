@@ -13,7 +13,7 @@ use stackable_operator::{
 use crate::{
     controller::{ValidatedCluster, build},
     crd::{
-        AnyNodeConfig, HdfsNodeRole, HdfsPodRef,
+        HdfsNodeRole, HdfsPodRef,
         constants::{
             DEFAULT_JOURNAL_NODE_RPC_PORT, DEFAULT_NAME_NODE_HTTP_PORT,
             DEFAULT_NAME_NODE_HTTPS_PORT, DEFAULT_NAME_NODE_RPC_PORT, DFS_DATANODE_DATA_DIR,
@@ -32,7 +32,7 @@ use crate::{
 pub fn build(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    merged_config: &AnyNodeConfig,
+    datanode_storage: Option<DataNodeStorageConfigInnerType>,
     overrides: KeyValueConfigOverrides,
 ) -> String {
     let cluster_config = &cluster.cluster_config;
@@ -52,11 +52,7 @@ pub fn build(
     let mut hdfs_site = HdfsSiteConfigBuilder::new(cluster.name.as_ref().to_owned());
     hdfs_site
         .dfs_namenode_name_dir()
-        .dfs_datanode_data_dir(
-            merged_config
-                .as_datanode()
-                .map(|node| node.resources.storage.clone()),
-        )
+        .dfs_datanode_data_dir(datanode_storage)
         .dfs_journalnode_edits_dir()
         .dfs_replication(cluster_config.dfs_replication)
         .dfs_name_services()
@@ -337,26 +333,16 @@ mod tests {
     use super::*;
     use crate::{
         controller::build::properties::test_support::{cluster_info, validated_cluster},
-        crd::HdfsNodeRole,
-        test_support::{anynode_config, role_group_name},
+        test_support::{datanode_config, role_group_name},
     };
-
-    fn namenode_merged_config(validated_cluster: &ValidatedCluster) -> &AnyNodeConfig {
-        anynode_config(
-            validated_cluster,
-            &HdfsNodeRole::Name,
-            &role_group_name("default"),
-        )
-    }
 
     #[test]
     fn renders_operator_defaults() {
         let validated_cluster = validated_cluster();
-        let merged = namenode_merged_config(&validated_cluster);
         let xml = build(
             &validated_cluster,
             &cluster_info(),
-            merged,
+            None,
             KeyValueConfigOverrides::default(),
         );
         assert!(
@@ -376,11 +362,10 @@ mod tests {
     #[test]
     fn user_overrides_win_over_defaults() {
         let validated_cluster = validated_cluster();
-        let merged = namenode_merged_config(&validated_cluster);
         let xml = build(
             &validated_cluster,
             &cluster_info(),
-            merged,
+            None,
             [("dfs.replication", "5")].into(),
         );
         assert!(
@@ -388,6 +373,32 @@ mod tests {
                 <name>dfs.replication</name>
                     <value>5</value>"}),
             "{xml}"
+        );
+    }
+
+    /// With a datanode's storage config, `dfs.datanode.data.dir` names one directory per PVC,
+    /// tagged with its HDFS storage type. Losing this property is silent: the datanodes fall back
+    /// to Hadoop's default directory, which is container-local, so their blocks are gone on the
+    /// next restart.
+    #[test]
+    fn datanode_storage_renders_the_data_dir() {
+        let validated_cluster = validated_cluster();
+        let storage = datanode_config(&validated_cluster, &role_group_name("default"))
+            .resources
+            .storage
+            .clone();
+
+        let xml = build(
+            &validated_cluster,
+            &cluster_info(),
+            Some(storage),
+            KeyValueConfigOverrides::default(),
+        );
+
+        assert!(
+            xml.contains("<name>dfs.datanode.data.dir</name>")
+                && xml.contains("<value>[DISK]/stackable/data/data/datanode</value>"),
+            "rendered hdfs-site.xml:\n{xml}"
         );
     }
 }

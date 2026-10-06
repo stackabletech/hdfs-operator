@@ -110,10 +110,9 @@ pub async fn reconcile_hdfs(
 
     // Warn about invalid replica counts. This is validation feedback and independent of the
     // resource application below.
+    // Every role is checked, including one that is absent from the spec entirely: a cluster
+    // without journalnodes is exactly the case the warning is for.
     for role in HdfsNodeRole::iter() {
-        if !validated_cluster.role_groups.contains_key(&role) {
-            continue;
-        }
         if let Some(message) = build_invalid_replica_message(&validated_cluster, &role) {
             publish_warning_event(
                 &ctx,
@@ -179,8 +178,10 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::container::ContainerConfig,
-        test_support::{deserialize_cluster, role_group_config, validate_cluster},
+        controller::build::{RoleGroupResolver, container::ContainerConfig},
+        test_support::{
+            datanode_config, datanode_role_group_config, deserialize_cluster, validate_cluster,
+        },
     };
 
     #[test]
@@ -222,7 +223,12 @@ spec:
         let hdfs = deserialize_cluster(cr);
         let validated_cluster = validate_cluster(&hdfs);
         let role_group_name = RoleGroupName::from_str("default").unwrap();
-        let role_group_config = role_group_config(&validated_cluster, &role, &role_group_name);
+        let role_group_config = datanode_role_group_config(&validated_cluster, &role_group_name);
+        // Resolved through the production path, so this test cannot drift from what the build
+        // step actually hands the container builder.
+        let resolved = datanode_config(&validated_cluster, &role_group_name)
+            .resolve(&role_group_name, Labels::new())
+            .expect("the datanode role group should resolve");
 
         let mut pb = PodBuilder::new();
         pb.metadata(ObjectMeta::default());
@@ -232,10 +238,9 @@ spec:
             &KubernetesClusterInfo {
                 cluster_domain: DomainName::try_from("cluster.local").unwrap(),
             },
-            &role,
             &role_group_name,
             role_group_config,
-            &Labels::new(),
+            &resolved,
         )
         .unwrap();
         let containers = pb.build().unwrap().spec.unwrap().containers;
