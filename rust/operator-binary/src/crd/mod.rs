@@ -13,6 +13,7 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
+        opa::OpaConfig,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -640,7 +641,11 @@ pub struct NameNodeConfig {
 impl NameNodeConfigFragment {
     const DEFAULT_NAME_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
-    pub fn default_config(cluster_name: &str, role: &HdfsNodeRole) -> Self {
+    pub fn default_config(
+        cluster_name: &str,
+        role: &HdfsNodeRole,
+        opa_config: Option<&OpaConfig>,
+    ) -> Self {
         Self {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
@@ -662,7 +667,7 @@ impl NameNodeConfigFragment {
             logging: product_logging::spec::default_logging(),
             listener_class: Some(DEFAULT_LISTENER_CLASS.clone()),
             common: CommonNodeConfigFragment {
-                affinity: get_affinity(cluster_name, role),
+                affinity: get_affinity(cluster_name, role, opa_config),
                 graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
                 requested_secret_lifetime: Some(Self::DEFAULT_NAME_NODE_SECRET_LIFETIME),
             },
@@ -750,7 +755,9 @@ impl DataNodeConfigFragment {
             logging: product_logging::spec::default_logging(),
             listener_class: Some(DEFAULT_LISTENER_CLASS.clone()),
             common: CommonNodeConfigFragment {
-                affinity: get_affinity(cluster_name, role),
+                // Only the NameNode is configured with the OPA authorizer, so this role gets no
+                // affinity to the OPA Pods.
+                affinity: get_affinity(cluster_name, role, None),
                 graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
                 requested_secret_lifetime: Some(Self::DEFAULT_DATA_NODE_SECRET_LIFETIME),
             },
@@ -826,7 +833,9 @@ impl JournalNodeConfigFragment {
             },
             logging: product_logging::spec::default_logging(),
             common: CommonNodeConfigFragment {
-                affinity: get_affinity(cluster_name, role),
+                // Only the NameNode is configured with the OPA authorizer, so this role gets no
+                // affinity to the OPA Pods.
+                affinity: get_affinity(cluster_name, role, None),
                 graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
                 requested_secret_lifetime: Some(Self::DEFAULT_JOURNAL_NODE_SECRET_LIFETIME),
             },
