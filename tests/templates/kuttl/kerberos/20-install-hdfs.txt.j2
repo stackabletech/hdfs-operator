@@ -27,6 +27,14 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   nameNodes:
+    configOverrides:
+      core-site.xml:
+        # After all namenodes go at once, a deleted pod's name keeps resolving to its dead IP for
+        # up to ~30s (CoreDNS cache racing the endpoint update). format-namenodes probes it with
+        # `hdfs haadmin -getServiceState`, the TCP connect black-holes, and the default 45 x 20s
+        # retry budget outlasts this test's asserts. Whether the probe lands in that window is
+        # environment-dependent: local kind loses the race far more often than CI.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -43,6 +51,10 @@ spec:
       default:
         replicas: 2
   dataNodes:
+    configOverrides:
+      core-site.xml:
+        # See the identical nameNodes override: wait-for-namenodes runs the same haadmin probe.
+        ipc.client.connect.max.retries.on.timeouts: "3"
     config:
       requestedSecretLifetime: 2d
       logging:

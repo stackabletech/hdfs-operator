@@ -33,6 +33,12 @@ All notable changes to this project will be documented in this file.
   `app.kubernetes.io/role-group: none` labels.
   StatefulSet selectors and volume claim templates are unchanged, so upgrading is non-breaking.
 - Make operations infallible where dependent on static inputs ([#824], [#829]).
+- Internal operator refactoring: the validated cluster carries each role's configuration in typed
+  per-role fields instead of maps keyed by role, so role-specific values are resolved once and the
+  shared resource builders can no longer be handed another role's configuration ([#830]).
+- Internal operator refactoring: each role now has its own module that gathers its role group's
+  inputs and role-specific containers, and a shared role-builder then builds the Services,
+  ConfigMap and StatefulSet from them ([#833]).
 - Bump stackable-operator to 0.119.0 ([#835]).
 
 ### Fixed
@@ -42,6 +48,12 @@ All notable changes to this project will be documented in this file.
   See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#814]).
 - The operator now watches all resources that it creates and early-exits the reconcile action when the
   cluster is marked for deletion ([#821]).
+- A role group that does not set `replicas` is now counted as one replica instead of zero when the
+  replica counts are checked, so such a role group no longer produces a warning event claiming it
+  has zero replicas configured ([#830]).
+- The warning that `dfsReplication` is greater than the number of datanodes is now raised for
+  datanodes. It was previously raised for journalnodes, even though its text refers to datanode
+  replicas, and never for datanodes ([#830]).
 
 [#801]: https://github.com/stackabletech/hdfs-operator/pull/801
 [#806]: https://github.com/stackabletech/hdfs-operator/pull/806
@@ -52,7 +64,9 @@ All notable changes to this project will be documented in this file.
 [#821]: https://github.com/stackabletech/hdfs-operator/pull/821
 [#824]: https://github.com/stackabletech/hdfs-operator/pull/824
 [#829]: https://github.com/stackabletech/hdfs-operator/pull/829
+[#830]: https://github.com/stackabletech/hdfs-operator/pull/830
 [#831]: https://github.com/stackabletech/hdfs-operator/pull/831
+[#833]: https://github.com/stackabletech/hdfs-operator/pull/833
 [#835]: https://github.com/stackabletech/hdfs-operator/pull/835
 
 ## [26.7.0] - 2026-07-21

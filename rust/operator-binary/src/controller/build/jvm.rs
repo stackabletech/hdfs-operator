@@ -98,7 +98,10 @@ mod tests {
     use crate::{
         controller::build::container::ContainerConfig,
         crd::constants::DEFAULT_NAME_NODE_METRICS_PORT,
-        test_support::{deserialize_and_validate_cluster, role_group_config, role_group_name},
+        test_support::{
+            deserialize_and_validate_cluster, namenode_config, namenode_role_group_config,
+            role_group_name,
+        },
     };
 
     #[test]
@@ -197,10 +200,11 @@ mod tests {
         let role = HdfsNodeRole::Name;
 
         let validated_cluster = deserialize_and_validate_cluster(hdfs_cluster);
-        let role_group_config =
-            role_group_config(&validated_cluster, &role, &role_group_name("default"));
-
-        let resources = ContainerConfig::from(role).resources(&role_group_config.config);
+        let role_group_name = role_group_name("default");
+        let role_group_config = namenode_role_group_config(&validated_cluster, &role_group_name);
+        let namenode_config = namenode_config(&validated_cluster, &role_group_name);
+        let resources =
+            ContainerConfig::from(role).resources(&namenode_config.resources.clone().into());
 
         construct_role_specific_jvm_args(
             &role,
