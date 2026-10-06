@@ -28,6 +28,26 @@ affinity:
       weight: 70
 ----
 
+If OPA authorization is configured, the name nodes additionally prefer to run on the same Kubernetes nodes as the OPA Pods (weight 50).
+Only the name nodes are configured with the OPA authorizer, so data nodes and journal nodes do not get this affinity.
+
+[source,yaml]
+----
+affinity:
+  podAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: server
+            app.kubernetes.io/instance: opa-cluster-name
+            app.kubernetes.io/name: opa
+        topologyKey: kubernetes.io/hostname
+      weight: 50
+----
+
+`opa-cluster-name` is the `configMapName` from `spec.clusterConfig.authorization.opa`, which by convention is the name of the OpaCluster.
+
 Default Pod placement constraints for data nodes:
 
 [source,yaml]

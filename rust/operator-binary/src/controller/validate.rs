@@ -97,7 +97,15 @@ pub fn validate_cluster(
     )?;
     let namenode_role_group_configs = validate_role_group_configs(
         hdfs.spec.name_nodes.as_ref(),
-        NameNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Name),
+        NameNodeConfigFragment::default_config(
+            cluster_name.as_ref(),
+            &HdfsNodeRole::Name,
+            hdfs.spec
+                .cluster_config
+                .authorization
+                .as_ref()
+                .map(|authorization| &authorization.opa),
+        ),
     )?;
     let datanode_role_group_configs = validate_role_group_configs(
         hdfs.spec.data_nodes.as_ref(),
