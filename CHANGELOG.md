@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#831]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#835]).
-- Name nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#XXX]).
+- Name nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#893]).
 
 ### Changed
 
@@ -55,6 +55,7 @@ All notable changes to this project will be documented in this file.
 [#829]: https://github.com/stackabletech/hdfs-operator/pull/829
 [#831]: https://github.com/stackabletech/hdfs-operator/pull/831
 [#835]: https://github.com/stackabletech/hdfs-operator/pull/835
+[#893]: https://github.com/stackabletech/hdfs-operator/pull/839
 
 ## [26.7.0] - 2026-07-21
 
