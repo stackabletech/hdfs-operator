@@ -110,10 +110,9 @@ pub async fn reconcile_hdfs(
 
     // Warn about invalid replica counts. This is validation feedback and independent of the
     // resource application below.
+    // Every role is checked, including one that is absent from the spec entirely: a cluster
+    // without journalnodes is exactly the case the warning is for.
     for role in HdfsNodeRole::iter() {
-        if !validated_cluster.role_groups.contains_key(&role) {
-            continue;
-        }
         if let Some(message) = build_invalid_replica_message(&validated_cluster, &role) {
             publish_warning_event(
                 &ctx,
@@ -160,18 +159,15 @@ mod test {
     use std::str::FromStr;
 
     use stackable_operator::{
-        builder::pod::PodBuilder,
         client::Client,
         commons::networking::DomainName,
         kube::{
             Client as KubeClient, Config,
-            api::ObjectMeta,
             runtime::{
                 controller::Action,
                 events::{Recorder, Reporter},
             },
         },
-        kvp::Labels,
         utils::cluster_info::KubernetesClusterInfo,
         v2::types::operator::RoleGroupName,
     };
@@ -179,8 +175,8 @@ mod test {
     use super::*;
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
-        controller::build::container::ContainerConfig,
-        test_support::{deserialize_cluster, role_group_config, validate_cluster},
+        controller::build::role_group::build_datanode_role_group,
+        test_support::{datanode_role_group_config, deserialize_cluster, validate_cluster},
     };
 
     #[test]
@@ -222,23 +218,30 @@ spec:
         let hdfs = deserialize_cluster(cr);
         let validated_cluster = validate_cluster(&hdfs);
         let role_group_name = RoleGroupName::from_str("default").unwrap();
-        let role_group_config = role_group_config(&validated_cluster, &role, &role_group_name);
-
-        let mut pb = PodBuilder::new();
-        pb.metadata(ObjectMeta::default());
-        ContainerConfig::add_containers_and_volumes(
-            &mut pb,
+        let role_group_config = datanode_role_group_config(&validated_cluster, &role_group_name);
+        let cluster_info = KubernetesClusterInfo {
+            cluster_domain: DomainName::try_from("cluster.local").unwrap(),
+        };
+        // Built through the production path, so this test cannot drift from what the build step
+        // actually produces.
+        let builder = build_datanode_role_group(
             &validated_cluster,
-            &KubernetesClusterInfo {
-                cluster_domain: DomainName::try_from("cluster.local").unwrap(),
-            },
-            &role,
+            &cluster_info,
             &role_group_name,
             role_group_config,
-            &Labels::new(),
         )
-        .unwrap();
-        let containers = pb.build().unwrap().spec.unwrap().containers;
+        .expect("the datanode role group builder should be constructed");
+
+        let stateful_set = builder
+            .build_statefulset()
+            .expect("the datanode StatefulSet should build");
+        let containers = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the Pod template has a spec")
+            .containers;
         let env_vars = containers
             .iter()
             .find(|c| c.name == role.to_string())

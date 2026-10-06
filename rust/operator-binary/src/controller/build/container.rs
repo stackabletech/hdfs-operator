@@ -17,7 +17,6 @@ use stackable_operator::{
     builder::{
         self,
         pod::{
-            PodBuilder,
             resources::ResourceRequirementsBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
@@ -53,43 +52,35 @@ use stackable_operator::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, VectorContainerLogConfig,
             vector_container,
         },
-        types::{
-            common::Port,
-            kubernetes::{ConfigMapName, ContainerName, VolumeName},
-            operator::RoleGroupName,
-        },
+        types::kubernetes::{ConfigMapName, ContainerName, VolumeName},
     },
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedRoleGroupConfig,
+        ValidatedCluster,
         build::{
             self,
             jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
             kerberos::KERBEROS_CONTAINER_PATH,
             properties::product_logging::{
-                FORMAT_NAMENODES_LOG4J_CONFIG_FILE, FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-                HDFS_LOG4J_CONFIG_FILE, MAX_FORMAT_NAMENODE_LOG_FILE_SIZE,
-                MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE, MAX_HDFS_LOG_FILE_SIZE,
-                MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE,
-                WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE, ZKFC_LOG4J_CONFIG_FILE,
+                MAX_FORMAT_NAMENODE_LOG_FILE_SIZE, MAX_FORMAT_ZOOKEEPER_LOG_FILE_SIZE,
+                MAX_HDFS_LOG_FILE_SIZE, MAX_WAIT_NAMENODES_LOG_FILE_SIZE, MAX_ZKFC_LOG_FILE_SIZE,
+                log4j_config_file,
             },
+            role_group::RoleGroupInputs,
         },
     },
     crd::{
-        AnyNodeConfig, DataNodeContainer, HdfsNodeRole, HdfsPodRef, NameNodeContainer,
-        UpgradeState,
+        DataNodeConfig, HdfsNodeRole, HdfsPodRef, JournalNodeConfig, NameNodeConfig, UpgradeState,
         constants::{
-            DATANODE_ROOT_DATA_DIR_PREFIX, DEFAULT_DATA_NODE_METRICS_PORT,
-            DEFAULT_JOURNAL_NODE_METRICS_PORT, DEFAULT_NAME_NODE_METRICS_PORT, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, LIVENESS_PROBE_FAILURE_THRESHOLD,
-            LIVENESS_PROBE_INITIAL_DELAY_SECONDS, LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES,
-            NAMENODE_ROOT_DATA_DIR, READINESS_PROBE_FAILURE_THRESHOLD,
-            READINESS_PROBE_INITIAL_DELAY_SECONDS, READINESS_PROBE_PERIOD_SECONDS,
-            SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS, SERVICE_PORT_NAME_IPC,
-            SERVICE_PORT_NAME_RPC, STACKABLE_ROOT_DATA_DIR,
+            DATANODE_ROOT_DATA_DIR_PREFIX, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
+            LIVENESS_PROBE_PERIOD_SECONDS, LOG4J_PROPERTIES, NAMENODE_ROOT_DATA_DIR,
+            READINESS_PROBE_FAILURE_THRESHOLD, READINESS_PROBE_INITIAL_DELAY_SECONDS,
+            READINESS_PROBE_PERIOD_SECONDS, SERVICE_PORT_NAME_HTTP, SERVICE_PORT_NAME_HTTPS,
+            STACKABLE_ROOT_DATA_DIR,
         },
         storage::DataNodeStorageConfig,
     },
@@ -151,9 +142,6 @@ pub enum Error {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
 
-    #[snafu(display("failed to add needed volume"))]
-    AddVolume { source: builder::pod::Error },
-
     #[snafu(display("failed to add needed volumeMount"))]
     AddVolumeMount {
         source: builder::pod::container::Error,
@@ -172,17 +160,11 @@ pub enum Error {
 /// the HDFS cluster.
 #[derive(Display)]
 pub enum ContainerConfig {
+    /// The main container of a role, named after the role it runs.
     Hdfs {
-        /// HDFS role (name-, data-, journal-node) which determines the container name.
+        /// The HDFS role this is the main container of. It determines the container name, the
+        /// port the readiness probe checks and the JMX Exporter port.
         role: HdfsNodeRole,
-        /// Port name of the IPC/RPC port, used for the readiness probe.
-        ipc_port_name: &'static str,
-        /// Port name of the web UI HTTP port, used for the liveness probe.
-        web_ui_http_port_name: &'static str,
-        /// Port name of the web UI HTTPS port, used for the liveness probe.
-        web_ui_https_port_name: &'static str,
-        /// The JMX Exporter metrics port.
-        metrics_port: Port,
     },
     /// The ZooKeeper fail-over controller side container of the namenodes.
     Zkfc,
@@ -210,36 +192,30 @@ impl ContainerConfig {
     const ZKFC_CONFIG_VOLUME_MOUNT_NAME: &'static str = "zkfc-config";
     const ZKFC_LOG_VOLUME_MOUNT_NAME: &'static str = "zkfc-log-config";
 
-    /// Add all main, side and init containers as well as required volumes to the pod builder.
-    pub fn add_containers_and_volumes(
-        pb: &mut PodBuilder,
-        cluster: &ValidatedCluster,
-        cluster_info: &KubernetesClusterInfo,
-        role: &HdfsNodeRole,
-        role_group_name: &RoleGroupName,
-        rolegroup_config: &ValidatedRoleGroupConfig,
-        labels: &Labels,
-    ) -> Result<(), Error> {
-        let namenode_podrefs = build::pod_refs(cluster, &HdfsNodeRole::Name);
+    /// The containers every role runs — the `hdfs` main container and, when enabled, the Vector
+    /// sidecar — and the pod volumes they and the role group need.
+    ///
+    /// The containers only one role runs are named by that role's module in
+    /// [`role_group`](crate::controller::build::role_group).
+    pub(crate) fn common_containers_and_volumes(
+        inputs: &RoleGroupInputs,
+    ) -> Result<(Vec<Container>, Vec<Volume>), Error> {
+        let cluster = inputs.cluster;
+        let role = &inputs.role;
+        let object_name = inputs.object_name();
+        let resource_names = cluster.role_group_resource_names(role, &inputs.role_group_name);
+
+        let mut containers = Vec::new();
+        let mut volumes = Vec::new();
 
         // HDFS main container
         let main_container_config = Self::from(*role);
-        let resource_names = cluster.role_group_resource_names(role, role_group_name);
-        let object_name = resource_names.qualified_role_group_name().to_string();
-        let merged_config = &rolegroup_config.config;
 
-        pb.add_volumes(main_container_config.volumes(merged_config, &object_name, labels)?)
-            .context(AddVolumeSnafu)?;
-        pb.add_container(main_container_config.main_container(
-            cluster,
-            cluster_info,
-            role,
-            rolegroup_config,
-            labels,
-        )?);
+        volumes.extend(main_container_config.volumes(&inputs.hdfs_logging, &object_name));
+        containers.push(main_container_config.main_container(inputs, &inputs.hdfs_logging)?);
 
         // Vector sidecar container.
-        if merged_config.vector_logging_enabled() {
+        if let Some(vector_logging) = &inputs.vector_logging {
             let vector_aggregator_config_map_name = cluster
                 .cluster_config
                 .logging
@@ -247,7 +223,7 @@ impl ContainerConfig {
                 .clone()
                 .context(VectorAggregatorConfigMapMissingSnafu)?;
 
-            let log_config = match &*merged_config.vector_logging() {
+            let log_config = match vector_logging {
                 ContainerLogConfig {
                     choice:
                         Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
@@ -265,14 +241,14 @@ impl ContainerConfig {
                 ),
             };
 
-            pb.add_container(vector_container(
+            containers.push(vector_container(
                 &VECTOR_CONTAINER_NAME,
                 &cluster.image,
                 &VectorContainerLogConfig {
                     log_config,
                     vector_aggregator_config_map_name,
                 },
-                &cluster.role_group_resource_names(role, role_group_name),
+                &resource_names,
                 &VECTOR_CONFIG_VOLUME_NAME,
                 &VECTOR_LOG_VOLUME_NAME,
                 EnvVarSet::new(),
@@ -280,7 +256,7 @@ impl ContainerConfig {
         }
 
         if let Some(authentication_config) = cluster.authentication_config() {
-            pb.add_volume(
+            volumes.push(
                 VolumeBuilder::new(&*TLS_STORE_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
@@ -296,8 +272,9 @@ impl ContainerConfig {
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_tls_pkcs12_password(TLS_STORE_PASSWORD)
                         .with_auto_tls_cert_lifetime(
-                            merged_config
-                                .requested_secret_lifetime()
+                            inputs
+                                .common
+                                .requested_secret_lifetime
                                 .context(MissingSecretLifetimeSnafu)?,
                         )
                         .build()
@@ -306,10 +283,9 @@ impl ContainerConfig {
                         })?,
                     )
                     .build(),
-            )
-            .context(AddVolumeSnafu)?;
+            );
 
-            pb.add_volume(
+            volumes.push(
                 VolumeBuilder::new(&*KERBEROS_VOLUME_NAME)
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
@@ -326,130 +302,102 @@ impl ContainerConfig {
                         })?,
                     )
                     .build(),
-            )
-            .context(AddVolumeSnafu)?;
+            );
         }
 
-        // role specific pod settings configured here
-        match role {
-            HdfsNodeRole::Name => {
-                // Zookeeper fail over container
-                let zkfc_container_config = Self::Zkfc;
-                pb.add_volumes(zkfc_container_config.volumes(
-                    merged_config,
-                    &object_name,
-                    labels,
-                )?)
-                .context(AddVolumeSnafu)?;
-                pb.add_container(zkfc_container_config.main_container(
-                    cluster,
-                    cluster_info,
-                    role,
-                    rolegroup_config,
-                    labels,
-                )?);
-
-                // Format namenode init container
-                let format_namenodes_container_config = Self::FormatNameNodes;
-                pb.add_volumes(format_namenodes_container_config.volumes(
-                    merged_config,
-                    &object_name,
-                    labels,
-                )?)
-                .context(AddVolumeSnafu)?;
-                pb.add_init_container(format_namenodes_container_config.init_container(
-                    cluster,
-                    cluster_info,
-                    role,
-                    rolegroup_config,
-                    &namenode_podrefs,
-                    labels,
-                )?);
-
-                // Format ZooKeeper init container
-                let format_zookeeper_container_config = Self::FormatZooKeeper;
-                pb.add_volumes(format_zookeeper_container_config.volumes(
-                    merged_config,
-                    &object_name,
-                    labels,
-                )?)
-                .context(AddVolumeSnafu)?;
-                pb.add_init_container(format_zookeeper_container_config.init_container(
-                    cluster,
-                    cluster_info,
-                    role,
-                    rolegroup_config,
-                    &namenode_podrefs,
-                    labels,
-                )?);
-            }
-            HdfsNodeRole::Data => {
-                // Wait for namenode init container
-                let wait_for_namenodes_container_config = Self::WaitForNameNodes;
-                pb.add_volumes(wait_for_namenodes_container_config.volumes(
-                    merged_config,
-                    &object_name,
-                    labels,
-                )?)
-                .context(AddVolumeSnafu)?;
-                pb.add_init_container(wait_for_namenodes_container_config.init_container(
-                    cluster,
-                    cluster_info,
-                    role,
-                    rolegroup_config,
-                    &namenode_podrefs,
-                    labels,
-                )?);
-            }
-            HdfsNodeRole::Journal => {}
-        }
-
-        Ok(())
+        Ok((containers, volumes))
     }
 
-    pub fn volume_claim_templates(
-        merged_config: &AnyNodeConfig,
+    /// This container, and the pod volumes it needs.
+    ///
+    /// `container_log_config` is this container's own, passed by the role module naming it.
+    /// `init` picks how the container is started, the only difference between the two kinds.
+    pub(crate) fn build_container(
+        &self,
+        inputs: &RoleGroupInputs,
+        container_log_config: &ContainerLogConfig,
+        init: bool,
+    ) -> Result<(Container, Vec<Volume>), Error> {
+        let volumes = self.volumes(container_log_config, &inputs.object_name());
+
+        let container = if init {
+            // `format-namenodes` and `wait-for-namenodes` address the namenodes by pod name;
+            // `format-zookeeper` ignores these.
+            let namenode_podrefs = build::pod_refs(inputs.cluster, &HdfsNodeRole::Name);
+            self.init_container(inputs, container_log_config, &namenode_podrefs)?
+        } else {
+            self.main_container(inputs, container_log_config)?
+        };
+
+        Ok((container, volumes))
+    }
+
+    /// The PVC templates for a namenode role group: one data PVC plus the listener PVC.
+    pub fn namenode_volume_claim_templates(
+        config: &NameNodeConfig,
         labels: &Labels,
     ) -> Result<Vec<PersistentVolumeClaim>> {
-        match merged_config {
-            AnyNodeConfig::Name(node) => {
-                let listener = ListenerOperatorVolumeSourceBuilder::new(
-                    &ListenerReference::ListenerClass(node.listener_class.to_string()),
+        let listener = ListenerOperatorVolumeSourceBuilder::new(
+            &ListenerReference::ListenerClass(config.listener_class.to_string()),
+            labels,
+        )
+        .build_ephemeral()
+        .context(BuildListenerVolumeSnafu)?
+        .volume_claim_template
+        .expect("The listener volume source builder always sets a volume claim template.");
+
+        Ok(vec![
+            config.resources.storage.data.build_pvc(
+                ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+                Some(vec!["ReadWriteOnce"]),
+            ),
+            PersistentVolumeClaim {
+                metadata: ObjectMeta {
+                    name: Some(LISTENER_VOLUME_NAME.to_string()),
+                    ..listener
+                        .metadata
+                        .expect("The listener volume claim template always carries metadata.")
+                },
+                spec: Some(listener.spec),
+                ..Default::default()
+            },
+        ])
+    }
+
+    /// The PVC template for a journalnode role group: one data PVC.
+    pub fn journalnode_volume_claim_templates(
+        config: &JournalNodeConfig,
+    ) -> Vec<PersistentVolumeClaim> {
+        vec![config.resources.storage.data.build_pvc(
+            ContainerConfig::DATA_VOLUME_MOUNT_NAME,
+            Some(vec!["ReadWriteOnce"]),
+        )]
+    }
+
+    /// The PVC templates for a datanode role group, one per configured data volume.
+    pub fn datanode_volume_claim_templates(config: &DataNodeConfig) -> Vec<PersistentVolumeClaim> {
+        DataNodeStorageConfig {
+            pvcs: config.resources.storage.clone(),
+        }
+        .build_pvcs()
+    }
+
+    /// The ephemeral listener volume of a datanode role group.
+    ///
+    /// Datanodes use an ephemeral listener volume, while namenodes use a persistent volume claim
+    /// template for stable per-pod identity (see [`Self::namenode_volume_claim_templates`]) and
+    /// journalnodes have no listener at all.
+    pub fn datanode_listener_volume(config: &DataNodeConfig, labels: &Labels) -> Result<Volume> {
+        Ok(VolumeBuilder::new(&*LISTENER_VOLUME_NAME)
+            .ephemeral(
+                ListenerOperatorVolumeSourceBuilder::new(
+                    &ListenerReference::ListenerClass(config.listener_class.to_string()),
                     labels,
                 )
                 .build_ephemeral()
-                .context(BuildListenerVolumeSnafu)?
-                .volume_claim_template
-                .expect("The listener volume source builder always sets a volume claim template.");
-
-                let pvcs = vec![
-                    node.resources.storage.data.build_pvc(
-                        ContainerConfig::DATA_VOLUME_MOUNT_NAME,
-                        Some(vec!["ReadWriteOnce"]),
-                    ),
-                    PersistentVolumeClaim {
-                        metadata: ObjectMeta {
-                            name: Some(LISTENER_VOLUME_NAME.to_string()),
-                            ..listener.metadata.expect(
-                                "The listener volume claim template always carries metadata.",
-                            )
-                        },
-                        spec: Some(listener.spec),
-                        ..Default::default()
-                    },
-                ];
-
-                Ok(pvcs)
-            }
-            AnyNodeConfig::Journal(node) => Ok(vec![node.resources.storage.data.build_pvc(
-                ContainerConfig::DATA_VOLUME_MOUNT_NAME,
-                Some(vec!["ReadWriteOnce"]),
-            )]),
-            AnyNodeConfig::Data(node) => Ok(DataNodeStorageConfig {
-                pvcs: node.resources.storage.clone(),
-            }
-            .build_pvcs()),
-        }
+                .context(BuildListenerVolumeSnafu)?,
+            )
+            .build())
     }
 
     /// Creates the main/side containers for:
@@ -459,22 +407,19 @@ impl ContainerConfig {
     /// - Journalnode main process
     fn main_container(
         &self,
-        cluster: &ValidatedCluster,
-        cluster_info: &KubernetesClusterInfo,
-        role: &HdfsNodeRole,
-        rolegroup_config: &ValidatedRoleGroupConfig,
-        labels: &Labels,
+        inputs: &RoleGroupInputs,
+        container_log_config: &ContainerLogConfig,
     ) -> Result<Container, Error> {
-        let merged_config = &rolegroup_config.config;
+        let cluster = inputs.cluster;
         let mut cb = new_container_builder(self.container_name());
 
-        let resources = self.resources(merged_config);
+        let resources = self.resources(&inputs.resources);
 
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
-            .args(self.args(cluster, cluster_info, role, merged_config, &[])?)
-            .add_env_vars(self.env(cluster, role, rolegroup_config, resources.as_ref())?)
-            .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels)?)
+            .args(self.args(inputs, container_log_config, &[])?)
+            .add_env_vars(self.env(inputs, resources.as_ref())?)
+            .add_volume_mounts(self.volume_mounts(cluster, &inputs.volume_claim_templates))
             .context(AddVolumeMountSnafu)?
             .add_container_ports(self.container_ports(cluster));
 
@@ -507,27 +452,24 @@ impl ContainerConfig {
     /// - Datanode (wait-for-namenodes)
     fn init_container(
         &self,
-        cluster: &ValidatedCluster,
-        cluster_info: &KubernetesClusterInfo,
-        role: &HdfsNodeRole,
-        rolegroup_config: &ValidatedRoleGroupConfig,
+        inputs: &RoleGroupInputs,
+        container_log_config: &ContainerLogConfig,
         namenode_podrefs: &[HdfsPodRef],
-        labels: &Labels,
     ) -> Result<Container, Error> {
-        let merged_config = &rolegroup_config.config;
+        let cluster = inputs.cluster;
         let mut cb = new_container_builder(self.container_name());
 
         cb.image_from_product_image(&cluster.image)
             .command(Self::command())
-            .args(self.args(cluster, cluster_info, role, merged_config, namenode_podrefs)?)
-            .add_env_vars(self.env(cluster, role, rolegroup_config, None)?)
-            .add_volume_mounts(self.volume_mounts(cluster, merged_config, labels)?)
+            .args(self.args(inputs, container_log_config, namenode_podrefs)?)
+            .add_env_vars(self.env(inputs, None)?)
+            .add_volume_mounts(self.volume_mounts(cluster, &inputs.volume_claim_templates))
             .context(AddVolumeMountSnafu)?;
 
         // We use the main app container resources here in contrast to several operators (which use
         // hardcoded resources) due to the different code structure.
         // Going forward this should be replaced by calculating init container resources in the pod builder.
-        if let Some(resources) = self.resources(merged_config) {
+        if let Some(resources) = self.resources(&inputs.resources) {
             cb.resources(resources);
         }
 
@@ -537,7 +479,7 @@ impl ContainerConfig {
     /// Return the typed container name.
     fn container_name(&self) -> &'static ContainerName {
         match self {
-            ContainerConfig::Hdfs { role, .. } => match role {
+            ContainerConfig::Hdfs { role } => match role {
                 HdfsNodeRole::Name => &NAMENODE_CONTAINER_NAME,
                 HdfsNodeRole::Data => &DATANODE_CONTAINER_NAME,
                 HdfsNodeRole::Journal => &JOURNALNODE_CONTAINER_NAME,
@@ -595,12 +537,13 @@ impl ContainerConfig {
     /// Returns the container command arguments.
     fn args(
         &self,
-        cluster: &ValidatedCluster,
-        cluster_info: &KubernetesClusterInfo,
-        role: &HdfsNodeRole,
-        merged_config: &AnyNodeConfig,
+        inputs: &RoleGroupInputs,
+        container_log_config: &ContainerLogConfig,
         namenode_podrefs: &[HdfsPodRef],
     ) -> Result<Vec<String>, Error> {
+        let cluster = inputs.cluster;
+        let cluster_info = inputs.cluster_info;
+        let role = &inputs.role;
         let mut args = String::new();
         args.push_str(&self.create_config_directory_cmd());
         args.push_str(&self.copy_config_xml_cmd());
@@ -619,11 +562,8 @@ impl ContainerConfig {
         };
 
         match self {
-            ContainerConfig::Hdfs { role, .. } => {
-                args.push_str(&self.copy_log4j_properties_cmd(
-                    HDFS_LOG4J_CONFIG_FILE,
-                    &merged_config.hdfs_logging(),
-                ));
+            ContainerConfig::Hdfs { role } => {
+                args.push_str(&self.copy_log4j_properties_cmd(container_log_config));
 
                 args.push_str(&formatdoc!(
                     r#"\
@@ -650,14 +590,7 @@ impl ContainerConfig {
                 ));
             }
             ContainerConfig::Zkfc => {
-                if let Some(container_config) = merged_config
-                    .as_namenode()
-                    .map(|node| node.logging.for_container(&NameNodeContainer::Zkfc))
-                {
-                    args.push_str(
-                        &self.copy_log4j_properties_cmd(ZKFC_LOG4J_CONFIG_FILE, &container_config),
-                    );
-                }
+                args.push_str(&self.copy_log4j_properties_cmd(container_log_config));
                 args.push_str(&format!(
                     "{hadoop_home}/bin/hdfs zkfc\n",
                     hadoop_home = Self::HADOOP_HOME
@@ -666,15 +599,7 @@ impl ContainerConfig {
             ContainerConfig::FormatNameNodes => {
                 args.push_str(&bash_capture_shell_helper(self.container_name().as_ref()));
 
-                if let Some(container_config) = merged_config.as_namenode().map(|node| {
-                    node.logging
-                        .for_container(&NameNodeContainer::FormatNameNodes)
-                }) {
-                    args.push_str(&self.copy_log4j_properties_cmd(
-                        FORMAT_NAMENODES_LOG4J_CONFIG_FILE,
-                        &container_config,
-                    ));
-                }
+                args.push_str(&self.copy_log4j_properties_cmd(container_log_config));
                 // First step we check for active namenodes. This step should return an active namenode
                 // for e.g. scaling. It may fail if the active namenode is restarted and the standby
                 // namenode takes over.
@@ -742,15 +667,7 @@ impl ContainerConfig {
             ContainerConfig::FormatZooKeeper => {
                 args.push_str(&bash_capture_shell_helper(self.container_name().as_ref()));
 
-                if let Some(container_config) = merged_config.as_namenode().map(|node| {
-                    node.logging
-                        .for_container(&NameNodeContainer::FormatZooKeeper)
-                }) {
-                    args.push_str(&self.copy_log4j_properties_cmd(
-                        FORMAT_ZOOKEEPER_LOG4J_CONFIG_FILE,
-                        &container_config,
-                    ));
-                }
+                args.push_str(&self.copy_log4j_properties_cmd(container_log_config));
                 args.push_str(&formatdoc!(
                     r###"
                     echo "Attempt to format ZooKeeper ZNode for $POD_NAME ..."
@@ -774,15 +691,7 @@ impl ContainerConfig {
             ContainerConfig::WaitForNameNodes => {
                 args.push_str(&bash_capture_shell_helper(self.container_name().as_ref()));
 
-                if let Some(container_config) = merged_config.as_datanode().map(|node| {
-                    node.logging
-                        .for_container(&DataNodeContainer::WaitForNameNodes)
-                }) {
-                    args.push_str(&self.copy_log4j_properties_cmd(
-                        WAIT_FOR_NAMENODES_LOG4J_CONFIG_FILE,
-                        &container_config,
-                    ));
-                }
+                args.push_str(&self.copy_log4j_properties_cmd(container_log_config));
                 if cluster.has_kerberos_enabled() {
                     args.push_str(&Self::get_kerberos_ticket(cluster, role, cluster_info)?);
                 }
@@ -864,11 +773,11 @@ impl ContainerConfig {
     /// Returns the container env variables.
     fn env(
         &self,
-        cluster: &ValidatedCluster,
-        role: &HdfsNodeRole,
-        rolegroup_config: &ValidatedRoleGroupConfig,
+        inputs: &RoleGroupInputs,
         resources: Option<&ResourceRequirements>,
     ) -> Result<Vec<EnvVar>, Error> {
+        let cluster = inputs.cluster;
+        let role = &inputs.role;
         // Maps env var name to env var object. This allows env_overrides to work
         // as expected (i.e. users can override the env var value).
         let mut env: BTreeMap<String, EnvVar> = BTreeMap::new();
@@ -891,13 +800,13 @@ impl ContainerConfig {
         // When the users tries to start a cli tool the port is already taken by the hdfs services,
         // so we don't want to stuff all the config into HADOOP_OPTS, but rather into the specialized env variables
         // See https://github.com/stackabletech/hdfs-operator/issues/138 for details
-        if let ContainerConfig::Hdfs { role, .. } = self {
+        if let ContainerConfig::Hdfs { role } = self {
             let role_opts_name = role.hadoop_opts_env_var_for_role().to_string();
             env.insert(
                 role_opts_name.clone(),
                 EnvVar {
                     name: role_opts_name,
-                    value: Some(self.build_hadoop_opts(cluster, resources, rolegroup_config)?),
+                    value: Some(self.build_hadoop_opts(inputs, resources)?),
                     ..EnvVar::default()
                 },
             );
@@ -961,7 +870,7 @@ impl ContainerConfig {
         );
 
         // Overrides need to come last
-        let mut env_override_vars: BTreeMap<String, EnvVar> = rolegroup_config
+        let mut env_override_vars: BTreeMap<String, EnvVar> = inputs
             .env_overrides
             .clone()
             .into_iter()
@@ -973,8 +882,13 @@ impl ContainerConfig {
         Ok(env.into_values().collect())
     }
 
-    /// Returns the container resources.
-    pub fn resources(&self, merged_config: &AnyNodeConfig) -> Option<ResourceRequirements> {
+    /// Returns the container resources. `role_group_resources` is the role group's own
+    /// `resources`, already converted, and is used by the main and init containers; the ZKFC
+    /// sidecar has fixed requirements of its own.
+    pub fn resources(
+        &self,
+        role_group_resources: &ResourceRequirements,
+    ) -> Option<ResourceRequirements> {
         match self {
             // Namenode sidecar containers
             ContainerConfig::Zkfc => Some(
@@ -989,11 +903,7 @@ impl ContainerConfig {
             ContainerConfig::Hdfs { .. }
             | ContainerConfig::FormatNameNodes
             | ContainerConfig::FormatZooKeeper
-            | ContainerConfig::WaitForNameNodes => match merged_config {
-                AnyNodeConfig::Name(node) => Some(node.resources.clone().into()),
-                AnyNodeConfig::Data(node) => Some(node.resources.clone().into()),
-                AnyNodeConfig::Journal(node) => Some(node.resources.clone().into()),
-            },
+            | ContainerConfig::WaitForNameNodes => Some(role_group_resources.clone()),
         }
     }
 
@@ -1005,24 +915,20 @@ impl ContainerConfig {
         initial_delay_seconds: i32,
         failure_threshold: i32,
     ) -> Option<Probe> {
-        let ContainerConfig::Hdfs {
-            web_ui_http_port_name,
-            web_ui_https_port_name,
-            ..
-        } = self
-        else {
+        let ContainerConfig::Hdfs { .. } = self else {
             return None;
         };
 
+        // Every role serves its web UI under the same two port names.
         let port = if cluster.has_https_enabled() {
-            web_ui_https_port_name
+            SERVICE_PORT_NAME_HTTPS
         } else {
-            web_ui_http_port_name
+            SERVICE_PORT_NAME_HTTP
         };
 
         Some(Probe {
             // Use tcp_socket instead of http_get so that the probe is independent of the authentication settings.
-            tcp_socket: Some(Self::tcp_socket_action_for_port(*port)),
+            tcp_socket: Some(Self::tcp_socket_action_for_port(port)),
             period_seconds: Some(period_seconds),
             initial_delay_seconds: Some(initial_delay_seconds),
             failure_threshold: Some(failure_threshold),
@@ -1038,8 +944,8 @@ impl ContainerConfig {
         failure_threshold: i32,
     ) -> Option<Probe> {
         match self {
-            ContainerConfig::Hdfs { ipc_port_name, .. } => Some(Probe {
-                tcp_socket: Some(Self::tcp_socket_action_for_port(*ipc_port_name)),
+            ContainerConfig::Hdfs { role } => Some(Probe {
+                tcp_socket: Some(Self::tcp_socket_action_for_port(build::ipc_port_name(role))),
                 period_seconds: Some(period_seconds),
                 initial_delay_seconds: Some(initial_delay_seconds),
                 failure_threshold: Some(failure_threshold),
@@ -1057,30 +963,12 @@ impl ContainerConfig {
     }
 
     /// Return the container volumes.
-    fn volumes(
-        &self,
-        merged_config: &AnyNodeConfig,
-        object_name: &str,
-        labels: &Labels,
-    ) -> Result<Vec<Volume>> {
+    ///
+    /// `container_log_config` is this container's own, passed by the role builder adding it.
+    fn volumes(&self, container_log_config: &ContainerLogConfig, object_name: &str) -> Vec<Volume> {
         let mut volumes = vec![];
 
         if let ContainerConfig::Hdfs { .. } = self {
-            if let AnyNodeConfig::Data(node) = merged_config {
-                volumes.push(
-                    VolumeBuilder::new(&*LISTENER_VOLUME_NAME)
-                        .ephemeral(
-                            ListenerOperatorVolumeSourceBuilder::new(
-                                &ListenerReference::ListenerClass(node.listener_class.to_string()),
-                                labels,
-                            )
-                            .build_ephemeral()
-                            .context(BuildListenerVolumeSnafu)?,
-                        )
-                        .build(),
-                );
-            }
-
             volumes.push(
                 VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
                     .empty_dir(EmptyDirVolumeSource {
@@ -1099,42 +987,26 @@ impl ContainerConfig {
             );
         }
 
-        let container_log_config = match self {
-            ContainerConfig::Hdfs { .. } => Some(merged_config.hdfs_logging()),
-            ContainerConfig::Zkfc => merged_config
-                .as_namenode()
-                .map(|node| node.logging.for_container(&NameNodeContainer::Zkfc)),
-            ContainerConfig::FormatNameNodes => merged_config.as_namenode().map(|node| {
-                node.logging
-                    .for_container(&NameNodeContainer::FormatNameNodes)
-            }),
-            ContainerConfig::FormatZooKeeper => merged_config.as_namenode().map(|node| {
-                node.logging
-                    .for_container(&NameNodeContainer::FormatZooKeeper)
-            }),
-            ContainerConfig::WaitForNameNodes => merged_config.as_datanode().map(|node| {
-                node.logging
-                    .for_container(&DataNodeContainer::WaitForNameNodes)
-            }),
-        };
         let volume_mount_dirs = self.volume_mount_dirs();
         volumes.extend(Self::common_container_volumes(
-            container_log_config.as_deref(),
+            Some(container_log_config),
             object_name,
             volume_mount_dirs.config_mount_name(),
             volume_mount_dirs.log_mount_name(),
         ));
 
-        Ok(volumes)
+        volumes
     }
 
     /// Returns the container volume mounts.
+    ///
+    /// `volume_claim_templates` are the role group's PVC templates; the datanode main container
+    /// mounts one data directory per data PVC, named after it.
     fn volume_mounts(
         &self,
         cluster: &ValidatedCluster,
-        merged_config: &AnyNodeConfig,
-        labels: &Labels,
-    ) -> Result<Vec<VolumeMount>> {
+        volume_claim_templates: &[PersistentVolumeClaim],
+    ) -> Vec<VolumeMount> {
         let volume_mount_dirs = self.volume_mount_dirs();
         let mut volume_mounts = vec![
             VolumeMountBuilder::new(Self::STACKABLE_LOG_VOLUME_MOUNT_NAME, STACKABLE_LOG_DIR)
@@ -1171,7 +1043,7 @@ impl ContainerConfig {
                         .build(),
                 );
             }
-            ContainerConfig::Hdfs { role, .. } => {
+            ContainerConfig::Hdfs { role } => {
                 // JournalNode doesn't use listeners, since it's only used internally by the namenodes
                 if let HdfsNodeRole::Name | HdfsNodeRole::Data = role {
                     volume_mounts.push(
@@ -1192,7 +1064,7 @@ impl ContainerConfig {
                         );
                     }
                     HdfsNodeRole::Data => {
-                        for pvc in Self::volume_claim_templates(merged_config, labels)? {
+                        for pvc in volume_claim_templates {
                             let pvc_name = pvc.name_any();
                             volume_mounts.push(VolumeMount {
                                 mount_path: format!("{DATANODE_ROOT_DATA_DIR_PREFIX}{pvc_name}"),
@@ -1209,7 +1081,7 @@ impl ContainerConfig {
             | ContainerConfig::FormatZooKeeper => {}
         }
 
-        Ok(volume_mounts)
+        volume_mounts
     }
 
     /// Create a config directory for the respective container.
@@ -1234,11 +1106,7 @@ impl ContainerConfig {
     /// This will be copied from:
     /// - Custom: the log dir mount of the custom config map
     /// - Automatic: the container config mount dir
-    fn copy_log4j_properties_cmd(
-        &self,
-        log4j_config_file: &str,
-        container_log_config: &ContainerLogConfig,
-    ) -> String {
+    fn copy_log4j_properties_cmd(&self, container_log_config: &ContainerLogConfig) -> String {
         let volume_mount_dirs = self.volume_mount_dirs();
         let source_log4j_properties_dir = if let ContainerLogConfig {
             choice: Some(ContainerLogConfigChoice::Custom(_)),
@@ -1252,7 +1120,7 @@ impl ContainerConfig {
         format!(
             "cp {log4j_properties_dir}/{file_name} {config_dir}/{LOG4J_PROPERTIES}\n",
             log4j_properties_dir = source_log4j_properties_dir,
-            file_name = log4j_config_file,
+            file_name = log4j_config_file(self),
             config_dir = volume_mount_dirs.final_config()
         )
     }
@@ -1260,25 +1128,21 @@ impl ContainerConfig {
     /// Build HADOOP_{*node}_OPTS for each namenode, datanodes and journalnodes.
     fn build_hadoop_opts(
         &self,
-        cluster: &ValidatedCluster,
+        inputs: &RoleGroupInputs,
         resources: Option<&ResourceRequirements>,
-        rolegroup_config: &ValidatedRoleGroupConfig,
     ) -> Result<String, Error> {
+        let cluster = inputs.cluster;
         match self {
-            ContainerConfig::Hdfs {
-                role, metrics_port, ..
-            } => {
+            ContainerConfig::Hdfs { role } => {
                 let volume_mount_dirs = self.volume_mount_dirs();
                 let config_dir = volume_mount_dirs.final_config();
                 construct_role_specific_jvm_args(
                     role,
-                    &rolegroup_config
-                        .product_specific_common_config
-                        .jvm_argument_overrides,
+                    &inputs.jvm_argument_overrides,
                     cluster.has_kerberos_enabled(),
                     resources,
                     config_dir,
-                    metrics_port.clone(),
+                    build::jmx_metrics_port(role),
                 )
                 .with_context(|_| ConstructJvmArgumentsSnafu {
                     role: role.to_string(),
@@ -1291,7 +1155,7 @@ impl ContainerConfig {
     /// Container ports for the main containers namenode, datanode and journalnode.
     fn container_ports(&self, cluster: &ValidatedCluster) -> Vec<ContainerPort> {
         match self {
-            ContainerConfig::Hdfs { role, .. } => {
+            ContainerConfig::Hdfs { role } => {
                 // data ports
                 build::hdfs_main_container_ports(cluster, role)
                     .into_iter()
@@ -1397,29 +1261,7 @@ impl ContainerConfig {
 
 impl From<HdfsNodeRole> for ContainerConfig {
     fn from(role: HdfsNodeRole) -> Self {
-        match role {
-            HdfsNodeRole::Name => Self::Hdfs {
-                role,
-                ipc_port_name: SERVICE_PORT_NAME_RPC,
-                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
-                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_NAME_NODE_METRICS_PORT,
-            },
-            HdfsNodeRole::Data => Self::Hdfs {
-                role,
-                ipc_port_name: SERVICE_PORT_NAME_IPC,
-                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
-                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_DATA_NODE_METRICS_PORT,
-            },
-            HdfsNodeRole::Journal => Self::Hdfs {
-                role,
-                ipc_port_name: SERVICE_PORT_NAME_RPC,
-                web_ui_http_port_name: SERVICE_PORT_NAME_HTTP,
-                web_ui_https_port_name: SERVICE_PORT_NAME_HTTPS,
-                metrics_port: DEFAULT_JOURNAL_NODE_METRICS_PORT,
-            },
-        }
+        Self::Hdfs { role }
     }
 }
 
@@ -1524,6 +1366,7 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use super::*;
+    use crate::crd::{DataNodeContainer, NameNodeContainer};
 
     #[test]
     fn test_constants() {

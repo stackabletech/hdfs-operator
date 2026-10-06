@@ -59,7 +59,7 @@ mod test {
 
     use crate::{
         crd::HdfsNodeRole,
-        test_support::{anynode_config, deserialize_and_validate_cluster, role_group_name},
+        test_support::{common_config, deserialize_and_validate_cluster, role_group_name},
     };
 
     #[rstest]
@@ -98,7 +98,7 @@ spec:
         "#;
 
         let validated_cluster = deserialize_and_validate_cluster(input);
-        let merged_config = anynode_config(&validated_cluster, &role, &role_group_name("default"));
+        let merged_config = common_config(&validated_cluster, &role, &role_group_name("default"));
 
         let mut expected_pod_affinities = vec![WeightedPodAffinityTerm {
             pod_affinity_term: PodAffinityTerm {

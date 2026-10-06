@@ -1,33 +1,27 @@
 //! Build the per-rolegroup `ConfigMap` for the HdfsCluster.
+//!
+//! [`common_config_map_data`] renders the files every role group gets, during the gather phase.
+//! [`build_config_map`] then wraps whatever the role group ended up with, its own containers'
+//! `log4j.properties` included, in the `ConfigMap` object.
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder,
-    k8s_openapi::api::core::v1::ConfigMap,
-    product_logging::framework::VECTOR_CONFIG_FILE,
-    utils::cluster_info::KubernetesClusterInfo,
-    v2::{config_file_writer::PropertiesWriterError, types::operator::RoleGroupName},
+    builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE, v2::config_file_writer::PropertiesWriterError,
 };
 
-use crate::{
-    controller::{
-        ValidatedCluster,
-        build::{
-            self,
-            properties::{
-                ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging,
-                security_properties, ssl_client, ssl_server,
-            },
-        },
+use crate::controller::build::{
+    self,
+    container::ContainerConfig,
+    properties::{
+        ConfigFileName, core_site, hadoop_policy, hdfs_site, product_logging, security_properties,
+        ssl_client, ssl_server,
     },
-    crd::HdfsNodeRole,
+    role_group::{RoleGroupBuilder, RoleGroupInputs},
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("the validated cluster has no role group {role_group:?} for role {role:?}"))]
-    MissingRoleGroup { role: String, role_group: String },
-
     #[snafu(display("failed to serialize {} for {rolegroup}", ConfigFileName::Security))]
     JvmSecurityProperties {
         source: PropertiesWriterError,
@@ -44,81 +38,96 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub fn build_rolegroup_config_map(
-    cluster: &ValidatedCluster,
-    cluster_info: &KubernetesClusterInfo,
-    role: &HdfsNodeRole,
-    role_group_name: &RoleGroupName,
-) -> Result<ConfigMap> {
-    tracing::info!(
-        "Setting up ConfigMap for role {role} role group {role_group_name}",
-        role = role.as_ref()
-    );
-
-    let metadata = build::rolegroup_metadata(cluster, role, role_group_name);
-
-    let rolegroup_config = cluster
-        .role_groups
-        .get(role)
-        .and_then(|role_groups| role_groups.get(role_group_name))
-        .with_context(|| MissingRoleGroupSnafu {
-            role: role.to_string(),
-            role_group: role_group_name.to_string(),
-        })?;
-    let merged_config = &rolegroup_config.config;
-    let config_overrides = &rolegroup_config.config_overrides;
+/// The `ConfigMap` entries every role group gets: the Hadoop XML configs, the JVM security
+/// properties, the main `hdfs` container's `log4j.properties` and, when the Vector agent is
+/// enabled, the static Vector config.
+pub(crate) fn common_config_map_data(inputs: &RoleGroupInputs) -> Result<Vec<(String, String)>> {
+    let cluster = inputs.cluster;
+    let cluster_info = inputs.cluster_info;
+    let role = &inputs.role;
+    let role_group_name = &inputs.role_group_name;
+    let config_overrides = &inputs.config_overrides;
     let cluster_config = &cluster.cluster_config;
 
-    let hdfs_site_xml = hdfs_site::build(
-        cluster,
-        cluster_info,
-        merged_config,
-        config_overrides.hdfs_site_xml.clone(),
-    );
-    let core_site_xml = core_site::build(
-        cluster,
-        *role,
-        cluster_info,
-        config_overrides.core_site_xml.clone(),
-    );
-    let hadoop_policy_xml = hadoop_policy::build(config_overrides.hadoop_policy_xml.clone());
-    let ssl_server_xml = ssl_server::build(
-        cluster_config.authentication.is_some(),
-        config_overrides.ssl_server_xml.clone(),
-    );
-    let ssl_client_xml = ssl_client::build(
-        cluster_config.authentication.is_some(),
-        config_overrides.ssl_client_xml.clone(),
-    );
-
-    let mut builder = ConfigMapBuilder::new();
-    builder
-        .metadata(metadata.build())
-        .add_data(ConfigFileName::CoreSite.to_string(), core_site_xml)
-        .add_data(ConfigFileName::HdfsSite.to_string(), hdfs_site_xml)
-        .add_data(ConfigFileName::HadoopPolicy.to_string(), hadoop_policy_xml)
-        .add_data(ConfigFileName::SslServer.to_string(), ssl_server_xml)
-        .add_data(ConfigFileName::SslClient.to_string(), ssl_client_xml)
-        .add_data(
+    let mut data = vec![
+        (
+            ConfigFileName::CoreSite.to_string(),
+            core_site::build(
+                cluster,
+                *role,
+                cluster_info,
+                config_overrides.core_site_xml.clone(),
+            ),
+        ),
+        (
+            ConfigFileName::HdfsSite.to_string(),
+            hdfs_site::build(
+                cluster,
+                cluster_info,
+                inputs.datanode_storage.clone(),
+                config_overrides.hdfs_site_xml.clone(),
+            ),
+        ),
+        (
+            ConfigFileName::HadoopPolicy.to_string(),
+            hadoop_policy::build(config_overrides.hadoop_policy_xml.clone()),
+        ),
+        (
+            ConfigFileName::SslServer.to_string(),
+            ssl_server::build(
+                cluster_config.authentication.is_some(),
+                config_overrides.ssl_server_xml.clone(),
+            ),
+        ),
+        (
+            ConfigFileName::SslClient.to_string(),
+            ssl_client::build(
+                cluster_config.authentication.is_some(),
+                config_overrides.ssl_client_xml.clone(),
+            ),
+        ),
+        (
             ConfigFileName::Security.to_string(),
             security_properties::build(config_overrides.security_properties.clone()).with_context(
                 |_| JvmSecurityPropertiesSnafu {
                     rolegroup: role_group_name.to_string(),
                 },
             )?,
-        );
+        ),
+    ];
 
-    for (log_config_file, log4j_config) in product_logging::build_log4j_configs(merged_config) {
-        builder.add_data(log_config_file, log4j_config);
-    }
-    if merged_config.vector_logging_enabled() {
-        builder.add_data(
-            VECTOR_CONFIG_FILE,
+    data.extend(product_logging::log4j_config(
+        &ContainerConfig::from(*role),
+        &inputs.hdfs_logging,
+    ));
+
+    if inputs.vector_logging.is_some() {
+        data.push((
+            VECTOR_CONFIG_FILE.to_owned(),
             product_logging::vector_config_file_content(),
-        );
+        ));
     }
 
-    builder.build().with_context(|_| AssembleSnafu {
+    Ok(data)
+}
+
+/// The role group's `ConfigMap`, from the entries gathered for it.
+pub(crate) fn build_config_map(builder: &RoleGroupBuilder) -> Result<ConfigMap> {
+    let role = &builder.role;
+    let role_group_name = &builder.role_group_name;
+
+    tracing::info!(
+        "Setting up ConfigMap for role {role} role group {role_group_name}",
+        role = role.as_ref()
+    );
+
+    let mut config_map = ConfigMapBuilder::new();
+    config_map.metadata(build::rolegroup_metadata(builder.cluster, role, role_group_name).build());
+    for (file_name, content) in &builder.config_map_data {
+        config_map.add_data(file_name, content);
+    }
+
+    config_map.build().with_context(|_| AssembleSnafu {
         role: role.to_string(),
         role_group: role_group_name.to_string(),
     })
