@@ -48,9 +48,6 @@ exit 1
 ;;
 esac
 
-# TODO: Remove once https://github.com/stackabletech/issues/issues/828 has been implemented (see that issue for details).
-until kubectl get crd hdfsclusters.hdfs.stackable.tech >/dev/null 2>&1; do echo "Waiting for CRDs to be installed" && sleep 1; done
-
 echo "Creating Zookeeper cluster"
 # tag::install-zk[]
 kubectl apply -f zk.yaml
