@@ -56,6 +56,10 @@ All notable changes to this project will be documented in this file.
   datanodes. It was previously raised for journalnodes, even though its text refers to datanode
   replicas, and never for datanodes ([#830]).
 
+### Removed
+
+- Remove support for HDFS `3.4.2` ([#838]).
+
 [#801]: https://github.com/stackabletech/hdfs-operator/pull/801
 [#806]: https://github.com/stackabletech/hdfs-operator/pull/806
 [#810]: https://github.com/stackabletech/hdfs-operator/pull/810
@@ -69,6 +73,7 @@ All notable changes to this project will be documented in this file.
 [#831]: https://github.com/stackabletech/hdfs-operator/pull/831
 [#833]: https://github.com/stackabletech/hdfs-operator/pull/833
 [#835]: https://github.com/stackabletech/hdfs-operator/pull/835
+[#838]: https://github.com/stackabletech/hdfs-operator/pull/838
 [#839]: https://github.com/stackabletech/hdfs-operator/pull/839
 
 ## [26.7.0] - 2026-07-21

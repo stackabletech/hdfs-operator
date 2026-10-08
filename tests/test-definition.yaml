@@ -2,7 +2,6 @@
 dimensions:
   - name: hadoop
     values:
-      - 3.4.2
       - 3.4.3
       - 3.5.0
       # To use a custom image, add a comma and the full name after the product version
