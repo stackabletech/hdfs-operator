@@ -41,6 +41,7 @@ All notable changes to this project will be documented in this file.
   inputs and role-specific containers, and a shared role-builder then builds the Services,
   ConfigMap and StatefulSet from them ([#833]).
 - Bump stackable-operator to 0.119.0 ([#835]).
+- test: Bump vector-aggregator to 0.58.0 ([#843]).
 
 ### Fixed
 
@@ -75,6 +76,7 @@ All notable changes to this project will be documented in this file.
 [#835]: https://github.com/stackabletech/hdfs-operator/pull/835
 [#838]: https://github.com/stackabletech/hdfs-operator/pull/838
 [#839]: https://github.com/stackabletech/hdfs-operator/pull/839
+[#843]: https://github.com/stackabletech/hdfs-operator/pull/843
 
 ## [26.7.0] - 2026-07-21
 
