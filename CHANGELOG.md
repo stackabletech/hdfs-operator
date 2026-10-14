@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file.
   ConfigMap and StatefulSet from them ([#833]).
 - Bump stackable-operator to 0.119.0 ([#835]).
 - test: Bump vector-aggregator to 0.58.0 ([#843]).
+- test: Update OPA to 1.20.2 in integration tests ([#845]).
 
 ### Fixed
 
@@ -77,6 +78,7 @@ All notable changes to this project will be documented in this file.
 [#838]: https://github.com/stackabletech/hdfs-operator/pull/838
 [#839]: https://github.com/stackabletech/hdfs-operator/pull/839
 [#843]: https://github.com/stackabletech/hdfs-operator/pull/843
+[#845]: https://github.com/stackabletech/hdfs-operator/pull/845
 
 ## [26.7.0] - 2026-07-21
 
