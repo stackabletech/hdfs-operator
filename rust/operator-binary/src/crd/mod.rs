@@ -1218,9 +1218,8 @@ spec:
       default:
         replicas: 1";
 
-        let deserializer = serde_yaml::Deserializer::from_str(cr);
         let hdfs: v1alpha1::HdfsCluster =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(cr).unwrap();
 
         let rack_awareness = hdfs.rackawareness_config();
         // test the expected value to be used as an env-var: the mapper will use this to

@@ -176,7 +176,7 @@ mod test {
     use crate::{
         HDFS_FULL_CONTROLLER_NAME,
         controller::build::role_group::build_datanode_role_group,
-        test_support::{datanode_role_group_config, deserialize_cluster, validate_cluster},
+        test_support::{datanode_role_group_config, validate_cluster},
     };
 
     #[test]
@@ -215,7 +215,8 @@ spec:
 ";
 
         let role = HdfsNodeRole::Data;
-        let hdfs = deserialize_cluster(cr);
+        let hdfs: v1alpha1::HdfsCluster =
+            stackable_operator::utils::yaml_from_str_singleton_map(cr).expect("");
         let validated_cluster = validate_cluster(&hdfs);
         let role_group_name = RoleGroupName::from_str("default").unwrap();
         let role_group_config = datanode_role_group_config(&validated_cluster, &role_group_name);
@@ -282,7 +283,7 @@ spec:
     /// API, and because the spec is invalid, before the [`DeserializeGuard`] is unwrapped.
     #[test]
     fn reconcile_exits_early_for_deleted_cluster() {
-        let hdfs = serde_yaml::from_str(
+        let hdfs = yaml_serde::from_str(
             r#"
 apiVersion: hdfs.stackable.tech/v1alpha1
 kind: HdfsCluster
