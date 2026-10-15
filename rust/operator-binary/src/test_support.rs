@@ -24,11 +24,6 @@ pub fn app_version_label(product_version: &str) -> String {
     )
 }
 
-pub fn deserialize_cluster(spec: &str) -> v1alpha1::HdfsCluster {
-    let deserializer = serde_yaml::Deserializer::from_str(spec);
-    serde_yaml::with::singleton_map_recursive::deserialize(deserializer).expect("")
-}
-
 pub fn validate_cluster(hdfs: &v1alpha1::HdfsCluster) -> ValidatedCluster {
     validate::validate_cluster(
         hdfs,
@@ -43,7 +38,7 @@ pub fn validate_cluster(hdfs: &v1alpha1::HdfsCluster) -> ValidatedCluster {
 }
 
 pub fn deserialize_and_validate_cluster(spec: &str) -> ValidatedCluster {
-    validate_cluster(&deserialize_cluster(spec))
+    validate_cluster(&stackable_operator::utils::yaml_from_str_singleton_map(spec).expect(""))
 }
 
 /// Parses a role group name for use in tests, panicking if it is invalid.

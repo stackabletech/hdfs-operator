@@ -27,7 +27,7 @@ tracing.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
-serde_yaml.workspace = true
+yaml_serde.workspace = true
 
 [build-dependencies]
 built.workspace = true
