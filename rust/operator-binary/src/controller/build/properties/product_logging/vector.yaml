@@ -119,7 +119,9 @@ transforms:
   # Extends the processed files with the fields "container" and "file"
   extended_logs_files:
     inputs:
-      - processed_files_*
+      - processed_files_stdout
+      - processed_files_stderr
+      - processed_files_log4j
     type: remap
     source: |
       del(.source_type)
@@ -157,7 +159,8 @@ transforms:
   # Add the fields "namespace", "cluster", "role" and "roleGroup" to all logs
   extended_logs:
     inputs:
-      - extended_logs_*
+      - extended_logs_files
+      - extended_logs_vector
     type: remap
     source: |
       .namespace = "${NAMESPACE}"
@@ -171,4 +174,8 @@ sinks:
     inputs:
       - extended_logs
     type: vector
-    address: ${VECTOR_AGGREGATOR_ADDRESS}
+    routing:
+      endpoints:
+        - ${VECTOR_AGGREGATOR_ADDRESS}
+    compression: zstd
+    keepalive: {}
