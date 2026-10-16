@@ -41,7 +41,7 @@ All notable changes to this project will be documented in this file.
   inputs and role-specific containers, and a shared role-builder then builds the Services,
   ConfigMap and StatefulSet from them ([#833]).
 - Bump stackable-operator to 0.119.0 ([#835]).
-- Support Vector 0.58.0 ([#843], [#847]).
+- Support Vector 0.58.0 ([#843], [#847], [#848]).
 - test: Update OPA to 1.20.2 in integration tests ([#845]).
 - Bump stackable-operator to 0.121.0 and remove `serde_yaml` ([#846]).
 - All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#846]).
@@ -83,6 +83,7 @@ All notable changes to this project will be documented in this file.
 [#845]: https://github.com/stackabletech/hdfs-operator/pull/845
 [#846]: https://github.com/stackabletech/hdfs-operator/pull/846
 [#847]: https://github.com/stackabletech/hdfs-operator/pull/847
+[#848]: https://github.com/stackabletech/hdfs-operator/pull/848
 
 ## [26.7.0] - 2026-07-21
 
