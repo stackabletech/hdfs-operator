@@ -55,7 +55,7 @@ impl HdfsSiteConfigBuilder {
         self.add("dfs.data.transfer.protection", WIRE_ENCRYPTION_PRIVACY);
         self.add("dfs.encrypt.data.transfer", "true");
         self.add(
-            "dfs.encrypt.data.transfer.cipher.suite",
+            "dfs.encrypt.data.transfer.cipher.suites",
             "AES/CTR/NoPadding",
         );
         self
