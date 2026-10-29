@@ -60,6 +60,8 @@ All notable changes to this project will be documented in this file.
 - The warning that `dfsReplication` is greater than the number of datanodes is now raised for
   datanodes. It was previously raised for journalnodes, even though its text refers to datanode
   replicas, and never for datanodes ([#830]).
+- Set `dfs.encrypt.data.transfer.cipher.suites` instead of the misspelt `dfs.encrypt.data.transfer.cipher.suite`.
+  Hadoop ignored the misspelt key, so block data was never encrypted with AES/CTR and was only protected by SASL DIGEST-MD5 ([#XXX]).
 
 ### Removed
 
@@ -86,6 +88,7 @@ All notable changes to this project will be documented in this file.
 [#847]: https://github.com/stackabletech/hdfs-operator/pull/847
 [#848]: https://github.com/stackabletech/hdfs-operator/pull/848
 [#850]: https://github.com/stackabletech/hdfs-operator/pull/850
+[#XXX]: https://github.com/stackabletech/hdfs-operator/pull/XXX
 
 ## [26.7.0] - 2026-07-21
 

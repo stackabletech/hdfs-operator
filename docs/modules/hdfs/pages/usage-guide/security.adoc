@@ -33,7 +33,9 @@ The `kerberos.secretClass` is used to give HDFS the possibility to request keyta
 
 The `tlsSecretClass` is needed to request TLS certificates, used e.g. for the Web UIs.
 
-NOTE: The hdfs-operator defaults to `AES/CTR/NoPadding` for `dfs.encrypt.data.transfer.cipher.suite`. This can be changed using config overrides.
+NOTE: The hdfs-operator sets `dfs.encrypt.data.transfer.cipher.suites` to `AES/CTR/NoPadding`, in the HDFS Pods and in the discovery ConfigMap.
+Block data is only encrypted with AES if both the client and the DataNode set it, so a client that does not use the discovery ConfigMap has to set it itself.
+It can be changed using config overrides, which only apply to the HDFS Pods.
 
 === 4. Verify that Kerberos authentication is required
 Use `stackablectl stacklet list` to get the endpoints where the HDFS namenodes are reachable.
