@@ -10,7 +10,7 @@ edition = "2024"
 repository = "https://github.com/stackabletech/hdfs-operator"
 
 [workspace.dependencies]
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.121.0", features = ["crds", "webhook"] }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.122.0", features = ["crds", "webhook"] }
 
 anyhow = "1.0"
 built = { version = "0.8", features = ["chrono", "git2"] }
@@ -18,13 +18,13 @@ clap = "4.6"
 const_format = "0.2"
 futures = { version = "0.3", features = ["compat"] }
 indoc = "2.0"
-rstest = "0.26"
+rstest = "0.28"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 snafu = "0.9"
 strum = { version = "0.28", features = ["derive"] }
-tokio = { version = "1.53", features = ["full"] }
+tokio = { version = "1.54", features = ["full"] }
 tracing = "0.1"
 tracing-futures = { version = "0.2", features = ["futures-03"] }
 yaml_serde = "0.10"
