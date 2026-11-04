@@ -22,253 +22,349 @@ customConfig:
   transforms:
     validEvents:
       type: filter
-      inputs: [vector]
+      inputs:
+        - vector
       condition: is_null(.errors)
     filteredAutomaticLogConfigNameNode0:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "hdfs"
     filteredAutomaticLogConfigNameNode1:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "hdfs"
     filteredAutomaticLogConfigNameNode0Zkfc:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "zkfc"
     filteredAutomaticLogConfigNameNode1Zkfc:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "zkfc"
+    filteredAutomaticLogConfigNameNode0Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-0" &&
+        .container == "containerdebug"
     filteredAutomaticLogConfigNameNode0Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "vector"
+    filteredAutomaticLogConfigNameNode1Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-automatic-log-namenode-default-1" &&
+        .container == "containerdebug"
     filteredAutomaticLogConfigNameNode1Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "vector"
     filteredAutomaticLogConfigNameNode0FormatNameNodeLog4j:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-namenodes" &&
         .file == "format-namenodes.log4j.xml"
     filteredAutomaticLogConfigNameNode0FormatNameNodeStdout:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-namenodes" &&
         .file == "container.stdout.log"
     filteredAutomaticLogConfigNameNode0FormatNameNodeStderr:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-namenodes" &&
         .file == "container.stderr.log"
     filteredAutomaticLogConfigNameNode1FormatNameNodeLog4j:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "format-namenodes" &&
         .file == "format-namenodes.log4j.xml"
     filteredAutomaticLogConfigNameNode1FormatNameNodeStdout:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "format-namenodes" &&
         .file == "container.stdout.log"
     filteredAutomaticLogConfigNameNode1FormatNameNodeStderr:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "format-namenodes" &&
         .file == "container.stderr.log"
     filteredAutomaticLogConfigNameNode0FormatZookeeperLog4j:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-zookeeper" &&
         .file == "format-zookeeper.log4j.xml"
     filteredAutomaticLogConfigNameNode0FormatZookeeperStdout:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-zookeeper" &&
         .file == "container.stdout.log"
     filteredAutomaticLogConfigNameNode0FormatZookeeperStderr:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-0" &&
         .container == "format-zookeeper" &&
         .file == "container.stderr.log"
     filteredAutomaticLogConfigNameNode1FormatZookeeperStdout:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "format-zookeeper" &&
         .file == "container.stdout.log"
     filteredAutomaticLogConfigNameNode1FormatZookeeperStderr:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-namenode-default-1" &&
         .container == "format-zookeeper" &&
         .file == "container.stderr.log"
     filteredAutomaticLogConfigDataNode0:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "hdfs"
+    filteredAutomaticLogConfigDataNode0Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-automatic-log-datanode-default-0" &&
+        .container == "containerdebug"
     filteredAutomaticLogConfigDataNode0Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "vector"
     filteredAutomaticLogConfigDataNode0WaitForNameNodesLog4j:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "wait-for-namenodes" &&
         .file == "wait-for-namenodes.log4j.xml"
     filteredAutomaticLogConfigDataNode0WaitForNameNodesStdout:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "wait-for-namenodes" &&
         .file == "container.stdout.log"
     filteredAutomaticLogConfigDataNode0WaitForNameNodesStderr:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-datanode-default-0" &&
         .container == "wait-for-namenodes" &&
         .file == "container.stderr.log"
     filteredAutomaticLogConfigJournalNode0:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
         .container == "hdfs"
+    filteredAutomaticLogConfigJournalNode0Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
+        .container == "containerdebug"
     filteredAutomaticLogConfigJournalNode0Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-automatic-log-journalnode-default-0" &&
         .container == "vector"
     filteredCustomLogConfigNameNode0:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-0" &&
         .container == "hdfs"
     filteredCustomLogConfigNameNode1:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-1" &&
         .container == "hdfs"
     filteredCustomLogConfigNameNode0Zkfc:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-0" &&
         .container == "zkfc"
     filteredCustomLogConfigNameNode1Zkfc:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-1" &&
         .container == "zkfc"
+    filteredCustomLogConfigNameNode0Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-0" &&
+        .container == "containerdebug"
     filteredCustomLogConfigNameNode0Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-0" &&
         .container == "vector"
+    filteredCustomLogConfigNameNode1Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-custom-log-namenode-default-1" &&
+        .container == "containerdebug"
     filteredCustomLogConfigNameNode1Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-1" &&
         .container == "vector"
     filteredCustomLogConfigNameNode0FormatNameNodes:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-0" &&
         .container == "format-namenodes"
     filteredCustomLogConfigNameNode1FormatNamenodes:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-1" &&
         .container == "format-namenodes"
     filteredCustomLogConfigNameNode0FormatZookeeper:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-namenode-default-0" &&
         .container == "format-zookeeper"
     filteredCustomLogConfigDataNode0:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-datanode-default-0" &&
         .container == "hdfs"
+    filteredCustomLogConfigDataNode0Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-custom-log-datanode-default-0" &&
+        .container == "containerdebug"
     filteredCustomLogConfigDataNode0Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-datanode-default-0" &&
         .container == "vector"
     filteredCustomLogConfigDataNode0WaitForNameNodes:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-datanode-default-0" &&
         .container == "wait-for-namenodes"
     filteredCustomLogConfigJournalNode0:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-journalnode-default-0" &&
         .container == "hdfs"
+    filteredCustomLogConfigJournalNode0Containerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "test-hdfs-custom-log-journalnode-default-0" &&
+        .container == "containerdebug"
     filteredCustomLogConfigJournalNode0Vector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "test-hdfs-custom-log-journalnode-default-0" &&
         .container == "vector"
     filteredInvalidEvents:
       type: filter
-      inputs: [vector]
+      inputs:
+        - vector
       condition: |-
         .timestamp == from_unix_timestamp!(0) ||
         is_null(.level) ||
@@ -276,11 +372,29 @@ customConfig:
         is_null(.message)
   sinks:
     test:
-      inputs: [filtered*]
+      inputs:
+        - filtered*
       type: blackhole
+    # Shows all events received from the agents. This sink is intentional and
+    # not a debugging leftover: if a "filtered*" transform gathers no event,
+    # then the assertion only reports a count, whereas this log shows which
+    # pod and container names actually arrived. A failure in CI cannot be
+    # reproduced by enabling this afterwards, so it is kept enabled at the
+    # price of the log volume.
+    stdout:
+      inputs:
+        - vector
+      type: console
+      encoding:
+        codec: json
+      buffer:
+        # Avoid back pressure from a stalling stdout. The test should not
+        # fail because of a sink which only aids debugging.
+        when_full: drop_newest
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     aggregator:
-      inputs: [vector]
+      inputs:
+        - vector
       type: vector
       routing:
         endpoints:

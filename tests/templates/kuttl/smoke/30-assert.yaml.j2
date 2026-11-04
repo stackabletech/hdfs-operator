@@ -319,6 +319,7 @@ spec:
 
           rm -f /stackable/log/_vector/shutdown
           prepare_signal_handlers
+          mkdir --parents "$FILE_LOG_DIRECTORY"
           containerdebug --output=/stackable/log/containerdebug-state.json --loop &
           if [[ -d /stackable/listener ]]; then
               export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
@@ -338,8 +339,12 @@ spec:
         env:
         - name: COMMON_VAR
           value: group-value
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
+        - name: FILE_LOG_DIRECTORY
           value: /stackable/log/containerdebug
+        - name: FILE_LOG_MAX_FILES
+          value: "2"
+        - name: FILE_LOG_ROTATION_PERIOD
+          value: hourly
         - name: GROUP_VAR
           value: group-value
         - name: HADOOP_CONF_DIR
@@ -482,8 +487,12 @@ spec:
         env:
         - name: COMMON_VAR
           value: group-value
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
+        - name: FILE_LOG_DIRECTORY
           value: /stackable/log/containerdebug
+        - name: FILE_LOG_MAX_FILES
+          value: "2"
+        - name: FILE_LOG_ROTATION_PERIOD
+          value: hourly
         - name: GROUP_VAR
           value: group-value
         - name: HADOOP_CONF_DIR
@@ -601,8 +610,12 @@ spec:
         env:
         - name: COMMON_VAR
           value: group-value
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
+        - name: FILE_LOG_DIRECTORY
           value: /stackable/log/containerdebug
+        - name: FILE_LOG_MAX_FILES
+          value: "2"
+        - name: FILE_LOG_ROTATION_PERIOD
+          value: hourly
         - name: GROUP_VAR
           value: group-value
         - name: HADOOP_CONF_DIR
@@ -691,8 +704,12 @@ spec:
         env:
         - name: COMMON_VAR
           value: group-value
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
+        - name: FILE_LOG_DIRECTORY
           value: /stackable/log/containerdebug
+        - name: FILE_LOG_MAX_FILES
+          value: "2"
+        - name: FILE_LOG_ROTATION_PERIOD
+          value: hourly
         - name: GROUP_VAR
           value: group-value
         - name: HADOOP_CONF_DIR
@@ -903,6 +920,7 @@ spec:
 
           rm -f /stackable/log/_vector/shutdown
           prepare_signal_handlers
+          mkdir --parents "$FILE_LOG_DIRECTORY"
           containerdebug --output=/stackable/log/containerdebug-state.json --loop &
           if [[ -d /stackable/listener ]]; then
               export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
@@ -922,8 +940,12 @@ spec:
         env:
         - name: COMMON_VAR
           value: group-value
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
+        - name: FILE_LOG_DIRECTORY
           value: /stackable/log/containerdebug
+        - name: FILE_LOG_MAX_FILES
+          value: "2"
+        - name: FILE_LOG_ROTATION_PERIOD
+          value: hourly
         - name: GROUP_VAR
           value: group-value
         - name: HADOOP_CONF_DIR
@@ -1073,8 +1095,12 @@ spec:
         env:
         - name: COMMON_VAR
           value: group-value
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
+        - name: FILE_LOG_DIRECTORY
           value: /stackable/log/containerdebug
+        - name: FILE_LOG_MAX_FILES
+          value: "2"
+        - name: FILE_LOG_ROTATION_PERIOD
+          value: hourly
         - name: GROUP_VAR
           value: group-value
         - name: HADOOP_CONF_DIR
@@ -1297,6 +1323,7 @@ spec:
 
           rm -f /stackable/log/_vector/shutdown
           prepare_signal_handlers
+          mkdir --parents "$FILE_LOG_DIRECTORY"
           containerdebug --output=/stackable/log/containerdebug-state.json --loop &
           if [[ -d /stackable/listener ]]; then
               export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
@@ -1316,8 +1343,12 @@ spec:
         env:
         - name: COMMON_VAR
           value: group-value
-        - name: CONTAINERDEBUG_LOG_DIRECTORY
+        - name: FILE_LOG_DIRECTORY
           value: /stackable/log/containerdebug
+        - name: FILE_LOG_MAX_FILES
+          value: "2"
+        - name: FILE_LOG_ROTATION_PERIOD
+          value: hourly
         - name: GROUP_VAR
           value: group-value
         - name: HADOOP_CONF_DIR

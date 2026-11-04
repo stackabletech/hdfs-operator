@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
   ([#831]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#835]).
 - Name nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#839]).
+- The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
+  the Vector aggregator ([#855]).
 
 ### Changed
 
@@ -62,6 +64,10 @@ All notable changes to this project will be documented in this file.
   replicas, and never for datanodes ([#830]).
 - Set `dfs.encrypt.data.transfer.cipher.suites` instead of the misspelt `dfs.encrypt.data.transfer.cipher.suite`.
   Hadoop ignored the misspelt key, so block data was never encrypted with AES/CTR and was only protected by SASL DIGEST-MD5 ([#854]).
+- The `containerdebug` process writes its log file again. The operator set
+  `CONTAINERDEBUG_LOG_DIRECTORY`, which containerdebug stopped reading in its version 0.2.0 when it
+  moved to `stackable-telemetry`; the directory is now set via `FILE_LOG_DIRECTORY`. The file is
+  rotated hourly and at most two files are kept, because rotation is opt-in ([#855]).
 
 ### Removed
 
@@ -89,6 +95,7 @@ All notable changes to this project will be documented in this file.
 [#848]: https://github.com/stackabletech/hdfs-operator/pull/848
 [#850]: https://github.com/stackabletech/hdfs-operator/pull/850
 [#854]: https://github.com/stackabletech/hdfs-operator/pull/854
+[#855]: https://github.com/stackabletech/hdfs-operator/pull/855
 
 ## [26.7.0] - 2026-07-21
 
