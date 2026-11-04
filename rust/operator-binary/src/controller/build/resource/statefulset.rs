@@ -12,6 +12,7 @@ use stackable_operator::{
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::api::ObjectMeta,
+    v2::rbac::RbacResourceNames,
 };
 
 use crate::controller::build::{
