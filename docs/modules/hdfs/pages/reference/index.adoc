@@ -1,4 +1,5 @@
 = Reference
+:description: Reference for the Stackable operator for Apache Hadoop HDFS, covering CRD fields, discovery ConfigMap properties, CLI parameters and environment variables.
 
 Consult the reference documentation section to find exhaustive information on:
 

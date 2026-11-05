@@ -1,4 +1,5 @@
 = Pod placement
+:description: Pod placement for Apache Hadoop HDFS NameNodes, DataNodes and JournalNodes, covering the default affinities and placement next to OPA.
 
 You can configure Pod placement for HDFS nodes as described in xref:concepts:operations/pod_placement.adoc[].
 

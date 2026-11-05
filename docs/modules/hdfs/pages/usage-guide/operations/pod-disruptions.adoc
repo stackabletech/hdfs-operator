@@ -1,5 +1,6 @@
 
 = Allowed Pod disruptions
+:description: PodDisruptionBudgets for Apache Hadoop HDFS JournalNodes, NameNodes and DataNodes, and how to shorten rolling redeployments of large clusters.
 
 You can configure the permitted Pod disruptions for HDFS nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
 
