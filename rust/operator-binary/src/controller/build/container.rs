@@ -11,6 +11,7 @@
 //!
 use std::{collections::BTreeMap, str::FromStr};
 
+use const_format::concatcp;
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -115,7 +116,9 @@ const ENV_TOPOLOGY_LABELS: &str = "TOPOLOGY_LABELS";
 const ENV_HADOOP_OPTS: &str = "HADOOP_OPTS";
 const ENV_KRB5_CONFIG: &str = "KRB5_CONFIG";
 const ENV_KRB5_CLIENT_KTNAME: &str = "KRB5_CLIENT_KTNAME";
-const ENV_CONTAINERDEBUG_LOG_DIRECTORY: &str = "CONTAINERDEBUG_LOG_DIRECTORY";
+const ENV_FILE_LOG_DIRECTORY: &str = "FILE_LOG_DIRECTORY";
+const ENV_FILE_LOG_MAX_FILES: &str = "FILE_LOG_MAX_FILES";
+const ENV_FILE_LOG_ROTATION_PERIOD: &str = "FILE_LOG_ROTATION_PERIOD";
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -570,6 +573,7 @@ impl ContainerConfig {
                 {COMMON_BASH_TRAP_FUNCTIONS}
                 {remove_vector_shutdown_file_command}
                 prepare_signal_handlers
+                mkdir --parents "$FILE_LOG_DIRECTORY"
                 containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
                 if [[ -d {LISTENER_VOLUME_DIR} ]]; then
                     export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
@@ -859,15 +863,34 @@ impl ContainerConfig {
             );
         }
 
-        // Needed for the `containerdebug` process to log it's tracing information to.
-        env.insert(
-            ENV_CONTAINERDEBUG_LOG_DIRECTORY.to_string(),
-            EnvVar {
-                name: ENV_CONTAINERDEBUG_LOG_DIRECTORY.to_string(),
-                value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-                value_from: None,
-            },
-        );
+        // Let the `containerdebug` process write its tracing information to a file. These are the
+        // generic `stackable-telemetry` variables and apply to the whole container, so any other
+        // telemetry-based process in it would log into the same directory and the Vector agent
+        // would label its events with `container: containerdebug`.
+        // Rotation is opt-in, so without the last two the file would grow unbounded.
+        // Only the main container runs `containerdebug`, so the variables would have no effect
+        // anywhere else.
+        if let ContainerConfig::Hdfs { .. } = self {
+            for (name, value) in [
+                // The directory must be exactly one level below the log directory, because the
+                // Vector agent derives the container name from that path segment.
+                (
+                    ENV_FILE_LOG_DIRECTORY,
+                    concatcp!(STACKABLE_LOG_DIR, "/containerdebug"),
+                ),
+                (ENV_FILE_LOG_ROTATION_PERIOD, "hourly"),
+                (ENV_FILE_LOG_MAX_FILES, "2"),
+            ] {
+                env.insert(
+                    name.to_owned(),
+                    EnvVar {
+                        name: name.to_owned(),
+                        value: Some(value.to_owned()),
+                        ..EnvVar::default()
+                    },
+                );
+            }
+        }
 
         // Overrides need to come last
         let mut env_override_vars: BTreeMap<String, EnvVar> = inputs
@@ -973,6 +996,10 @@ impl ContainerConfig {
                 VolumeBuilder::new(ContainerConfig::STACKABLE_LOG_VOLUME_MOUNT_NAME)
                     .empty_dir(EmptyDirVolumeSource {
                         medium: None,
+                        // Only the log files listed here are budgeted. The `containerdebug`
+                        // files in this volume are rotated by time, not by size, so they have
+                        // no budget; raising `FILE_LOG_LEVEL` via `envOverrides` can therefore
+                        // evict the Pod.
                         size_limit: Some(
                             product_logging::framework::calculate_log_volume_size_limit(&[
                                 MAX_HDFS_LOG_FILE_SIZE,
