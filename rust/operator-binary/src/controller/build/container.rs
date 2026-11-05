@@ -868,24 +868,28 @@ impl ContainerConfig {
         // telemetry-based process in it would log into the same directory and the Vector agent
         // would label its events with `container: containerdebug`.
         // Rotation is opt-in, so without the last two the file would grow unbounded.
-        for (name, value) in [
-            // The directory must be exactly one level below the log directory, because the
-            // Vector agent derives the container name from that path segment.
-            (
-                ENV_FILE_LOG_DIRECTORY,
-                concatcp!(STACKABLE_LOG_DIR, "/containerdebug"),
-            ),
-            (ENV_FILE_LOG_ROTATION_PERIOD, "hourly"),
-            (ENV_FILE_LOG_MAX_FILES, "2"),
-        ] {
-            env.insert(
-                name.to_owned(),
-                EnvVar {
-                    name: name.to_owned(),
-                    value: Some(value.to_owned()),
-                    ..EnvVar::default()
-                },
-            );
+        // Only the main container runs `containerdebug`, so the variables would have no effect
+        // anywhere else.
+        if let ContainerConfig::Hdfs { .. } = self {
+            for (name, value) in [
+                // The directory must be exactly one level below the log directory, because the
+                // Vector agent derives the container name from that path segment.
+                (
+                    ENV_FILE_LOG_DIRECTORY,
+                    concatcp!(STACKABLE_LOG_DIR, "/containerdebug"),
+                ),
+                (ENV_FILE_LOG_ROTATION_PERIOD, "hourly"),
+                (ENV_FILE_LOG_MAX_FILES, "2"),
+            ] {
+                env.insert(
+                    name.to_owned(),
+                    EnvVar {
+                        name: name.to_owned(),
+                        value: Some(value.to_owned()),
+                        ..EnvVar::default()
+                    },
+                );
+            }
         }
 
         // Overrides need to come last
