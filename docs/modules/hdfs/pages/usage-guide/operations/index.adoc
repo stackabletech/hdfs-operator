@@ -1,4 +1,5 @@
 = Operations
+:description: Operating Apache Hadoop HDFS with the Stackable operator, covering graceful shutdown, Pod disruptions, Pod placement, rack awareness and cluster operations.
 
 This section of the documentation is intended for the operations teams that maintain a Stackable Data Platform installation.
 
