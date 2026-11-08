@@ -1,4 +1,5 @@
 = Graceful shutdown
+:description: Graceful shutdown of Apache Hadoop HDFS JournalNodes, NameNodes and DataNodes, covering the configurable shutdown timeout per role.
 
 You can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 

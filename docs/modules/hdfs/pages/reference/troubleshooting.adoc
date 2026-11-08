@@ -1,4 +1,5 @@
 = Troubleshooting
+:description: Recovery of an Apache Hadoop HDFS cluster whose NameNode formatting was interrupted and whose format-namenodes init container keeps failing.
 
 [#init-container-format-namenode-fails]
 == Init container format-namenodes fails
