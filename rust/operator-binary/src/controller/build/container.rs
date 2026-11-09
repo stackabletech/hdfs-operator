@@ -573,7 +573,7 @@ impl ContainerConfig {
                 {COMMON_BASH_TRAP_FUNCTIONS}
                 {remove_vector_shutdown_file_command}
                 prepare_signal_handlers
-                mkdir --parents "$FILE_LOG_DIRECTORY"
+                mkdir --parents "${file_log_directory}" || true
                 containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
                 if [[ -d {LISTENER_VOLUME_DIR} ]]; then
                     export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
@@ -587,6 +587,7 @@ impl ContainerConfig {
                 "#,
                     hadoop_home = Self::HADOOP_HOME,
                     role = role.as_ref(),
+                    file_log_directory = ENV_FILE_LOG_DIRECTORY,
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
                     create_vector_shutdown_file_command =

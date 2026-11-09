@@ -319,7 +319,7 @@ spec:
 
           rm -f /stackable/log/_vector/shutdown
           prepare_signal_handlers
-          mkdir --parents "$FILE_LOG_DIRECTORY"
+          mkdir --parents "$FILE_LOG_DIRECTORY" || true
           containerdebug --output=/stackable/log/containerdebug-state.json --loop &
           if [[ -d /stackable/listener ]]; then
               export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
@@ -902,7 +902,7 @@ spec:
 
           rm -f /stackable/log/_vector/shutdown
           prepare_signal_handlers
-          mkdir --parents "$FILE_LOG_DIRECTORY"
+          mkdir --parents "$FILE_LOG_DIRECTORY" || true
           containerdebug --output=/stackable/log/containerdebug-state.json --loop &
           if [[ -d /stackable/listener ]]; then
               export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
@@ -1299,7 +1299,7 @@ spec:
 
           rm -f /stackable/log/_vector/shutdown
           prepare_signal_handlers
-          mkdir --parents "$FILE_LOG_DIRECTORY"
+          mkdir --parents "$FILE_LOG_DIRECTORY" || true
           containerdebug --output=/stackable/log/containerdebug-state.json --loop &
           if [[ -d /stackable/listener ]]; then
               export POD_ADDRESS=$(cat /stackable/listener/default-address/address)
