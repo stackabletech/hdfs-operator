@@ -24,11 +24,11 @@ case "$1" in
 "helm")
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait zookeeper-operator oci://oci.stackable.tech/sdp-charts/zookeeper-operator --version 0.0.0-dev
-helm install --wait hdfs-operator oci://oci.stackable.tech/sdp-charts/hdfs-operator --version 0.0.0-dev
 helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 0.0.0-dev
 helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 0.0.0-dev
 helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev --set preset=stable-nodes
+helm install --wait zookeeper-operator oci://oci.stackable.tech/sdp-charts/zookeeper-operator --version 0.0.0-dev
+helm install --wait hdfs-operator oci://oci.stackable.tech/sdp-charts/hdfs-operator --version 0.0.0-dev
 # end::helm-install-operators[]
 ;;
 "stackablectl")
@@ -128,6 +128,25 @@ if [ "$status" == "[]" ]; then
   echo "As expected, HDFS is empty"
 else
   echo "Detected status: $status"
+  exit 1
+fi
+
+# The datanode can be ready before it has registered with the namenode;
+# writes fail until it has.
+echo "Waiting for a datanode to register with the namenode ..."
+live=0
+for (( i=1; i<=60; i++ ))
+do
+  live=$(kubectl exec -n default webhdfs-0 -- curl -s "http://simple-hdfs-namenode-default-0.simple-hdfs-namenode-default.default.svc.cluster.local:9870/jmx?qry=Hadoop:service=NameNode,name=FSNamesystemState" | jq -r '.beans[0].NumLiveDataNodes // 0' || echo 0)
+  if [ "$live" -ge 1 ]; then
+    break
+  fi
+
+  sleep 2
+done
+
+if [ "$live" -lt 1 ]; then
+  echo "No datanode registered with the namenode"
   exit 1
 fi
 
