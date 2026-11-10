@@ -176,5 +176,7 @@ mod tests {
         assert!(!content.is_empty());
         // HDFS containers log via log4j to `*.log4j.xml`, so the `files_log4j` source matches them.
         assert!(content.contains("files_log4j"));
+        assert!(content.contains("files_tracing_rs"));
+        assert!(content.contains("*.tracing-rs.json"));
     }
 }
