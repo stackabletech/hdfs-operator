@@ -6,8 +6,8 @@ use stackable_operator::{
 };
 
 use super::{
-    Error, ExtraContainer, ListenerVolumeSnafu, RoleGroupBuilder, RoleGroupInputs,
-    RoleGroupSelectorLabelsSnafu, common_container_logging,
+    Error, ExtraContainer, InvalidContainerdebugConfigSnafu, ListenerVolumeSnafu, RoleGroupBuilder,
+    RoleGroupInputs, RoleGroupSelectorLabelsSnafu, common_container_logging,
 };
 use crate::{
     controller::{
@@ -54,6 +54,16 @@ pub(crate) fn build<'a>(
         DataNodeContainer::Vector,
     );
 
+    let containerdebug =
+        config
+            .common
+            .containerdebug
+            .validate()
+            .context(InvalidContainerdebugConfigSnafu {
+                role: ROLE,
+                role_group: role_group_name.clone(),
+            })?;
+
     let inputs = RoleGroupInputs {
         cluster,
         cluster_info,
@@ -61,6 +71,7 @@ pub(crate) fn build<'a>(
         role_group_name: role_group_name.clone(),
         selector_labels,
         common: config.common.clone(),
+        containerdebug,
         resources: config.resources.clone().into(),
         volume_claim_templates: ContainerConfig::datanode_volume_claim_templates(config),
         // First, because the pod's `volumes` are an ordered list: moving the listener volume

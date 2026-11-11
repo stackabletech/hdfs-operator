@@ -20,6 +20,7 @@ pub(crate) use journalnode::build as build_journalnode_role_group;
 pub(crate) use namenode::build as build_namenode_role_group;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
+    crd::containerdebug::{self, ValidatedContainerdebugConfig},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{
@@ -96,6 +97,13 @@ pub enum Error {
         role: HdfsNodeRole,
         role_group: RoleGroupName,
     },
+
+    #[snafu(display("invalid containerdebug config for role {role} role group {role_group}", role = role.as_ref()))]
+    InvalidContainerdebugConfig {
+        source: containerdebug::Error,
+        role: HdfsNodeRole,
+        role_group: RoleGroupName,
+    },
 }
 
 /// A container only one role runs, named by that role's module together with the log config that
@@ -145,6 +153,9 @@ pub(crate) struct RoleGroupInputs<'a> {
     pub(crate) selector_labels: Labels,
     /// The role group's merged config that is common to every role.
     pub(crate) common: CommonNodeConfig,
+    /// The role group's validated `containerdebug` config, which the main `hdfs` container starts
+    /// `containerdebug` from.
+    pub(crate) containerdebug: ValidatedContainerdebugConfig,
     /// The resource requirements of the role group's main and init containers; the ZKFC sidecar
     /// has fixed requirements of its own and ignores this.
     pub(crate) resources: ResourceRequirements,

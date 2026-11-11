@@ -22,7 +22,10 @@ use stackable_operator::{
     },
     config::{fragment::Fragment, merge::Merge},
     constant,
-    crd::listener,
+    crd::{
+        containerdebug::{default_containerdebug_config, v1alpha1::ContainerdebugConfig},
+        listener,
+    },
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
@@ -328,7 +331,7 @@ pub enum DeprecatedClusterListenerClass {
 }
 
 /// Configuration options that are available for all roles.
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -345,6 +348,10 @@ pub enum DeprecatedClusterListenerClass {
 pub struct CommonNodeConfig {
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+
+    #[fragment_attrs(serde(default))]
+    pub containerdebug: ContainerdebugConfig,
+
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
@@ -668,6 +675,7 @@ impl NameNodeConfigFragment {
             listener_class: Some(DEFAULT_LISTENER_CLASS.clone()),
             common: CommonNodeConfigFragment {
                 affinity: get_affinity(cluster_name, role, opa_config),
+                containerdebug: default_containerdebug_config(),
                 graceful_shutdown_timeout: Some(DEFAULT_NAME_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
                 requested_secret_lifetime: Some(Self::DEFAULT_NAME_NODE_SECRET_LIFETIME),
             },
@@ -758,6 +766,7 @@ impl DataNodeConfigFragment {
                 // Only the NameNode is configured with the OPA authorizer, so this role gets no
                 // affinity to the OPA Pods.
                 affinity: get_affinity(cluster_name, role, None),
+                containerdebug: default_containerdebug_config(),
                 graceful_shutdown_timeout: Some(DEFAULT_DATA_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
                 requested_secret_lifetime: Some(Self::DEFAULT_DATA_NODE_SECRET_LIFETIME),
             },
@@ -786,7 +795,7 @@ pub enum JournalNodeContainer {
     Vector,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -836,6 +845,7 @@ impl JournalNodeConfigFragment {
                 // Only the NameNode is configured with the OPA authorizer, so this role gets no
                 // affinity to the OPA Pods.
                 affinity: get_affinity(cluster_name, role, None),
+                containerdebug: default_containerdebug_config(),
                 graceful_shutdown_timeout: Some(DEFAULT_JOURNAL_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
                 requested_secret_lifetime: Some(Self::DEFAULT_JOURNAL_NODE_SECRET_LIFETIME),
             },

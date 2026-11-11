@@ -6,8 +6,8 @@ use stackable_operator::{
 };
 
 use super::{
-    Error, RoleGroupBuilder, RoleGroupInputs, RoleGroupSelectorLabelsSnafu,
-    common_container_logging,
+    Error, InvalidContainerdebugConfigSnafu, RoleGroupBuilder, RoleGroupInputs,
+    RoleGroupSelectorLabelsSnafu, common_container_logging,
 };
 use crate::{
     controller::{
@@ -44,6 +44,16 @@ pub(crate) fn build<'a>(
         JournalNodeContainer::Vector,
     );
 
+    let containerdebug =
+        config
+            .common
+            .containerdebug
+            .validate()
+            .context(InvalidContainerdebugConfigSnafu {
+                role: ROLE,
+                role_group: role_group_name.clone(),
+            })?;
+
     let inputs = RoleGroupInputs {
         cluster,
         cluster_info,
@@ -51,6 +61,7 @@ pub(crate) fn build<'a>(
         role_group_name: role_group_name.clone(),
         selector_labels,
         common: config.common.clone(),
+        containerdebug,
         resources: config.resources.clone().into(),
         volume_claim_templates: ContainerConfig::journalnode_volume_claim_templates(config),
         extra_pod_volumes: Vec::new(),
