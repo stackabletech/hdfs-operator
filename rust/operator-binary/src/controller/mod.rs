@@ -1,9 +1,13 @@
 use std::{collections::BTreeMap, marker::PhantomData, str::FromStr};
 
 use stackable_operator::{
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        affinity::StackableAffinity,
+        product_image_selection::ResolvedProductImage,
+        resources::{NoRuntimeLimits, Resources},
+    },
     constant,
-    crd::listener,
+    crd::{containerdebug::ValidatedContainerdebugConfig, listener},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service, ServiceAccount},
@@ -11,12 +15,14 @@ use stackable_operator::{
         rbac::v1::RoleBinding,
     },
     kube::{Resource, api::ObjectMeta},
+    product_logging::spec::Logging,
+    shared::time::Duration,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
         role_group_utils::{QualifiedRoleGroupName, ResourceNames},
         role_utils::{self, JavaCommonConfig, RoleGroupConfig},
         types::{
-            kubernetes::{ConfigMapName, NamespaceName, ServiceName, Uid},
+            kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, ServiceName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
                 RoleGroupName,
@@ -29,8 +35,11 @@ use crate::{
     HDFS_OPERATOR_NAME,
     controller::build::opa::HdfsOpaConfig,
     crd::{
-        DataNodeConfig, HdfsNodeRole, JournalNodeConfig, NameNodeConfig, UpgradeState,
-        constants::APP_NAME, security::AuthenticationConfig, v1alpha1,
+        DataNodeContainer, HdfsNodeRole, JournalNodeContainer, NameNodeContainer, UpgradeState,
+        constants::APP_NAME,
+        security::AuthenticationConfig,
+        storage::{DataNodeStorageConfigInnerType, HdfsStorageConfig},
+        v1alpha1,
     },
     hdfs_controller::HDFS_CONTROLLER_NAME,
 };
@@ -72,17 +81,61 @@ pub struct KubernetesResources<T> {
     pub status: PhantomData<T>,
 }
 
+/// The settings every role shares, validated.
+///
+/// This is the merged [`CommonNodeConfig`](crate::crd::CommonNodeConfig) with its `containerdebug`
+/// config validated, so the build step cannot reach a `containerdebug` interval of zero. The two
+/// [`Duration`]s stay optional, exactly as the merge leaves them.
+#[derive(Clone, Debug)]
+pub struct ValidatedCommonNodeConfig {
+    pub affinity: StackableAffinity,
+    /// The role group's validated `containerdebug` config, which the main `hdfs` container starts
+    /// `containerdebug` from.
+    pub containerdebug: ValidatedContainerdebugConfig,
+    pub graceful_shutdown_timeout: Option<Duration>,
+    pub requested_secret_lifetime: Option<Duration>,
+}
+
+/// A namenode role group's validated config: the merged
+/// [`NameNodeConfig`](crate::crd::NameNodeConfig) with its common settings validated.
+#[derive(Clone, Debug)]
+pub struct ValidatedNameNodeConfig {
+    pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
+    pub logging: Logging<NameNodeContainer>,
+    pub listener_class: ListenerClassName,
+    pub common: ValidatedCommonNodeConfig,
+}
+
+/// A datanode role group's validated config: the merged
+/// [`DataNodeConfig`](crate::crd::DataNodeConfig) with its common settings validated.
+#[derive(Clone, Debug)]
+pub struct ValidatedDataNodeConfig {
+    pub resources: Resources<DataNodeStorageConfigInnerType, NoRuntimeLimits>,
+    pub logging: Logging<DataNodeContainer>,
+    pub listener_class: ListenerClassName,
+    pub common: ValidatedCommonNodeConfig,
+}
+
+/// A journalnode role group's validated config: the merged
+/// [`JournalNodeConfig`](crate::crd::JournalNodeConfig) with its common settings validated.
+#[derive(Clone, Debug)]
+pub struct ValidatedJournalNodeConfig {
+    pub resources: Resources<HdfsStorageConfig, NoRuntimeLimits>,
+    pub logging: Logging<JournalNodeContainer>,
+    pub common: ValidatedCommonNodeConfig,
+}
+
 /// The [`RoleGroupConfig`] of one namenode role group.
 pub type NameNodeRoleGroupConfig =
-    RoleGroupConfig<NameNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+    RoleGroupConfig<ValidatedNameNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
 
 /// The [`RoleGroupConfig`] of one datanode role group.
 pub type DataNodeRoleGroupConfig =
-    RoleGroupConfig<DataNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+    RoleGroupConfig<ValidatedDataNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
 
 /// The [`RoleGroupConfig`] of one journalnode role group.
 pub type JournalNodeRoleGroupConfig =
-    RoleGroupConfig<JournalNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
+    RoleGroupConfig<ValidatedJournalNodeConfig, JavaCommonConfig, v1alpha1::HdfsConfigOverrides>;
 
 /// The validated cluster: proves that config merging and validation succeeded
 /// for every role and role group before any resources are created. Placed in the

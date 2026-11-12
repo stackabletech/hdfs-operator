@@ -20,7 +20,6 @@ pub(crate) use journalnode::build as build_journalnode_role_group;
 pub(crate) use namenode::build as build_namenode_role_group;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    crd::containerdebug::{self, ValidatedContainerdebugConfig},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{
@@ -43,8 +42,8 @@ use super::{
     resource,
 };
 use crate::{
-    controller::ValidatedCluster,
-    crd::{CommonNodeConfig, HdfsNodeRole, storage::DataNodeStorageConfigInnerType, v1alpha1},
+    controller::{ValidatedCluster, ValidatedCommonNodeConfig},
+    crd::{HdfsNodeRole, storage::DataNodeStorageConfigInnerType, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
@@ -97,13 +96,6 @@ pub enum Error {
         role: HdfsNodeRole,
         role_group: RoleGroupName,
     },
-
-    #[snafu(display("invalid containerdebug config for role {role} role group {role_group}", role = role.as_ref()))]
-    InvalidContainerdebugConfig {
-        source: containerdebug::Error,
-        role: HdfsNodeRole,
-        role_group: RoleGroupName,
-    },
 }
 
 /// A container only one role runs, named by that role's module together with the log config that
@@ -151,11 +143,9 @@ pub(crate) struct RoleGroupInputs<'a> {
     /// cluster resources to "manage" listeners, which is wrong and leads to errors. The listeners
     /// are managed by the listener-operator.
     pub(crate) selector_labels: Labels,
-    /// The role group's merged config that is common to every role.
-    pub(crate) common: CommonNodeConfig,
-    /// The role group's validated `containerdebug` config, which the main `hdfs` container starts
-    /// `containerdebug` from.
-    pub(crate) containerdebug: ValidatedContainerdebugConfig,
+    /// The role group's validated config that is common to every role, including the
+    /// `containerdebug` config the main `hdfs` container starts `containerdebug` from.
+    pub(crate) common: ValidatedCommonNodeConfig,
     /// The resource requirements of the role group's main and init containers; the ZKFC sidecar
     /// has fixed requirements of its own and ignores this.
     pub(crate) resources: ResourceRequirements,
@@ -202,7 +192,7 @@ pub(crate) struct RoleGroupBuilder<'a> {
     pub(crate) role_group_name: RoleGroupName,
     pub(crate) selector_labels: Labels,
     /// Carried for the pod's affinity and its graceful shutdown timeout.
-    pub(crate) common: CommonNodeConfig,
+    pub(crate) common: ValidatedCommonNodeConfig,
     pub(crate) replicas: Option<u16>,
     pub(crate) pod_overrides: PodTemplateSpec,
     pub(crate) volume_claim_templates: Vec<PersistentVolumeClaim>,

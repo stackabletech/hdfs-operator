@@ -6,6 +6,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection,
     config::{fragment::FromFragment, merge::Merge},
+    crd::containerdebug,
     role_utils::GenericRoleConfig,
     v2::{
         controller_utils::{get_cluster_name, get_namespace, get_uid},
@@ -16,12 +17,14 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus, ValidatedRoleConfig,
-        dereference::DereferencedObjects,
+        ValidatedCluster, ValidatedClusterConfig, ValidatedClusterStatus,
+        ValidatedCommonNodeConfig, ValidatedDataNodeConfig, ValidatedJournalNodeConfig,
+        ValidatedNameNodeConfig, ValidatedRoleConfig, dereference::DereferencedObjects,
     },
     crd::{
-        DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfigFragment, NameNodeConfigFragment,
-        UpgradeStateError, v1alpha1,
+        CommonNodeConfig, DataNodeConfig, DataNodeConfigFragment, HdfsNodeRole, JournalNodeConfig,
+        JournalNodeConfigFragment, NameNodeConfig, NameNodeConfigFragment, UpgradeStateError,
+        v1alpha1,
     },
 };
 
@@ -62,6 +65,13 @@ pub enum Error {
 
     #[snafu(display("invalid upgrade state"))]
     UpgradeState { source: UpgradeStateError },
+
+    #[snafu(display("invalid containerdebug config for role {role} role group {role_group}", role = role.as_ref()))]
+    InvalidContainerdebugConfig {
+        source: containerdebug::Error,
+        role: HdfsNodeRole,
+        role_group: String,
+    },
 }
 
 pub fn validate_cluster(
@@ -92,10 +102,13 @@ pub fn validate_cluster(
     // The first failure propagates, so this order decides which misconfiguration the user is told
     // about when more than one role is wrong. It is `HdfsNodeRole`'s variant order.
     let journalnode_role_group_configs = validate_role_group_configs(
+        HdfsNodeRole::Journal,
         hdfs.spec.journal_nodes.as_ref(),
         JournalNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Journal),
+        validated_journalnode_config,
     )?;
     let namenode_role_group_configs = validate_role_group_configs(
+        HdfsNodeRole::Name,
         hdfs.spec.name_nodes.as_ref(),
         NameNodeConfigFragment::default_config(
             cluster_name.as_ref(),
@@ -106,10 +119,13 @@ pub fn validate_cluster(
                 .as_ref()
                 .map(|authorization| &authorization.opa),
         ),
+        validated_namenode_config,
     )?;
     let datanode_role_group_configs = validate_role_group_configs(
+        HdfsNodeRole::Data,
         hdfs.spec.data_nodes.as_ref(),
         DataNodeConfigFragment::default_config(cluster_name.as_ref(), &HdfsNodeRole::Data),
+        validated_datanode_config,
     )?;
 
     let namespace = get_namespace(hdfs).context(GetClusterNamespaceSnafu)?;
@@ -171,12 +187,17 @@ fn validated_role_config(
 /// [`with_validated_config`], which folds the CRD config fragment (default <-
 /// role <- role group) plus the `configOverrides`, `envOverrides`, `cliOverrides`
 /// and `podOverrides` (role group wins) into a single
-/// [`RoleGroupConfig`].
+/// [`RoleGroupConfig`]. Its merged config is then turned into the role's validated config by
+/// `validated_config`, which is what the build step gets to see.
 ///
 /// Returns an empty map if the role is not configured.
-fn validate_role_group_configs<Config, ValidatedConfig>(
-    role: Option<&Role<Config, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>>,
-    default_config: Config,
+fn validate_role_group_configs<Fragment, Config, ValidatedConfig>(
+    hdfs_role: HdfsNodeRole,
+    role: Option<
+        &Role<Fragment, v1alpha1::HdfsConfigOverrides, GenericRoleConfig, JavaCommonConfig>,
+    >,
+    default_config: Fragment,
+    validated_config: impl Fn(Config, HdfsNodeRole, &str) -> Result<ValidatedConfig, Error>,
 ) -> Result<
     BTreeMap<
         RoleGroupName,
@@ -185,8 +206,8 @@ fn validate_role_group_configs<Config, ValidatedConfig>(
     Error,
 >
 where
-    Config: Clone + Merge,
-    ValidatedConfig: FromFragment<Fragment = Config>,
+    Fragment: Clone + Merge,
+    Config: FromFragment<Fragment = Fragment>,
 {
     let Some(role) = role else {
         return Ok(BTreeMap::new());
@@ -195,10 +216,10 @@ where
     role.role_groups
         .iter()
         .map(|(role_group_name, role_group)| {
-            let validated = with_validated_config::<
-                ValidatedConfig,
-                JavaCommonConfig,
+            let merged = with_validated_config::<
                 Config,
+                JavaCommonConfig,
+                Fragment,
                 GenericRoleConfig,
                 v1alpha1::HdfsConfigOverrides,
             >(role_group, role, &default_config)
@@ -206,13 +227,13 @@ where
 
             // The overrides carry over unchanged.
             let validated = RoleGroupConfig {
-                replicas: validated.replicas,
-                config: validated.config.config,
-                config_overrides: validated.config.config_overrides,
-                env_overrides: validated.config.env_overrides.into(),
-                cli_overrides: validated.config.cli_overrides,
-                pod_overrides: validated.config.pod_overrides,
-                product_specific_common_config: validated.config.product_specific_common_config,
+                replicas: merged.replicas,
+                config: validated_config(merged.config.config, hdfs_role, role_group_name)?,
+                config_overrides: merged.config.config_overrides,
+                env_overrides: merged.config.env_overrides.into(),
+                cli_overrides: merged.config.cli_overrides,
+                pod_overrides: merged.config.pod_overrides,
+                product_specific_common_config: merged.config.product_specific_common_config,
             };
             let role_group_name = RoleGroupName::from_str(role_group_name).with_context(|_| {
                 ParseRoleGroupNameSnafu {
@@ -222,4 +243,163 @@ where
             Ok((role_group_name, validated))
         })
         .collect()
+}
+
+/// Turns a namenode role group's merged [`NameNodeConfig`] into its [`ValidatedNameNodeConfig`].
+///
+/// Destructured without `..`, so a field added to [`NameNodeConfig`] fails to compile here
+/// instead of silently never reaching the build step.
+fn validated_namenode_config(
+    config: NameNodeConfig,
+    role: HdfsNodeRole,
+    role_group_name: &str,
+) -> Result<ValidatedNameNodeConfig, Error> {
+    let NameNodeConfig {
+        resources,
+        logging,
+        listener_class,
+        common,
+    } = config;
+
+    Ok(ValidatedNameNodeConfig {
+        resources,
+        logging,
+        listener_class,
+        common: validated_common_config(common, role, role_group_name)?,
+    })
+}
+
+/// Turns a datanode role group's merged [`DataNodeConfig`] into its [`ValidatedDataNodeConfig`].
+///
+/// Destructured without `..`, so a field added to [`DataNodeConfig`] fails to compile here
+/// instead of silently never reaching the build step.
+fn validated_datanode_config(
+    config: DataNodeConfig,
+    role: HdfsNodeRole,
+    role_group_name: &str,
+) -> Result<ValidatedDataNodeConfig, Error> {
+    let DataNodeConfig {
+        resources,
+        logging,
+        listener_class,
+        common,
+    } = config;
+
+    Ok(ValidatedDataNodeConfig {
+        resources,
+        logging,
+        listener_class,
+        common: validated_common_config(common, role, role_group_name)?,
+    })
+}
+
+/// Turns a journalnode role group's merged [`JournalNodeConfig`] into its
+/// [`ValidatedJournalNodeConfig`].
+///
+/// Destructured without `..`, so a field added to [`JournalNodeConfig`] fails to compile here
+/// instead of silently never reaching the build step.
+fn validated_journalnode_config(
+    config: JournalNodeConfig,
+    role: HdfsNodeRole,
+    role_group_name: &str,
+) -> Result<ValidatedJournalNodeConfig, Error> {
+    let JournalNodeConfig {
+        resources,
+        logging,
+        common,
+    } = config;
+
+    Ok(ValidatedJournalNodeConfig {
+        resources,
+        logging,
+        common: validated_common_config(common, role, role_group_name)?,
+    })
+}
+
+/// Turns the merged [`CommonNodeConfig`] every role shares into its [`ValidatedCommonNodeConfig`].
+///
+/// The `containerdebug` config is the only part that can fail: an interval of zero would make
+/// `containerdebug` collect in a tight loop, so it is rejected here rather than in the build step,
+/// where the role group's objects would already be half built.
+///
+/// Destructured without `..`, so a field added to [`CommonNodeConfig`] fails to compile here
+/// instead of silently never reaching the build step.
+fn validated_common_config(
+    config: CommonNodeConfig,
+    role: HdfsNodeRole,
+    role_group_name: &str,
+) -> Result<ValidatedCommonNodeConfig, Error> {
+    let CommonNodeConfig {
+        affinity,
+        containerdebug,
+        graceful_shutdown_timeout,
+        requested_secret_lifetime,
+    } = config;
+
+    Ok(ValidatedCommonNodeConfig {
+        affinity,
+        containerdebug: containerdebug
+            .validate()
+            .context(InvalidContainerdebugConfigSnafu {
+                role,
+                role_group: role_group_name.to_owned(),
+            })?,
+        graceful_shutdown_timeout,
+        requested_secret_lifetime,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_support::{deserialize_cluster, try_validate_cluster};
+
+    /// The `containerdebug` config is validated per role group, so an invalid one fails the
+    /// validate step and with it the reconciliation -- before any Kubernetes object is built,
+    /// let alone applied. The error names the role and role group it came from, which the
+    /// merged config alone no longer tells the user.
+    #[test]
+    fn zero_containerdebug_interval_fails_validation() {
+        let hdfs = deserialize_cluster(
+            r#"
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+  nameNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    config:
+      containerdebug:
+        interval: 0s
+    roleGroups:
+      default:
+        replicas: 1
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+"#,
+        );
+
+        let Err(error) = try_validate_cluster(&hdfs) else {
+            panic!("the validation should fail");
+        };
+
+        assert!(
+            snafu::Report::from_error(&error)
+                .to_string()
+                .contains("invalid containerdebug config for role journalnode role group default"),
+            "{error:?}"
+        );
+    }
 }

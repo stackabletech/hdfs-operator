@@ -879,13 +879,13 @@ mod test {
 
     use super::*;
     use crate::{
-        controller::build,
+        controller::{ValidatedDataNodeConfig, build},
         crd::storage::{DataNodePvc, HdfsStorageType},
         test_support::{datanode_config, deserialize_and_validate_cluster, role_group_name},
     };
 
     fn datanode_pvc<'a>(
-        datanode_config: &'a DataNodeConfig,
+        datanode_config: &'a ValidatedDataNodeConfig,
         storage_name: &str,
     ) -> &'a DataNodePvc {
         datanode_config

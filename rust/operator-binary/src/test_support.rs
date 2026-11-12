@@ -5,11 +5,10 @@ use stackable_operator::v2::types::operator::RoleGroupName;
 use crate::{
     controller::{
         DataNodeRoleGroupConfig, JournalNodeRoleGroupConfig, NameNodeRoleGroupConfig,
-        ValidatedCluster, validate,
+        ValidatedCluster, ValidatedCommonNodeConfig, ValidatedDataNodeConfig,
+        ValidatedJournalNodeConfig, ValidatedNameNodeConfig, validate,
     },
-    crd::{
-        CommonNodeConfig, DataNodeConfig, HdfsNodeRole, JournalNodeConfig, NameNodeConfig, v1alpha1,
-    },
+    crd::{HdfsNodeRole, v1alpha1},
 };
 
 /// The expected `app.kubernetes.io/version` label value for the given product version.
@@ -24,7 +23,10 @@ pub fn app_version_label(product_version: &str) -> String {
     )
 }
 
-pub fn validate_cluster(hdfs: &v1alpha1::HdfsCluster) -> ValidatedCluster {
+/// Runs the validate step, returning its result so tests can assert on a rejected spec.
+pub fn try_validate_cluster(
+    hdfs: &v1alpha1::HdfsCluster,
+) -> Result<ValidatedCluster, validate::Error> {
     validate::validate_cluster(
         hdfs,
         "oci.example.org",
@@ -34,11 +36,18 @@ pub fn validate_cluster(hdfs: &v1alpha1::HdfsCluster) -> ValidatedCluster {
             discovery_config_map: None,
         },
     )
-    .expect("cluster spec should be valid")
+}
+
+pub fn validate_cluster(hdfs: &v1alpha1::HdfsCluster) -> ValidatedCluster {
+    try_validate_cluster(hdfs).expect("cluster spec should be valid")
+}
+
+pub fn deserialize_cluster(spec: &str) -> v1alpha1::HdfsCluster {
+    stackable_operator::utils::yaml_from_str_singleton_map(spec).expect("")
 }
 
 pub fn deserialize_and_validate_cluster(spec: &str) -> ValidatedCluster {
-    validate_cluster(&stackable_operator::utils::yaml_from_str_singleton_map(spec).expect(""))
+    validate_cluster(&deserialize_cluster(spec))
 }
 
 /// Parses a role group name for use in tests, panicking if it is invalid.
@@ -79,31 +88,31 @@ pub fn journalnode_role_group_config<'a>(
 pub fn namenode_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role_group_name: &RoleGroupName,
-) -> &'a NameNodeConfig {
+) -> &'a ValidatedNameNodeConfig {
     &namenode_role_group_config(validated_cluster, role_group_name).config
 }
 
 pub fn datanode_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role_group_name: &RoleGroupName,
-) -> &'a DataNodeConfig {
+) -> &'a ValidatedDataNodeConfig {
     &datanode_role_group_config(validated_cluster, role_group_name).config
 }
 
 pub fn journalnode_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role_group_name: &RoleGroupName,
-) -> &'a JournalNodeConfig {
+) -> &'a ValidatedJournalNodeConfig {
     &journalnode_role_group_config(validated_cluster, role_group_name).config
 }
 
-/// The merged [`CommonNodeConfig`] of one role group, for tests that assert on the settings every
+/// The validated [`ValidatedCommonNodeConfig`] of one role group, for tests that assert on the settings every
 /// role shares.
 pub fn common_config<'a>(
     validated_cluster: &'a ValidatedCluster,
     role: &HdfsNodeRole,
     role_group_name: &RoleGroupName,
-) -> &'a CommonNodeConfig {
+) -> &'a ValidatedCommonNodeConfig {
     match role {
         HdfsNodeRole::Name => &namenode_config(validated_cluster, role_group_name).common,
         HdfsNodeRole::Data => &datanode_config(validated_cluster, role_group_name).common,
