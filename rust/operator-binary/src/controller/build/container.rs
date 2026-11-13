@@ -60,7 +60,8 @@ use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     controller::{
-        ValidatedCluster,
+        ValidatedCluster, ValidatedDataNodeConfig, ValidatedJournalNodeConfig,
+        ValidatedNameNodeConfig,
         build::{
             self,
             jvm::{self, construct_global_jvm_args, construct_role_specific_jvm_args},
@@ -74,7 +75,7 @@ use crate::{
         },
     },
     crd::{
-        DataNodeConfig, HdfsNodeRole, HdfsPodRef, JournalNodeConfig, NameNodeConfig, UpgradeState,
+        HdfsNodeRole, HdfsPodRef, UpgradeState,
         constants::{
             DATANODE_ROOT_DATA_DIR_PREFIX, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
             LIVENESS_PROBE_FAILURE_THRESHOLD, LIVENESS_PROBE_INITIAL_DELAY_SECONDS,
@@ -337,7 +338,7 @@ impl ContainerConfig {
 
     /// The PVC templates for a namenode role group: one data PVC plus the listener PVC.
     pub fn namenode_volume_claim_templates(
-        config: &NameNodeConfig,
+        config: &ValidatedNameNodeConfig,
         labels: &Labels,
     ) -> Result<Vec<PersistentVolumeClaim>> {
         let listener = ListenerOperatorVolumeSourceBuilder::new(
@@ -369,7 +370,7 @@ impl ContainerConfig {
 
     /// The PVC template for a journalnode role group: one data PVC.
     pub fn journalnode_volume_claim_templates(
-        config: &JournalNodeConfig,
+        config: &ValidatedJournalNodeConfig,
     ) -> Vec<PersistentVolumeClaim> {
         vec![config.resources.storage.data.build_pvc(
             ContainerConfig::DATA_VOLUME_MOUNT_NAME,
@@ -378,7 +379,9 @@ impl ContainerConfig {
     }
 
     /// The PVC templates for a datanode role group, one per configured data volume.
-    pub fn datanode_volume_claim_templates(config: &DataNodeConfig) -> Vec<PersistentVolumeClaim> {
+    pub fn datanode_volume_claim_templates(
+        config: &ValidatedDataNodeConfig,
+    ) -> Vec<PersistentVolumeClaim> {
         DataNodeStorageConfig {
             pvcs: config.resources.storage.clone(),
         }
@@ -390,7 +393,10 @@ impl ContainerConfig {
     /// Datanodes use an ephemeral listener volume, while namenodes use a persistent volume claim
     /// template for stable per-pod identity (see [`Self::namenode_volume_claim_templates`]) and
     /// journalnodes have no listener at all.
-    pub fn datanode_listener_volume(config: &DataNodeConfig, labels: &Labels) -> Result<Volume> {
+    pub fn datanode_listener_volume(
+        config: &ValidatedDataNodeConfig,
+        labels: &Labels,
+    ) -> Result<Volume> {
         Ok(VolumeBuilder::new(&*LISTENER_VOLUME_NAME)
             .ephemeral(
                 ListenerOperatorVolumeSourceBuilder::new(
@@ -574,7 +580,7 @@ impl ContainerConfig {
                 {remove_vector_shutdown_file_command}
                 prepare_signal_handlers
                 mkdir --parents "${file_log_directory}" || true
-                containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+                {containerdebug_command}
                 if [[ -d {LISTENER_VOLUME_DIR} ]]; then
                     export POD_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)
                     for i in {LISTENER_VOLUME_DIR}/default-address/ports/*; do
@@ -588,6 +594,11 @@ impl ContainerConfig {
                     hadoop_home = Self::HADOOP_HOME,
                     role = role.as_ref(),
                     file_log_directory = ENV_FILE_LOG_DIRECTORY,
+                    containerdebug_command = inputs
+                        .common
+                        .containerdebug
+                        .background_command(STACKABLE_LOG_DIR)
+                        .unwrap_or_default(),
                     remove_vector_shutdown_file_command =
                         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
                     create_vector_shutdown_file_command =
