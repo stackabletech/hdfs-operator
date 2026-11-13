@@ -213,7 +213,7 @@ fn validate_role_group_configs<Fragment, Config>(
 ) -> Result<ValidatedRoleGroupConfigs<Config::Validated>, Error>
 where
     Fragment: Clone + Merge,
-    Config: FromFragment<Fragment = Fragment> + IntoValidated,
+    Config: FromFragment<Fragment = Fragment> + IntoValidated<Error = ConfigError>,
 {
     let Some(role) = role else {
         return Ok(BTreeMap::new());
@@ -261,7 +261,7 @@ where
 ///
 /// Every impl destructures the merged config without `..`, so a field added to the CRD struct
 /// fails to compile there instead of silently never reaching the build step.
-// FIXME: `IntoValidated` should be a trait coming from operator-rs.
+// FIXME: Use operator-rs `validation::Validate` and `impl TryFrom` for validation.
 trait IntoValidated {
     /// The validated config the build step gets to see.
     type Validated;
