@@ -272,8 +272,8 @@ trait IntoValidated {
 }
 
 impl IntoValidated for NameNodeConfig {
-    type Validated = ValidatedNameNodeConfig;
     type Error = ConfigError;
+    type Validated = ValidatedNameNodeConfig;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let NameNodeConfig {
@@ -293,8 +293,8 @@ impl IntoValidated for NameNodeConfig {
 }
 
 impl IntoValidated for DataNodeConfig {
-    type Validated = ValidatedDataNodeConfig;
     type Error = ConfigError;
+    type Validated = ValidatedDataNodeConfig;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let DataNodeConfig {
@@ -314,8 +314,8 @@ impl IntoValidated for DataNodeConfig {
 }
 
 impl IntoValidated for JournalNodeConfig {
-    type Validated = ValidatedJournalNodeConfig;
     type Error = ConfigError;
+    type Validated = ValidatedJournalNodeConfig;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let JournalNodeConfig {
@@ -338,8 +338,8 @@ impl IntoValidated for JournalNodeConfig {
 /// `containerdebug` collect in a tight loop. Rejecting it here, rather than in the build step,
 /// means the build step can only ever be handed a validated `containerdebug` config.
 impl IntoValidated for CommonNodeConfig {
-    type Validated = ValidatedCommonNodeConfig;
     type Error = ConfigError;
+    type Validated = ValidatedCommonNodeConfig;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let CommonNodeConfig {
