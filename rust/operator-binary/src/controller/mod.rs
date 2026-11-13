@@ -84,8 +84,7 @@ pub struct KubernetesResources<T> {
 /// The settings every role shares, validated.
 ///
 /// This is the merged [`CommonNodeConfig`](crate::crd::CommonNodeConfig) with its `containerdebug`
-/// config validated, so the build step cannot reach a `containerdebug` interval of zero. The two
-/// [`Duration`]s stay optional, exactly as the merge leaves them.
+/// config validated. Further validations can be implemented later.
 #[derive(Clone, Debug)]
 pub struct ValidatedCommonNodeConfig {
     pub affinity: StackableAffinity,
