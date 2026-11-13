@@ -265,15 +265,15 @@ where
 trait IntoValidated {
     /// The validated config the build step gets to see.
     type Validated;
-    type ConfigError;
+    type Error;
 
     /// Consumes the merged config, as nothing needs it once it is validated.
-    fn validate(self) -> Result<Self::Validated, Self::ConfigError>;
+    fn validate(self) -> Result<Self::Validated, Self::Error>;
 }
 
 impl IntoValidated for NameNodeConfig {
     type Validated = ValidatedNameNodeConfig;
-    type ConfigError = ConfigError;
+    type Error = ConfigError;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let NameNodeConfig {
@@ -294,7 +294,7 @@ impl IntoValidated for NameNodeConfig {
 
 impl IntoValidated for DataNodeConfig {
     type Validated = ValidatedDataNodeConfig;
-    type ConfigError = ConfigError;
+    type Error = ConfigError;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let DataNodeConfig {
@@ -315,7 +315,7 @@ impl IntoValidated for DataNodeConfig {
 
 impl IntoValidated for JournalNodeConfig {
     type Validated = ValidatedJournalNodeConfig;
-    type ConfigError = ConfigError;
+    type Error = ConfigError;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let JournalNodeConfig {
@@ -339,7 +339,7 @@ impl IntoValidated for JournalNodeConfig {
 /// means the build step can only ever be handed a validated `containerdebug` config.
 impl IntoValidated for CommonNodeConfig {
     type Validated = ValidatedCommonNodeConfig;
-    type ConfigError = ConfigError;
+    type Error = ConfigError;
 
     fn validate(self) -> Result<Self::Validated, ConfigError> {
         let CommonNodeConfig {
