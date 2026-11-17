@@ -20,6 +20,7 @@ spec:
 {% endif %}
   nameNodes:
     config:
+      gracefulShutdownTimeout: 1m
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
@@ -27,6 +28,7 @@ spec:
         replicas: 2
   dataNodes:
     config:
+      gracefulShutdownTimeout: 1m
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
@@ -36,6 +38,7 @@ spec:
         replicas: 1
   journalNodes:
     config:
+      gracefulShutdownTimeout: 1m
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
