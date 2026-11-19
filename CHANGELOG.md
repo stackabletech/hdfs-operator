@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [26.11.0-rc1] - 2026-11-19
+
 ### Added
 
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
