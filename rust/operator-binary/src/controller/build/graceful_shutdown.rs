@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::builder::pod::PodBuilder;
 
-use crate::crd::CommonNodeConfig;
+use crate::controller::ValidatedCommonNodeConfig;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -12,7 +12,7 @@ pub enum Error {
 }
 
 pub fn add_graceful_shutdown_config(
-    merged_config: &CommonNodeConfig,
+    merged_config: &ValidatedCommonNodeConfig,
     pod_builder: &mut PodBuilder,
 ) -> Result<(), Error> {
     // This must be always set by the merge mechanism, as we provide a default value,
