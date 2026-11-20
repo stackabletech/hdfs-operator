@@ -3155,7 +3155,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-hdfs-operator"
-version = "26.11.0-rc1"
+version = "26.11.0"
 dependencies = [
  "anyhow",
  "built",
