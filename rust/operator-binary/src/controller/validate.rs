@@ -362,7 +362,59 @@ impl IntoValidated for CommonNodeConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::{deserialize_cluster, try_validate_cluster};
+    use stackable_operator::crd::containerdebug::{
+        DEFAULT_INTERVAL, ValidatedContainerdebugConfig,
+    };
+
+    use crate::test_support::{
+        deserialize_and_validate_cluster, deserialize_cluster, namenode_config, role_group_name,
+        try_validate_cluster,
+    };
+
+    /// A role `config` that does not mention `containerdebug` still gets the default, so the
+    /// `containerdebug` field of the CRD must be optional.
+    #[test]
+    fn containerdebug_defaults_when_not_configured() {
+        let cluster = deserialize_and_validate_cluster(
+            r#"
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+  nameNodes:
+    config:
+      gracefulShutdownTimeout: 1h
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  dataNodes:
+    roleGroups:
+      default:
+        replicas: 1
+"#,
+        );
+
+        assert_eq!(
+            namenode_config(&cluster, &role_group_name("default"))
+                .common
+                .containerdebug,
+            ValidatedContainerdebugConfig::Enabled {
+                interval: DEFAULT_INTERVAL
+            }
+        );
+    }
 
     /// The `containerdebug` config is validated per role group, so an invalid one fails the
     /// validate step and with it the reconciliation -- before any Kubernetes object is built,
