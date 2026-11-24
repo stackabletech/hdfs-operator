@@ -297,6 +297,9 @@ impl ContainerConfig {
                             SecretClassVolumeProvisionParts::PublicPrivate,
                         )
                         .with_service_scope(cluster.name_any())
+                        // Hadoop's HTTP clients request a ticket for `HTTP/<host in URL>`, and the
+                        // URLs between daemons (`/imagetransfer`, `/getJournal`) use pod FQDNs.
+                        .with_pod_scope()
                         .with_kerberos_service_name(role.kerberos_service_name())
                         .with_kerberos_service_name("HTTP")
                         .build()

@@ -493,13 +493,46 @@ pub(crate) fn role_group_selector(
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
     use stackable_operator::{k8s_openapi::api::core::v1::ConfigMap, kube::Resource};
 
     use super::build;
     use crate::{
         controller::build::properties::test_support::{cluster_info, validated_cluster},
-        test_support::namenode_listener,
+        test_support::{deserialize_and_validate_cluster, namenode_listener},
     };
+
+    /// The minimal three-role cluster with Kerberos authentication enabled.
+    const KERBEROS_HDFS_YAML: &str = indoc! {r#"
+        ---
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+          namespace: default
+          uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+        spec:
+          image:
+            productVersion: 3.4.0
+          clusterConfig:
+            zookeeperConfigMapName: hdfs-zk
+            authentication:
+              tlsSecretClass: tls
+              kerberos:
+                secretClass: kerberos
+          nameNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          journalNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          dataNodes:
+            roleGroups:
+              default:
+                replicas: 1
+    "#};
 
     /// The sorted `metadata.name`s of a resource collection.
     fn sorted_names(resources: &[impl Resource]) -> Vec<String> {
@@ -779,6 +812,42 @@ mod tests {
                 has_claim_template, expect_claim_template,
                 "{name} listener volume claim template"
             );
+        }
+    }
+
+    /// Hadoop's HTTP clients request a ticket for `HTTP/<host in URL>`, and daemons address each
+    /// other by pod FQDN, `<pod>.<StatefulSet serviceName>.<namespace>.svc.<cluster domain>`. Each
+    /// role group's `core-site.xml` must therefore name the Service its StatefulSet uses, or
+    /// SPNEGO between daemons fails.
+    #[test]
+    fn kerberos_http_principal_names_the_statefulset_service() {
+        let cluster = deserialize_and_validate_cluster(KERBEROS_HDFS_YAML);
+        let resources = build(&cluster, &cluster_info()).expect("build should succeed");
+        assert_eq!(resources.stateful_sets.len(), 3, "one StatefulSet per role");
+
+        for stateful_set in &resources.stateful_sets {
+            let name = stateful_set
+                .meta()
+                .name
+                .as_deref()
+                .expect("every StatefulSet should have a name");
+            let service_name = stateful_set
+                .spec
+                .as_ref()
+                .and_then(|spec| spec.service_name.as_deref())
+                .expect("every StatefulSet should set serviceName");
+            let core_site = resources
+                .config_maps
+                .iter()
+                .find(|config_map| config_map.meta().name.as_deref() == Some(name))
+                .and_then(|config_map| config_map.data.as_ref())
+                .and_then(|data| data.get("core-site.xml"))
+                .expect("every role group's ConfigMap should contain core-site.xml");
+
+            let expected = format!(
+                "<value>HTTP/${{env.POD_NAME}}.{service_name}.default.svc.cluster.local@${{env.KERBEROS_REALM}}</value>"
+            );
+            assert!(core_site.contains(&expected), "{name}: {core_site}");
         }
     }
 }

@@ -22,6 +22,7 @@ pub fn build(
     role: HdfsNodeRole,
     cluster_info: &KubernetesClusterInfo,
     overrides: KeyValueConfigOverrides,
+    role_group_service_name: &str,
 ) -> String {
     let cluster_config = &cluster.cluster_config;
     let kerberos = KerberosConfig {
@@ -36,7 +37,7 @@ pub fn build(
     core_site
         .fs_default_fs()
         .ha_zookeeper_quorum()
-        .security_config(&kerberos, cluster_info)
+        .security_config(&kerberos, cluster_info, role_group_service_name)
         .enable_prometheus_endpoint()
         // The default (4096) hasn't changed since 2009.
         // Increase to 128k to allow for faster transfers.
@@ -115,11 +116,18 @@ mod tests {
 
     #[test]
     fn renders_operator_defaults() {
+        let role_group_service_name = &validated_cluster()
+            .governing_service_name(
+                &HdfsNodeRole::Name,
+                &"default".parse().expect("valid role group name"),
+            )
+            .to_string();
         let xml = build(
             &validated_cluster(),
             HdfsNodeRole::Name,
             &cluster_info(),
             KeyValueConfigOverrides::default(),
+            role_group_service_name,
         );
         assert!(
             xml.contains(indoc! {"
@@ -143,11 +151,18 @@ mod tests {
 
     #[test]
     fn user_overrides_win_over_defaults() {
+        let role_group_service_name = &validated_cluster()
+            .governing_service_name(
+                &HdfsNodeRole::Name,
+                &"default".parse().expect("valid role group name"),
+            )
+            .to_string();
         let xml = build(
             &validated_cluster(),
             HdfsNodeRole::Name,
             &cluster_info(),
             [("io.file.buffer.size", "65536")].into(),
+            role_group_service_name,
         );
         assert!(
             xml.contains(indoc! {"
