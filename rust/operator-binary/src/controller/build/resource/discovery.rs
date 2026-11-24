@@ -173,11 +173,14 @@ fn build_discovery_core_site_xml(
 mod tests {
     use std::collections::BTreeMap;
 
+    use rstest::rstest;
     use stackable_operator::kube::api::ObjectMeta;
 
     use super::*;
     use crate::{
-        controller::build::properties::test_support::{cluster_info, validated_cluster},
+        controller::build::properties::test_support::{
+            cluster_info, hadoop_property_value, kerberos_validated_cluster, validated_cluster,
+        },
         test_support::namenode_listener,
     };
 
@@ -275,5 +278,40 @@ mod tests {
             build_discovery_config_map(&cluster, &cluster_info()).expect("the build must not fail");
 
         assert!(config_map.is_none());
+    }
+
+    /// Clients load the discovery `core-site.xml`, and some of them run their own Hadoop HTTP
+    /// servers. The settings that secure the HDFS daemons' HTTP endpoints name HDFS pods and
+    /// principals, so they must stay out of the client configuration.
+    #[rstest]
+    #[case::http_authentication("hadoop.http.authentication.")]
+    #[case::http_filter("hadoop.http.filter.initializers")]
+    #[case::principal_mapping("hadoop.security.auth_to_local")]
+    fn kerberos_discovery_core_site_omits_server_http_settings(#[case] name_prefix: &str) {
+        let mut cluster = kerberos_validated_cluster();
+        cluster.namenode_listeners = vec![namenode_listener(
+            "listener-hdfs-namenode-default-0",
+            "namenode-0.example.org",
+            31000,
+        )];
+
+        let config_map = build_discovery_config_map(&cluster, &cluster_info())
+            .expect("the build should not fail")
+            .expect("a fresh ConfigMap should be built");
+        let core_site = config_map
+            .data
+            .as_ref()
+            .and_then(|data| data.get("core-site.xml"))
+            .expect("core-site.xml should be rendered");
+
+        assert_eq!(
+            hadoop_property_value(core_site, "hadoop.security.authentication"),
+            Some("kerberos"),
+            "the discovery config should be the Kerberos one: {core_site}"
+        );
+        assert!(
+            !core_site.contains(&format!("<name>{name_prefix}")),
+            "{core_site}"
+        );
     }
 }

@@ -493,46 +493,18 @@ pub(crate) fn role_group_selector(
 
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
     use stackable_operator::{k8s_openapi::api::core::v1::ConfigMap, kube::Resource};
 
     use super::build;
     use crate::{
-        controller::build::properties::test_support::{cluster_info, validated_cluster},
-        test_support::{deserialize_and_validate_cluster, namenode_listener},
+        controller::build::{
+            container::KERBEROS_VOLUME_NAME,
+            properties::test_support::{
+                cluster_info, hadoop_property_value, kerberos_validated_cluster, validated_cluster,
+            },
+        },
+        test_support::namenode_listener,
     };
-
-    /// The minimal three-role cluster with Kerberos authentication enabled.
-    const KERBEROS_HDFS_YAML: &str = indoc! {r#"
-        ---
-        apiVersion: hdfs.stackable.tech/v1alpha1
-        kind: HdfsCluster
-        metadata:
-          name: hdfs
-          namespace: default
-          uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
-        spec:
-          image:
-            productVersion: 3.4.0
-          clusterConfig:
-            zookeeperConfigMapName: hdfs-zk
-            authentication:
-              tlsSecretClass: tls
-              kerberos:
-                secretClass: kerberos
-          nameNodes:
-            roleGroups:
-              default:
-                replicas: 1
-          journalNodes:
-            roleGroups:
-              default:
-                replicas: 1
-          dataNodes:
-            roleGroups:
-              default:
-                replicas: 1
-    "#};
 
     /// The sorted `metadata.name`s of a resource collection.
     fn sorted_names(resources: &[impl Resource]) -> Vec<String> {
@@ -821,8 +793,8 @@ mod tests {
     /// SPNEGO between daemons fails.
     #[test]
     fn kerberos_http_principal_names_the_statefulset_service() {
-        let cluster = deserialize_and_validate_cluster(KERBEROS_HDFS_YAML);
-        let resources = build(&cluster, &cluster_info()).expect("build should succeed");
+        let resources =
+            build(&kerberos_validated_cluster(), &cluster_info()).expect("build should succeed");
         assert_eq!(resources.stateful_sets.len(), 3, "one StatefulSet per role");
 
         for stateful_set in &resources.stateful_sets {
@@ -836,18 +808,168 @@ mod tests {
                 .as_ref()
                 .and_then(|spec| spec.service_name.as_deref())
                 .expect("every StatefulSet should set serviceName");
-            let core_site = resources
-                .config_maps
-                .iter()
-                .find(|config_map| config_map.meta().name.as_deref() == Some(name))
-                .and_then(|config_map| config_map.data.as_ref())
-                .and_then(|data| data.get("core-site.xml"))
-                .expect("every role group's ConfigMap should contain core-site.xml");
+            let core_site = role_group_core_site(&resources.config_maps, name);
 
             let expected = format!(
                 "<value>HTTP/${{env.POD_NAME}}.{service_name}.default.svc.cluster.local@${{env.KERBEROS_REALM}}</value>"
             );
             assert!(core_site.contains(&expected), "{name}: {core_site}");
+        }
+    }
+
+    /// The `core-site.xml` of the named role group `ConfigMap`.
+    fn role_group_core_site<'a>(config_maps: &'a [ConfigMap], name: &str) -> &'a str {
+        config_maps
+            .iter()
+            .find(|config_map| config_map.meta().name.as_deref() == Some(name))
+            .and_then(|config_map| config_map.data.as_ref())
+            .and_then(|data| data.get("core-site.xml"))
+            .map(String::as_str)
+            .expect("every role group's ConfigMap should contain core-site.xml")
+    }
+
+    /// The pod FQDN principal `HTTP/<pod>.<service>…` only exists if the secret-operator creates
+    /// it, which takes the pod scope plus the `HTTP` service name on the keytab volume. Without
+    /// it, SPNEGO between daemons fails, e.g. a new standby namenode cannot bootstrap.
+    #[test]
+    fn kerberos_keytab_contains_the_pods_http_principal() {
+        let resources =
+            build(&kerberos_validated_cluster(), &cluster_info()).expect("build should succeed");
+        assert_eq!(resources.stateful_sets.len(), 3, "one StatefulSet per role");
+
+        for stateful_set in &resources.stateful_sets {
+            let name = stateful_set
+                .meta()
+                .name
+                .as_deref()
+                .expect("every StatefulSet should have a name");
+            let annotations = stateful_set
+                .spec
+                .as_ref()
+                .and_then(|spec| spec.template.spec.as_ref())
+                .and_then(|pod_spec| pod_spec.volumes.as_ref())
+                .and_then(|volumes| {
+                    volumes
+                        .iter()
+                        .find(|volume| volume.name == KERBEROS_VOLUME_NAME.to_string())
+                })
+                .and_then(|volume| volume.ephemeral.as_ref())
+                .and_then(|ephemeral| ephemeral.volume_claim_template.as_ref())
+                .and_then(|template| template.metadata.as_ref())
+                .and_then(|metadata| metadata.annotations.as_ref())
+                .expect("every StatefulSet should have an annotated kerberos volume");
+            let list = |key: &str| -> Vec<&str> {
+                annotations
+                    .get(key)
+                    .map(|value| value.split(',').collect())
+                    .unwrap_or_default()
+            };
+
+            assert!(
+                list("secrets.stackable.tech/scope").contains(&"pod"),
+                "{name}: {annotations:?}"
+            );
+            assert!(
+                list("secrets.stackable.tech/kerberos.service.names").contains(&"HTTP"),
+                "{name}: {annotations:?}"
+            );
+        }
+    }
+
+    /// Prometheus cannot do SPNEGO, so the path every metrics Service tells it to scrape must be
+    /// whitelisted from Kerberos authentication, or scraping silently fails with 401.
+    #[test]
+    fn kerberos_metrics_scrape_path_skips_authentication() {
+        let resources =
+            build(&kerberos_validated_cluster(), &cluster_info()).expect("build should succeed");
+
+        let mut metrics_services = 0;
+        for service in &resources.services {
+            let name = service
+                .meta()
+                .name
+                .as_deref()
+                .expect("every Service should have a name");
+            let Some(role_group) = name.strip_suffix("-metrics") else {
+                continue;
+            };
+            metrics_services += 1;
+            let path = service
+                .meta()
+                .annotations
+                .as_ref()
+                .and_then(|annotations| annotations.get("prometheus.io/path"))
+                .expect("every metrics Service should set the scrape path");
+            let whitelist = hadoop_property_value(
+                role_group_core_site(&resources.config_maps, role_group),
+                "hadoop.http.authentication.kerberos.endpoint.whitelist",
+            )
+            .expect("every role group should whitelist endpoints from Kerberos authentication");
+
+            assert!(
+                whitelist.split(',').any(|endpoint| endpoint == path),
+                "{name} scrapes {path:?}, whitelist is {whitelist:?}"
+            );
+        }
+        assert_eq!(metrics_services, 3, "one metrics Service per role");
+    }
+
+    /// The HTTP principal in `core-site.xml` contains `${env.POD_NAME}` and
+    /// `${env.KERBEROS_REALM}`. Hadoop leaves an unset variable as literal text, so every
+    /// container that uses the keytab must provide both, or SPNEGO fails at runtime.
+    #[test]
+    fn kerberos_containers_provide_the_principal_variables() {
+        let resources =
+            build(&kerberos_validated_cluster(), &cluster_info()).expect("build should succeed");
+        let kerberos_volume_name = KERBEROS_VOLUME_NAME.to_string();
+
+        for stateful_set in &resources.stateful_sets {
+            let name = stateful_set
+                .meta()
+                .name
+                .as_deref()
+                .expect("every StatefulSet should have a name");
+            let pod_spec = stateful_set
+                .spec
+                .as_ref()
+                .and_then(|spec| spec.template.spec.as_ref())
+                .expect("every StatefulSet should have a pod spec");
+
+            let kerberos_containers: Vec<_> = pod_spec
+                .containers
+                .iter()
+                .chain(pod_spec.init_containers.iter().flatten())
+                .filter(|container| {
+                    container
+                        .volume_mounts
+                        .iter()
+                        .flatten()
+                        .any(|volume_mount| volume_mount.name == kerberos_volume_name)
+                })
+                .collect();
+            assert!(
+                !kerberos_containers.is_empty(),
+                "{name} should have containers using the keytab"
+            );
+
+            for container in kerberos_containers {
+                let sets_pod_name = container.env.iter().flatten().any(|env_var| {
+                    env_var.name == "POD_NAME"
+                        && env_var
+                            .value_from
+                            .as_ref()
+                            .and_then(|source| source.field_ref.as_ref())
+                            .is_some_and(|field_ref| field_ref.field_path == "metadata.name")
+                });
+                let exports_realm = container
+                    .args
+                    .iter()
+                    .flatten()
+                    .any(|arg| arg.contains("export KERBEROS_REALM="));
+
+                assert!(sets_pod_name, "{name}/{}: POD_NAME", container.name);
+                assert!(exports_realm, "{name}/{}: KERBEROS_REALM", container.name);
+            }
         }
     }
 }

@@ -245,7 +245,7 @@ mod tests {
     use rstest::rstest;
 
     use super::*;
-    use crate::controller::build::properties::test_support::cluster_info;
+    use crate::controller::build::properties::test_support::{cluster_info, hadoop_property_value};
 
     /// Renders the core-site security config of the `hdfs` cluster in the `default` namespace
     /// for a pod of the role group Service `hdfs-namenode-default`.
@@ -315,6 +315,29 @@ mod tests {
             r"RULE:[2:$1/$2@$0](jn/hdfs\.default\.svc\.cluster\.local@${env.KERBEROS_REALM})s/.*/nn/&#xA;DEFAULT",
         );
         assert!(xml.contains(&expected), "{xml}");
+    }
+
+    /// The JournalNode logs in as `dfs.journalnode.kerberos.principal`, so the `auth_to_local`
+    /// rule must match exactly that principal, with every dot of the host escaped so that the
+    /// regular expression matches nothing else.
+    #[test]
+    fn auth_to_local_rule_matches_the_journalnode_principal() {
+        let xml = render(true);
+        let journalnode_principal =
+            hadoop_property_value(&xml, "dfs.journalnode.kerberos.principal")
+                .expect("the JournalNode principal should be set");
+        let rule_pattern = hadoop_property_value(&xml, "hadoop.security.auth_to_local")
+            .and_then(|rules| rules.strip_prefix("RULE:[2:$1/$2@$0]("))
+            .and_then(|rule| rule.split_once(")s/"))
+            .map(|(pattern, _)| pattern)
+            .expect("the first auth_to_local rule should map a two-component principal");
+
+        assert_eq!(rule_pattern.replace(r"\.", "."), journalnode_principal);
+        let host_pattern = rule_pattern.replace("${env.KERBEROS_REALM}", "");
+        assert!(
+            !host_pattern.replace(r"\.", "").contains('.'),
+            "unescaped dot in {rule_pattern:?}"
+        );
     }
 
     #[rstest]
