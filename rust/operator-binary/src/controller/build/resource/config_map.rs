@@ -48,6 +48,7 @@ pub(crate) fn common_config_map_data(inputs: &RoleGroupInputs) -> Result<Vec<(St
     let role_group_name = &inputs.role_group_name;
     let config_overrides = &inputs.config_overrides;
     let cluster_config = &cluster.cluster_config;
+    let role_group_service_name = &cluster.governing_service_name(role, role_group_name);
 
     let mut data = vec![
         (
@@ -57,6 +58,7 @@ pub(crate) fn common_config_map_data(inputs: &RoleGroupInputs) -> Result<Vec<(St
                 *role,
                 cluster_info,
                 config_overrides.core_site_xml.clone(),
+                role_group_service_name.as_ref(),
             ),
         ),
         (

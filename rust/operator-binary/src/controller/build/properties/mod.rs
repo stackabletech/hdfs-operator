@@ -86,32 +86,32 @@ pub(crate) mod test_support {
         </configuration>"#};
 
     /// A minimal three-role HdfsCluster used to drive the per-file builder tests.
-    pub const MINIMAL_HDFS_YAML: &str = r#"
----
-apiVersion: hdfs.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: hdfs
-  namespace: default
-  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
-spec:
-  image:
-    productVersion: 3.4.0
-  clusterConfig:
-    zookeeperConfigMapName: hdfs-zk
-  nameNodes:
-    roleGroups:
-      default:
-        replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        replicas: 1
-  dataNodes:
-    roleGroups:
-      default:
-        replicas: 1
-"#;
+    pub const MINIMAL_HDFS_YAML: &str = indoc! {r#"
+        ---
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+          namespace: default
+          uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+        spec:
+          image:
+            productVersion: 3.4.0
+          clusterConfig:
+            zookeeperConfigMapName: hdfs-zk
+          nameNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          journalNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          dataNodes:
+            roleGroups:
+              default:
+                replicas: 1
+    "#};
 
     pub fn cluster_info() -> KubernetesClusterInfo {
         KubernetesClusterInfo {
@@ -121,5 +121,48 @@ spec:
 
     pub fn validated_cluster() -> ValidatedCluster {
         deserialize_and_validate_cluster(MINIMAL_HDFS_YAML)
+    }
+
+    /// The minimal three-role HdfsCluster with Kerberos authentication enabled.
+    pub const KERBEROS_HDFS_YAML: &str = indoc! {r#"
+        ---
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+          namespace: default
+          uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+        spec:
+          image:
+            productVersion: 3.4.0
+          clusterConfig:
+            zookeeperConfigMapName: hdfs-zk
+            authentication:
+              tlsSecretClass: tls
+              kerberos:
+                secretClass: kerberos
+          nameNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          journalNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          dataNodes:
+            roleGroups:
+              default:
+                replicas: 1
+    "#};
+
+    pub fn kerberos_validated_cluster() -> ValidatedCluster {
+        deserialize_and_validate_cluster(KERBEROS_HDFS_YAML)
+    }
+
+    /// The value of the property `name` in rendered Hadoop XML, as written (XML-escaped).
+    pub fn hadoop_property_value<'a>(xml: &'a str, name: &str) -> Option<&'a str> {
+        let after_name = xml.split_once(&format!("<name>{name}</name>"))?.1;
+        let after_value_tag = after_name.split_once("<value>")?.1;
+        Some(after_value_tag.split_once("</value>")?.0)
     }
 }

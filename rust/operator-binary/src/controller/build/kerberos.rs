@@ -67,6 +67,7 @@ impl CoreSiteConfigBuilder {
         &mut self,
         kerberos: &KerberosConfig,
         cluster_info: &KubernetesClusterInfo,
+        role_group_service_name: &str,
     ) -> &mut Self {
         if kerberos.authentication_enabled {
             let principal_host_part = principal_host_part(
@@ -118,6 +119,50 @@ impl CoreSiteConfigBuilder {
                 .add(
                     "dfs.namenode.kerberos.principal.pattern",
                     format!("nn/{principal_host_part}"),
+                )
+                // The following are required to secure WebHDFS
+                .add("hadoop.http.authentication.type", "kerberos")
+                .add(
+                    "hadoop.http.authentication.simple.anonymous.allowed",
+                    "false",
+                )
+                // SPNEGO principal for this pod's own FQDN. A single named principal is read
+                // through the JDK; `*` would make Hadoop parse the keytab with Kerby, which
+                // fails on the hole secret-operator leaves where it removes its dummy entry.
+                .add(
+                    "hadoop.http.authentication.kerberos.principal",
+                    format!(
+                        "HTTP/${{env.POD_NAME}}.{role_group_service_name}.{namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}",
+                        namespace = kerberos.cluster_namespace,
+                        cluster_domain = cluster_info.cluster_domain,
+                    ),
+                )
+                .add(
+                    "hadoop.http.authentication.kerberos.keytab",
+                    format!("{KERBEROS_CONTAINER_PATH}/keytab"),
+                )
+                // DataNodes build their HTTP server without `DFSUtil.getHttpServerTemplate`, so they
+                // only get an authentication filter if one is listed here. NameNodes and JournalNodes
+                // drop `AuthenticationFilterInitializer` from this list and install `AuthFilterInitializer`.
+                .add(
+                    "hadoop.http.filter.initializers",
+                    "org.apache.hadoop.http.lib.StaticUserWebFilter,org.apache.hadoop.security.AuthenticationFilterInitializer",
+                )
+                // Prometheus cannot do SPNEGO, so the metrics endpoint skips authentication.
+                .add("hadoop.http.authentication.kerberos.endpoint.whitelist", "/prom")
+                // NameNodes fetch edits from JournalNodes over SPNEGO, which yields the caller's short
+                // name. `GetJournalEditServlet.isValidRequestor` only accepts a short name equal to the
+                // JournalNode's own, so the JournalNode principal maps to the NameNode's short name.
+                .add(
+                    "hadoop.security.auth_to_local",
+                    format!(
+                        "RULE:[2:$1/$2@$0](jn/{host}@${{env.KERBEROS_REALM}})s/.*/nn/\nDEFAULT",
+                        host = format!("{cluster}.{namespace}.svc.{cluster_domain}",
+                            cluster = kerberos.cluster_name,
+                            namespace = kerberos.cluster_namespace,
+                            cluster_domain = cluster_info.cluster_domain,
+                        ).replace('.', "\\."),
+                    ),
                 );
 
             if !kerberos.authorization_enabled {
@@ -192,4 +237,116 @@ fn principal_host_part(
 ) -> String {
     let cluster_domain = &cluster_info.cluster_domain;
     format!("{cluster_name}.{cluster_namespace}.svc.{cluster_domain}@${{env.KERBEROS_REALM}}")
+}
+
+#[cfg(test)]
+mod tests {
+    use indoc::formatdoc;
+    use rstest::rstest;
+
+    use super::*;
+    use crate::controller::build::properties::test_support::{cluster_info, hadoop_property_value};
+
+    /// Renders the core-site security config of the `hdfs` cluster in the `default` namespace
+    /// for a pod of the role group Service `hdfs-namenode-default`.
+    fn render(authentication_enabled: bool) -> String {
+        let kerberos = KerberosConfig {
+            cluster_name: "hdfs",
+            cluster_namespace: "default",
+            authentication_enabled,
+            kerberos_enabled: authentication_enabled,
+            authorization_enabled: false,
+        };
+        CoreSiteConfigBuilder::new("hdfs".to_owned())
+            .security_config(&kerberos, &cluster_info(), "hdfs-namenode-default")
+            .build_as_xml()
+    }
+
+    fn property(name: &str, value: &str) -> String {
+        formatdoc! {"
+            <name>{name}</name>
+                <value>{value}</value>"}
+    }
+
+    /// Hadoop's HTTP clients request a ticket for `HTTP/<host in URL>`, and daemons address
+    /// each other by pod FQDN, so each pod must accept its own FQDN principal.
+    #[test]
+    fn http_principal_is_the_pods_fqdn() {
+        let xml = render(true);
+
+        let expected = property(
+            "hadoop.http.authentication.kerberos.principal",
+            "HTTP/${env.POD_NAME}.hdfs-namenode-default.default.svc.cluster.local@${env.KERBEROS_REALM}",
+        );
+        assert!(xml.contains(&expected), "{xml}");
+    }
+
+    #[rstest]
+    #[case::kerberos_type("hadoop.http.authentication.type", "kerberos")]
+    #[case::no_anonymous_access("hadoop.http.authentication.simple.anonymous.allowed", "false")]
+    #[case::keytab(
+        "hadoop.http.authentication.kerberos.keytab",
+        "/stackable/kerberos/keytab"
+    )]
+    #[case::datanode_filter(
+        "hadoop.http.filter.initializers",
+        "org.apache.hadoop.http.lib.StaticUserWebFilter,org.apache.hadoop.security.AuthenticationFilterInitializer"
+    )]
+    #[case::unauthenticated_metrics(
+        "hadoop.http.authentication.kerberos.endpoint.whitelist",
+        "/prom"
+    )]
+    fn http_endpoints_require_authentication(#[case] name: &str, #[case] value: &str) {
+        let xml = render(true);
+
+        assert!(xml.contains(&property(name, value)), "{xml}");
+    }
+
+    /// `GetJournalEditServlet` only accepts a requester whose short name equals the
+    /// JournalNode's own, so the JournalNode service principal must map to `nn`, while
+    /// `DEFAULT` keeps every other principal's mapping. The XML writer encodes the newline
+    /// between the two rules as `&#xA;`.
+    #[test]
+    fn journalnode_principal_maps_to_namenode_user() {
+        let xml = render(true);
+
+        let expected = property(
+            "hadoop.security.auth_to_local",
+            r"RULE:[2:$1/$2@$0](jn/hdfs\.default\.svc\.cluster\.local@${env.KERBEROS_REALM})s/.*/nn/&#xA;DEFAULT",
+        );
+        assert!(xml.contains(&expected), "{xml}");
+    }
+
+    /// The JournalNode logs in as `dfs.journalnode.kerberos.principal`, so the `auth_to_local`
+    /// rule must match exactly that principal, with every dot of the host escaped so that the
+    /// regular expression matches nothing else.
+    #[test]
+    fn auth_to_local_rule_matches_the_journalnode_principal() {
+        let xml = render(true);
+        let journalnode_principal =
+            hadoop_property_value(&xml, "dfs.journalnode.kerberos.principal")
+                .expect("the JournalNode principal should be set");
+        let rule_pattern = hadoop_property_value(&xml, "hadoop.security.auth_to_local")
+            .and_then(|rules| rules.strip_prefix("RULE:[2:$1/$2@$0]("))
+            .and_then(|rule| rule.split_once(")s/"))
+            .map(|(pattern, _)| pattern)
+            .expect("the first auth_to_local rule should map a two-component principal");
+
+        assert_eq!(rule_pattern.replace(r"\.", "."), journalnode_principal);
+        let host_pattern = rule_pattern.replace("${env.KERBEROS_REALM}", "");
+        assert!(
+            !host_pattern.replace(r"\.", "").contains('.'),
+            "unescaped dot in {rule_pattern:?}"
+        );
+    }
+
+    #[rstest]
+    #[case::http_authentication("hadoop.http.authentication.")]
+    #[case::http_filter("hadoop.http.filter.initializers")]
+    #[case::principal_mapping("hadoop.security.auth_to_local")]
+    fn no_security_settings_without_authentication(#[case] name_prefix: &str) {
+        let xml = render(false);
+
+        assert!(!xml.contains(&format!("<name>{name_prefix}")), "{xml}");
+    }
 }

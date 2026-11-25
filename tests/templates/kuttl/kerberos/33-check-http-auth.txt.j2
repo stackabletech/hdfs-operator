@@ -1,0 +1,90 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: check-http-auth
+spec:
+  template:
+    spec:
+      serviceAccountName: test-sa
+      containers:
+        - name: check-http-auth
+{% if test_scenario['values']['hadoop'].find(",") > 0 %}
+          image: "{{ test_scenario['values']['hadoop'].split(',')[1] }}"
+{% else %}
+          image: oci.stackable.tech/sdp/hadoop:{{ test_scenario['values']['hadoop'] }}-stackable0.0.0-dev
+{% endif %}
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/kerberos/krb5.conf
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -u
+
+              NAMENODE_0=https://hdfs-namenode-default-0.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:9871
+              NAMENODE_1=https://hdfs-namenode-default-1.hdfs-namenode-default.$NAMESPACE.svc.cluster.local:9871
+              JOURNALNODE=https://hdfs-journalnode-default-0.hdfs-journalnode-default.$NAMESPACE.svc.cluster.local:8481
+              DATANODE=https://hdfs-datanode-default-0.hdfs-datanode-default.$NAMESPACE.svc.cluster.local:9865
+
+              failures=0
+
+              # `-q` must be the first argument, otherwise curl reads the image's `~/.curlrc`,
+              # whose `fail` option hides the status code.
+              expect_status () {
+                expected=$1
+                shift
+                actual=$(curl -q --silent --insecure --output /dev/null --write-out '%{http_code}' "$@")
+                if [ "$actual" = "$expected" ]; then
+                  echo "OK   $actual $*"
+                else
+                  echo "FAIL $actual (expected $expected) $*"
+                  failures=$((failures + 1))
+                fi
+              }
+
+              echo "Without credentials, every endpoint except the metrics requires authentication"
+              for server in $NAMENODE_0 $NAMENODE_1; do
+                expect_status 401 "$server/webhdfs/v1/?op=GETFILESTATUS&user.name=nn"
+              done
+              for server in $NAMENODE_0 $NAMENODE_1 $JOURNALNODE $DATANODE; do
+                expect_status 401 "$server/jmx"
+                expect_status 401 "$server/conf"
+                expect_status 200 "$server/prom"
+              done
+
+              echo "With credentials, SPNEGO authentication succeeds"
+              kinit -kt /stackable/kerberos/keytab admin/check-http-auth.$NAMESPACE.svc.cluster.local
+              for server in $NAMENODE_0 $NAMENODE_1 $JOURNALNODE $DATANODE; do
+                expect_status 200 --negotiate --user : "$server/jmx"
+              done
+              kdestroy
+
+              if [ "$failures" -ne 0 ]; then
+                echo "$failures check(s) failed"
+                exit 1
+              fi
+              echo "Test passed"
+          volumeMounts:
+            - name: kerberos
+              mountPath: /stackable/kerberos
+      volumes:
+        - name: kerberos
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: kerberos-$NAMESPACE
+                  secrets.stackable.tech/scope: service=check-http-auth
+                  secrets.stackable.tech/kerberos.service.names: admin
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
+      securityContext:
+        fsGroup: 1000
+      restartPolicy: OnFailure
