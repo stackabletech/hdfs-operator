@@ -86,32 +86,32 @@ pub(crate) mod test_support {
         </configuration>"#};
 
     /// A minimal three-role HdfsCluster used to drive the per-file builder tests.
-    pub const MINIMAL_HDFS_YAML: &str = r#"
----
-apiVersion: hdfs.stackable.tech/v1alpha1
-kind: HdfsCluster
-metadata:
-  name: hdfs
-  namespace: default
-  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
-spec:
-  image:
-    productVersion: 3.4.0
-  clusterConfig:
-    zookeeperConfigMapName: hdfs-zk
-  nameNodes:
-    roleGroups:
-      default:
-        replicas: 1
-  journalNodes:
-    roleGroups:
-      default:
-        replicas: 1
-  dataNodes:
-    roleGroups:
-      default:
-        replicas: 1
-"#;
+    pub const MINIMAL_HDFS_YAML: &str = indoc! {r#"
+        ---
+        apiVersion: hdfs.stackable.tech/v1alpha1
+        kind: HdfsCluster
+        metadata:
+          name: hdfs
+          namespace: default
+          uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+        spec:
+          image:
+            productVersion: 3.4.0
+          clusterConfig:
+            zookeeperConfigMapName: hdfs-zk
+          nameNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          journalNodes:
+            roleGroups:
+              default:
+                replicas: 1
+          dataNodes:
+            roleGroups:
+              default:
+                replicas: 1
+    "#};
 
     pub fn cluster_info() -> KubernetesClusterInfo {
         KubernetesClusterInfo {
