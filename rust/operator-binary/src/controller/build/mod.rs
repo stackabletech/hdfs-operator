@@ -493,12 +493,18 @@ pub(crate) fn role_group_selector(
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::{k8s_openapi::api::core::v1::ConfigMap, kube::Resource};
+    use stackable_operator::{
+        crd::containerdebug::ValidatedContainerdebugConfig,
+        k8s_openapi::api::{apps::v1::StatefulSet, core::v1::ConfigMap},
+        kube::Resource,
+        shared::time::Duration,
+        v2::product_logging::framework::STACKABLE_LOG_DIR,
+    };
 
     use super::build;
     use crate::{
         controller::build::properties::test_support::{cluster_info, validated_cluster},
-        test_support::namenode_listener,
+        test_support::{deserialize_and_validate_cluster, namenode_listener},
     };
 
     /// The sorted `metadata.name`s of a resource collection.
@@ -780,5 +786,88 @@ mod tests {
                 "{name} listener volume claim template"
             );
         }
+    }
+
+    /// The `containerdebug` line of the main container's args in the `default` role group of
+    /// `role`, if any. The main container is named after its role.
+    fn containerdebug_line(stateful_sets: &[StatefulSet], role: &str) -> Option<String> {
+        let name = format!("hdfs-{role}-default");
+        stateful_sets
+            .iter()
+            .find(|stateful_set| stateful_set.meta().name.as_deref() == Some(name.as_str()))
+            .and_then(|stateful_set| stateful_set.spec.as_ref())
+            .and_then(|spec| spec.template.spec.as_ref())
+            .expect("the StatefulSet has a pod spec")
+            .containers
+            .iter()
+            .find(|container| container.name == role)
+            .and_then(|container| container.args.as_ref())
+            .expect("the main container has args")
+            .join("\n")
+            .lines()
+            .map(str::trim)
+            .find(|line| line.starts_with("containerdebug "))
+            .map(str::to_owned)
+    }
+
+    /// Every role starts `containerdebug` in its main container from its own merged config. The
+    /// command itself is owned (and tested) by operator-rs, so only the wiring is checked here.
+    #[test]
+    fn containerdebug_is_started_per_role_from_the_merged_config() {
+        let cluster = deserialize_and_validate_cluster(
+            r#"
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+  namespace: default
+  uid: c2c8c5c0-0b5a-4b1e-9f3e-1a2b3c4d5e6f
+spec:
+  image:
+    productVersion: 3.4.0
+  clusterConfig:
+    zookeeperConfigMapName: hdfs-zk
+  nameNodes:
+    config:
+      containerdebug:
+        interval: 10m
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    roleGroups:
+      default:
+        replicas: 1
+  dataNodes:
+    config:
+      containerdebug:
+        interval: 10m
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          containerdebug:
+            enabled: false
+"#,
+        );
+        let resources = build(&cluster, &cluster_info()).expect("build succeeds");
+        let enabled = |interval| {
+            ValidatedContainerdebugConfig::Enabled { interval }
+                .background_command(STACKABLE_LOG_DIR)
+        };
+
+        assert_eq!(
+            containerdebug_line(&resources.stateful_sets, "namenode"),
+            enabled(Duration::from_minutes_unchecked(10))
+        );
+        assert_eq!(
+            containerdebug_line(&resources.stateful_sets, "journalnode"),
+            enabled(Duration::from_minutes_unchecked(30))
+        );
+        assert_eq!(
+            containerdebug_line(&resources.stateful_sets, "datanode"),
+            None
+        );
     }
 }

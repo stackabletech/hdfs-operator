@@ -42,8 +42,8 @@ use super::{
     resource,
 };
 use crate::{
-    controller::ValidatedCluster,
-    crd::{CommonNodeConfig, HdfsNodeRole, storage::DataNodeStorageConfigInnerType, v1alpha1},
+    controller::{ValidatedCluster, ValidatedCommonNodeConfig},
+    crd::{HdfsNodeRole, storage::DataNodeStorageConfigInnerType, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
@@ -143,8 +143,9 @@ pub(crate) struct RoleGroupInputs<'a> {
     /// cluster resources to "manage" listeners, which is wrong and leads to errors. The listeners
     /// are managed by the listener-operator.
     pub(crate) selector_labels: Labels,
-    /// The role group's merged config that is common to every role.
-    pub(crate) common: CommonNodeConfig,
+    /// The role group's validated config that is common to every role, including the
+    /// `containerdebug` config the main `hdfs` container starts `containerdebug` from.
+    pub(crate) common: ValidatedCommonNodeConfig,
     /// The resource requirements of the role group's main and init containers; the ZKFC sidecar
     /// has fixed requirements of its own and ignores this.
     pub(crate) resources: ResourceRequirements,
@@ -191,7 +192,7 @@ pub(crate) struct RoleGroupBuilder<'a> {
     pub(crate) role_group_name: RoleGroupName,
     pub(crate) selector_labels: Labels,
     /// Carried for the pod's affinity and its graceful shutdown timeout.
-    pub(crate) common: CommonNodeConfig,
+    pub(crate) common: ValidatedCommonNodeConfig,
     pub(crate) replicas: Option<u16>,
     pub(crate) pod_overrides: PodTemplateSpec,
     pub(crate) volume_claim_templates: Vec<PersistentVolumeClaim>,
