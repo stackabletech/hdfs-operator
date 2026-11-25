@@ -6,13 +6,22 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add the `config.containerdebug` field to roles and role groups ([#860]).
+
+[#860]: https://github.com/stackabletech/hdfs-operator/pull/860
+
+## [26.11.0] - 2026-11-20
+
+## [26.11.0-rc1] - 2026-11-19
+
+### Added
+
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#831]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#835]).
 - Name nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#839]).
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#857]).
-- Add the `config.containerdebug` field to roles and role groups ([#860]).
 
 ### Changed
 
@@ -97,7 +106,6 @@ All notable changes to this project will be documented in this file.
 [#850]: https://github.com/stackabletech/hdfs-operator/pull/850
 [#854]: https://github.com/stackabletech/hdfs-operator/pull/854
 [#857]: https://github.com/stackabletech/hdfs-operator/pull/857
-[#860]: https://github.com/stackabletech/hdfs-operator/pull/860
 
 ## [26.7.0] - 2026-07-21
 
